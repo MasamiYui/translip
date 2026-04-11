@@ -1,0 +1,29 @@
+[project]
+name = "video-voice-separate"
+version = "0.1.0"
+description = "Separate voice and background audio from video or audio inputs."
+readme = "README.md"
+requires-python = ">=3.11,<3.13"
+dependencies = [
+  "demucs>=4.0.1,<5",
+  "imageio-ffmpeg>=0.6.0,<1",
+  "librosa>=0.10.2,<1",
+  "numpy>=1.26,<3",
+  "soundfile>=0.12.1,<1",
+  "torchcodec>=0.8.0,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3,<9",
+]
+
+[project.scripts]
+video-voice-separate = "video_voice_separate.cli:main"
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
