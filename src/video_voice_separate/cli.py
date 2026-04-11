@@ -14,8 +14,9 @@ from .config import (
 from .models.cdx23_dialogue import Cdx23DialogueSeparator
 from .pipeline.ingest import probe_input
 from .pipeline.runner import separate_file
+from .speakers.runner import build_speaker_registry
 from .transcription.runner import transcribe_file
-from .types import SeparationRequest, TranscriptionRequest
+from .types import SeparationRequest, SpeakerRegistryRequest, TranscriptionRequest
 from .utils.logging import configure_logging
 
 
@@ -73,6 +74,19 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser.add_argument("--audio-stream-index", type=int, default=0)
     transcribe_parser.add_argument("--keep-intermediate", action="store_true")
     transcribe_parser.add_argument("--no-srt", action="store_true")
+
+    speaker_parser = subparsers.add_parser(
+        "build-speaker-registry",
+        help="Build speaker profiles and match them against a file-backed speaker registry",
+    )
+    speaker_parser.add_argument("--segments", required=True, help="Task A segments.zh.json path")
+    speaker_parser.add_argument("--audio", required=True, help="Voice track path")
+    speaker_parser.add_argument("--output-dir", default="output-speakers", help="Output directory")
+    speaker_parser.add_argument("--registry", default=None, help="Registry JSON path")
+    speaker_parser.add_argument("--device", default=DEFAULT_DEVICE, choices=["auto", "cpu", "cuda", "mps"])
+    speaker_parser.add_argument("--top-k", type=int, default=3)
+    speaker_parser.add_argument("--update-registry", action="store_true")
+    speaker_parser.add_argument("--keep-intermediate", action="store_true")
 
     probe_parser = subparsers.add_parser("probe", help="Inspect a media file")
     probe_parser.add_argument("--input", required=True, help="Input media file path")
@@ -170,6 +184,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"segments={result.artifacts.segments_json_path}")
         if result.artifacts.srt_path:
             print(f"srt={result.artifacts.srt_path}")
+        print(f"manifest={result.artifacts.manifest_path}")
+        return 0
+
+    if args.command == "build-speaker-registry":
+        request = SpeakerRegistryRequest(
+            segments_path=args.segments,
+            audio_path=args.audio,
+            output_dir=args.output_dir,
+            registry_path=args.registry,
+            device=args.device,
+            top_k=args.top_k,
+            update_registry=args.update_registry,
+            keep_intermediate=args.keep_intermediate,
+        )
+        result = build_speaker_registry(request)
+        print(f"profiles={result.artifacts.profiles_path}")
+        print(f"matches={result.artifacts.matches_path}")
+        print(f"registry={result.artifacts.registry_snapshot_path}")
         print(f"manifest={result.artifacts.manifest_path}")
         return 0
 

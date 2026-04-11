@@ -38,7 +38,20 @@ def prepare_transcription_audio(
     request: TranscriptionRequest,
     work_dir: Path,
 ) -> tuple[MediaInfo, Path]:
-    media_info = probe_input(Path(request.input_path))
+    return prepare_analysis_audio(
+        input_path=Path(request.input_path),
+        audio_stream_index=request.audio_stream_index,
+        work_dir=work_dir,
+    )
+
+
+def prepare_analysis_audio(
+    *,
+    input_path: Path,
+    audio_stream_index: int,
+    work_dir: Path,
+) -> tuple[MediaInfo, Path]:
+    media_info = probe_input(input_path)
     if media_info.audio_stream_count == 0:
         raise VideoVoiceSeparateError("Input file does not contain an audio stream")
 
@@ -46,9 +59,9 @@ def prepare_transcription_audio(
     temp_dir.mkdir(parents=True, exist_ok=True)
     working_audio = temp_dir / "transcription_input.wav"
     extract_audio(
-        input_path=Path(request.input_path),
+        input_path=input_path,
         output_path=working_audio,
-        audio_stream_index=request.audio_stream_index,
+        audio_stream_index=audio_stream_index,
         sample_rate=TRANSCRIPTION_SAMPLE_RATE,
         channels=1,
     )

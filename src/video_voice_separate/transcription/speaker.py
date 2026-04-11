@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from functools import lru_cache
 from pathlib import Path
 
 import numpy as np
-import soundfile as sf
-import torch
 from sklearn.cluster import AgglomerativeClustering
-from speechbrain.inference.speaker import EncoderClassifier
 
-from ..config import CACHE_ROOT
+from ..speaker_embedding import (
+    embedding_for_clip,
+    extract_audio_clip,
+    load_speechbrain_classifier,
+    read_audio_mono,
+    resolve_speaker_device,
+)
 from .asr import AsrSegment
 
 logger = logging.getLogger(__name__)
@@ -31,40 +33,6 @@ class EmbeddingGroup:
     start: float
     end: float
     segment_indices: list[int]
-
-
-def resolve_speaker_device(requested_device: str) -> str:
-    if requested_device == "cuda":
-        if not torch.cuda.is_available():
-            logger.warning(
-                "CUDA requested for speaker embeddings but is unavailable. Falling back to CPU."
-            )
-            return "cpu"
-        return "cuda"
-    if requested_device == "auto":
-        return "cuda" if torch.cuda.is_available() else "cpu"
-    if requested_device == "mps":
-        logger.info("SpeechBrain speaker embedding runs on CPU for this pipeline.")
-        return "cpu"
-    return "cpu"
-
-
-@lru_cache(maxsize=2)
-def _load_classifier(device: str) -> EncoderClassifier:
-    savedir = CACHE_ROOT / "speechbrain" / "spkrec-ecapa-voxceleb"
-    return EncoderClassifier.from_hparams(
-        source="speechbrain/spkrec-ecapa-voxceleb",
-        savedir=str(savedir),
-        run_opts={"device": device},
-    )
-
-
-def _normalize_embedding(embedding: np.ndarray) -> np.ndarray:
-    norm = np.linalg.norm(embedding)
-    if norm <= 1e-12:
-        return embedding
-    return embedding / norm
-
 
 def _expanded_window(
     segment: AsrSegment,
@@ -162,34 +130,21 @@ def _build_embedding_groups(
         )
     )
     return groups
-
-
-def _read_audio(audio_path: Path) -> tuple[np.ndarray, int]:
-    waveform, sample_rate = sf.read(audio_path, dtype="float32", always_2d=False)
-    if waveform.ndim == 2:
-        waveform = waveform.mean(axis=1)
-    return waveform, sample_rate
-
-
 def _segment_embedding(
-    classifier: EncoderClassifier,
+    classifier,
     waveform: np.ndarray,
     sample_rate: int,
     window: SpeakerWindow,
 ) -> np.ndarray | None:
-    start_idx = max(0, int(window.start * sample_rate))
-    end_idx = min(len(waveform), int(window.end * sample_rate))
-    if end_idx <= start_idx:
-        return None
-
-    clip = waveform[start_idx:end_idx]
+    clip = extract_audio_clip(
+        waveform,
+        sample_rate,
+        start=window.start,
+        end=window.end,
+    )
     if clip.size < int(0.25 * sample_rate):
         return None
-
-    tensor = torch.from_numpy(clip).float().unsqueeze(0)
-    with torch.inference_mode():
-        embedding = classifier.encode_batch(tensor).squeeze().detach().cpu().numpy()
-    return _normalize_embedding(embedding.astype(np.float32))
+    return embedding_for_clip(classifier, clip)
 
 
 def _pairwise_similarities(embeddings: np.ndarray) -> np.ndarray:
@@ -281,10 +236,10 @@ def assign_speaker_labels(
     if not segments:
         return [], {"speaker_backend": "speechbrain-ecapa", "speaker_count": 0}
 
-    waveform, sample_rate = _read_audio(audio_path)
+    waveform, sample_rate = read_audio_mono(audio_path)
     audio_duration = len(waveform) / float(sample_rate)
     device = resolve_speaker_device(requested_device)
-    classifier = _load_classifier(device)
+    classifier = load_speechbrain_classifier(device)
 
     groups = _build_embedding_groups(segments)
     embeddings: list[np.ndarray | None] = []

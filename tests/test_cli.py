@@ -45,3 +45,24 @@ def test_cli_transcribe_parser() -> None:
     assert args.language == "zh"
     assert args.asr_model == "small"
     assert args.no_srt is True
+
+
+def test_cli_build_speaker_registry_parser() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "build-speaker-registry",
+            "--segments",
+            "segments.zh.json",
+            "--audio",
+            "voice.wav",
+            "--registry",
+            "registry/speaker_registry.json",
+            "--update-registry",
+        ]
+    )
+    assert args.command == "build-speaker-registry"
+    assert args.segments == "segments.zh.json"
+    assert args.audio == "voice.wav"
+    assert args.registry == "registry/speaker_registry.json"
+    assert args.update_registry is True

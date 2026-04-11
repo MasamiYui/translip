@@ -5,5 +5,8 @@
 __pycache__/
 *.pyc
 output/
+output-task-a/
+output-task-b/
 tmp/
 work/
+test_video/
