@@ -66,3 +66,28 @@ def test_cli_build_speaker_registry_parser() -> None:
     assert args.audio == "voice.wav"
     assert args.registry == "registry/speaker_registry.json"
     assert args.update_registry is True
+
+
+def test_cli_translate_script_parser() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "translate-script",
+            "--segments",
+            "segments.zh.json",
+            "--profiles",
+            "speaker_profiles.json",
+            "--target-lang",
+            "ja",
+            "--backend",
+            "siliconflow",
+            "--api-model",
+            "deepseek-ai/DeepSeek-V3",
+        ]
+    )
+    assert args.command == "translate-script"
+    assert args.segments == "segments.zh.json"
+    assert args.profiles == "speaker_profiles.json"
+    assert args.target_lang == "ja"
+    assert args.backend == "siliconflow"
+    assert args.api_model == "deepseek-ai/DeepSeek-V3"

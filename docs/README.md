@@ -22,3 +22,17 @@
   Task B technical design
 - [task-b-test-report.md](./task-b-test-report.md)
   Task B implementation validation report
+
+## Task C
+
+- [task-c-dubbing-script-generation.md](./task-c-dubbing-script-generation.md)
+  Task C technical design
+- [task-c-test-report.md](./task-c-test-report.md)
+  Task C implementation validation report
+
+## Supporting Files
+
+- [../config/glossary.example.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/config/glossary.example.json)
+  Example glossary for protected terms such as place names and landmarks
+- [../scripts/run_task_a_to_c.py](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/scripts/run_task_a_to_c.py)
+  Demo script that runs stage 1 plus tasks A to C in sequence

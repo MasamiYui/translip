@@ -235,7 +235,7 @@ uv run video-voice-separate build-speaker-registry \
 
 下一步可以进入:
 
-- `任务 C: 面向配音的英文脚本生成`
+- `任务 C: 面向配音的多语种翻译脚本生成`
 
 如果你希望先把 speaker 侧继续做强，也可以先做任务 B 的增强版:
 

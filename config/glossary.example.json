@@ -1,0 +1,22 @@
+{
+  "entries": [
+    {
+      "entry_id": "place-dubai",
+      "source_variants": ["迪拜"],
+      "targets": {
+        "en": "Dubai",
+        "ja": "ドバイ",
+        "zh-Hans": "迪拜"
+      }
+    },
+    {
+      "entry_id": "landmark-burj-khalifa",
+      "source_variants": ["哈里巴塔", "哈里法塔", "哈利法塔", "哈里发塔"],
+      "targets": {
+        "en": "Burj Khalifa",
+        "ja": "ブルジュ・ハリファ",
+        "zh-Hans": "哈利法塔"
+      }
+    }
+  ]
+}

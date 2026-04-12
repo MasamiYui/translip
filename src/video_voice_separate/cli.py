@@ -8,6 +8,11 @@ from .config import (
     DEFAULT_DEVICE,
     DEFAULT_MODE,
     DEFAULT_OUTPUT_FORMAT,
+    DEFAULT_TRANSLATION_BACKEND,
+    DEFAULT_TRANSLATION_BATCH_SIZE,
+    DEFAULT_TRANSLATION_LOCAL_MODEL,
+    DEFAULT_TRANSLATION_SOURCE_LANG,
+    DEFAULT_TRANSLATION_TARGET_LANG,
     DEFAULT_TRANSCRIPTION_ASR_MODEL,
     DEFAULT_TRANSCRIPTION_LANGUAGE,
 )
@@ -15,8 +20,9 @@ from .models.cdx23_dialogue import Cdx23DialogueSeparator
 from .pipeline.ingest import probe_input
 from .pipeline.runner import separate_file
 from .speakers.runner import build_speaker_registry
+from .translation.runner import translate_script
 from .transcription.runner import transcribe_file
-from .types import SeparationRequest, SpeakerRegistryRequest, TranscriptionRequest
+from .types import SeparationRequest, SpeakerRegistryRequest, TranscriptionRequest, TranslationRequest
 from .utils.logging import configure_logging
 
 
@@ -87,6 +93,39 @@ def build_parser() -> argparse.ArgumentParser:
     speaker_parser.add_argument("--top-k", type=int, default=3)
     speaker_parser.add_argument("--update-registry", action="store_true")
     speaker_parser.add_argument("--keep-intermediate", action="store_true")
+
+    translate_parser = subparsers.add_parser(
+        "translate-script",
+        help="Generate a multilingual translation script for downstream dubbing",
+    )
+    translate_parser.add_argument("--segments", required=True, help="Task A segments.zh.json path")
+    translate_parser.add_argument("--profiles", required=True, help="Task B speaker_profiles.json path")
+    translate_parser.add_argument("--output-dir", default="output-task-c", help="Output directory")
+    translate_parser.add_argument(
+        "--source-lang",
+        default=DEFAULT_TRANSLATION_SOURCE_LANG,
+        help="Source language code, e.g. zh or auto",
+    )
+    translate_parser.add_argument(
+        "--target-lang",
+        default=DEFAULT_TRANSLATION_TARGET_LANG,
+        help="Target language code, e.g. en or ja",
+    )
+    translate_parser.add_argument(
+        "--backend",
+        default=DEFAULT_TRANSLATION_BACKEND,
+        choices=["local-m2m100", "siliconflow"],
+    )
+    translate_parser.add_argument("--device", default=DEFAULT_DEVICE, choices=["auto", "cpu", "cuda", "mps"])
+    translate_parser.add_argument("--glossary", default=None, help="Optional glossary JSON path")
+    translate_parser.add_argument("--batch-size", type=int, default=DEFAULT_TRANSLATION_BATCH_SIZE)
+    translate_parser.add_argument(
+        "--local-model",
+        default=DEFAULT_TRANSLATION_LOCAL_MODEL,
+        help="Local translation model name for the M2M100 backend",
+    )
+    translate_parser.add_argument("--api-model", default=None, help="Override SiliconFlow model name")
+    translate_parser.add_argument("--api-base-url", default=None, help="Override SiliconFlow base URL")
 
     probe_parser = subparsers.add_parser("probe", help="Inspect a media file")
     probe_parser.add_argument("--input", required=True, help="Input media file path")
@@ -202,6 +241,28 @@ def main(argv: list[str] | None = None) -> int:
         print(f"profiles={result.artifacts.profiles_path}")
         print(f"matches={result.artifacts.matches_path}")
         print(f"registry={result.artifacts.registry_snapshot_path}")
+        print(f"manifest={result.artifacts.manifest_path}")
+        return 0
+
+    if args.command == "translate-script":
+        request = TranslationRequest(
+            segments_path=args.segments,
+            profiles_path=args.profiles,
+            output_dir=args.output_dir,
+            source_lang=args.source_lang,
+            target_lang=args.target_lang,
+            backend=args.backend,
+            device=args.device,
+            glossary_path=args.glossary,
+            batch_size=args.batch_size,
+            local_model=args.local_model,
+            api_model=args.api_model,
+            api_base_url=args.api_base_url,
+        )
+        result = translate_script(request)
+        print(f"translation={result.artifacts.translation_json_path}")
+        print(f"editable={result.artifacts.editable_json_path}")
+        print(f"srt={result.artifacts.srt_path}")
         print(f"manifest={result.artifacts.manifest_path}")
         return 0
 
