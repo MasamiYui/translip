@@ -6,6 +6,8 @@ from pathlib import Path
 
 from .config import (
     DEFAULT_DEVICE,
+    DEFAULT_DUBBING_BACKEND,
+    DEFAULT_DUBBING_BACKREAD_MODEL,
     DEFAULT_MODE,
     DEFAULT_OUTPUT_FORMAT,
     DEFAULT_TRANSLATION_BACKEND,
@@ -16,13 +18,20 @@ from .config import (
     DEFAULT_TRANSCRIPTION_ASR_MODEL,
     DEFAULT_TRANSCRIPTION_LANGUAGE,
 )
+from .dubbing.runner import synthesize_speaker
 from .models.cdx23_dialogue import Cdx23DialogueSeparator
 from .pipeline.ingest import probe_input
 from .pipeline.runner import separate_file
 from .speakers.runner import build_speaker_registry
 from .translation.runner import translate_script
 from .transcription.runner import transcribe_file
-from .types import SeparationRequest, SpeakerRegistryRequest, TranscriptionRequest, TranslationRequest
+from .types import (
+    DubbingRequest,
+    SeparationRequest,
+    SpeakerRegistryRequest,
+    TranscriptionRequest,
+    TranslationRequest,
+)
 from .utils.logging import configure_logging
 
 
@@ -126,6 +135,40 @@ def build_parser() -> argparse.ArgumentParser:
     )
     translate_parser.add_argument("--api-model", default=None, help="Override SiliconFlow model name")
     translate_parser.add_argument("--api-base-url", default=None, help="Override SiliconFlow base URL")
+
+    synthesize_parser = subparsers.add_parser(
+        "synthesize-speaker",
+        help="Synthesize target-language audio for a single speaker from Task B/C artifacts",
+    )
+    synthesize_parser.add_argument("--translation", required=True, help="Task C translation.<target_tag>.json path")
+    synthesize_parser.add_argument("--profiles", required=True, help="Task B speaker_profiles.json path")
+    synthesize_parser.add_argument("--speaker-id", required=True, help="Speaker id to synthesize, e.g. spk_0000")
+    synthesize_parser.add_argument("--output-dir", default="output-task-d", help="Output directory")
+    synthesize_parser.add_argument(
+        "--backend",
+        default=DEFAULT_DUBBING_BACKEND,
+        choices=["f5tts", "openvoice"],
+    )
+    synthesize_parser.add_argument("--device", default=DEFAULT_DEVICE, choices=["auto", "cpu", "cuda", "mps"])
+    synthesize_parser.add_argument("--reference-clip", default=None, help="Optional reference clip override")
+    synthesize_parser.add_argument(
+        "--segment-id",
+        action="append",
+        dest="segment_ids",
+        help="Limit synthesis to selected segment ids; may be passed multiple times",
+    )
+    synthesize_parser.add_argument(
+        "--max-segments",
+        type=int,
+        default=None,
+        help="Optional cap on the number of synthesized segments after filtering",
+    )
+    synthesize_parser.add_argument(
+        "--backread-model",
+        default=DEFAULT_DUBBING_BACKREAD_MODEL,
+        help="faster-whisper model name used for generated-audio backread checks",
+    )
+    synthesize_parser.add_argument("--keep-intermediate", action="store_true")
 
     probe_parser = subparsers.add_parser("probe", help="Inspect a media file")
     probe_parser.add_argument("--input", required=True, help="Input media file path")
@@ -263,6 +306,28 @@ def main(argv: list[str] | None = None) -> int:
         print(f"translation={result.artifacts.translation_json_path}")
         print(f"editable={result.artifacts.editable_json_path}")
         print(f"srt={result.artifacts.srt_path}")
+        print(f"manifest={result.artifacts.manifest_path}")
+        return 0
+
+    if args.command == "synthesize-speaker":
+        request = DubbingRequest(
+            translation_path=args.translation,
+            profiles_path=args.profiles,
+            output_dir=args.output_dir,
+            speaker_id=args.speaker_id,
+            backend=args.backend,
+            device=args.device,
+            reference_clip_path=args.reference_clip,
+            segment_ids=args.segment_ids,
+            max_segments=args.max_segments,
+            keep_intermediate=args.keep_intermediate,
+            backread_model=args.backread_model,
+        )
+        result = synthesize_speaker(request)
+        if result.artifacts.demo_audio_path:
+            print(f"demo={result.artifacts.demo_audio_path}")
+        print(f"segments={result.artifacts.segments_dir}")
+        print(f"report={result.artifacts.report_path}")
         print(f"manifest={result.artifacts.manifest_path}")
         return 0
 

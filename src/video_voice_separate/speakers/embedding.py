@@ -37,7 +37,7 @@ def enrich_reference_embeddings(
                 start=clip.start,
                 end=clip.end,
             )
-            embedding = embedding_for_clip(classifier, clip_waveform)
+            embedding = embedding_for_clip(classifier, clip_waveform, sample_rate)
             clip.embedding = embedding
             if embedding is not None:
                 embedding_dim = int(embedding.shape[0])

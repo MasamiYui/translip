@@ -91,3 +91,33 @@ def test_cli_translate_script_parser() -> None:
     assert args.target_lang == "ja"
     assert args.backend == "siliconflow"
     assert args.api_model == "deepseek-ai/DeepSeek-V3"
+
+
+def test_cli_synthesize_speaker_parser() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "synthesize-speaker",
+            "--translation",
+            "translation.en.json",
+            "--profiles",
+            "speaker_profiles.json",
+            "--speaker-id",
+            "spk_0000",
+            "--backend",
+            "f5tts",
+            "--segment-id",
+            "seg-0001",
+            "--segment-id",
+            "seg-0002",
+            "--max-segments",
+            "2",
+        ]
+    )
+    assert args.command == "synthesize-speaker"
+    assert args.translation == "translation.en.json"
+    assert args.profiles == "speaker_profiles.json"
+    assert args.speaker_id == "spk_0000"
+    assert args.backend == "f5tts"
+    assert args.segment_ids == ["seg-0001", "seg-0002"]
+    assert args.max_segments == 2

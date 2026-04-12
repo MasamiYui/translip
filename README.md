@@ -13,6 +13,8 @@ The repository currently contains two working stages:
   Input `voice` and output speaker-attributed transcript plus file-backed speaker registry artifacts
 3. Translation script generation
   Input Task A/B artifacts and output multilingual translation scripts for downstream dubbing
+4. Single-speaker target-language synthesis
+  Input Task B/C artifacts and output segment-level cloned speech plus Task D evaluation reports
 
 ## Quick Start
 
@@ -125,12 +127,55 @@ uv run python scripts/run_task_a_to_c.py \
   --translation-backend local-m2m100
 ```
 
+### Stage 2D: Single-Speaker Voice Cloning
+
+`Task D` currently ships with a working `F5-TTS` development backend and an
+`OpenVoice V2` placeholder backend interface for later production work.
+
+```bash
+uv run video-voice-separate synthesize-speaker \
+  --translation ./output-task-c/voice/translation.en.json \
+  --profiles ./output-task-b/voice/speaker_profiles.json \
+  --speaker-id spk_0001 \
+  --output-dir ./output-task-d \
+  --backend f5tts \
+  --device auto
+```
+
+Outputs:
+
+- `speaker_segments.<target_tag>.json`
+- `speaker_demo.<target_tag>.wav`
+- `task-d-manifest.json`
+
+Notes:
+
+- The first `F5-TTS` run downloads the model checkpoint and vocoder into
+  `~/.cache/video-voice-separate/f5-tts/assets/`
+- `Task D` is currently tuned for short single-speaker segments, not long
+  paragraph-length lines
+- `OpenVoice V2` is reserved as the next backend because current work is focused
+  on getting the local `MacBook M4 16GB` development path stable first
+
+### Demo Script: Stage 1 To Task D
+
+```bash
+uv run python scripts/run_task_a_to_d.py \
+  --input ./test_video/example.mp4 \
+  --output-root ./tmp/e2e-task-a-to-d \
+  --target-lang en \
+  --translation-backend local-m2m100 \
+  --tts-backend f5tts \
+  --max-segments 3
+```
+
 ## Commands
 
 - `video-voice-separate run`: separate a file into `voice` and `background`
 - `video-voice-separate transcribe`: build a speaker-attributed transcript from a voice track
 - `video-voice-separate build-speaker-registry`: build speaker profiles and match them against a file-backed registry
 - `video-voice-separate translate-script`: generate a translation script for downstream dubbing
+- `video-voice-separate synthesize-speaker`: synthesize target-language speech for one speaker and export Task D evaluation artifacts
 - `video-voice-separate probe`: inspect input media metadata
 - `video-voice-separate download-models`: download backend checkpoints into cache
 
@@ -146,3 +191,5 @@ uv run python scripts/run_task_a_to_c.py \
 - [docs/task-b-test-report.md](docs/task-b-test-report.md): Task B validation report
 - [docs/task-c-dubbing-script-generation.md](docs/task-c-dubbing-script-generation.md): Task C design
 - [docs/task-c-test-report.md](docs/task-c-test-report.md): Task C validation report
+- [docs/task-d-single-speaker-voice-cloning.md](docs/task-d-single-speaker-voice-cloning.md): Task D design
+- [docs/task-d-test-report.md](docs/task-d-test-report.md): Task D validation report

@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
   "demucs>=4.0.1,<5",
+  "f5-tts>=1.1.18",
   "faster-whisper>=1.1.1,<2",
   "imageio-ffmpeg>=0.6.0,<1",
   "librosa>=0.10.2,<1",

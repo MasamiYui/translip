@@ -30,9 +30,18 @@
 - [task-c-test-report.md](./task-c-test-report.md)
   Task C implementation validation report
 
+## Task D
+
+- [task-d-single-speaker-voice-cloning.md](./task-d-single-speaker-voice-cloning.md)
+  Task D technical design
+- [task-d-test-report.md](./task-d-test-report.md)
+  Task D implementation validation report
+
 ## Supporting Files
 
 - [../config/glossary.example.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/config/glossary.example.json)
   Example glossary for protected terms such as place names and landmarks
 - [../scripts/run_task_a_to_c.py](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/scripts/run_task_a_to_c.py)
   Demo script that runs stage 1 plus tasks A to C in sequence
+- [../scripts/run_task_a_to_d.py](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/scripts/run_task_a_to_d.py)
+  Demo script that runs stage 1 plus tasks A to D in sequence

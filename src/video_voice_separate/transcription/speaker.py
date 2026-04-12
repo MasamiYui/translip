@@ -144,7 +144,7 @@ def _segment_embedding(
     )
     if clip.size < int(0.25 * sample_rate):
         return None
-    return embedding_for_clip(classifier, clip)
+    return embedding_for_clip(classifier, clip, sample_rate)
 
 
 def _pairwise_similarities(embeddings: np.ndarray) -> np.ndarray:
