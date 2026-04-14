@@ -7,7 +7,7 @@
 - [speaker-aware-dubbing-plan.md](./speaker-aware-dubbing-plan.md)
   Overall plan for speaker-aware multilingual dubbing
 - [speaker-aware-dubbing-task-breakdown.md](./speaker-aware-dubbing-task-breakdown.md)
-  Task breakdown for Tasks A to F
+  Task breakdown for Tasks A to G
 
 ## Task A
 
@@ -43,6 +43,20 @@
   Task E technical design
 - [task-e-test-report.md](./task-e-test-report.md)
   Task E implementation validation report
+
+## Task F
+
+- [task-f-pipeline-and-engineering-orchestration.md](./task-f-pipeline-and-engineering-orchestration.md)
+  Task F technical design
+- [task-f-test-report.md](./task-f-test-report.md)
+  Task F implementation validation report
+
+## Task G
+
+- [task-g-final-video-delivery.md](./task-g-final-video-delivery.md)
+  Task G technical design
+- [task-g-test-report.md](./task-g-test-report.md)
+  Task G implementation validation report
 
 ## Supporting Files
 

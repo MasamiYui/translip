@@ -6,6 +6,11 @@ from pathlib import Path
 
 from .config import (
     DEFAULT_DEVICE,
+    DEFAULT_DELIVERY_AUDIO_BITRATE,
+    DEFAULT_DELIVERY_AUDIO_CODEC,
+    DEFAULT_DELIVERY_CONTAINER,
+    DEFAULT_DELIVERY_END_POLICY,
+    DEFAULT_DELIVERY_VIDEO_CODEC,
     DEFAULT_DUBBING_BACKEND,
     DEFAULT_DUBBING_BACKREAD_MODEL,
     DEFAULT_MODE,
@@ -26,8 +31,11 @@ from .config import (
     DEFAULT_TRANSCRIPTION_ASR_MODEL,
     DEFAULT_TRANSCRIPTION_LANGUAGE,
 )
+from .delivery.runner import export_video
 from .dubbing.runner import synthesize_speaker
 from .models.cdx23_dialogue import Cdx23DialogueSeparator
+from .orchestration.request import build_pipeline_request
+from .orchestration.runner import run_pipeline
 from .pipeline.ingest import probe_input
 from .pipeline.runner import separate_file
 from .rendering.runner import render_dub
@@ -36,6 +44,7 @@ from .translation.runner import translate_script
 from .transcription.runner import transcribe_file
 from .types import (
     DubbingRequest,
+    ExportVideoRequest,
     RenderDubRequest,
     SeparationRequest,
     SpeakerRegistryRequest,
@@ -262,6 +271,84 @@ def build_parser() -> argparse.ArgumentParser:
         help="Checkpoint set to download",
     )
     download_parser.add_argument("--force", action="store_true", help="Redownload weights")
+
+    pipeline_parser = subparsers.add_parser(
+        "run-pipeline",
+        help="Run stage 1 through task-e with cache-aware orchestration",
+    )
+    pipeline_parser.add_argument("--config", default=None, help="Optional pipeline JSON config path")
+    pipeline_parser.add_argument("--input", required=True, help="Input video or audio path")
+    pipeline_parser.add_argument("--output-root", default=None)
+    pipeline_parser.add_argument("--target-lang", default=None)
+    pipeline_parser.add_argument(
+        "--translation-backend",
+        default=None,
+        choices=["local-m2m100", "siliconflow"],
+    )
+    pipeline_parser.add_argument(
+        "--tts-backend",
+        default=None,
+        choices=["qwen3tts"],
+    )
+    pipeline_parser.add_argument("--device", default=None, choices=["auto", "cpu", "cuda", "mps"])
+    pipeline_parser.add_argument("--run-from-stage", default=None)
+    pipeline_parser.add_argument("--run-to-stage", default=None)
+    pipeline_parser.add_argument("--resume", action="store_true", default=None)
+    pipeline_parser.add_argument("--force-stage", action="append", dest="force_stages")
+    pipeline_parser.add_argument("--reuse-existing", dest="reuse_existing", action=argparse.BooleanOptionalAction, default=None)
+    pipeline_parser.add_argument("--write-status", dest="write_status", action=argparse.BooleanOptionalAction, default=None)
+    pipeline_parser.add_argument(
+        "--status-update-interval-sec",
+        type=float,
+        default=None,
+    )
+    pipeline_parser.add_argument("--glossary-path", default=None)
+    pipeline_parser.add_argument("--registry-path", default=None)
+    pipeline_parser.add_argument("--api-model", default=None)
+    pipeline_parser.add_argument("--api-base-url", default=None)
+    pipeline_parser.add_argument("--fit-policy", default=None, choices=["conservative", "high_quality"])
+    pipeline_parser.add_argument("--fit-backend", default=None, choices=["atempo", "rubberband"])
+    pipeline_parser.add_argument("--mix-profile", default=None, choices=["preview", "enhanced"])
+    pipeline_parser.add_argument("--ducking-mode", default=None, choices=["static", "sidechain"])
+    pipeline_parser.add_argument("--preview-format", default=None, choices=["wav", "mp3"])
+    pipeline_parser.add_argument("--output-sample-rate", type=int, default=None)
+    pipeline_parser.add_argument("--background-gain-db", type=float, default=None)
+    pipeline_parser.add_argument("--window-ducking-db", type=float, default=None)
+    pipeline_parser.add_argument("--max-compress-ratio", type=float, default=None)
+    pipeline_parser.add_argument("--speaker-limit", type=int, default=None)
+    pipeline_parser.add_argument("--segments-per-speaker", type=int, default=None)
+    pipeline_parser.add_argument("--separation-mode", default=None, choices=["music", "dialogue", "auto"])
+    pipeline_parser.add_argument("--separation-quality", default=None, choices=["balanced", "high"])
+    pipeline_parser.add_argument("--stage1-output-format", default=None, choices=["wav", "mp3", "flac", "aac", "opus"])
+    pipeline_parser.add_argument("--transcription-language", default=None)
+    pipeline_parser.add_argument("--asr-model", default=None)
+    pipeline_parser.add_argument("--audio-stream-index", type=int, default=None)
+    pipeline_parser.add_argument("--top-k", type=int, default=None)
+    pipeline_parser.add_argument("--update-registry", dest="update_registry", action=argparse.BooleanOptionalAction, default=None)
+    pipeline_parser.add_argument("--keep-logs", dest="keep_logs", action=argparse.BooleanOptionalAction, default=None)
+
+    export_parser = subparsers.add_parser(
+        "export-video",
+        help="Mux Task E audio back into the source video and export delivery mp4 files",
+    )
+    export_parser.add_argument("--input-video", default=None)
+    export_parser.add_argument("--pipeline-root", default=None)
+    export_parser.add_argument("--task-e-dir", default=None)
+    export_parser.add_argument("--output-dir", default=None)
+    export_parser.add_argument("--target-lang", default=None)
+    export_parser.add_argument("--export-preview", dest="export_preview", action=argparse.BooleanOptionalAction, default=True)
+    export_parser.add_argument("--export-dub", dest="export_dub", action=argparse.BooleanOptionalAction, default=True)
+    export_parser.add_argument("--container", choices=["mp4"], default=DEFAULT_DELIVERY_CONTAINER)
+    export_parser.add_argument("--video-codec", choices=["copy", "libx264"], default=DEFAULT_DELIVERY_VIDEO_CODEC)
+    export_parser.add_argument("--audio-codec", choices=["aac"], default=DEFAULT_DELIVERY_AUDIO_CODEC)
+    export_parser.add_argument("--audio-bitrate", default=DEFAULT_DELIVERY_AUDIO_BITRATE)
+    export_parser.add_argument(
+        "--end-policy",
+        choices=["trim_audio_to_video", "keep_longest"],
+        default=DEFAULT_DELIVERY_END_POLICY,
+    )
+    export_parser.add_argument("--overwrite", dest="overwrite", action=argparse.BooleanOptionalAction, default=True)
+    export_parser.add_argument("--keep-temp", dest="keep_temp", action=argparse.BooleanOptionalAction, default=False)
     return parser
 
 
@@ -429,6 +516,42 @@ def main(argv: list[str] | None = None) -> int:
         print(f"timeline={result.artifacts.timeline_path}")
         print(f"mix_report={result.artifacts.mix_report_path}")
         print(f"manifest={result.artifacts.manifest_path}")
+        return 0
+
+    if args.command == "run-pipeline":
+        request = build_pipeline_request(vars(args))
+        result = run_pipeline(request)
+        print(f"pipeline_manifest={result.manifest_path}")
+        print(f"pipeline_report={result.report_path}")
+        print(f"pipeline_status={result.status_path}")
+        print(f"task_e_dub_voice={result.report['final_artifacts'].get('dub_voice_path')}")
+        print(f"task_e_preview_mix={result.report['final_artifacts'].get('preview_mix_path')}")
+        return 0
+
+    if args.command == "export-video":
+        request = ExportVideoRequest(
+            input_video_path=args.input_video,
+            pipeline_root=args.pipeline_root,
+            task_e_dir=args.task_e_dir,
+            output_dir=args.output_dir,
+            target_lang=args.target_lang,
+            export_preview=args.export_preview,
+            export_dub=args.export_dub,
+            container=args.container,
+            video_codec=args.video_codec,
+            audio_codec=args.audio_codec,
+            audio_bitrate=args.audio_bitrate,
+            end_policy=args.end_policy,
+            overwrite=args.overwrite,
+            keep_temp=args.keep_temp,
+        )
+        result = export_video(request)
+        if result.artifacts.preview_video_path:
+            print(f"final_preview_video={result.artifacts.preview_video_path}")
+        if result.artifacts.dub_video_path:
+            print(f"final_dub_video={result.artifacts.dub_video_path}")
+        print(f"delivery_manifest={result.artifacts.manifest_path}")
+        print(f"delivery_report={result.artifacts.report_path}")
         return 0
 
     parser.error("Unknown command")

@@ -16,6 +16,12 @@ FitBackendName = Literal["atempo", "rubberband"]
 MixProfileName = Literal["preview", "enhanced"]
 DuckingModeName = Literal["static", "sidechain"]
 PreviewFormat = Literal["wav", "mp3"]
+PipelineStageName = Literal["stage1", "task-a", "task-b", "task-c", "task-d", "task-e"]
+PipelineStageStatus = Literal["pending", "running", "succeeded", "cached", "failed", "skipped"]
+DeliveryContainer = Literal["mp4"]
+DeliveryVideoCodec = Literal["copy", "libx264"]
+DeliveryAudioCodec = Literal["aac"]
+DeliveryEndPolicy = Literal["trim_audio_to_video", "keep_longest"]
 
 
 @dataclass(slots=True)
@@ -372,3 +378,180 @@ class RenderDubResult:
     artifacts: RenderDubArtifacts
     manifest: dict[str, Any]
     work_dir: Path
+
+
+@dataclass(slots=True)
+class PipelineRequest:
+    input_path: Path | str
+    output_root: Path | str = Path("output-pipeline")
+    config_path: Path | str | None = None
+    target_lang: str = "en"
+    translation_backend: TranslationBackendName = "local-m2m100"
+    tts_backend: TtsBackendName = "qwen3tts"
+    device: Device = "auto"
+    run_from_stage: PipelineStageName = "stage1"
+    run_to_stage: PipelineStageName = "task-e"
+    resume: bool = False
+    force_stages: list[PipelineStageName] | None = None
+    reuse_existing: bool = True
+    keep_logs: bool = True
+    write_status: bool = True
+    status_update_interval_sec: float = 2.0
+    glossary_path: Path | str | None = None
+    registry_path: Path | str | None = None
+    api_model: str | None = None
+    api_base_url: str | None = None
+    fit_policy: FitPolicy = "conservative"
+    fit_backend: FitBackendName = "atempo"
+    mix_profile: MixProfileName = "preview"
+    ducking_mode: DuckingModeName = "static"
+    preview_format: PreviewFormat = "wav"
+    output_sample_rate: int = 24_000
+    background_gain_db: float = -8.0
+    window_ducking_db: float = -3.0
+    max_compress_ratio: float = 1.45
+    speaker_limit: int = 0
+    segments_per_speaker: int = 0
+    separation_mode: Mode = "dialogue"
+    separation_quality: Quality = "balanced"
+    stage1_output_format: OutputFormat = "mp3"
+    transcription_language: str = "zh"
+    asr_model: str = "small"
+    audio_stream_index: int = 0
+    top_k: int = 3
+    update_registry: bool = True
+
+    def normalized(self) -> "PipelineRequest":
+        return PipelineRequest(
+            input_path=Path(self.input_path).expanduser().resolve(),
+            output_root=Path(self.output_root).expanduser().resolve(),
+            config_path=(
+                Path(self.config_path).expanduser().resolve()
+                if self.config_path is not None
+                else None
+            ),
+            target_lang=self.target_lang,
+            translation_backend=self.translation_backend,
+            tts_backend=self.tts_backend,
+            device=self.device,
+            run_from_stage=self.run_from_stage,
+            run_to_stage=self.run_to_stage,
+            resume=self.resume,
+            force_stages=list(self.force_stages) if self.force_stages else None,
+            reuse_existing=self.reuse_existing,
+            keep_logs=self.keep_logs,
+            write_status=self.write_status,
+            status_update_interval_sec=self.status_update_interval_sec,
+            glossary_path=(
+                Path(self.glossary_path).expanduser().resolve()
+                if self.glossary_path is not None
+                else None
+            ),
+            registry_path=(
+                Path(self.registry_path).expanduser().resolve()
+                if self.registry_path is not None
+                else None
+            ),
+            api_model=self.api_model,
+            api_base_url=self.api_base_url,
+            fit_policy=self.fit_policy,
+            fit_backend=self.fit_backend,
+            mix_profile=self.mix_profile,
+            ducking_mode=self.ducking_mode,
+            preview_format=self.preview_format,
+            output_sample_rate=self.output_sample_rate,
+            background_gain_db=self.background_gain_db,
+            window_ducking_db=self.window_ducking_db,
+            max_compress_ratio=self.max_compress_ratio,
+            speaker_limit=self.speaker_limit,
+            segments_per_speaker=self.segments_per_speaker,
+            separation_mode=self.separation_mode,
+            separation_quality=self.separation_quality,
+            stage1_output_format=self.stage1_output_format,
+            transcription_language=self.transcription_language,
+            asr_model=self.asr_model,
+            audio_stream_index=self.audio_stream_index,
+            top_k=self.top_k,
+            update_registry=self.update_registry,
+        )
+
+
+@dataclass(slots=True)
+class PipelineResult:
+    request: PipelineRequest
+    output_root: Path
+    manifest_path: Path
+    report_path: Path
+    status_path: Path
+    request_path: Path
+    manifest: dict[str, Any]
+    report: dict[str, Any]
+
+
+@dataclass(slots=True)
+class ExportVideoRequest:
+    input_video_path: Path | str | None = None
+    pipeline_root: Path | str | None = None
+    task_e_dir: Path | str | None = None
+    output_dir: Path | str | None = None
+    target_lang: str | None = None
+    export_preview: bool = True
+    export_dub: bool = True
+    container: DeliveryContainer = "mp4"
+    video_codec: DeliveryVideoCodec = "copy"
+    audio_codec: DeliveryAudioCodec = "aac"
+    audio_bitrate: str | None = "192k"
+    end_policy: DeliveryEndPolicy = "trim_audio_to_video"
+    overwrite: bool = True
+    keep_temp: bool = False
+
+    def normalized(self) -> "ExportVideoRequest":
+        return ExportVideoRequest(
+            input_video_path=(
+                Path(self.input_video_path).expanduser().resolve()
+                if self.input_video_path is not None
+                else None
+            ),
+            pipeline_root=(
+                Path(self.pipeline_root).expanduser().resolve()
+                if self.pipeline_root is not None
+                else None
+            ),
+            task_e_dir=(
+                Path(self.task_e_dir).expanduser().resolve()
+                if self.task_e_dir is not None
+                else None
+            ),
+            output_dir=(
+                Path(self.output_dir).expanduser().resolve()
+                if self.output_dir is not None
+                else None
+            ),
+            target_lang=self.target_lang,
+            export_preview=self.export_preview,
+            export_dub=self.export_dub,
+            container=self.container,
+            video_codec=self.video_codec,
+            audio_codec=self.audio_codec,
+            audio_bitrate=self.audio_bitrate,
+            end_policy=self.end_policy,
+            overwrite=self.overwrite,
+            keep_temp=self.keep_temp,
+        )
+
+
+@dataclass(slots=True)
+class ExportVideoArtifacts:
+    output_dir: Path
+    preview_video_path: Path | None
+    dub_video_path: Path | None
+    manifest_path: Path
+    report_path: Path
+
+
+@dataclass(slots=True)
+class ExportVideoResult:
+    request: ExportVideoRequest
+    artifacts: ExportVideoArtifacts
+    manifest: dict[str, Any]
+    report: dict[str, Any]

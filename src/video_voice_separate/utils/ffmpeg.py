@@ -190,3 +190,42 @@ def export_audio(
     args.append(str(output_path))
     run_ffmpeg(args)
     return output_path
+
+
+def mux_video_with_audio(
+    *,
+    input_video_path: Path,
+    input_audio_path: Path,
+    output_path: Path,
+    video_codec: str = "copy",
+    audio_codec: str = "aac",
+    audio_bitrate: str | None = None,
+    end_policy: str = "trim_audio_to_video",
+) -> Path:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    args = [
+        "-y",
+        "-i",
+        str(input_video_path),
+        "-i",
+        str(input_audio_path),
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        "-c:v",
+        video_codec,
+        "-c:a",
+        audio_codec,
+    ]
+    if audio_bitrate:
+        args.extend(["-b:a", audio_bitrate])
+    if end_policy == "trim_audio_to_video":
+        args.extend(["-af", "apad", "-shortest"])
+    elif end_policy == "keep_longest":
+        args.extend(["-af", "apad"])
+    else:
+        raise FFmpegError(f"Unsupported end policy: {end_policy}")
+    args.extend(["-movflags", "+faststart", str(output_path)])
+    run_ffmpeg(args)
+    return output_path

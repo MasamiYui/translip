@@ -17,6 +17,10 @@ The repository currently contains two working stages:
   Input Task B/C artifacts and output segment-level cloned speech plus Task D evaluation reports
 5. Multi-speaker timeline fitting and preview mixing
   Input Task A/C/D artifacts plus stage 1 background and output dub voice plus preview mix
+6. Pipeline orchestration
+  Input one source file and orchestrate stage 1 through Task E with cache-aware execution and status tracking
+7. Final video delivery
+  Input Task E audio assets plus the original video and export final delivery mp4 files
 
 ## Quick Start
 
@@ -219,6 +223,55 @@ uv run python scripts/run_task_a_to_e.py \
   --segments-per-speaker 3
 ```
 
+### Task F: Pipeline Orchestration
+
+```bash
+uv run video-voice-separate run-pipeline \
+  --input ./test_video/example.mp4 \
+  --output-root ./output-pipeline \
+  --target-lang en \
+  --write-status
+```
+
+Outputs:
+
+- `request.json`
+- `pipeline-status.json`
+- `pipeline-manifest.json`
+- `pipeline-report.json`
+- all stage directories from `stage1` through `task-e`
+
+Notes:
+
+- `run-pipeline` is cache-aware; rerunning the same command on the same
+  `--output-root` reuses successful stage outputs when cache keys still match
+- `pipeline-status.json` is updated while the pipeline runs and summarizes
+  overall progress plus per-stage status
+- `Task D` is the dominant runtime cost in a full local run because it executes
+  segment-level TTS and backread evaluation across multiple speakers
+
+### Task G: Final Video Delivery
+
+```bash
+uv run video-voice-separate export-video \
+  --pipeline-root ./output-pipeline
+```
+
+Outputs:
+
+- `final-preview/final_preview.<target_tag>.mp4`
+- `final-dub/final_dub.<target_tag>.mp4`
+- `delivery-manifest.json`
+- `delivery-report.json`
+
+Notes:
+
+- `export-video` consumes Task E outputs and does not rerun upstream stages
+- By default it preserves the original video stream and re-encodes only the
+  output audio track as `aac`
+- The default end policy is `trim_audio_to_video`, which keeps the exported
+  video aligned to the original video duration
+
 ## Commands
 
 - `video-voice-separate run`: separate a file into `voice` and `background`
@@ -227,6 +280,8 @@ uv run python scripts/run_task_a_to_e.py \
 - `video-voice-separate translate-script`: generate a translation script for downstream dubbing
 - `video-voice-separate synthesize-speaker`: synthesize target-language speech for one speaker and export Task D evaluation artifacts
 - `video-voice-separate render-dub`: assemble Task D speaker outputs into a Task E dub timeline and preview mix
+- `video-voice-separate run-pipeline`: orchestrate stage 1 through Task E with cache-aware execution and pipeline status output
+- `video-voice-separate export-video`: mux Task E audio assets back into the source video and export final delivery mp4 files
 - `video-voice-separate probe`: inspect input media metadata
 - `video-voice-separate download-models`: download backend checkpoints into cache
 
@@ -246,3 +301,7 @@ uv run python scripts/run_task_a_to_e.py \
 - [docs/task-d-test-report.md](docs/task-d-test-report.md): Task D validation report
 - [docs/task-e-timeline-fitting-and-mixing.md](docs/task-e-timeline-fitting-and-mixing.md): Task E design
 - [docs/task-e-test-report.md](docs/task-e-test-report.md): Task E validation report
+- [docs/task-f-pipeline-and-engineering-orchestration.md](docs/task-f-pipeline-and-engineering-orchestration.md): Task F design
+- [docs/task-f-test-report.md](docs/task-f-test-report.md): Task F validation report
+- [docs/task-g-final-video-delivery.md](docs/task-g-final-video-delivery.md): Task G design
+- [docs/task-g-test-report.md](docs/task-g-test-report.md): Task G validation report

@@ -163,3 +163,70 @@ def test_cli_render_dub_parser() -> None:
     assert args.mix_profile == "enhanced"
     assert args.ducking_mode == "sidechain"
     assert args.preview_format == "mp3"
+
+
+def test_cli_run_pipeline_parser() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "run-pipeline",
+            "--input",
+            "sample.mp4",
+            "--output-root",
+            "pipeline-output",
+            "--target-lang",
+            "en",
+            "--resume",
+            "--write-status",
+        ]
+    )
+    assert args.command == "run-pipeline"
+    assert args.input == "sample.mp4"
+    assert args.output_root == "pipeline-output"
+    assert args.target_lang == "en"
+    assert args.resume is True
+    assert args.write_status is True
+
+
+def test_cli_run_pipeline_parser_leaves_optional_overrides_unset() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "run-pipeline",
+            "--input",
+            "sample.mp4",
+        ]
+    )
+    assert args.output_root is None
+    assert args.run_from_stage is None
+    assert args.run_to_stage is None
+    assert args.write_status is None
+    assert args.status_update_interval_sec is None
+
+
+def test_cli_export_video_parser() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "export-video",
+            "--pipeline-root",
+            "output-pipeline",
+            "--output-dir",
+            "delivery",
+            "--target-lang",
+            "en",
+            "--no-export-dub",
+            "--video-codec",
+            "copy",
+            "--audio-codec",
+            "aac",
+        ]
+    )
+    assert args.command == "export-video"
+    assert args.pipeline_root == "output-pipeline"
+    assert args.output_dir == "delivery"
+    assert args.target_lang == "en"
+    assert args.export_preview is True
+    assert args.export_dub is False
+    assert args.video_codec == "copy"
+    assert args.audio_codec == "aac"
