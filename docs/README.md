@@ -37,6 +37,13 @@
 - [task-d-test-report.md](./task-d-test-report.md)
   Task D implementation validation report
 
+## Task E
+
+- [task-e-timeline-fitting-and-mixing.md](./task-e-timeline-fitting-and-mixing.md)
+  Task E technical design
+- [task-e-test-report.md](./task-e-test-report.md)
+  Task E implementation validation report
+
 ## Supporting Files
 
 - [../config/glossary.example.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/config/glossary.example.json)
@@ -45,3 +52,5 @@
   Demo script that runs stage 1 plus tasks A to C in sequence
 - [../scripts/run_task_a_to_d.py](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/scripts/run_task_a_to_d.py)
   Demo script that runs stage 1 plus tasks A to D in sequence
+- [../scripts/run_task_a_to_e.py](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/scripts/run_task_a_to_e.py)
+  Demo script that runs stage 1 plus tasks A to E in sequence

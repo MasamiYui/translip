@@ -10,6 +10,14 @@ from .config import (
     DEFAULT_DUBBING_BACKREAD_MODEL,
     DEFAULT_MODE,
     DEFAULT_OUTPUT_FORMAT,
+    DEFAULT_RENDER_BACKGROUND_GAIN_DB,
+    DEFAULT_RENDER_DUCKING_MODE,
+    DEFAULT_RENDER_FIT_BACKEND,
+    DEFAULT_RENDER_FIT_POLICY,
+    DEFAULT_RENDER_MIX_PROFILE,
+    DEFAULT_RENDER_OUTPUT_SAMPLE_RATE,
+    DEFAULT_RENDER_PREVIEW_FORMAT,
+    DEFAULT_RENDER_WINDOW_DUCKING_DB,
     DEFAULT_TRANSLATION_BACKEND,
     DEFAULT_TRANSLATION_BATCH_SIZE,
     DEFAULT_TRANSLATION_LOCAL_MODEL,
@@ -22,11 +30,13 @@ from .dubbing.runner import synthesize_speaker
 from .models.cdx23_dialogue import Cdx23DialogueSeparator
 from .pipeline.ingest import probe_input
 from .pipeline.runner import separate_file
+from .rendering.runner import render_dub
 from .speakers.runner import build_speaker_registry
 from .translation.runner import translate_script
 from .transcription.runner import transcribe_file
 from .types import (
     DubbingRequest,
+    RenderDubRequest,
     SeparationRequest,
     SpeakerRegistryRequest,
     TranscriptionRequest,
@@ -147,7 +157,7 @@ def build_parser() -> argparse.ArgumentParser:
     synthesize_parser.add_argument(
         "--backend",
         default=DEFAULT_DUBBING_BACKEND,
-        choices=["f5tts", "openvoice"],
+        choices=["qwen3tts"],
     )
     synthesize_parser.add_argument("--device", default=DEFAULT_DEVICE, choices=["auto", "cpu", "cuda", "mps"])
     synthesize_parser.add_argument("--reference-clip", default=None, help="Optional reference clip override")
@@ -169,6 +179,68 @@ def build_parser() -> argparse.ArgumentParser:
         help="faster-whisper model name used for generated-audio backread checks",
     )
     synthesize_parser.add_argument("--keep-intermediate", action="store_true")
+
+    render_parser = subparsers.add_parser(
+        "render-dub",
+        help="Assemble Task D speaker outputs into a target-language dub timeline and preview mix",
+    )
+    render_parser.add_argument("--background", required=True, help="Background audio path from stage 1")
+    render_parser.add_argument("--segments", required=True, help="Task A segments.zh.json path")
+    render_parser.add_argument("--translation", required=True, help="Task C translation.<lang>.json path")
+    render_parser.add_argument(
+        "--task-d-report",
+        action="append",
+        dest="task_d_reports",
+        required=True,
+        help="Task D speaker_segments.<lang>.json path; may be passed multiple times",
+    )
+    render_parser.add_argument("--output-dir", default="output-task-e", help="Output directory")
+    render_parser.add_argument(
+        "--target-lang",
+        default=DEFAULT_TRANSLATION_TARGET_LANG,
+        help="Target language code, e.g. en",
+    )
+    render_parser.add_argument(
+        "--fit-policy",
+        default=DEFAULT_RENDER_FIT_POLICY,
+        choices=["conservative", "high_quality"],
+    )
+    render_parser.add_argument(
+        "--fit-backend",
+        default=DEFAULT_RENDER_FIT_BACKEND,
+        choices=["atempo", "rubberband"],
+    )
+    render_parser.add_argument(
+        "--mix-profile",
+        default=DEFAULT_RENDER_MIX_PROFILE,
+        choices=["preview", "enhanced"],
+    )
+    render_parser.add_argument(
+        "--ducking-mode",
+        default=DEFAULT_RENDER_DUCKING_MODE,
+        choices=["static", "sidechain"],
+    )
+    render_parser.add_argument(
+        "--output-sample-rate",
+        type=int,
+        default=DEFAULT_RENDER_OUTPUT_SAMPLE_RATE,
+    )
+    render_parser.add_argument(
+        "--background-gain-db",
+        type=float,
+        default=DEFAULT_RENDER_BACKGROUND_GAIN_DB,
+    )
+    render_parser.add_argument(
+        "--window-ducking-db",
+        type=float,
+        default=DEFAULT_RENDER_WINDOW_DUCKING_DB,
+    )
+    render_parser.add_argument("--max-compress-ratio", type=float, default=1.45)
+    render_parser.add_argument(
+        "--preview-format",
+        default=DEFAULT_RENDER_PREVIEW_FORMAT,
+        choices=["wav", "mp3"],
+    )
 
     probe_parser = subparsers.add_parser("probe", help="Inspect a media file")
     probe_parser.add_argument("--input", required=True, help="Input media file path")
@@ -328,6 +400,34 @@ def main(argv: list[str] | None = None) -> int:
             print(f"demo={result.artifacts.demo_audio_path}")
         print(f"segments={result.artifacts.segments_dir}")
         print(f"report={result.artifacts.report_path}")
+        print(f"manifest={result.artifacts.manifest_path}")
+        return 0
+
+    if args.command == "render-dub":
+        request = RenderDubRequest(
+            background_path=args.background,
+            segments_path=args.segments,
+            translation_path=args.translation,
+            task_d_report_paths=args.task_d_reports,
+            output_dir=args.output_dir,
+            target_lang=args.target_lang,
+            fit_policy=args.fit_policy,
+            fit_backend=args.fit_backend,
+            mix_profile=args.mix_profile,
+            ducking_mode=args.ducking_mode,
+            output_sample_rate=args.output_sample_rate,
+            background_gain_db=args.background_gain_db,
+            window_ducking_db=args.window_ducking_db,
+            max_compress_ratio=args.max_compress_ratio,
+            preview_format=args.preview_format,
+        )
+        result = render_dub(request)
+        print(f"dub_voice={result.artifacts.dub_voice_path}")
+        print(f"preview_mix_wav={result.artifacts.preview_mix_wav_path}")
+        if result.artifacts.preview_mix_extra_path:
+            print(f"preview_mix_extra={result.artifacts.preview_mix_extra_path}")
+        print(f"timeline={result.artifacts.timeline_path}")
+        print(f"mix_report={result.artifacts.mix_report_path}")
         print(f"manifest={result.artifacts.manifest_path}")
         return 0
 

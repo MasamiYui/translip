@@ -1,294 +1,201 @@
-# 任务 D 测试报告: 单说话人目标语言声音克隆
+# 任务 D 测试报告: Qwen3-TTS 单模型声音克隆
 
 - 项目: `video-voice-separate`
 - 对应设计: [task-d-single-speaker-voice-cloning.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-d-single-speaker-voice-cloning.md)
-- 测试日期: 2026-04-12
-- 当前开发后端: `F5-TTS`
+- 测试日期: 2026-04-14
+- 当前开发后端: `Qwen/Qwen3-TTS-12Hz-0.6B-Base`
 - 测试机器: `MacBook M4 16GB`
 
-## 1. 测试范围
+## 1. 本轮范围
 
-本轮测试覆盖 3 类内容:
+本轮验证覆盖 4 件事:
 
-1. 单元测试与 CLI 回归
-2. 任务 D 独立冒烟验证
-3. 从 `test_video/我在迪拜等你.mp4` 到任务 D 的端到端串行验证
+1. 旧 `F5-TTS / OpenVoice` 代码与依赖已从任务 D 主链路移除
+2. `Qwen3-TTS` 后端与 CLI 默认值切换完成
+3. 单元测试回归
+4. 从 `test_video/我在迪拜等你.mp4` 全量跑到任务 D，并继续跑通到任务 E
 
-本轮没有把 `OpenVoice V2` 作为可运行后端纳入测试范围。
+## 2. 本轮实现结论
 
-## 2. 最终结论
+任务 D 现在已经完成 `F5-TTS -> Qwen3-TTS` 的单模型迁移。
 
-任务 D 当前已经达到 **可开发、可重复运行、可自动评估** 的状态:
+当前状态:
 
-- `F5-TTS` 权重下载、缓存和本地加载已经接入项目
-- `synthesize-speaker` CLI 已可稳定输出 segment 级音频、demo 音频和报告
-- 评估链已接入:
-  - `speaker similarity`
-  - `ASR back-read`
-  - `duration ratio`
-- 从测试视频出发，到 `Stage 1 -> Task A -> Task B -> Task C -> Task D` 的链路已经真实跑通
+- `synthesize-speaker` 默认后端已经改为 `qwen3tts`
+- 旧的 `f5tts_backend.py`、`openvoice_backend.py` 和相关依赖代码已删除
+- 首次下载不再卡在 `hf_xet`
+- 端到端脚本已经改成“每个阶段一个子进程”，避免本地多模型常驻在同一 Python 进程里
+- 对重复词或异常长句，任务 D 现在会按时长预算传递 `max_new_tokens`，避免 Qwen 进入 runaway generation
 
-但任务 D 目前仍然属于 **开发验证级**，不是生产可交付级:
+结论不是“已经达到成品级”，而是:
 
-- 中文参考音频到英文输出，`F5-TTS` 的音色相似度通常可以过线
-- 时长已经可控到 `review/passed` 区间附近
-- 但内容正确率仍会出现串词、前缀噪句和跨语种错误
+- **任务 D 主后端迁移已成立**
+- **本地全量链路可重复运行**
+- **质量瓶颈仍然主要在时长控制，不是声纹链路崩溃**
 
-因此当前结论是:
+## 3. 关键修复
 
-- **工程链路已成立**
-- **开发默认后端可用**
-- **成品质量仍需后续 `OpenVoice V2` 或更强后端继续提升**
+这轮真实打到并修掉了 4 个问题:
 
-## 3. 本轮修复的关键问题
+1. Hugging Face 下载会卡在 `hf_xet`
+   - 处理: 在更早的配置入口设置 `HF_HUB_DISABLE_XET=1`
 
-这轮实现和测试中，实际打到并修掉了下面这些问题:
+2. 旧 A→D / A→E 脚本把所有模型放在同一 Python 进程里
+   - 结果: 前面阶段的模型状态会拖慢任务 D
+   - 处理: `scripts/run_task_a_to_d.py` 和 `scripts/run_task_a_to_e.py` 改成分阶段子进程执行
 
-1. `F5-TTS` 默认运行时下载会长时间卡住
-   - 处理: 改成项目内显式下载并缓存 checkpoint / vocoder
-   - 实现位置: `src/video_voice_separate/dubbing/assets.py`
+3. Qwen 默认流式模拟不适合 segment 级 TTS
+   - 处理: 显式传 `non_streaming_mode=True`
 
-2. `F5-TTS` 内部把超大随机种子写到 `PYTHONHASHSEED`
-   - 结果: 评估阶段会出现 `Fatal Python error: config_init_hash_seed`
-   - 处理: 调用层固定使用合法范围内的稳定种子
+4. 重复词句会触发极慢或超长生成
+   - 代表性 hard case: `seg-0115`
+   - 处理: 根据 `duration_budget_sec / source_duration_sec` 推导 `max_new_tokens`
 
-3. 对 `fix_duration` 的理解错误
-   - 初版把“目标段长”直接传给 F5
-   - 实际上 F5 需要的是“参考音频 + 目标语音”的总时长
-   - 结果: 初版生成结果只有 `256` 个采样点，几乎是空音频
-   - 处理: 修正为 `reference.duration_sec + target_duration_sec`
-
-4. 声纹评估会被极短音频打崩
-   - `ECAPA` 在极短 waveform 上可能直接因 padding 报错
-   - 处理: 在 speaker embedding 侧增加重采样和最小时长补齐逻辑
-
-5. 端到端脚本的默认 speaker 选择不适合 Task D
-   - 初版直接选 `total_speech_sec` 最大的 speaker
-   - 结果: 很容易选到“长段很多”的 speaker，不适合当前单段 TTS
-   - 处理: 改成优先选择“短句足够多 + 参考 clip 更稳”的 speaker，并在 `--max-segments` 下自动挑更适合 Task D 的 segment
-
-## 4. 单元测试
+## 4. 自动测试
 
 执行命令:
 
 ```bash
-uv run pytest
+uv run pytest -q
 ```
-
-最终结果:
-
-- `29 passed`
-
-其中与任务 D 直接相关的覆盖包括:
-
-- reference candidate 排序
-- reference 预处理
-- Task D report / manifest 生成
-- CLI 参数解析
-
-## 5. 任务 D 独立冒烟测试
-
-### 5.1 使用现有 Task A/B/C 产物做 3 段冒烟
-
-执行命令:
-
-```bash
-uv run video-voice-separate synthesize-speaker \
-  --translation ./tmp/task-d-recheck-c/voice/translation.en.json \
-  --profiles ./output-task-b/voice/speaker_profiles.json \
-  --speaker-id spk_0000 \
-  --output-dir ./tmp/task-d-smoke \
-  --backend f5tts \
-  --device auto \
-  --max-segments 3 \
-  --keep-intermediate
-```
-
-最终代表性结果:
-
-- 产物目录: `tmp/task-d-smoke/voice/spk_0000/`
-- 参考 clip: `clip_0005.wav`
-- 三段都能正常生成音频和评估报告
-- 结果从“空音频 / 崩溃”提升到“可回读、可算声纹、时长接近可用”
-
-代表性指标:
-
-- `seg-0001`
-  - `duration_ratio=1.249`
-  - `speaker_similarity=0.5639`
-  - `text_similarity=0.2143`
-- `seg-0002`
-  - `duration_ratio=1.481`
-  - `speaker_similarity=0.5263`
-  - `text_similarity=0.48`
-- `seg-0003`
-  - `duration_ratio=1.286`
-  - `speaker_similarity=0.4923`
-  - `text_similarity=0.6471`
-
-结论:
-
-- 声音相似度已经进入可比较范围
-- 时长控制已经基本可用
-- 但跨语种内容正确率仍然波动较大
-
-## 6. 端到端验证
-
-### 6.1 完整串行脚本真实跑通
-
-执行命令:
-
-```bash
-uv run python scripts/run_task_a_to_d.py \
-  --input ./test_video/我在迪拜等你.mp4 \
-  --output-root ./tmp/e2e-task-a-to-d \
-  --target-lang en \
-  --translation-backend local-m2m100 \
-  --tts-backend f5tts \
-  --device auto \
-  --max-segments 3
-```
-
-真实产物:
-
-- Stage 1: `tmp/e2e-task-a-to-d/stage1/我在迪拜等你/`
-- Task A: `tmp/e2e-task-a-to-d/task-a/voice/`
-- Task B: `tmp/e2e-task-a-to-d/task-b/voice/`
-- Task C: `tmp/e2e-task-a-to-d/task-c/voice/`
-- Task D: `tmp/e2e-task-a-to-d/task-d/voice/`
-
-这次完整串行流程已经成功执行到 Task D 结束，说明:
-
-- 输入视频解复用与分离链路正常
-- 说话人归因转写正常
-- speaker registry 正常
-- 多语种翻译脚本生成正常
-- 单 speaker 语音合成和评估链路正常
-
-### 6.2 自动 speaker/segment 选择优化后的验证
-
-由于 Task D 当前是“单 speaker、短句优先”的开发能力，完整串行脚本里增加了更贴近 Task D 的自动选择逻辑:
-
-- 自动 speaker: 优先短句足够多、参考 clip 更稳的 speaker
-- 自动 segment: 在 `--max-segments` 下优先选 `1.5s - 4.5s` 的短句
-
-基于这套规则的代表性验证路径:
-
-- 输入: `tmp/e2e-task-a-to-d/task-c/voice/translation.en.json`
-- 自动 speaker: `spk_0001`
-- 自动 segment: `seg-0010`, `seg-0032`, `seg-0042`
-- 结果目录: `tmp/e2e-task-a-to-d-auto-plan-check-v2/voice/spk_0001/`
 
 结果:
 
-- `3 / 3` 都达到 `overall_status=review`
-- 没有再出现 `failed` 的空音频或评估崩溃
+- `35 passed`
 
-代表性指标:
+任务 D 直接覆盖的回归包括:
 
-- `seg-0010`
-  - `duration_ratio=1.527`
-  - `speaker_similarity=0.5932`
-  - `text_similarity=0.7368`
-  - `overall_status=review`
-- `seg-0032`
-  - `duration_ratio=1.565`
-  - `speaker_similarity=0.4597`
-  - `text_similarity=0.8919`
-  - `overall_status=review`
-- `seg-0042`
-  - `duration_ratio=1.422`
-  - `speaker_similarity=0.3149`
-  - `text_similarity=0.75`
-  - `overall_status=review`
+- `DubbingRequest` 默认后端
+- CLI `--backend` 解析
+- Qwen prompt 复用
+- `non_streaming_mode=True`
+- `max_new_tokens` 预算传递
+- report / manifest 生成
 
-这说明当前任务 D 的开发实现已经达到:
+## 5. 独立冒烟验证
 
-- 端到端链路稳定
-- 音色相似度通常能进入 `review/passed`
-- 文本回读在合适短句上可进入 `review`
-- 时长比率多数可压到 `review`
+### 5.1 单句最小合成
 
-### 6.3 最新完整脚本重跑
-
-为了确认最新脚本逻辑不是只在已有产物上成立，我又对整条链路做了一次完整重跑:
+执行命令:
 
 ```bash
-uv run python scripts/run_task_a_to_d.py \
-  --input ./test_video/我在迪拜等你.mp4 \
-  --output-root ./tmp/e2e-task-a-to-d-v2 \
-  --target-lang en \
-  --translation-backend local-m2m100 \
-  --tts-backend f5tts \
-  --device auto \
-  --max-segments 3
+env HF_HUB_DISABLE_XET=1 HF_HUB_ENABLE_HF_TRANSFER=0 \
+uv run video-voice-separate synthesize-speaker \
+  --translation ./tmp/e2e-task-a-to-e-full/task-c/voice/translation.en.json \
+  --profiles ./tmp/e2e-task-a-to-e-full/task-b/voice/speaker_profiles.json \
+  --speaker-id spk_0000 \
+  --backend qwen3tts \
+  --segment-id seg-0001 \
+  --output-dir ./tmp/task-d-qwen-smoke \
+  --device auto
 ```
 
-最新真实产物:
+结果:
 
-- Stage 1: `tmp/e2e-task-a-to-d-v2/stage1/我在迪拜等你/`
-- Task A: `tmp/e2e-task-a-to-d-v2/task-a/voice/`
-- Task B: `tmp/e2e-task-a-to-d-v2/task-b/voice/`
-- Task C: `tmp/e2e-task-a-to-d-v2/task-c/voice/`
-- Task D: `tmp/e2e-task-a-to-d-v2/task-d/voice/spk_0001/`
+- 成功生成 `speaker_demo.en.wav`
+- 成功生成 `speaker_segments.en.json`
+- 首次完整运行耗时约 `37.70s`
 
-最新脚本自动选择结果:
+### 5.2 hard case 复测: `seg-0115`
 
-- `speaker_id=spk_0001`
-- `segment_ids=seg-0007,seg-0008,seg-0009`
+执行命令:
 
-Task D 结果:
+```bash
+env HF_HUB_DISABLE_XET=1 HF_HUB_ENABLE_HF_TRANSFER=0 \
+uv run video-voice-separate synthesize-speaker \
+  --translation ./tmp/e2e-task-a-to-e-qwen-full/task-c/voice/translation.en.json \
+  --profiles ./tmp/e2e-task-a-to-e-qwen-full/task-b/voice/speaker_profiles.json \
+  --speaker-id spk_0001 \
+  --backend qwen3tts \
+  --segment-id seg-0115 \
+  --output-dir ./tmp/task-d-qwen-0115 \
+  --device auto
+```
 
-- `1 failed`
-- `2 review`
+结果:
 
-代表性指标:
+- 之前会长时间卡住
+- 加入 `max_new_tokens` 后正常完成
+- 本次真实耗时约 `39.92s`
 
-- `seg-0007`
-  - `duration_ratio=1.736`
-  - `speaker_similarity=0.4355`
-  - `text_similarity=0.9655`
-  - `overall_status=failed`
-- `seg-0008`
-  - `duration_ratio=1.437`
-  - `speaker_similarity=0.4758`
-  - `text_similarity=1.0`
-  - `overall_status=review`
-- `seg-0009`
-  - `duration_ratio=1.629`
-  - `speaker_similarity=0.5476`
-  - `text_similarity=1.0`
-  - `overall_status=review`
+## 6. 全量验证
 
-这里可以看到当前开发后端的真实状态:
+### 6.1 全量命令
 
-- 文本内容在短句上已经可以很接近目标句
-- 声纹相似度通常在 `review/passed` 区间
-- 最大短板仍然是时长偏长
+```bash
+env HF_HUB_DISABLE_XET=1 HF_HUB_ENABLE_HF_TRANSFER=0 \
+uv run python scripts/run_task_a_to_e.py \
+  --input ./test_video/我在迪拜等你.mp4 \
+  --output-root ./tmp/e2e-task-a-to-e-qwen-full \
+  --target-lang en \
+  --translation-backend local-m2m100 \
+  --tts-backend qwen3tts \
+  --device auto \
+  --speaker-limit 0 \
+  --segments-per-speaker 0 \
+  --fit-policy high_quality \
+  --max-compress-ratio 1.7
+```
 
-这也是任务 D 当前被定性为 **开发验证级** 而不是 **成品交付级** 的直接原因。
+### 6.2 任务 D 真实产物
 
-## 7. 当前已知限制
+目录:
 
-这不是 bug，而是当前开发后端和任务边界的真实限制:
+- [spk_0001](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0001)
+- [spk_0004](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0004)
+- [spk_0003](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0003)
+- [spk_0000](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0000)
+- [spk_0007](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0007)
+- [spk_0002](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0002)
 
-1. `F5-TTS` 作为 `zh -> en` 开发后端，仍然会出现英文前缀串词
-2. 对特别短的词组或专有名词，内容正确率波动明显
-3. 对长句或长段，当前 Task D 不适合作为默认验证样本
-4. `OpenVoice V2` 仍是预留后端，尚未接入实际推理
-5. 当前评估仍是开发向指标，不等于最终出海成品质量
+全量统计:
+
+- 总句段数: `168`
+- `passed = 9`
+- `review = 32`
+- `failed = 127`
+
+分 speaker 统计:
+
+- `spk_0001`: `58` 条, `passed=8`, `review=11`, `failed=39`
+- `spk_0004`: `39` 条, `review=3`, `failed=36`
+- `spk_0003`: `29` 条, `passed=1`, `review=11`, `failed=17`
+- `spk_0000`: `26` 条, `review=6`, `failed=20`
+- `spk_0007`: `10` 条, `review=1`, `failed=9`
+- `spk_0002`: `6` 条, `failed=6`
+
+代表性结果可以直接查看:
+
+- [spk_0001/speaker_segments.en.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0001/speaker_segments.en.json)
+- [spk_0003/speaker_segments.en.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0003/speaker_segments.en.json)
+
+### 6.3 结果解释
+
+这轮结果说明两点:
+
+1. `Qwen3-TTS` 本地链路已经比旧开发路线更稳
+   - 不再出现整条流水线首条句子卡死的问题
+   - 重复词 hard case 已被预算上限收住
+
+2. 当前主要失败项仍然是 `duration_status`
+   - 很多句子不是“完全听不出来”，而是目标语言在原时长窗口里仍偏长
+   - 因此任务 E 最终仍会跳过大量 `overall_status=failed` 的句段
+
+## 7. 当前限制
+
+- 当前 `Qwen3-TTS` 本地实现会频繁把短句说得偏长
+- `Task D` 的总通过率仍不高，尤其是 `1s-2s` 的短句
+- 回读评测 `faster_whisper` 仍然是整条任务 D 的主要耗时来源
+- 任务 D 虽然已经不再需要 `F5-TTS`，但还不能称为“成品配音质量”
 
 ## 8. 结论
 
-任务 D 当前已经完成了“从不可用到可开发”的跨越:
+截至 **2026-04-14**:
 
-- CLI、数据结构、后端抽象、自动评估和端到端脚本都已落地
-- 单元测试通过
-- 真机真实视频链路跑通
-- 代表性短句样本已能稳定进入 `review`
-
-下一步最合理的方向不是继续在 `F5-TTS` 上做大量细调，而是:
-
-1. 接入 `OpenVoice V2`
-2. 把任务 D 的 `review` 级结果提升到更接近可交付的质量
-3. 再进入任务 E 的时间贴合、拼接与混音
+- 任务 D 的单模型 `Qwen3-TTS` 迁移已经完成
+- 旧 TTS 后端代码已从主链路清理
+- 全量测试视频已真实跑通到任务 E
+- 当前下一步最值得优化的是:
+  1. 缩短译文或在任务 C 增加更强的时长约束
+  2. 降低任务 D 对极短句的失败率
+  3. 视需要继续优化回读评测耗时

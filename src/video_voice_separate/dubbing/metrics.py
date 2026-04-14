@@ -45,7 +45,13 @@ def evaluate_segment(
     requested_device: str,
     backread_model_name: str,
 ) -> SegmentEvaluation:
-    speaker_similarity = _speaker_similarity(reference_audio_path, generated_audio_path, requested_device)
+    generated_waveform, generated_sample_rate = read_audio_mono(generated_audio_path)
+    speaker_similarity = _speaker_similarity(
+        reference_audio_path=reference_audio_path,
+        generated_waveform=generated_waveform,
+        generated_sample_rate=generated_sample_rate,
+        requested_device=requested_device,
+    )
     speaker_status = _speaker_status(speaker_similarity)
     backread_text = _backread_text(
         generated_audio_path,
@@ -55,7 +61,7 @@ def evaluate_segment(
     )
     text_similarity = _text_similarity(target_text, backread_text)
     intelligibility_status = _intelligibility_status(text_similarity)
-    generated_duration_sec = _audio_duration_sec(generated_audio_path)
+    generated_duration_sec = _duration_from_waveform(generated_waveform, generated_sample_rate)
     duration_ratio = generated_duration_sec / source_duration_sec if source_duration_sec > 0 else 0.0
     duration_status = _duration_status(duration_ratio)
     overall_status = _overall_status(
@@ -75,16 +81,27 @@ def evaluate_segment(
     )
 
 
-def _speaker_similarity(reference_audio_path: Path, generated_audio_path: Path, requested_device: str) -> float | None:
+def _speaker_similarity(
+    *,
+    reference_audio_path: Path,
+    generated_waveform,
+    generated_sample_rate: int,
+    requested_device: str,
+) -> float | None:
     device = resolve_speaker_device(requested_device)
     classifier = load_speechbrain_classifier(device)
-    ref_waveform, ref_sample_rate = read_audio_mono(reference_audio_path)
-    gen_waveform, gen_sample_rate = read_audio_mono(generated_audio_path)
-    ref_embedding = embedding_for_clip(classifier, ref_waveform, ref_sample_rate)
-    gen_embedding = embedding_for_clip(classifier, gen_waveform, gen_sample_rate)
+    ref_embedding = _reference_embedding(reference_audio_path, device)
+    gen_embedding = embedding_for_clip(classifier, generated_waveform, generated_sample_rate)
     if ref_embedding is None or gen_embedding is None:
         return None
     return float(ref_embedding @ gen_embedding)
+
+
+@lru_cache(maxsize=128)
+def _reference_embedding(reference_audio_path: Path, device: str) -> object:
+    classifier = load_speechbrain_classifier(device)
+    ref_waveform, ref_sample_rate = read_audio_mono(reference_audio_path)
+    return embedding_for_clip(classifier, ref_waveform, ref_sample_rate)
 
 
 def _backread_text(
@@ -167,8 +184,7 @@ def _overall_status(
     return "passed"
 
 
-def _audio_duration_sec(audio_path: Path) -> float:
-    waveform, sample_rate = read_audio_mono(audio_path)
+def _duration_from_waveform(waveform, sample_rate: int) -> float:
     if sample_rate <= 0:
         return 0.0
     return float(len(waveform) / sample_rate)

@@ -11,9 +11,8 @@ from ..types import DubbingArtifacts, DubbingRequest, DubbingResult
 from ..utils.files import ensure_directory, remove_tree, work_directory
 from .backend import ReferencePackage, SynthSegmentInput
 from .export import build_dubbing_manifest, build_dubbing_report, now_iso, render_demo_audio, write_json
-from .f5tts_backend import F5TTSBackend
 from .metrics import evaluate_segment
-from .openvoice_backend import OpenVoiceBackend
+from .qwen_tts_backend import QwenTTSBackend
 from .reference import (
     load_profiles_payload,
     prepare_reference_package,
@@ -139,6 +138,19 @@ def synthesize_speaker(
                     "index": index,
                 }
             )
+            partial_report = build_dubbing_report(
+                request=normalized_request,
+                target_lang=target_lang,
+                backend_name=backend.backend_name,
+                resolved_model=backend.resolved_model,
+                resolved_device=backend.resolved_device,
+                reference={
+                    "path": str(selected_reference.original_audio_path),
+                    "selection_reason": selected_reference.selection_reason,
+                },
+                segments=report_segments,
+            )
+            write_json(partial_report, report_path)
 
         demo_audio_path = render_demo_audio(
             succeeded_audio_paths,
@@ -253,8 +265,6 @@ def _filtered_segments(
 
 
 def _build_backend(request: DubbingRequest) -> object:
-    if request.backend == "f5tts":
-        return F5TTSBackend(requested_device=request.device)
-    if request.backend == "openvoice":
-        return OpenVoiceBackend(requested_device=request.device)
+    if request.backend == "qwen3tts":
+        return QwenTTSBackend(requested_device=request.device)
     raise VideoVoiceSeparateError(f"Unsupported dubbing backend: {request.backend}")

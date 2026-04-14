@@ -105,7 +105,7 @@ def test_cli_synthesize_speaker_parser() -> None:
             "--speaker-id",
             "spk_0000",
             "--backend",
-            "f5tts",
+            "qwen3tts",
             "--segment-id",
             "seg-0001",
             "--segment-id",
@@ -118,6 +118,48 @@ def test_cli_synthesize_speaker_parser() -> None:
     assert args.translation == "translation.en.json"
     assert args.profiles == "speaker_profiles.json"
     assert args.speaker_id == "spk_0000"
-    assert args.backend == "f5tts"
+    assert args.backend == "qwen3tts"
     assert args.segment_ids == ["seg-0001", "seg-0002"]
     assert args.max_segments == 2
+
+
+def test_cli_render_dub_parser() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "render-dub",
+            "--background",
+            "background.mp3",
+            "--segments",
+            "segments.zh.json",
+            "--translation",
+            "translation.en.json",
+            "--task-d-report",
+            "spk_0000/speaker_segments.en.json",
+            "--task-d-report",
+            "spk_0001/speaker_segments.en.json",
+            "--fit-policy",
+            "high_quality",
+            "--fit-backend",
+            "atempo",
+            "--mix-profile",
+            "enhanced",
+            "--ducking-mode",
+            "sidechain",
+            "--preview-format",
+            "mp3",
+        ]
+    )
+    assert args.command == "render-dub"
+    assert args.background == "background.mp3"
+    assert args.segments == "segments.zh.json"
+    assert args.translation == "translation.en.json"
+    assert args.task_d_reports == [
+        "spk_0000/speaker_segments.en.json",
+        "spk_0001/speaker_segments.en.json",
+    ]
+    assert args.fit_policy == "high_quality"
+    assert args.fit_backend == "atempo"
+    assert args.mix_profile == "enhanced"
+    assert args.ducking_mode == "sidechain"
+    assert args.preview_format == "mp3"

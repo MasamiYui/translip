@@ -40,6 +40,14 @@ def _write_audio(path: Path, duration_sec: float, *, sample_rate: int = 16_000, 
     sf.write(path, waveform, sample_rate)
 
 
+def test_dubbing_request_defaults_to_qwen3tts() -> None:
+    request = DubbingRequest(
+        translation_path="translation.en.json",
+        profiles_path="speaker_profiles.json",
+    )
+    assert request.backend == "qwen3tts"
+
+
 def test_select_reference_candidates_prefers_ideal_duration(tmp_path: Path) -> None:
     clip_short = tmp_path / "clip-short.wav"
     clip_ideal = tmp_path / "clip-ideal.wav"
@@ -95,6 +103,84 @@ def test_prepare_reference_package_adds_tail_silence(tmp_path: Path) -> None:
     package = prepare_reference_package(candidate, output_path=tmp_path / "prepared.wav")
     assert package.prepared_audio_path.exists()
     assert package.duration_sec > candidate.duration_sec
+
+
+def test_qwen_backend_uses_reusable_voice_clone_prompt(tmp_path: Path, monkeypatch) -> None:
+    from video_voice_separate.dubbing.backend import ReferencePackage, SynthSegmentInput
+    from video_voice_separate.dubbing.qwen_tts_backend import (
+        QwenTTSBackend,
+        _max_new_tokens_for,
+    )
+
+    class FakeModel:
+        def __init__(self) -> None:
+            self.prompt_calls = []
+            self.generate_calls = []
+
+        def create_voice_clone_prompt(self, **kwargs):
+            self.prompt_calls.append(kwargs)
+            return {"prompt": "cached"}
+
+        def generate_voice_clone(self, **kwargs):
+            self.generate_calls.append(kwargs)
+            sample_rate = 24_000
+            waveform = np.ones(int(0.9 * sample_rate), dtype=np.float32) * 0.05
+            return [waveform], sample_rate
+
+    fake_model = FakeModel()
+    monkeypatch.setattr(
+        "video_voice_separate.dubbing.qwen_tts_backend._load_qwen_model",
+        lambda *_args, **_kwargs: fake_model,
+    )
+
+    reference_path = tmp_path / "reference.wav"
+    _write_audio(reference_path, 8.0)
+    reference = ReferencePackage(
+        speaker_id="spk_0000",
+        profile_id="profile_0000",
+        original_audio_path=reference_path,
+        prepared_audio_path=reference_path,
+        text="This is the reference transcript.",
+        duration_sec=8.0,
+        score=0.9,
+        selection_reason="test",
+    )
+    segment = SynthSegmentInput(
+        segment_id="seg-0001",
+        speaker_id="spk_0000",
+        target_lang="en",
+        target_text="Hello from Dubai.",
+        source_duration_sec=1.0,
+        duration_budget_sec=1.1,
+    )
+
+    backend = QwenTTSBackend(requested_device="cpu")
+    result = backend.synthesize(reference=reference, segment=segment, output_path=tmp_path / "out.wav")
+
+    assert result.audio_path.exists()
+    assert result.sample_rate == 24_000
+    assert result.generated_duration_sec > 0
+    assert fake_model.prompt_calls[0]["ref_audio"] == str(reference.prepared_audio_path)
+    assert fake_model.prompt_calls[0]["ref_text"] == reference.text
+    assert fake_model.generate_calls[0]["text"] == segment.target_text
+    assert fake_model.generate_calls[0]["language"] == "English"
+    assert fake_model.generate_calls[0]["voice_clone_prompt"] == {"prompt": "cached"}
+    assert fake_model.generate_calls[0]["non_streaming_mode"] is True
+    assert fake_model.generate_calls[0]["max_new_tokens"] == _max_new_tokens_for(segment)
+
+
+def test_build_backend_returns_qwen_backend() -> None:
+    from video_voice_separate.dubbing.runner import _build_backend
+
+    backend = _build_backend(
+        DubbingRequest(
+            translation_path="translation.en.json",
+            profiles_path="speaker_profiles.json",
+            backend="qwen3tts",
+            device="cpu",
+        )
+    )
+    assert backend.backend_name == "qwen3tts"
 
 
 def test_synthesize_speaker_writes_report_and_manifest(tmp_path: Path, monkeypatch) -> None:

@@ -2,21 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
-from collections import defaultdict
+import os
+import subprocess
+import sys
 from pathlib import Path
 
-from video_voice_separate.dubbing.reference import select_reference_candidates
-from video_voice_separate.dubbing.runner import synthesize_speaker
-from video_voice_separate.pipeline.runner import separate_file
-from video_voice_separate.speakers.runner import build_speaker_registry
-from video_voice_separate.translation.runner import translate_script
-from video_voice_separate.transcription.runner import transcribe_file
-from video_voice_separate.types import (
-    DubbingRequest,
-    SeparationRequest,
-    SpeakerRegistryRequest,
-    TranscriptionRequest,
-    TranslationRequest,
+from video_voice_separate.dubbing.planning import (
+    pick_segment_ids_for_speaker,
+    pick_task_d_speaker_ids,
 )
 
 
@@ -31,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["local-m2m100", "siliconflow"],
         help="Task C translation backend",
     )
-    parser.add_argument("--tts-backend", default="f5tts", choices=["f5tts", "openvoice"])
+    parser.add_argument("--tts-backend", default="qwen3tts", choices=["qwen3tts"])
     parser.add_argument("--speaker-id", default=None, help="Optional speaker id override for Task D")
     parser.add_argument("--glossary", default="config/glossary.example.json", help="Optional glossary path")
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
@@ -42,186 +35,161 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
+    input_path = Path(args.input).expanduser().resolve()
     output_root = Path(args.output_root).expanduser().resolve()
 
-    separation = separate_file(
-        SeparationRequest(
-            input_path=args.input,
-            mode="dialogue",
-            output_dir=output_root / "stage1",
-            quality="balanced",
-            output_format="mp3",
-            device=args.device,
-        )
-    )
-    transcription = transcribe_file(
-        TranscriptionRequest(
-            input_path=separation.artifacts.voice_path,
-            output_dir=output_root / "task-a",
-            language="zh",
-            device=args.device,
-        )
-    )
-    registry = build_speaker_registry(
-        SpeakerRegistryRequest(
-            segments_path=transcription.artifacts.segments_json_path,
-            audio_path=separation.artifacts.voice_path,
-            output_dir=output_root / "task-b",
-            registry_path=output_root / "task-b" / "registry" / "speaker_registry.json",
-            update_registry=True,
-            device=args.device,
-        )
-    )
-    translation = translate_script(
-        TranslationRequest(
-            segments_path=transcription.artifacts.segments_json_path,
-            profiles_path=registry.artifacts.profiles_path,
-            output_dir=output_root / "task-c",
-            target_lang=args.target_lang,
-            backend=args.translation_backend,
-            glossary_path=args.glossary,
-            device=args.device,
-            api_model=args.api_model,
-        )
-    )
+    stage1_dir = output_root / "stage1"
+    task_a_dir = output_root / "task-a"
+    task_b_dir = output_root / "task-b"
+    task_c_dir = output_root / "task-c"
+    task_d_dir = output_root / "task-d"
+    source_bundle = stage1_dir / input_path.stem
 
-    speaker_id = args.speaker_id or _pick_task_d_speaker(
-        profiles_path=registry.artifacts.profiles_path,
-        translation_path=translation.artifacts.translation_json_path,
+    _run_cli(
+        [
+            "run",
+            "--input",
+            str(input_path),
+            "--mode",
+            "dialogue",
+            "--output-dir",
+            str(stage1_dir),
+            "--quality",
+            "balanced",
+            "--output-format",
+            "mp3",
+            "--device",
+            args.device,
+        ]
     )
-    selected_segment_ids = _pick_segment_ids(
-        translation_path=translation.artifacts.translation_json_path,
+    voice_path = source_bundle / "voice.mp3"
+
+    _run_cli(
+        [
+            "transcribe",
+            "--input",
+            str(voice_path),
+            "--output-dir",
+            str(task_a_dir),
+            "--language",
+            "zh",
+            "--device",
+            args.device,
+        ]
+    )
+    task_a_segments = task_a_dir / "voice" / "segments.zh.json"
+
+    _run_cli(
+        [
+            "build-speaker-registry",
+            "--segments",
+            str(task_a_segments),
+            "--audio",
+            str(voice_path),
+            "--output-dir",
+            str(task_b_dir),
+            "--registry",
+            str(task_b_dir / "registry" / "speaker_registry.json"),
+            "--update-registry",
+            "--device",
+            args.device,
+        ]
+    )
+    task_b_profiles = task_b_dir / "voice" / "speaker_profiles.json"
+
+    translate_cmd = [
+        "translate-script",
+        "--segments",
+        str(task_a_segments),
+        "--profiles",
+        str(task_b_profiles),
+        "--output-dir",
+        str(task_c_dir),
+        "--target-lang",
+        args.target_lang,
+        "--backend",
+        args.translation_backend,
+        "--glossary",
+        args.glossary,
+        "--device",
+        args.device,
+    ]
+    if args.api_model:
+        translate_cmd.extend(["--api-model", args.api_model])
+    _run_cli(translate_cmd)
+    task_c_translation = task_c_dir / "voice" / f"translation.{args.target_lang}.json"
+
+    profiles_payload = json.loads(task_b_profiles.read_text(encoding="utf-8"))
+    translation_payload = json.loads(task_c_translation.read_text(encoding="utf-8"))
+    speaker_ids = pick_task_d_speaker_ids(
+        profiles_payload=profiles_payload,
+        translation_payload=translation_payload,
+        limit=1,
+    )
+    if not speaker_ids and not args.speaker_id:
+        raise ValueError("No suitable speaker found for Task D")
+    speaker_id = args.speaker_id or speaker_ids[0]
+    selected_segment_ids = pick_segment_ids_for_speaker(
+        translation_payload=translation_payload,
         speaker_id=speaker_id,
         limit=args.max_segments,
     )
-    dubbing = synthesize_speaker(
-        DubbingRequest(
-            translation_path=translation.artifacts.translation_json_path,
-            profiles_path=registry.artifacts.profiles_path,
-            output_dir=output_root / "task-d",
-            speaker_id=speaker_id,
-            backend=args.tts_backend,
-            device=args.device,
-            segment_ids=selected_segment_ids,
-            max_segments=args.max_segments if selected_segment_ids is None else None,
-        )
-    )
 
-    print(f"stage1_voice={separation.artifacts.voice_path}")
-    print(f"task_a_segments={transcription.artifacts.segments_json_path}")
-    print(f"task_b_profiles={registry.artifacts.profiles_path}")
-    print(f"task_c_translation={translation.artifacts.translation_json_path}")
-    print(f"task_d_report={dubbing.artifacts.report_path}")
-    if dubbing.artifacts.demo_audio_path:
-        print(f"task_d_demo={dubbing.artifacts.demo_audio_path}")
-    print(f"task_d_manifest={dubbing.artifacts.manifest_path}")
+    synthesize_cmd = [
+        "synthesize-speaker",
+        "--translation",
+        str(task_c_translation),
+        "--profiles",
+        str(task_b_profiles),
+        "--speaker-id",
+        speaker_id,
+        "--output-dir",
+        str(task_d_dir),
+        "--backend",
+        args.tts_backend,
+        "--device",
+        args.device,
+    ]
+    if selected_segment_ids:
+        for segment_id in selected_segment_ids:
+            synthesize_cmd.extend(["--segment-id", segment_id])
+    elif args.max_segments is not None:
+        synthesize_cmd.extend(["--max-segments", str(args.max_segments)])
+    _run_cli(synthesize_cmd)
+
+    task_d_bundle = task_d_dir / "voice" / speaker_id
+    task_d_report = task_d_bundle / f"speaker_segments.{args.target_lang}.json"
+    task_d_demo = task_d_bundle / f"speaker_demo.{args.target_lang}.wav"
+    task_d_manifest = task_d_bundle / "task-d-manifest.json"
+
+    print(f"stage1_voice={voice_path}")
+    print(f"task_a_segments={task_a_segments}")
+    print(f"task_b_profiles={task_b_profiles}")
+    print(f"task_c_translation={task_c_translation}")
+    print(f"task_d_report={task_d_report}")
+    if task_d_demo.exists():
+        print(f"task_d_demo={task_d_demo}")
+    print(f"task_d_manifest={task_d_manifest}")
     if selected_segment_ids:
         print(f"task_d_segment_ids={','.join(selected_segment_ids)}")
     return 0
 
 
-def _pick_task_d_speaker(*, profiles_path: Path, translation_path: Path) -> str:
-    payload = json.loads(Path(profiles_path).read_text(encoding="utf-8"))
-    profiles = [profile for profile in payload.get("profiles", []) if isinstance(profile, dict)]
-    if not profiles:
-        raise ValueError("No speaker profiles available for Task D")
-
-    translation_payload = json.loads(Path(translation_path).read_text(encoding="utf-8"))
-    usable_counts: dict[str, int] = defaultdict(int)
-    short_counts: dict[str, int] = defaultdict(int)
-
-    for row in translation_payload.get("segments", []):
-        if not isinstance(row, dict):
-            continue
-        speaker_id = str(row.get("speaker_id") or "")
-        duration_sec = float(row.get("duration") or 0.0)
-        flags = {str(flag) for flag in row.get("qa_flags", [])}
-        if _is_usable_task_d_segment(duration_sec=duration_sec, qa_flags=flags):
-            usable_counts[speaker_id] += 1
-        if 1.0 <= duration_sec <= 4.0 and "too_short_source" not in flags:
-            short_counts[speaker_id] += 1
-
-    best_tuple: tuple[int, int, float, float, str] | None = None
-    for profile in profiles:
-        speaker_id = str(profile.get("speaker_id") or "")
-        if not speaker_id or usable_counts.get(speaker_id, 0) <= 0:
-            continue
-        try:
-            top_reference = select_reference_candidates(
-                profiles_payload=payload,
-                speaker_id=speaker_id,
-            )[0]
-        except ValueError:
-            continue
-        candidate_tuple = (
-            usable_counts.get(speaker_id, 0),
-            short_counts.get(speaker_id, 0),
-            float(top_reference.score),
-            float(profile.get("total_speech_sec") or 0.0),
-            speaker_id,
-        )
-        if best_tuple is None or candidate_tuple > best_tuple:
-            best_tuple = candidate_tuple
-
-    if best_tuple is None:
-        raise ValueError("No suitable speaker found for Task D")
-    return best_tuple[-1]
+def _run_cli(args: list[str]) -> None:
+    cmd = [str(_cli_executable()), *args]
+    subprocess.run(cmd, check=True, env=_cli_env())
 
 
-def _pick_segment_ids(
-    *,
-    translation_path: Path,
-    speaker_id: str,
-    limit: int | None,
-) -> list[str] | None:
-    if limit is None:
-        return None
-
-    payload = json.loads(Path(translation_path).read_text(encoding="utf-8"))
-    rows = [
-        row
-        for row in payload.get("segments", [])
-        if isinstance(row, dict) and str(row.get("speaker_id")) == speaker_id
-    ]
-    rows = sorted(rows, key=lambda row: (float(row.get("start") or 0.0), str(row.get("segment_id") or "")))
-    preferred = [
-        row for row in rows if _is_preferred_task_d_segment(float(row.get("duration") or 0.0), row.get("qa_flags", []))
-    ]
-    fallback = [
-        row
-        for row in rows
-        if _is_usable_task_d_segment(
-            duration_sec=float(row.get("duration") or 0.0),
-            qa_flags={str(flag) for flag in row.get("qa_flags", [])},
-        )
-    ]
-    selected: list[str] = []
-    for pool in (preferred, fallback, rows):
-        for row in pool:
-            segment_id = str(row.get("segment_id") or "")
-            if not segment_id or segment_id in selected:
-                continue
-            selected.append(segment_id)
-            if len(selected) >= limit:
-                return selected
-    return selected or None
+def _cli_executable() -> Path:
+    return Path(sys.executable).with_name("video-voice-separate")
 
 
-def _is_usable_task_d_segment(*, duration_sec: float, qa_flags: set[str]) -> bool:
-    if duration_sec < 1.0 or duration_sec > 6.0:
-        return False
-    if "too_short_source" in qa_flags:
-        return False
-    return True
-
-
-def _is_preferred_task_d_segment(duration_sec: float, qa_flags: list[str] | set[str]) -> bool:
-    normalized_flags = {str(flag) for flag in qa_flags}
-    if not _is_usable_task_d_segment(duration_sec=duration_sec, qa_flags=normalized_flags):
-        return False
-    if "duration_risky" in normalized_flags:
-        return False
-    return 1.5 <= duration_sec <= 4.5
+def _cli_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.setdefault("PYTHONUNBUFFERED", "1")
+    env.setdefault("HF_HUB_DISABLE_XET", "1")
+    env.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "0")
+    return env
 
 
 if __name__ == "__main__":

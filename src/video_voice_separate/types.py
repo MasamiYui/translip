@@ -10,7 +10,12 @@ OutputFormat = Literal["wav", "mp3", "flac", "aac", "opus"]
 Device = Literal["auto", "cpu", "cuda", "mps"]
 Quality = Literal["balanced", "high"]
 TranslationBackendName = Literal["local-m2m100", "siliconflow"]
-TtsBackendName = Literal["f5tts", "openvoice"]
+TtsBackendName = Literal["qwen3tts"]
+FitPolicy = Literal["conservative", "high_quality"]
+FitBackendName = Literal["atempo", "rubberband"]
+MixProfileName = Literal["preview", "enhanced"]
+DuckingModeName = Literal["static", "sidechain"]
+PreviewFormat = Literal["wav", "mp3"]
 
 
 @dataclass(slots=True)
@@ -262,7 +267,7 @@ class DubbingRequest:
     profiles_path: Path | str
     output_dir: Path | str = Path("output")
     speaker_id: str = ""
-    backend: TtsBackendName = "f5tts"
+    backend: TtsBackendName = "qwen3tts"
     device: Device = "auto"
     reference_clip_path: Path | str | None = None
     segment_ids: list[str] | None = None
@@ -304,5 +309,66 @@ class DubbingArtifacts:
 class DubbingResult:
     request: DubbingRequest
     artifacts: DubbingArtifacts
+    manifest: dict[str, Any]
+    work_dir: Path
+
+
+@dataclass(slots=True)
+class RenderDubRequest:
+    background_path: Path | str
+    segments_path: Path | str
+    translation_path: Path | str
+    task_d_report_paths: list[Path | str]
+    output_dir: Path | str = Path("output")
+    target_lang: str = "en"
+    fit_policy: FitPolicy = "conservative"
+    fit_backend: FitBackendName = "atempo"
+    mix_profile: MixProfileName = "preview"
+    ducking_mode: DuckingModeName = "static"
+    output_sample_rate: int = 24_000
+    background_gain_db: float = -8.0
+    window_ducking_db: float = -3.0
+    max_compress_ratio: float = 1.45
+    preview_format: PreviewFormat = "wav"
+
+    def normalized(self) -> "RenderDubRequest":
+        return RenderDubRequest(
+            background_path=Path(self.background_path).expanduser().resolve(),
+            segments_path=Path(self.segments_path).expanduser().resolve(),
+            translation_path=Path(self.translation_path).expanduser().resolve(),
+            task_d_report_paths=[
+                Path(path).expanduser().resolve()
+                for path in self.task_d_report_paths
+            ],
+            output_dir=Path(self.output_dir).expanduser().resolve(),
+            target_lang=self.target_lang,
+            fit_policy=self.fit_policy,
+            fit_backend=self.fit_backend,
+            mix_profile=self.mix_profile,
+            ducking_mode=self.ducking_mode,
+            output_sample_rate=self.output_sample_rate,
+            background_gain_db=self.background_gain_db,
+            window_ducking_db=self.window_ducking_db,
+            max_compress_ratio=self.max_compress_ratio,
+            preview_format=self.preview_format,
+        )
+
+
+@dataclass(slots=True)
+class RenderDubArtifacts:
+    bundle_dir: Path
+    dub_voice_path: Path
+    preview_mix_wav_path: Path
+    timeline_path: Path
+    mix_report_path: Path
+    manifest_path: Path
+    preview_mix_extra_path: Path | None = None
+    intermediate_paths: dict[str, Path] = field(default_factory=dict)
+
+
+@dataclass(slots=True)
+class RenderDubResult:
+    request: RenderDubRequest
+    artifacts: RenderDubArtifacts
     manifest: dict[str, Any]
     work_dir: Path
