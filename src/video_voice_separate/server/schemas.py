@@ -1,0 +1,142 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from pydantic import BaseModel
+
+
+class TaskStageRead(BaseModel):
+    stage_name: str
+    status: str
+    progress_percent: float
+    current_step: Optional[str] = None
+    cache_hit: bool = False
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    elapsed_sec: Optional[float] = None
+    manifest_path: Optional[str] = None
+    error_message: Optional[str] = None
+
+
+class TaskRead(BaseModel):
+    id: str
+    name: str
+    status: str
+    input_path: str
+    output_root: str
+    source_lang: str
+    target_lang: str
+    config: Dict[str, Any]
+    overall_progress: float
+    current_stage: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    elapsed_sec: Optional[float] = None
+    error_message: Optional[str] = None
+    manifest_path: Optional[str] = None
+    parent_task_id: Optional[str] = None
+    stages: List[TaskStageRead] = []
+
+
+class TaskListResponse(BaseModel):
+    items: List[TaskRead]
+    total: int
+    page: int
+    size: int
+
+
+class TaskConfigInput(BaseModel):
+    device: str = "auto"
+    run_from_stage: str = "stage1"
+    run_to_stage: str = "task-e"
+    use_cache: bool = True
+    keep_intermediate: bool = False
+    # Stage 1
+    separation_mode: str = "auto"
+    separation_quality: str = "balanced"
+    music_backend: str = "demucs"
+    dialogue_backend: str = "cdx23"
+    # Task A
+    asr_model: str = "small"
+    generate_srt: bool = True
+    # Task B
+    existing_registry: Optional[str] = None
+    top_k: int = 3
+    # Task C
+    translation_backend: str = "local-m2m100"
+    translation_glossary: Optional[str] = None
+    translation_batch_size: int = 4
+    siliconflow_base_url: Optional[str] = None
+    siliconflow_model: Optional[str] = None
+    # Task D
+    tts_backend: str = "qwen3tts"
+    max_segments: Optional[int] = None
+    # Task E
+    fit_policy: str = "conservative"
+    fit_backend: str = "atempo"
+    mix_profile: str = "preview"
+    ducking_mode: str = "static"
+    background_gain_db: float = -8.0
+    # Task G
+    export_preview: bool = True
+    export_dub: bool = True
+    delivery_container: str = "mp4"
+    delivery_video_codec: str = "copy"
+    delivery_audio_codec: str = "aac"
+
+
+class CreateTaskRequest(BaseModel):
+    name: str
+    input_path: str
+    source_lang: str = "zh"
+    target_lang: str = "en"
+    config: TaskConfigInput = TaskConfigInput()
+    output_root: Optional[str] = None
+    save_as_preset: bool = False
+    preset_name: Optional[str] = None
+
+
+class RerunTaskRequest(BaseModel):
+    from_stage: str = "stage1"
+
+
+class ConfigPresetRead(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    source_lang: str
+    target_lang: str
+    config: Dict[str, Any]
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreatePresetRequest(BaseModel):
+    name: str
+    description: Optional[str] = None
+    source_lang: str = "zh"
+    target_lang: str = "en"
+    config: Dict[str, Any]
+
+
+class SystemInfo(BaseModel):
+    python_version: str
+    device: str
+    cache_dir: str
+    cache_size_bytes: int
+    pipeline_output_root: str
+    models: List[Dict[str, Any]] = []
+
+
+class MediaProbeResult(BaseModel):
+    path: str
+    duration_sec: float
+    has_video: bool
+    has_audio: bool
+    width: Optional[int] = None
+    height: Optional[int] = None
+    sample_rate: Optional[int] = None
+    format_name: Optional[str] = None
