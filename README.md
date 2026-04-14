@@ -1,36 +1,117 @@
 # video-voice-separate
 
-Separate `voice` and `background` audio from local video or audio files, then
-build speaker-aware artifacts for downstream dubbing.
+**Speaker-aware multilingual video dubbing pipeline.**
 
-## Current Scope
+Separates voice and background audio from a source video, transcribes with speaker attribution, translates, clones each speaker's voice in the target language, and exports a final dubbed MP4 — with a web-based management UI included.
 
-The repository currently contains two working stages:
+[English](#english) · [中文](#中文)
 
-1. Source separation
-  Input local video/audio and output `voice` plus `background`
-2. Speaker-aware analysis
-  Input `voice` and output speaker-attributed transcript plus file-backed speaker registry artifacts
-3. Translation script generation
-  Input Task A/B artifacts and output multilingual translation scripts for downstream dubbing
-4. Single-speaker target-language synthesis
-  Input Task B/C artifacts and output segment-level cloned speech plus Task D evaluation reports
-5. Multi-speaker timeline fitting and preview mixing
-  Input Task A/C/D artifacts plus stage 1 background and output dub voice plus preview mix
-6. Pipeline orchestration
-  Input one source file and orchestrate stage 1 through Task E with cache-aware execution and status tracking
-7. Final video delivery
-  Input Task E audio assets plus the original video and export final delivery mp4 files
+---
 
-## Quick Start
+## English
 
-Install dependencies:
+### Overview
+
+`video-voice-separate` is a local, end-to-end video dubbing pipeline. Given a source video file and a target language, it produces a fully dubbed MP4 with per-speaker voice cloning.
+
+**Pipeline stages:**
+
+| Stage | Name | Description |
+|-------|------|-------------|
+| Stage 1 | Audio Separation | Splits voice track and background using Demucs / CDX23 |
+| Task A | Transcription | ASR via faster-whisper + speaker diarization (SpeechBrain ECAPA) |
+| Task B | Speaker Registry | Builds speaker profiles and matches against a persistent registry |
+| Task C | Translation | Translates segments with M2M100 (local) or SiliconFlow API |
+| Task D | Voice Cloning | Synthesizes target-language speech per speaker via Qwen3-TTS |
+| Task E | Timeline Fitting | Assembles dub audio onto the original timeline with background ducking |
+| Task G | Video Delivery | Muxes dubbed audio back into the source video and exports final MP4 |
+| Task F | Orchestration | Cache-aware multi-stage pipeline runner with status tracking |
+
+**Management UI** — A full-stack web interface (FastAPI + React) lets you create and monitor pipeline tasks in real time with per-stage progress graphs, manifest viewers, and artifact downloads.
+
+---
+
+### Requirements
+
+- Python 3.11–3.12
+- [uv](https://docs.astral.sh/uv/) package manager
+- FFmpeg (available in PATH)
+- macOS / Linux (MPS or CUDA recommended for Task D; CPU is supported)
+
+---
+
+### Installation
 
 ```bash
+git clone https://github.com/MasamiYui/video-voice-separate.git
+cd video-voice-separate
 uv sync
 ```
 
-### Stage 1: Separate Voice and Background
+Pre-download CDX23 dialogue separation checkpoints (recommended):
+
+```bash
+uv run video-voice-separate download-models --backend cdx23 --quality balanced
+```
+
+---
+
+### Quick Start — Full Pipeline
+
+Run the full pipeline on a source video (Stage 1 → Task G):
+
+```bash
+uv run video-voice-separate run-pipeline \
+  --input ./test_video/example.mp4 \
+  --output-root ./output-pipeline \
+  --target-lang en \
+  --write-status
+```
+
+Then export the final video:
+
+```bash
+uv run video-voice-separate export-video \
+  --pipeline-root ./output-pipeline
+```
+
+**Outputs:**
+- `final-preview/final_preview.en.mp4` — preview mix (original voice ducked)
+- `final-dub/final_dub.en.mp4` — dubbed version (voice track replaced)
+
+---
+
+### Web Management UI
+
+Start the backend API server:
+
+```bash
+uv run video-voice-server --host 127.0.0.1 --port 8765
+# or directly:
+uv run uvicorn video_voice_separate.server.app:app --host 127.0.0.1 --port 8765
+```
+
+Start the frontend dev server:
+
+```bash
+cd frontend
+npm install
+npm run dev
+# Opens at http://localhost:5173
+```
+
+Features:
+- **Dashboard** — task stats and active pipeline graphs
+- **Task List** — filter and browse all tasks
+- **New Task** — 4-step form to configure and launch a pipeline run
+- **Task Detail** — real-time stage progress, manifest viewer, artifact downloads
+- **Settings** — system info, device, Python version, cache usage
+
+---
+
+### CLI Reference
+
+#### Stage 1 — Audio Separation
 
 ```bash
 uv run video-voice-separate run \
@@ -40,25 +121,9 @@ uv run video-voice-separate run \
   --output-dir ./output
 ```
 
-Download the built-in `CDX23` dialogue checkpoints ahead of time if you plan to use
-`--mode dialogue` often:
+`--mode auto` selects `dialogue` (CDX23) for voice-dominant content and `music` (Demucs) otherwise.
 
-```bash
-uv run video-voice-separate download-models --backend cdx23 --quality balanced
-```
-
-Run the dialogue backend explicitly:
-
-```bash
-uv run video-voice-separate run \
-  --input ./test_video/example.mp4 \
-  --mode dialogue \
-  --quality balanced \
-  --output-dir ./output-dialogue \
-  --keep-intermediate
-```
-
-### Stage 2A: Speaker-Attributed Transcription
+#### Task A — Transcription
 
 ```bash
 uv run video-voice-separate transcribe \
@@ -66,13 +131,9 @@ uv run video-voice-separate transcribe \
   --output-dir ./output-task-a
 ```
 
-Outputs:
+Outputs: `segments.zh.json`, `segments.zh.srt`, `task-a-manifest.json`
 
-- `segments.zh.json`
-- `segments.zh.srt`
-- `task-a-manifest.json`
-
-### Stage 2B: Speaker Registry and Retrieval
+#### Task B — Speaker Registry
 
 ```bash
 uv run video-voice-separate build-speaker-registry \
@@ -83,16 +144,12 @@ uv run video-voice-separate build-speaker-registry \
   --update-registry
 ```
 
-Outputs:
+Outputs: `speaker_profiles.json`, `speaker_matches.json`, `speaker_registry.json`
 
-- `speaker_profiles.json`
-- `speaker_matches.json`
-- `speaker_registry.json`
-- `task-b-manifest.json`
-
-### Stage 2C: Translation Script Generation
+#### Task C — Translation
 
 ```bash
+# Local M2M100
 uv run video-voice-separate translate-script \
   --segments ./output-task-a/voice/segments.zh.json \
   --profiles ./output-task-b/voice/speaker_profiles.json \
@@ -100,42 +157,18 @@ uv run video-voice-separate translate-script \
   --backend local-m2m100 \
   --glossary ./config/glossary.example.json \
   --output-dir ./output-task-c
-```
 
-Use the SiliconFlow backend through environment variables instead of hardcoding a key:
-
-```bash
-export SILICONFLOW_API_KEY=...
+# SiliconFlow API
+export SILICONFLOW_API_KEY=<your-key>
 uv run video-voice-separate translate-script \
-  --segments ./output-task-a/voice/segments.zh.json \
-  --profiles ./output-task-b/voice/speaker_profiles.json \
-  --target-lang en \
+  ... \
   --backend siliconflow \
-  --api-model deepseek-ai/DeepSeek-V3 \
-  --glossary ./config/glossary.example.json \
-  --output-dir ./output-task-c-api
+  --api-model deepseek-ai/DeepSeek-V3
 ```
 
-Outputs:
+Outputs: `translation.en.json`, `translation.en.srt`
 
-- `translation.<target_tag>.json`
-- `translation.<target_tag>.editable.json`
-- `translation.<target_tag>.srt`
-- `task-c-manifest.json`
-
-### Demo Script: Stage 1 To Task C
-
-```bash
-uv run python scripts/run_task_a_to_c.py \
-  --input ./test_video/example.mp4 \
-  --output-root ./tmp/e2e-task-a-to-c \
-  --target-lang en \
-  --translation-backend local-m2m100
-```
-
-### Stage 2D: Single-Speaker Voice Cloning
-
-`Task D` now uses a single local backend: `Qwen3-TTS-12Hz-0.6B-Base`.
+#### Task D — Voice Cloning
 
 ```bash
 uv run video-voice-separate synthesize-speaker \
@@ -147,34 +180,9 @@ uv run video-voice-separate synthesize-speaker \
   --device auto
 ```
 
-Outputs:
+Outputs: `speaker_segments.en.json`, `speaker_demo.en.wav`
 
-- `speaker_segments.<target_tag>.json`
-- `speaker_demo.<target_tag>.wav`
-- `task-d-manifest.json`
-
-Notes:
-
-- The first `Qwen3-TTS` run downloads checkpoints into the Hugging Face cache
-- `Task D` uses `non_streaming_mode=True` and a duration-budget-derived
-  `max_new_tokens` cap to avoid runaway generation on repetitive lines
-- The `run_task_a_to_d.py` and `run_task_a_to_e.py` demo scripts execute each
-  stage in a separate subprocess so large local models do not accumulate in one
-  Python process on `MacBook M4 16GB`
-
-### Demo Script: Stage 1 To Task D
-
-```bash
-uv run python scripts/run_task_a_to_d.py \
-  --input ./test_video/example.mp4 \
-  --output-root ./tmp/e2e-task-a-to-d \
-  --target-lang en \
-  --translation-backend local-m2m100 \
-  --tts-backend qwen3tts \
-  --max-segments 3
-```
-
-### Stage 2E: Timeline Fitting And Preview Mixing
+#### Task E — Timeline Fitting & Mixing
 
 ```bash
 uv run video-voice-separate render-dub \
@@ -182,48 +190,131 @@ uv run video-voice-separate render-dub \
   --segments ./output-task-a/voice/segments.zh.json \
   --translation ./output-task-c/voice/translation.en.json \
   --task-d-report ./output-task-d/voice/spk_0001/speaker_segments.en.json \
-  --task-d-report ./output-task-d/voice/spk_0005/speaker_segments.en.json \
   --output-dir ./output-task-e \
   --fit-policy conservative \
-  --fit-backend atempo \
-  --mix-profile preview \
-  --ducking-mode static
+  --mix-profile preview
 ```
 
-Outputs:
+Outputs: `dub_voice.en.wav`, `preview_mix.en.wav`, `timeline.en.json`
 
-- `dub_voice.<target_tag>.wav`
-- `preview_mix.<target_tag>.wav`
-- `timeline.<target_tag>.json`
-- `mix_report.<target_tag>.json`
-- `task-e-manifest.json`
-
-Notes:
-
-- `Task E` now keeps `Task D overall_status=failed` segments in the timeline as
-  long as the generated audio exists; later optimization can still replace or
-  suppress them
-- `Task E` also keeps overlong or undersized segments instead of dropping them
-  at fit time; these are marked as `overflow_unfitted` or `underflow_unfitted`
-  in the timeline and mix report
-- `--fit-backend rubberband` is exposed as an optional higher-quality path, but
-  requires an `ffmpeg` build with the `rubberband` filter
-- The default `atempo` backend is the stable local baseline on `MacBook M4 16GB`
-
-### Demo Script: Stage 1 To Task E
+#### Task G — Export Video
 
 ```bash
-uv run python scripts/run_task_a_to_e.py \
-  --input ./test_video/example.mp4 \
-  --output-root ./tmp/e2e-task-a-to-e \
-  --target-lang en \
-  --translation-backend local-m2m100 \
-  --tts-backend qwen3tts \
-  --speaker-limit 2 \
-  --segments-per-speaker 3
+uv run video-voice-separate export-video \
+  --pipeline-root ./output-pipeline
 ```
 
-### Task F: Pipeline Orchestration
+#### Other Commands
+
+| Command | Description |
+|---------|-------------|
+| `probe` | Inspect media metadata (duration, codecs, sample rate) |
+| `download-models` | Pre-download backend checkpoints |
+
+---
+
+### Configuration
+
+Default values are in `src/video_voice_separate/config.py`:
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `DEFAULT_SAMPLE_RATE` | 44,100 Hz | Output sample rate |
+| Transcription sample rate | 16,000 Hz | Internal ASR rate |
+| Device | auto (CPU/CUDA/MPS) | Compute device |
+| Cache root | `~/.cache/video-voice-separate` | Override with `VIDEO_VOICE_SEPARATE_CACHE_DIR` |
+
+---
+
+### Development
+
+```bash
+uv sync
+uv run pytest tests/
+```
+
+---
+
+### Architecture
+
+```
+src/video_voice_separate/
+├── pipeline/        # Stage 1 — audio separation (Demucs, CDX23)
+├── transcription/   # Task A — ASR + diarization
+├── speakers/        # Task B — speaker embeddings, registry
+├── translation/     # Task C — M2M100 / SiliconFlow
+├── dubbing/         # Task D — Qwen3-TTS voice cloning
+├── rendering/       # Task E — timeline fitting, mixing, ducking
+├── delivery/        # Task G — FFmpeg video muxing
+├── orchestration/   # Task F — cache-aware pipeline runner
+├── server/          # FastAPI backend + SQLite task management
+└── models/          # Model backends (DemucsMusicSeparator, Cdx23DialogueSeparator)
+```
+
+---
+
+### Docs
+
+- [docs/README.md](docs/README.md) — document index
+- [docs/technical-design.md](docs/technical-design.md) — source separation design
+- [docs/speaker-aware-dubbing-plan.md](docs/speaker-aware-dubbing-plan.md) — overall dubbing plan
+- [docs/task-f-pipeline-and-engineering-orchestration.md](docs/task-f-pipeline-and-engineering-orchestration.md) — pipeline orchestration
+- [docs/task-g-final-video-delivery.md](docs/task-g-final-video-delivery.md) — video delivery design
+- [docs/frontend-management-system-design.md](docs/frontend-management-system-design.md) — web UI design
+
+---
+
+## 中文
+
+### 概述
+
+`video-voice-separate` 是一个本地端到端视频配音流水线。输入一个源视频和目标语言，即可输出带有逐说话人声音克隆的完整配音 MP4。
+
+**流水线阶段：**
+
+| 阶段 | 名称 | 说明 |
+|------|------|------|
+| Stage 1 | 音频分离 | 使用 Demucs / CDX23 分离人声与背景音 |
+| Task A | 语音转写 | faster-whisper ASR + SpeechBrain ECAPA 说话人分割 |
+| Task B | 说话人注册表 | 构建说话人档案并与持久化注册表匹配 |
+| Task C | 翻译 | 使用 M2M100（本地）或 SiliconFlow API 翻译 |
+| Task D | 声音克隆 | 通过 Qwen3-TTS 为每位说话人合成目标语言语音 |
+| Task E | 时间轴拟合 | 将配音音频按原始时间轴拼装，含背景音自动压低 |
+| Task G | 视频交付 | 将配音音频混入源视频并导出最终 MP4 |
+| Task F | 流水线编排 | 支持缓存复用的多阶段流水线执行器，含状态跟踪 |
+
+**管理界面** — 内置全栈 Web 界面（FastAPI + React），可实时创建和监控流水线任务，支持逐阶段进度图、Manifest 查看、产物文件下载。
+
+---
+
+### 环境要求
+
+- Python 3.11–3.12
+- [uv](https://docs.astral.sh/uv/) 包管理器
+- FFmpeg（需在 PATH 中）
+- macOS / Linux（Task D 推荐使用 MPS 或 CUDA；支持 CPU）
+
+---
+
+### 安装
+
+```bash
+git clone https://github.com/MasamiYui/video-voice-separate.git
+cd video-voice-separate
+uv sync
+```
+
+预下载 CDX23 对话分离模型（推荐）：
+
+```bash
+uv run video-voice-separate download-models --backend cdx23 --quality balanced
+```
+
+---
+
+### 快速开始 — 完整流水线
+
+对源视频运行完整流水线（Stage 1 → Task G）：
 
 ```bash
 uv run video-voice-separate run-pipeline \
@@ -233,75 +324,196 @@ uv run video-voice-separate run-pipeline \
   --write-status
 ```
 
-Outputs:
-
-- `request.json`
-- `pipeline-status.json`
-- `pipeline-manifest.json`
-- `pipeline-report.json`
-- all stage directories from `stage1` through `task-e`
-
-Notes:
-
-- `run-pipeline` is cache-aware; rerunning the same command on the same
-  `--output-root` reuses successful stage outputs when cache keys still match
-- `pipeline-status.json` is updated while the pipeline runs and summarizes
-  overall progress plus per-stage status
-- `Task D` is the dominant runtime cost in a full local run because it executes
-  segment-level TTS and backread evaluation across multiple speakers
-
-### Task G: Final Video Delivery
+导出最终视频：
 
 ```bash
 uv run video-voice-separate export-video \
   --pipeline-root ./output-pipeline
 ```
 
-Outputs:
+**输出文件：**
+- `final-preview/final_preview.en.mp4` — 预览混音版（原声压低）
+- `final-dub/final_dub.en.mp4` — 配音版（人声替换）
 
-- `final-preview/final_preview.<target_tag>.mp4`
-- `final-dub/final_dub.<target_tag>.mp4`
-- `delivery-manifest.json`
-- `delivery-report.json`
+---
 
-Notes:
+### Web 管理界面
 
-- `export-video` consumes Task E outputs and does not rerun upstream stages
-- By default it preserves the original video stream and re-encodes only the
-  output audio track as `aac`
-- The default end policy is `trim_audio_to_video`, which keeps the exported
-  video aligned to the original video duration
+启动后端 API 服务：
 
-## Commands
+```bash
+uv run video-voice-server --host 127.0.0.1 --port 8765
+# 或直接启动：
+uv run uvicorn video_voice_separate.server.app:app --host 127.0.0.1 --port 8765
+```
 
-- `video-voice-separate run`: separate a file into `voice` and `background`
-- `video-voice-separate transcribe`: build a speaker-attributed transcript from a voice track
-- `video-voice-separate build-speaker-registry`: build speaker profiles and match them against a file-backed registry
-- `video-voice-separate translate-script`: generate a translation script for downstream dubbing
-- `video-voice-separate synthesize-speaker`: synthesize target-language speech for one speaker and export Task D evaluation artifacts
-- `video-voice-separate render-dub`: assemble Task D speaker outputs into a Task E dub timeline and preview mix
-- `video-voice-separate run-pipeline`: orchestrate stage 1 through Task E with cache-aware execution and pipeline status output
-- `video-voice-separate export-video`: mux Task E audio assets back into the source video and export final delivery mp4 files
-- `video-voice-separate probe`: inspect input media metadata
-- `video-voice-separate download-models`: download backend checkpoints into cache
+启动前端开发服务：
 
-## Docs
+```bash
+cd frontend
+npm install
+npm run dev
+# 访问 http://localhost:5173
+```
 
-- [docs/README.md](docs/README.md): document index
-- [docs/technical-design.md](docs/technical-design.md): source separation system design
-- [docs/speaker-aware-dubbing-plan.md](docs/speaker-aware-dubbing-plan.md): overall multi-stage dubbing plan
-- [docs/speaker-aware-dubbing-task-breakdown.md](docs/speaker-aware-dubbing-task-breakdown.md): task breakdown
-- [docs/task-a-speaker-attributed-transcription.md](docs/task-a-speaker-attributed-transcription.md): Task A design
-- [docs/task-a-test-report.md](docs/task-a-test-report.md): Task A validation report
-- [docs/task-b-speaker-registry-and-retrieval.md](docs/task-b-speaker-registry-and-retrieval.md): Task B design
-- [docs/task-b-test-report.md](docs/task-b-test-report.md): Task B validation report
-- [docs/task-c-dubbing-script-generation.md](docs/task-c-dubbing-script-generation.md): Task C design
-- [docs/task-c-test-report.md](docs/task-c-test-report.md): Task C validation report
-- [docs/task-d-single-speaker-voice-cloning.md](docs/task-d-single-speaker-voice-cloning.md): Task D design
-- [docs/task-d-test-report.md](docs/task-d-test-report.md): Task D validation report
-- [docs/task-e-timeline-fitting-and-mixing.md](docs/task-e-timeline-fitting-and-mixing.md): Task E design
-- [docs/task-e-test-report.md](docs/task-e-test-report.md): Task E validation report
-- [docs/task-f-pipeline-and-engineering-orchestration.md](docs/task-f-pipeline-and-engineering-orchestration.md): Task F design
-- [docs/task-f-test-report.md](docs/task-f-test-report.md): Task F validation report
-- [docs/task-g-final-video-delivery.md](docs/task-g-final-video-delivery.md): Task G design
-- [docs/task-g-test-report.md](docs/task-g-test-report.md): Task G validation report
+功能说明：
+- **仪表盘** — 任务统计与活跃流水线进度图
+- **任务列表** — 筛选与浏览所有任务
+- **新建任务** — 四步配置表单，快速启动流水线任务
+- **任务详情** — 实时阶段进度、Manifest 查看、产物文件下载
+- **全局设置** — 系统信息、设备、Python 版本、缓存用量
+
+---
+
+### CLI 命令说明
+
+#### Stage 1 — 音频分离
+
+```bash
+uv run video-voice-separate run \
+  --input ./test_video/example.mp4 \
+  --mode auto \
+  --quality balanced \
+  --output-dir ./output
+```
+
+`--mode auto` 会对人声主导内容自动选择 `dialogue`（CDX23），否则使用 `music`（Demucs）。
+
+#### Task A — 语音转写
+
+```bash
+uv run video-voice-separate transcribe \
+  --input ./output/example/voice.mp3 \
+  --output-dir ./output-task-a
+```
+
+输出：`segments.zh.json`、`segments.zh.srt`、`task-a-manifest.json`
+
+#### Task B — 说话人注册表
+
+```bash
+uv run video-voice-separate build-speaker-registry \
+  --segments ./output-task-a/voice/segments.zh.json \
+  --audio ./output/example/voice.mp3 \
+  --output-dir ./output-task-b \
+  --registry ./output-task-b/registry/speaker_registry.json \
+  --update-registry
+```
+
+输出：`speaker_profiles.json`、`speaker_matches.json`、`speaker_registry.json`
+
+#### Task C — 翻译
+
+```bash
+# 本地 M2M100
+uv run video-voice-separate translate-script \
+  --segments ./output-task-a/voice/segments.zh.json \
+  --profiles ./output-task-b/voice/speaker_profiles.json \
+  --target-lang en \
+  --backend local-m2m100 \
+  --glossary ./config/glossary.example.json \
+  --output-dir ./output-task-c
+
+# SiliconFlow API
+export SILICONFLOW_API_KEY=<your-key>
+uv run video-voice-separate translate-script \
+  ... \
+  --backend siliconflow \
+  --api-model deepseek-ai/DeepSeek-V3
+```
+
+输出：`translation.en.json`、`translation.en.srt`
+
+#### Task D — 声音克隆
+
+```bash
+uv run video-voice-separate synthesize-speaker \
+  --translation ./output-task-c/voice/translation.en.json \
+  --profiles ./output-task-b/voice/speaker_profiles.json \
+  --speaker-id spk_0001 \
+  --output-dir ./output-task-d \
+  --backend qwen3tts \
+  --device auto
+```
+
+输出：`speaker_segments.en.json`、`speaker_demo.en.wav`
+
+#### Task E — 时间轴拟合与混音
+
+```bash
+uv run video-voice-separate render-dub \
+  --background ./output/example/background.mp3 \
+  --segments ./output-task-a/voice/segments.zh.json \
+  --translation ./output-task-c/voice/translation.en.json \
+  --task-d-report ./output-task-d/voice/spk_0001/speaker_segments.en.json \
+  --output-dir ./output-task-e \
+  --fit-policy conservative \
+  --mix-profile preview
+```
+
+输出：`dub_voice.en.wav`、`preview_mix.en.wav`、`timeline.en.json`
+
+#### Task G — 视频导出
+
+```bash
+uv run video-voice-separate export-video \
+  --pipeline-root ./output-pipeline
+```
+
+#### 其他命令
+
+| 命令 | 说明 |
+|------|------|
+| `probe` | 查看媒体文件元信息（时长、编解码器、采样率等） |
+| `download-models` | 预下载后端模型检查点 |
+
+---
+
+### 配置
+
+默认值在 `src/video_voice_separate/config.py` 中：
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `DEFAULT_SAMPLE_RATE` | 44,100 Hz | 输出采样率 |
+| 转写采样率 | 16,000 Hz | ASR 内部采样率 |
+| 设备 | auto（CPU/CUDA/MPS） | 运算设备 |
+| 缓存目录 | `~/.cache/video-voice-separate` | 可通过 `VIDEO_VOICE_SEPARATE_CACHE_DIR` 覆盖 |
+
+---
+
+### 开发
+
+```bash
+uv sync
+uv run pytest tests/
+```
+
+---
+
+### 架构说明
+
+```
+src/video_voice_separate/
+├── pipeline/        # Stage 1 — 音频分离（Demucs、CDX23）
+├── transcription/   # Task A — ASR + 说话人分割
+├── speakers/        # Task B — 说话人嵌入、注册表
+├── translation/     # Task C — M2M100 / SiliconFlow
+├── dubbing/         # Task D — Qwen3-TTS 声音克隆
+├── rendering/       # Task E — 时间轴拟合、混音、压低
+├── delivery/        # Task G — FFmpeg 视频混流
+├── orchestration/   # Task F — 缓存感知流水线执行器
+├── server/          # FastAPI 后端 + SQLite 任务管理
+└── models/          # 模型后端（DemucsMusicSeparator、Cdx23DialogueSeparator）
+```
+
+---
+
+### 文档
+
+- [docs/README.md](docs/README.md) — 文档索引
+- [docs/technical-design.md](docs/technical-design.md) — 音频分离系统设计
+- [docs/speaker-aware-dubbing-plan.md](docs/speaker-aware-dubbing-plan.md) — 多阶段配音整体方案
+- [docs/task-f-pipeline-and-engineering-orchestration.md](docs/task-f-pipeline-and-engineering-orchestration.md) — 流水线编排设计
+- [docs/task-g-final-video-delivery.md](docs/task-g-final-video-delivery.md) — 视频交付设计
+- [docs/frontend-management-system-design.md](docs/frontend-management-system-design.md) — Web 管理界面设计
