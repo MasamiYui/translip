@@ -4,7 +4,7 @@ import json
 import time
 from pathlib import Path
 
-from ..exceptions import VideoVoiceSeparateError
+from ..exceptions import TranslipError
 from ..types import TranslationArtifacts, TranslationRequest, TranslationResult
 from ..utils.files import ensure_directory
 from .backend import BackendSegmentInput, output_tag_for_language
@@ -140,19 +140,19 @@ def build_translation_backend(request: TranslationRequest) -> object:
             base_url=request.api_base_url,
             model_name=request.api_model,
         )
-    raise VideoVoiceSeparateError(f"Unsupported translation backend: {request.backend}")
+    raise TranslipError(f"Unsupported translation backend: {request.backend}")
 
 
 def _validate_request(request: TranslationRequest) -> TranslationRequest:
     normalized = request.normalized()
     if not Path(normalized.segments_path).exists():
-        raise VideoVoiceSeparateError(f"Segments file does not exist: {normalized.segments_path}")
+        raise TranslipError(f"Segments file does not exist: {normalized.segments_path}")
     if not Path(normalized.profiles_path).exists():
-        raise VideoVoiceSeparateError(f"Profiles file does not exist: {normalized.profiles_path}")
+        raise TranslipError(f"Profiles file does not exist: {normalized.profiles_path}")
     if normalized.glossary_path is not None and not Path(normalized.glossary_path).exists():
-        raise VideoVoiceSeparateError(f"Glossary file does not exist: {normalized.glossary_path}")
+        raise TranslipError(f"Glossary file does not exist: {normalized.glossary_path}")
     if normalized.batch_size <= 0:
-        raise VideoVoiceSeparateError("batch_size must be greater than 0")
+        raise TranslipError("batch_size must be greater than 0")
     return normalized
 
 

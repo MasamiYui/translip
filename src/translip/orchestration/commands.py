@@ -8,7 +8,7 @@ from ..utils.files import slugify_filename
 
 
 def _cli_prefix() -> list[str]:
-    return [sys.executable, "-m", "video_voice_separate"]
+    return [sys.executable, "-m", "translip"]
 
 
 def stage1_bundle_dir(request: PipelineRequest) -> Path:

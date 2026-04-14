@@ -1,5 +1,5 @@
 [project]
-name = "video-voice-separate"
+name = "translip"
 version = "0.1.0"
 description = "Separate voice and background audio from video or audio inputs."
 readme = "README.md"
@@ -32,8 +32,8 @@ dev = [
 ]
 
 [project.scripts]
-video-voice-separate = "video_voice_separate.cli:main"
-video-voice-server = "video_voice_separate.server.app:run_server"
+translip = "translip.cli:main"
+translip-server = "translip.server.app:run_server"
 
 [build-system]
 requires = ["hatchling>=1.27.0"]

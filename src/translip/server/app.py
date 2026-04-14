@@ -17,7 +17,7 @@ from .routes.tasks import router as tasks_router
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="Video Voice Separate — Pipeline Manager",
+    title="Translip — Pipeline Manager",
     version="0.1.0",
     description="Management API for the video dubbing pipeline.",
 )
@@ -53,7 +53,7 @@ def run_server(host: str = "127.0.0.1", port: int = 8765) -> None:
     import uvicorn
 
     logging.basicConfig(level=logging.INFO)
-    uvicorn.run("video_voice_separate.server.app:app", host=host, port=port, reload=False)
+    uvicorn.run("translip.server.app:app", host=host, port=port, reload=False)
 
 
 if __name__ == "__main__":

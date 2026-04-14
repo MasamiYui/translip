@@ -1,17 +1,17 @@
 import json
 from pathlib import Path
 
-from video_voice_separate.translation.backend import BackendSegmentOutput
-from video_voice_separate.translation.duration import build_duration_budget
-from video_voice_separate.translation.glossary import (
+from translip.translation.backend import BackendSegmentOutput
+from translip.translation.duration import build_duration_budget
+from translip.translation.glossary import (
     apply_glossary,
     load_glossary,
     normalize_target_with_glossary,
 )
-from video_voice_separate.translation.runner import translate_script
-from video_voice_separate.translation.siliconflow_backend import _extract_message_content, _parse_json_payload
-from video_voice_separate.translation.units import SegmentRecord, build_context_units
-from video_voice_separate.types import TranslationRequest
+from translip.translation.runner import translate_script
+from translip.translation.siliconflow_backend import _extract_message_content, _parse_json_payload
+from translip.translation.units import SegmentRecord, build_context_units
+from translip.types import TranslationRequest
 
 
 class FakeBackend:

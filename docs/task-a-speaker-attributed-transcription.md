@@ -1,9 +1,9 @@
 # 任务 A 技术设计: 说话人归因转写
 
-- 项目: `video-voice-separate`
+- 项目: `translip`
 - 文档状态: Draft v1
 - 创建日期: 2026-04-11
-- 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/speaker-aware-dubbing-task-breakdown.md)
+- 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-aware-dubbing-task-breakdown.md)
 
 ## 1. 目标
 
@@ -177,19 +177,19 @@
 
 建议新增以下模块:
 
-- `src/video_voice_separate/transcription/runner.py`
+- `src/translip/transcription/runner.py`
   - 任务 A 主入口
-- `src/video_voice_separate/transcription/asr.py`
+- `src/translip/transcription/asr.py`
   - `faster-whisper` 封装
-- `src/video_voice_separate/transcription/speaker.py`
+- `src/translip/transcription/speaker.py`
   - embedding 与聚类
-- `src/video_voice_separate/transcription/export.py`
+- `src/translip/transcription/export.py`
   - JSON/SRT/manifest 导出
 
 CLI 新增一个独立命令，例如:
 
 ```bash
-uv run video-voice-separate transcribe \
+uv run translip transcribe \
   --input ./output/voice.wav \
   --output-dir ./output-task-a
 ```

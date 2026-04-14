@@ -3,14 +3,14 @@ from pathlib import Path
 
 import numpy as np
 
-from video_voice_separate.transcription.export import (
+from translip.transcription.export import (
     build_transcription_manifest,
     segments_payload,
     write_segments_srt,
 )
-from video_voice_separate.transcription.speaker import _cluster_embeddings, _expanded_window, _stable_relabel
-from video_voice_separate.types import MediaInfo, TranscriptionRequest, TranscriptionSegment
-from video_voice_separate.transcription.asr import AsrSegment
+from translip.transcription.speaker import _cluster_embeddings, _expanded_window, _stable_relabel
+from translip.types import MediaInfo, TranscriptionRequest, TranscriptionSegment
+from translip.transcription.asr import AsrSegment
 
 
 def test_stable_relabel_preserves_first_seen_order() -> None:

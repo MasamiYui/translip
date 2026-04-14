@@ -3,8 +3,8 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from video_voice_separate.pipeline.route import resolve_route
-from video_voice_separate.types import SeparationRequest
+from translip.pipeline.route import resolve_route
+from translip.types import SeparationRequest
 
 
 def test_manual_route_wins(tmp_path: Path) -> None:

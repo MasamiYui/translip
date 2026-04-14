@@ -13,7 +13,7 @@
 ### Task 1: Add Task F CLI Surface
 
 **Files:**
-- Modify: `src/video_voice_separate/cli.py`
+- Modify: `src/translip/cli.py`
 - Modify: `tests/test_cli.py`
 
 - [ ] **Step 1: Write the failing parser test**
@@ -92,10 +92,10 @@ Expected: PASS
 ### Task 2: Add Pipeline Request, Stage Order, and Config Merge
 
 **Files:**
-- Modify: `src/video_voice_separate/types.py`
-- Create: `src/video_voice_separate/orchestration/__init__.py`
-- Create: `src/video_voice_separate/orchestration/request.py`
-- Create: `src/video_voice_separate/orchestration/stages.py`
+- Modify: `src/translip/types.py`
+- Create: `src/translip/orchestration/__init__.py`
+- Create: `src/translip/orchestration/request.py`
+- Create: `src/translip/orchestration/stages.py`
 - Test: `tests/test_orchestration.py`
 
 - [ ] **Step 1: Write failing request and stage tests**
@@ -169,8 +169,8 @@ Expected: PASS
 ### Task 3: Add Pipeline Status Snapshot and Report Builders
 
 **Files:**
-- Create: `src/video_voice_separate/orchestration/export.py`
-- Create: `src/video_voice_separate/orchestration/monitor.py`
+- Create: `src/translip/orchestration/export.py`
+- Create: `src/translip/orchestration/monitor.py`
 - Test: `tests/test_orchestration.py`
 
 - [ ] **Step 1: Write failing status/report tests**
@@ -231,7 +231,7 @@ Expected: PASS
 ### Task 4: Add Cache Validation and Stage Summaries
 
 **Files:**
-- Create: `src/video_voice_separate/orchestration/cache.py`
+- Create: `src/translip/orchestration/cache.py`
 - Test: `tests/test_orchestration.py`
 
 - [ ] **Step 1: Write the failing cache test**
@@ -281,29 +281,29 @@ Expected: PASS
 ### Task 5: Implement Subprocess Runner and Stage Command Builder
 
 **Files:**
-- Create: `src/video_voice_separate/orchestration/subprocess_runner.py`
-- Create: `src/video_voice_separate/orchestration/commands.py`
+- Create: `src/translip/orchestration/subprocess_runner.py`
+- Create: `src/translip/orchestration/commands.py`
 - Test: `tests/test_orchestration.py`
 
 - [ ] **Step 1: Write failing stage command tests**
 
 ```python
-def test_stage1_command_uses_video_voice_separate_cli(tmp_path: Path) -> None:
+def test_stage1_command_uses_translip_cli(tmp_path: Path) -> None:
     request = PipelineRequest(input_path=tmp_path / "sample.mp4", output_root=tmp_path / "out")
     command = build_stage1_command(request)
-    assert command[:3] == [sys.executable, "-m", "video_voice_separate"]
+    assert command[:3] == [sys.executable, "-m", "translip"]
     assert command[3] == "run"
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `uv run pytest -q tests/test_orchestration.py::test_stage1_command_uses_video_voice_separate_cli`
+Run: `uv run pytest -q tests/test_orchestration.py::test_stage1_command_uses_translip_cli`
 
 Expected: FAIL because command builders do not exist.
 
 - [ ] **Step 3: Implement minimal stage command builders**
 
-Build subprocess commands using `sys.executable -m video_voice_separate` for:
+Build subprocess commands using `sys.executable -m translip` for:
 
 - `stage1`
 - `task-a`
@@ -312,19 +312,19 @@ Build subprocess commands using `sys.executable -m video_voice_separate` for:
 - `task-d`
 - `task-e`
 
-Do not shell out through `video-voice-separate` path lookup.
+Do not shell out through `translip` path lookup.
 
 - [ ] **Step 4: Run the stage command test to verify it passes**
 
-Run: `uv run pytest -q tests/test_orchestration.py::test_stage1_command_uses_video_voice_separate_cli`
+Run: `uv run pytest -q tests/test_orchestration.py::test_stage1_command_uses_translip_cli`
 
 Expected: PASS
 
 ### Task 6: Implement Pipeline Runner End-to-End in Process with Fake Subprocesses
 
 **Files:**
-- Create: `src/video_voice_separate/orchestration/runner.py`
-- Modify: `src/video_voice_separate/cli.py`
+- Create: `src/translip/orchestration/runner.py`
+- Modify: `src/translip/cli.py`
 - Test: `tests/test_orchestration.py`
 
 - [ ] **Step 1: Write the failing pipeline runner test**
@@ -349,7 +349,7 @@ def test_run_pipeline_writes_manifest_report_and_status(tmp_path: Path, monkeypa
         manifest_path.write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
         return {"manifest_path": str(manifest_path), "artifact_paths": [str(manifest_path)]}
 
-    monkeypatch.setattr("video_voice_separate.orchestration.runner.execute_stage", fake_stage_executor)
+    monkeypatch.setattr("translip.orchestration.runner.execute_stage", fake_stage_executor)
 
     result = run_pipeline(request)
 
@@ -386,9 +386,9 @@ Expected: PASS
 ### Task 7: Wire Real Stage Execution for Stage 1 Through Task E
 
 **Files:**
-- Modify: `src/video_voice_separate/orchestration/runner.py`
-- Modify: `src/video_voice_separate/orchestration/commands.py`
-- Modify: `src/video_voice_separate/orchestration/subprocess_runner.py`
+- Modify: `src/translip/orchestration/runner.py`
+- Modify: `src/translip/orchestration/commands.py`
+- Modify: `src/translip/orchestration/subprocess_runner.py`
 - Test: `tests/test_orchestration.py`
 
 - [ ] **Step 1: Write the failing resume/cache behavior test**
@@ -406,7 +406,7 @@ def test_pipeline_runner_marks_cached_stage_when_manifest_reusable(tmp_path: Pat
     request = PipelineRequest(input_path=input_path, output_root=output_root, run_from_stage="task-a", run_to_stage="task-a")
 
     executed = []
-    monkeypatch.setattr("video_voice_separate.orchestration.runner.execute_stage", lambda *args, **kwargs: executed.append(args[0]))
+    monkeypatch.setattr("translip.orchestration.runner.execute_stage", lambda *args, **kwargs: executed.append(args[0]))
 
     result = run_pipeline(request)
 
@@ -465,7 +465,7 @@ Expected: PASS
 Run:
 
 ```bash
-uv run video-voice-separate run-pipeline \
+uv run translip run-pipeline \
   --input ./test_video/我在迪拜等你.mp4 \
   --output-root ./tmp/pipeline-task-f \
   --target-lang en \
@@ -490,7 +490,7 @@ Run:
 
 ```bash
 uv run pytest -q
-uv run video-voice-separate run-pipeline \
+uv run translip run-pipeline \
   --input ./test_video/我在迪拜等你.mp4 \
   --output-root ./tmp/pipeline-task-f \
   --target-lang en \

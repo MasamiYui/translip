@@ -1,10 +1,10 @@
 # 任务 B 技术设计: 声纹建档与说话人检索
 
-- 项目: `video-voice-separate`
+- 项目: `translip`
 - 文档状态: Draft v1
 - 创建日期: 2026-04-11
-- 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/speaker-aware-dubbing-task-breakdown.md)
-- 前置依赖: [task-a-speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-a-speaker-attributed-transcription.md)
+- 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-aware-dubbing-task-breakdown.md)
+- 前置依赖: [task-a-speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-a-speaker-attributed-transcription.md)
 
 ## 1. 目标
 
@@ -59,7 +59,7 @@
 
 例如:
 
-- [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output-task-a/voice/segments.zh.json)
+- [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-a/voice/segments.zh.json)
 
 任务 B 要在此基础上增加一层稳定身份:
 
@@ -377,17 +377,17 @@ registry 不应该被自动写乱。
 
 建议新增模块:
 
-- `src/video_voice_separate/speakers/runner.py`
+- `src/translip/speakers/runner.py`
   - 任务 B 主入口
-- `src/video_voice_separate/speakers/reference.py`
+- `src/translip/speakers/reference.py`
   - 参考片段选择与导出
-- `src/video_voice_separate/speakers/embedding.py`
+- `src/translip/speakers/embedding.py`
   - embedding backend 封装
-- `src/video_voice_separate/speakers/profile.py`
+- `src/translip/speakers/profile.py`
   - profile 聚合与 prototype 构建
-- `src/video_voice_separate/speakers/registry.py`
+- `src/translip/speakers/registry.py`
   - registry 读写、匹配、更新
-- `src/video_voice_separate/speakers/export.py`
+- `src/translip/speakers/export.py`
   - JSON manifest 导出
 
 ## 8. CLI 设计
@@ -397,7 +397,7 @@ registry 不应该被自动写乱。
 先做一个主命令就够:
 
 ```bash
-uv run video-voice-separate build-speaker-registry \
+uv run translip build-speaker-registry \
   --segments ./output-task-a/voice/segments.zh.json \
   --audio ./output/我在迪拜等你/voice.mp3 \
   --output-dir ./output-task-b \

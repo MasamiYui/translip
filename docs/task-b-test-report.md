@@ -1,6 +1,6 @@
 # 任务 B 测试报告: 声纹建档与说话人检索
 
-- 项目: `video-voice-separate`
+- 项目: `translip`
 - 任务: `任务 B`
 - 报告日期: 2026-04-12
 - 状态: Passed
@@ -52,7 +52,7 @@ uv run pytest
 运行命令:
 
 ```bash
-uv run video-voice-separate build-speaker-registry \
+uv run translip build-speaker-registry \
   --segments ./output-task-a/voice/segments.zh.json \
   --audio ./output/我在迪拜等你/voice.mp3 \
   --output-dir ./output-task-b \
@@ -63,11 +63,11 @@ uv run video-voice-separate build-speaker-registry \
 
 正式产物:
 
-- Profiles: [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output-task-b/voice/speaker_profiles.json)
-- Matches: [speaker_matches.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output-task-b/voice/speaker_matches.json)
-- Registry snapshot: [speaker_registry.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output-task-b/voice/speaker_registry.json)
-- Manifest: [task-b-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output-task-b/voice/task-b-manifest.json)
-- Registry file: [speaker_registry.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output-task-b/registry/speaker_registry.json)
+- Profiles: [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-b/voice/speaker_profiles.json)
+- Matches: [speaker_matches.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-b/voice/speaker_matches.json)
+- Registry snapshot: [speaker_registry.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-b/voice/speaker_registry.json)
+- Manifest: [task-b-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-b/voice/task-b-manifest.json)
+- Registry file: [speaker_registry.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-b/registry/speaker_registry.json)
 
 结果摘要:
 
@@ -89,16 +89,16 @@ uv run video-voice-separate build-speaker-registry \
 
 原始来源:
 
-- [我在迪拜等你.mp4](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/test_video/我在迪拜等你.mp4)
+- [我在迪拜等你.mp4](/Users/masamiyui/OpenSoureProjects/Forks/translip/test_video/我在迪拜等你.mp4)
 
 上游人声轨:
 
-- [voice.mp3](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output/我在迪拜等你/voice.mp3)
+- [voice.mp3](/Users/masamiyui/OpenSoureProjects/Forks/translip/output/我在迪拜等你/voice.mp3)
 
 派生片段:
 
-- [voice_part_a.mp3](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/task-b-eval/clips/voice_part_a.mp3)
-- [voice_part_b.mp3](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/task-b-eval/clips/voice_part_b.mp3)
+- [voice_part_a.mp3](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/task-b-eval/clips/voice_part_a.mp3)
+- [voice_part_b.mp3](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/task-b-eval/clips/voice_part_b.mp3)
 
 ### 5.2 测试步骤
 
@@ -112,11 +112,11 @@ uv run video-voice-separate build-speaker-registry \
 任务 A:
 
 ```bash
-uv run video-voice-separate transcribe \
+uv run translip transcribe \
   --input ./tmp/task-b-eval/clips/voice_part_a.mp3 \
   --output-dir ./tmp/task-b-eval/transcribe-a
 
-uv run video-voice-separate transcribe \
+uv run translip transcribe \
   --input ./tmp/task-b-eval/clips/voice_part_b.mp3 \
   --output-dir ./tmp/task-b-eval/transcribe-b
 ```
@@ -124,7 +124,7 @@ uv run video-voice-separate transcribe \
 任务 B:
 
 ```bash
-uv run video-voice-separate build-speaker-registry \
+uv run translip build-speaker-registry \
   --segments ./tmp/task-b-eval/transcribe-a/voice_part_a/segments.zh.json \
   --audio ./tmp/task-b-eval/clips/voice_part_a.mp3 \
   --output-dir ./tmp/task-b-eval/task-b-a \
@@ -132,7 +132,7 @@ uv run video-voice-separate build-speaker-registry \
   --update-registry \
   --keep-intermediate
 
-uv run video-voice-separate build-speaker-registry \
+uv run translip build-speaker-registry \
   --segments ./tmp/task-b-eval/transcribe-b/voice_part_b/segments.zh.json \
   --audio ./tmp/task-b-eval/clips/voice_part_b.mp3 \
   --output-dir ./tmp/task-b-eval/task-b-b \
@@ -142,10 +142,10 @@ uv run video-voice-separate build-speaker-registry \
 
 ### 5.4 关键产物
 
-- `part_a` profiles: [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/task-b-eval/task-b-a/voice_part_a/speaker_profiles.json)
-- `part_b` profiles: [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/task-b-eval/task-b-b/voice_part_b/speaker_profiles.json)
-- `part_b` matches: [speaker_matches.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/task-b-eval/task-b-b/voice_part_b/speaker_matches.json)
-- 评估 registry: [speaker_registry.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/task-b-eval/registry/speaker_registry.json)
+- `part_a` profiles: [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/task-b-eval/task-b-a/voice_part_a/speaker_profiles.json)
+- `part_b` profiles: [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/task-b-eval/task-b-b/voice_part_b/speaker_profiles.json)
+- `part_b` matches: [speaker_matches.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/task-b-eval/task-b-b/voice_part_b/speaker_matches.json)
+- 评估 registry: [speaker_registry.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/task-b-eval/registry/speaker_registry.json)
 
 ### 5.5 结果摘要
 

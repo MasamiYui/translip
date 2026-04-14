@@ -9,7 +9,7 @@ from typing import Any
 
 import numpy as np
 
-from ..exceptions import VideoVoiceSeparateError
+from ..exceptions import TranslipError
 from ..types import RenderDubArtifacts, RenderDubRequest, RenderDubResult
 from ..utils.ffmpeg import export_audio, render_wav
 from ..utils.files import ensure_directory, remove_tree, work_directory
@@ -230,16 +230,16 @@ def _validate_request(request: RenderDubRequest) -> RenderDubRequest:
         Path(normalized.translation_path),
     ]:
         if not path.exists():
-            raise VideoVoiceSeparateError(f"Task E input path does not exist: {path}")
+            raise TranslipError(f"Task E input path does not exist: {path}")
     if not normalized.task_d_report_paths:
-        raise VideoVoiceSeparateError("task_d_report_paths must contain at least one report")
+        raise TranslipError("task_d_report_paths must contain at least one report")
     for report_path in normalized.task_d_report_paths:
         if not Path(report_path).exists():
-            raise VideoVoiceSeparateError(f"Task D report does not exist: {report_path}")
+            raise TranslipError(f"Task D report does not exist: {report_path}")
     if normalized.output_sample_rate <= 0:
-        raise VideoVoiceSeparateError("output_sample_rate must be greater than 0")
+        raise TranslipError("output_sample_rate must be greater than 0")
     if normalized.max_compress_ratio < 1.0:
-        raise VideoVoiceSeparateError("max_compress_ratio must be >= 1.0")
+        raise TranslipError("max_compress_ratio must be >= 1.0")
     return normalized
 
 

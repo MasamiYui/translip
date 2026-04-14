@@ -4,9 +4,9 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from video_voice_separate.dubbing.reference import prepare_reference_package, select_reference_candidates
-from video_voice_separate.dubbing.runner import synthesize_speaker
-from video_voice_separate.types import DubbingRequest
+from translip.dubbing.reference import prepare_reference_package, select_reference_candidates
+from translip.dubbing.runner import synthesize_speaker
+from translip.types import DubbingRequest
 
 
 class FakeBackend:
@@ -106,8 +106,8 @@ def test_prepare_reference_package_adds_tail_silence(tmp_path: Path) -> None:
 
 
 def test_qwen_backend_uses_reusable_voice_clone_prompt(tmp_path: Path, monkeypatch) -> None:
-    from video_voice_separate.dubbing.backend import ReferencePackage, SynthSegmentInput
-    from video_voice_separate.dubbing.qwen_tts_backend import (
+    from translip.dubbing.backend import ReferencePackage, SynthSegmentInput
+    from translip.dubbing.qwen_tts_backend import (
         QwenTTSBackend,
         _max_new_tokens_for,
     )
@@ -129,7 +129,7 @@ def test_qwen_backend_uses_reusable_voice_clone_prompt(tmp_path: Path, monkeypat
 
     fake_model = FakeModel()
     monkeypatch.setattr(
-        "video_voice_separate.dubbing.qwen_tts_backend._load_qwen_model",
+        "translip.dubbing.qwen_tts_backend._load_qwen_model",
         lambda *_args, **_kwargs: fake_model,
     )
 
@@ -170,7 +170,7 @@ def test_qwen_backend_uses_reusable_voice_clone_prompt(tmp_path: Path, monkeypat
 
 
 def test_build_backend_returns_qwen_backend() -> None:
-    from video_voice_separate.dubbing.runner import _build_backend
+    from translip.dubbing.runner import _build_backend
 
     backend = _build_backend(
         DubbingRequest(
@@ -243,7 +243,7 @@ def test_synthesize_speaker_writes_report_and_manifest(tmp_path: Path, monkeypat
     )
 
     monkeypatch.setattr(
-        "video_voice_separate.dubbing.runner.evaluate_segment",
+        "translip.dubbing.runner.evaluate_segment",
         lambda **_: type(
             "Eval",
             (),

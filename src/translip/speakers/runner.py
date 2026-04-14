@@ -4,7 +4,7 @@ import logging
 import time
 from pathlib import Path
 
-from ..exceptions import VideoVoiceSeparateError
+from ..exceptions import TranslipError
 from ..pipeline.ingest import prepare_analysis_audio
 from ..speaker_embedding import read_audio_mono
 from ..speakers.embedding import enrich_reference_embeddings
@@ -27,9 +27,9 @@ logger = logging.getLogger(__name__)
 def _validate_request(request: SpeakerRegistryRequest) -> SpeakerRegistryRequest:
     normalized = request.normalized()
     if not Path(normalized.audio_path).exists():
-        raise VideoVoiceSeparateError(f"Audio file does not exist: {normalized.audio_path}")
+        raise TranslipError(f"Audio file does not exist: {normalized.audio_path}")
     if not Path(normalized.segments_path).exists():
-        raise VideoVoiceSeparateError(f"Segments file does not exist: {normalized.segments_path}")
+        raise TranslipError(f"Segments file does not exist: {normalized.segments_path}")
     return normalized
 
 
@@ -38,7 +38,7 @@ def build_speaker_registry(
     **kwargs,
 ) -> SpeakerRegistryResult:
     if isinstance(request, str):
-        raise VideoVoiceSeparateError("Task B requires explicit segments and audio paths")
+        raise TranslipError("Task B requires explicit segments and audio paths")
 
     normalized_request = _validate_request(request)
     output_root = Path(normalized_request.output_dir)

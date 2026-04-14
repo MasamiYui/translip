@@ -1,16 +1,16 @@
 # 任务 F 技术设计: 流水线与工程封装
 
-- 项目: `video-voice-separate`
+- 项目: `translip`
 - 文档状态: Draft v2
 - 创建日期: 2026-04-14
-- 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/speaker-aware-dubbing-task-breakdown.md)
+- 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-aware-dubbing-task-breakdown.md)
 - 前置依赖:
-  - [technical-design.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/technical-design.md)
-  - [task-a-speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-a-speaker-attributed-transcription.md)
-  - [task-b-speaker-registry-and-retrieval.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-b-speaker-registry-and-retrieval.md)
-  - [task-c-dubbing-script-generation.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-c-dubbing-script-generation.md)
-  - [task-d-single-speaker-voice-cloning.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-d-single-speaker-voice-cloning.md)
-  - [task-e-timeline-fitting-and-mixing.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-e-timeline-fitting-and-mixing.md)
+  - [technical-design.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/technical-design.md)
+  - [task-a-speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-a-speaker-attributed-transcription.md)
+  - [task-b-speaker-registry-and-retrieval.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-b-speaker-registry-and-retrieval.md)
+  - [task-c-dubbing-script-generation.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-c-dubbing-script-generation.md)
+  - [task-d-single-speaker-voice-cloning.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-d-single-speaker-voice-cloning.md)
+  - [task-e-timeline-fitting-and-mixing.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-e-timeline-fitting-and-mixing.md)
 
 ## 1. 目标
 
@@ -515,7 +515,7 @@ source input
 任务 F 首发建议支持一个可选配置文件，例如:
 
 ```bash
-uv run video-voice-separate run-pipeline \
+uv run translip run-pipeline \
   --config ./pipeline.example.json \
   --input ./test_video/example.mp4
 ```
@@ -596,7 +596,7 @@ uv run video-voice-separate run-pipeline \
 任务 F 首发建议新增一个正式 CLI，例如:
 
 ```bash
-uv run video-voice-separate run-pipeline \
+uv run translip run-pipeline \
   --input ./test_video/example.mp4 \
   --output-root ./output-pipeline \
   --target-lang en \
@@ -651,7 +651,7 @@ uv run video-voice-separate run-pipeline \
 建议后续增加一个简单命令，例如:
 
 ```bash
-uv run video-voice-separate pipeline-status \
+uv run translip pipeline-status \
   --output-root ./output-pipeline
 ```
 
@@ -842,12 +842,12 @@ uv run video-voice-separate pipeline-status \
 
 例如:
 
-- `video-voice-separate run`
-- `video-voice-separate transcribe`
-- `video-voice-separate build-speaker-registry`
-- `video-voice-separate translate-script`
-- `video-voice-separate synthesize-speaker`
-- `video-voice-separate render-dub`
+- `translip run`
+- `translip transcribe`
+- `translip build-speaker-registry`
+- `translip translate-script`
+- `translip synthesize-speaker`
+- `translip render-dub`
 
 核心原则:
 

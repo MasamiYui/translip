@@ -4,8 +4,8 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from video_voice_separate.rendering.runner import render_dub
-from video_voice_separate.types import RenderDubRequest
+from translip.rendering.runner import render_dub
+from translip.types import RenderDubRequest
 
 
 def _write_tone(path: Path, *, duration_sec: float, sample_rate: int = 24_000, frequency: float = 220.0) -> None:

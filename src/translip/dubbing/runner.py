@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ..exceptions import VideoVoiceSeparateError
+from ..exceptions import TranslipError
 from ..types import DubbingArtifacts, DubbingRequest, DubbingResult
 from ..utils.files import ensure_directory, remove_tree, work_directory
 from .backend import ReferencePackage, SynthSegmentInput
@@ -99,7 +99,7 @@ def synthesize_speaker(
                     )
 
             if synth_output is None or selected_reference is None:
-                raise VideoVoiceSeparateError(
+                raise TranslipError(
                     f"Failed to synthesize segment {segment.segment_id}: {synthesis_error}"
                 )
 
@@ -234,13 +234,13 @@ def synthesize_speaker(
 def _validate_request(request: DubbingRequest) -> DubbingRequest:
     normalized = request.normalized()
     if not Path(normalized.translation_path).exists():
-        raise VideoVoiceSeparateError(f"Translation file does not exist: {normalized.translation_path}")
+        raise TranslipError(f"Translation file does not exist: {normalized.translation_path}")
     if not Path(normalized.profiles_path).exists():
-        raise VideoVoiceSeparateError(f"Profiles file does not exist: {normalized.profiles_path}")
+        raise TranslipError(f"Profiles file does not exist: {normalized.profiles_path}")
     if not normalized.speaker_id:
-        raise VideoVoiceSeparateError("speaker_id is required for Task D")
+        raise TranslipError("speaker_id is required for Task D")
     if normalized.max_segments is not None and normalized.max_segments <= 0:
-        raise VideoVoiceSeparateError("max_segments must be greater than 0 when provided")
+        raise TranslipError("max_segments must be greater than 0 when provided")
     return normalized
 
 
@@ -260,11 +260,11 @@ def _filtered_segments(
     if request.max_segments is not None:
         rows = rows[: request.max_segments]
     if not rows:
-        raise VideoVoiceSeparateError(f"No translation segments found for speaker {request.speaker_id}")
+        raise TranslipError(f"No translation segments found for speaker {request.speaker_id}")
     return rows
 
 
 def _build_backend(request: DubbingRequest) -> object:
     if request.backend == "qwen3tts":
         return QwenTTSBackend(requested_device=request.device)
-    raise VideoVoiceSeparateError(f"Unsupported dubbing backend: {request.backend}")
+    raise TranslipError(f"Unsupported dubbing backend: {request.backend}")

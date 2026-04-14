@@ -4,7 +4,7 @@ import logging
 import time
 from pathlib import Path
 
-from ..exceptions import VideoVoiceSeparateError
+from ..exceptions import TranslipError
 from ..pipeline.ingest import prepare_transcription_audio
 from ..transcription.asr import transcribe_audio
 from ..transcription.export import (
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 def _validate_request(request: TranscriptionRequest) -> TranscriptionRequest:
     normalized = request.normalized()
     if not Path(normalized.input_path).exists():
-        raise VideoVoiceSeparateError(f"Input file does not exist: {normalized.input_path}")
+        raise TranslipError(f"Input file does not exist: {normalized.input_path}")
     return normalized
 
 

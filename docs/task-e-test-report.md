@@ -45,7 +45,7 @@ reports=()
 for path in $(find tmp/e2e-task-a-to-e-qwen-full/task-d/voice -name 'speaker_segments.en.json' | sort); do
   reports+=(--task-d-report "$path")
 done
-/Users/masamiyui/.local/bin/uv run video-voice-separate render-dub \
+/Users/masamiyui/.local/bin/uv run translip render-dub \
   --background ./tmp/e2e-task-a-to-e-qwen-full/stage1/我在迪拜等你/background.mp3 \
   --segments ./tmp/e2e-task-a-to-e-qwen-full/task-a/voice/segments.zh.json \
   --translation ./tmp/e2e-task-a-to-e-qwen-full/task-c/voice/translation.en.json \
@@ -61,11 +61,11 @@ done
 
 ### Final Artifacts
 
-- [dub_voice.en.wav](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/task-e-noskip/voice/dub_voice.en.wav)
-- [preview_mix.en.wav](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/task-e-noskip/voice/preview_mix.en.wav)
-- [timeline.en.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/task-e-noskip/voice/timeline.en.json)
-- [mix_report.en.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/task-e-noskip/voice/mix_report.en.json)
-- [task-e-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/task-e-noskip/voice/task-e-manifest.json)
+- [dub_voice.en.wav](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/task-e-noskip/voice/dub_voice.en.wav)
+- [preview_mix.en.wav](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/task-e-noskip/voice/preview_mix.en.wav)
+- [timeline.en.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/task-e-noskip/voice/timeline.en.json)
+- [mix_report.en.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/task-e-noskip/voice/mix_report.en.json)
+- [task-e-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/task-e-noskip/voice/task-e-manifest.json)
 
 ### Observed Result
 
@@ -86,12 +86,12 @@ Task E completed successfully.
 
 Task E consumed Task D reports from 6 speakers:
 
-- [spk_0000](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0000/speaker_segments.en.json)
-- [spk_0001](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0001/speaker_segments.en.json)
-- [spk_0002](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0002/speaker_segments.en.json)
-- [spk_0003](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0003/speaker_segments.en.json)
-- [spk_0004](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0004/speaker_segments.en.json)
-- [spk_0007](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0007/speaker_segments.en.json)
+- [spk_0000](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0000/speaker_segments.en.json)
+- [spk_0001](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0001/speaker_segments.en.json)
+- [spk_0002](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0002/speaker_segments.en.json)
+- [spk_0003](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0003/speaker_segments.en.json)
+- [spk_0004](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0004/speaker_segments.en.json)
+- [spk_0007](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0007/speaker_segments.en.json)
 
 Representative placed segments in the final timeline include:
 

@@ -1,6 +1,6 @@
 # 视频/音频人声与背景声分离技术设计文档
 
-- 项目代号: `video-voice-separate`
+- 项目代号: `translip`
 - 文档状态: Draft v1
 - 更新日期: 2026-04-11
 - 目标读者: 开发者、算法工程师、产品/项目负责人
@@ -432,7 +432,7 @@ work/
 命令示例:
 
 ```bash
-video-voice-separate run \
+translip run \
   --input ./sample.mp4 \
   --mode auto \
   --output-dir ./out \
@@ -463,7 +463,7 @@ video-voice-separate run \
 ## 9.2 Python API
 
 ```python
-from video_voice_separate import separate_file
+from translip import separate_file
 
 result = separate_file(
     input_path="sample.mp4",
@@ -554,11 +554,11 @@ class Exporter:
 ## 11. 建议目录结构
 
 ```text
-video-voice-separate/
+translip/
   docs/
     technical-design.md
   src/
-    video_voice_separate/
+    translip/
       __init__.py
       cli.py
       config.py

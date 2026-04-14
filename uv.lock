@@ -2081,6 +2081,62 @@ wheels = [
 ]
 
 [[package]]
+name = "translip"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "aiofiles" },
+    { name = "demucs" },
+    { name = "fastapi" },
+    { name = "faster-whisper" },
+    { name = "imageio-ffmpeg" },
+    { name = "librosa" },
+    { name = "numpy" },
+    { name = "python-multipart" },
+    { name = "qwen-tts" },
+    { name = "scikit-learn" },
+    { name = "sentencepiece" },
+    { name = "soundfile" },
+    { name = "speechbrain" },
+    { name = "sqlmodel" },
+    { name = "torchcodec" },
+    { name = "transformers" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiofiles", specifier = ">=24.1,<25" },
+    { name = "demucs", specifier = ">=4.0.1,<5" },
+    { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "faster-whisper", specifier = ">=1.1.1,<2" },
+    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27,<1" },
+    { name = "imageio-ffmpeg", specifier = ">=0.6.0,<1" },
+    { name = "librosa", specifier = ">=0.10.2,<1" },
+    { name = "numpy", specifier = ">=1.26,<3" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3,<9" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24,<1" },
+    { name = "python-multipart", specifier = ">=0.0.12,<1" },
+    { name = "qwen-tts", specifier = ">=0.1.1" },
+    { name = "scikit-learn", specifier = ">=1.5,<2" },
+    { name = "sentencepiece", specifier = ">=0.2,<1" },
+    { name = "soundfile", specifier = ">=0.12.1,<1" },
+    { name = "speechbrain", specifier = ">=1.0.3,<2" },
+    { name = "sqlmodel", specifier = ">=0.0.22,<1" },
+    { name = "torchcodec", specifier = ">=0.8.0,<1" },
+    { name = "transformers", specifier = ">=4.51,<5" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32,<1" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "treetable"
 version = "0.2.6"
 source = { registry = "https://pypi.org/simple" }
@@ -2197,62 +2253,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/90/60/97362554ac21e20e81bcef1150cb2a7e4ffdaf8ea1e5b2e8bf7a053caa18/uvloop-0.22.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:e047cc068570bac9866237739607d1313b9253c3051ad84738cbb095be0537b2", size = 4131970, upload-time = "2025-10-16T22:16:34.015Z" },
     { url = "https://files.pythonhosted.org/packages/99/39/6b3f7d234ba3964c428a6e40006340f53ba37993f46ed6e111c6e9141d18/uvloop-0.22.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:512fec6815e2dd45161054592441ef76c830eddaad55c8aa30952e6fe1ed07c0", size = 4296343, upload-time = "2025-10-16T22:16:35.149Z" },
 ]
-
-[[package]]
-name = "video-voice-separate"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "aiofiles" },
-    { name = "demucs" },
-    { name = "fastapi" },
-    { name = "faster-whisper" },
-    { name = "imageio-ffmpeg" },
-    { name = "librosa" },
-    { name = "numpy" },
-    { name = "python-multipart" },
-    { name = "qwen-tts" },
-    { name = "scikit-learn" },
-    { name = "sentencepiece" },
-    { name = "soundfile" },
-    { name = "speechbrain" },
-    { name = "sqlmodel" },
-    { name = "torchcodec" },
-    { name = "transformers" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-dev = [
-    { name = "httpx" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiofiles", specifier = ">=24.1,<25" },
-    { name = "demucs", specifier = ">=4.0.1,<5" },
-    { name = "fastapi", specifier = ">=0.115,<1" },
-    { name = "faster-whisper", specifier = ">=1.1.1,<2" },
-    { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27,<1" },
-    { name = "imageio-ffmpeg", specifier = ">=0.6.0,<1" },
-    { name = "librosa", specifier = ">=0.10.2,<1" },
-    { name = "numpy", specifier = ">=1.26,<3" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.3,<9" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24,<1" },
-    { name = "python-multipart", specifier = ">=0.0.12,<1" },
-    { name = "qwen-tts", specifier = ">=0.1.1" },
-    { name = "scikit-learn", specifier = ">=1.5,<2" },
-    { name = "sentencepiece", specifier = ">=0.2,<1" },
-    { name = "soundfile", specifier = ">=0.12.1,<1" },
-    { name = "speechbrain", specifier = ">=1.0.3,<2" },
-    { name = "sqlmodel", specifier = ">=0.0.22,<1" },
-    { name = "torchcodec", specifier = ">=0.8.0,<1" },
-    { name = "transformers", specifier = ">=4.51,<5" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32,<1" },
-]
-provides-extras = ["dev"]
 
 [[package]]
 name = "watchfiles"

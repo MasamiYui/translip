@@ -1,13 +1,13 @@
 # 任务 C 技术设计: 面向配音的多语种翻译脚本生成
 
-- 项目: `video-voice-separate`
+- 项目: `translip`
 - 文档状态: Implemented v1
 - 创建日期: 2026-04-12
-- 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/speaker-aware-dubbing-task-breakdown.md)
-- 对应测试报告: [task-c-test-report.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-c-test-report.md)
+- 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-aware-dubbing-task-breakdown.md)
+- 对应测试报告: [task-c-test-report.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-c-test-report.md)
 - 前置依赖:
-  - [task-a-speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-a-speaker-attributed-transcription.md)
-  - [task-b-speaker-registry-and-retrieval.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-b-speaker-registry-and-retrieval.md)
+  - [task-a-speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-a-speaker-attributed-transcription.md)
+  - [task-b-speaker-registry-and-retrieval.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-b-speaker-registry-and-retrieval.md)
 
 ## 1. 目标
 
@@ -569,23 +569,23 @@ V1 建议输出 4 类判断字段:
 
 建议新增模块:
 
-- `src/video_voice_separate/translation/runner.py`
+- `src/translip/translation/runner.py`
   - 任务 C 主入口
-- `src/video_voice_separate/translation/backend.py`
+- `src/translip/translation/backend.py`
   - 翻译后端协议
-- `src/video_voice_separate/translation/units.py`
+- `src/translip/translation/units.py`
   - context unit 构造
-- `src/video_voice_separate/translation/glossary.py`
+- `src/translip/translation/glossary.py`
   - 术语与保护规则
-- `src/video_voice_separate/translation/m2m100_backend.py`
+- `src/translip/translation/m2m100_backend.py`
   - `M2M100` 翻译封装
-- `src/video_voice_separate/translation/siliconflow_backend.py`
+- `src/translip/translation/siliconflow_backend.py`
   - SiliconFlow API 翻译封装
-- `src/video_voice_separate/translation/duration.py`
+- `src/translip/translation/duration.py`
   - 目标语言时长估计与风险评级
-- `src/video_voice_separate/translation/qa.py`
+- `src/translip/translation/qa.py`
   - QA flag 生成
-- `src/video_voice_separate/translation/export.py`
+- `src/translip/translation/export.py`
   - JSON / SRT / manifest 导出
 
 ## 10. CLI 设计
@@ -593,7 +593,7 @@ V1 建议输出 4 类判断字段:
 建议首发只做一个主命令:
 
 ```bash
-uv run video-voice-separate translate-script \
+uv run translip translate-script \
   --segments ./output-task-a/voice/segments.zh.json \
   --profiles ./output-task-b/voice/speaker_profiles.json \
   --target-lang eng_Latn \
@@ -605,7 +605,7 @@ uv run video-voice-separate translate-script \
 API 模式示例:
 
 ```bash
-SILICONFLOW_API_KEY=... uv run video-voice-separate translate-script \
+SILICONFLOW_API_KEY=... uv run translip translate-script \
   --segments ./output-task-a/voice/segments.zh.json \
   --profiles ./output-task-b/voice/speaker_profiles.json \
   --target-lang eng_Latn \
@@ -660,8 +660,8 @@ SILICONFLOW_API_KEY=... uv run video-voice-separate translate-script \
 
 任务 C 真实测试建议直接用当前仓库已经完成的任务 A/B 产物:
 
-- [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output-task-a/voice/segments.zh.json)
-- [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output-task-b/voice/speaker_profiles.json)
+- [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-a/voice/segments.zh.json)
+- [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-b/voice/speaker_profiles.json)
 
 测试方式分两轮:
 

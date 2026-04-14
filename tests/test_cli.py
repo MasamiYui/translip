@@ -1,4 +1,4 @@
-from video_voice_separate.cli import build_parser
+from translip.cli import build_parser
 
 
 def test_cli_run_parser() -> None:

@@ -18,7 +18,7 @@ export function Sidebar() {
           <Cpu size={16} className="text-white" />
         </div>
         <div>
-          <div className="text-white font-semibold text-sm leading-tight">Video Voice</div>
+          <div className="text-white font-semibold text-sm leading-tight">Translip</div>
           <div className="text-slate-400 text-xs leading-tight">Pipeline Manager</div>
         </div>
       </div>

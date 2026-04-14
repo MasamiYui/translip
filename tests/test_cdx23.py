@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from video_voice_separate.models.cdx23_dialogue import (
+from translip.models.cdx23_dialogue import (
     CDX23_BALANCED_WEIGHTS,
     CDX23_HIGH_QUALITY_WEIGHTS,
     Cdx23DialogueSeparator,

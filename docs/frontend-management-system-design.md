@@ -1,6 +1,6 @@
 # 前端管理系统技术设计方案
 
-- 项目: `video-voice-separate`
+- 项目: `translip`
 - 文档状态: Draft v1
 - 创建日期: 2026-04-14
 
@@ -8,7 +8,7 @@
 
 ## 1. 目标
 
-为 `video-voice-separate` 视频配音流水线构建一个管理后台前端，用于:
+为 `translip` 视频配音流水线构建一个管理后台前端，用于:
 
 1. 可视化配置流水线参数（全局配置、各节点独立配置）
 2. 管理任务列表（创建、查看、重跑、删除）
@@ -134,7 +134,7 @@ frontend/
 ### 3.1 API 模块结构
 
 ```
-src/video_voice_separate/
+src/translip/
 ├── server/
 │   ├── __init__.py
 │   ├── app.py                    # FastAPI app 入口
@@ -301,13 +301,13 @@ class TaskManager:
 #### 3.4.1 数据库文件位置
 
 ```
-~/.cache/video-voice-separate/
+~/.cache/translip/
 ├── data.db                    # SQLite 数据库（主存储）
 ├── data.db-wal                # WAL 模式日志（自动生成）
 └── models/                    # 模型缓存（已有）
 ```
 
-也可通过环境变量 `VIDEO_VOICE_SEPARATE_DB_PATH` 自定义路径。
+也可通过环境变量 `TRANSLIP_DB_PATH` 自定义路径。
 
 #### 3.4.2 ORM 选型: SQLModel
 
@@ -464,7 +464,7 @@ from sqlmodel import SQLModel, Session, create_engine
 from ..config import CACHE_ROOT
 
 _DB_PATH = Path(
-    os.environ.get("VIDEO_VOICE_SEPARATE_DB_PATH", CACHE_ROOT / "data.db")
+    os.environ.get("TRANSLIP_DB_PATH", CACHE_ROOT / "data.db")
 )
 
 engine = create_engine(
@@ -537,7 +537,7 @@ async def _sync_progress_to_db(task_id: str, status_path: Path):
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  ┌──────┐  Video Voice Separate                     🖥 GPU │
+│  ┌──────┐  Translip                     🖥 GPU │
 │  │ Logo │  Pipeline Management                      ✓ Ready│
 │  └──────┘                                                  │
 ├────────┬───────────────────────────────────────────────────┤
@@ -878,7 +878,7 @@ async def _sync_progress_to_db(task_id: str, status_path: Path):
 │  ┌─ 系统信息 ─────────────────────────────────────┐    │
 │  │  Python:  3.12.3                                │    │
 │  │  设备:    MPS (Apple M2 Pro)                    │    │
-│  │  缓存目录: ~/.cache/video-voice-separate        │    │
+│  │  缓存目录: ~/.cache/translip        │    │
 │  │  缓存大小: 4.2 GB                 [清理缓存]     │    │
 │  └─────────────────────────────────────────────────┘    │
 │                                                         │
@@ -1160,7 +1160,7 @@ interface PipelineConfig {
 ### 8.2 FastAPI 入口
 
 ```python
-# src/video_voice_separate/server/app.py
+# src/translip/server/app.py
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
@@ -1180,7 +1180,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Video Voice Separate", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Translip", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -1263,7 +1263,7 @@ class TaskManager:
 建议在 `cli.py` 中新增一个 `serve` 子命令:
 
 ```bash
-uv run video-voice-separate serve --port 8000 --host 0.0.0.0
+uv run translip serve --port 8000 --host 0.0.0.0
 ```
 
 ---
@@ -1274,9 +1274,9 @@ uv run video-voice-separate serve --port 8000 --host 0.0.0.0
 
 ```bash
 # 后端
-cd /path/to/video-voice-separate
+cd /path/to/translip
 uv sync
-uv run video-voice-separate serve --port 8000 --reload
+uv run translip serve --port 8000 --reload
 
 # 前端
 cd frontend
@@ -1304,7 +1304,7 @@ export default defineConfig({
 cd frontend && npm run build
 
 # 2. 启动后端（挂载前端静态文件）
-uv run video-voice-separate serve --port 8000 --static-dir frontend/dist
+uv run translip serve --port 8000 --static-dir frontend/dist
 ```
 
 单进程部署，FastAPI 挂载前端 `dist/` 为 static files，不需要 nginx。

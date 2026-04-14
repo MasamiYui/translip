@@ -60,11 +60,11 @@
 
 ## Supporting Files
 
-- [../config/glossary.example.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/config/glossary.example.json)
+- [../config/glossary.example.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/config/glossary.example.json)
   Example glossary for protected terms such as place names and landmarks
-- [../scripts/run_task_a_to_c.py](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/scripts/run_task_a_to_c.py)
+- [../scripts/run_task_a_to_c.py](/Users/masamiyui/OpenSoureProjects/Forks/translip/scripts/run_task_a_to_c.py)
   Demo script that runs stage 1 plus tasks A to C in sequence
-- [../scripts/run_task_a_to_d.py](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/scripts/run_task_a_to_d.py)
+- [../scripts/run_task_a_to_d.py](/Users/masamiyui/OpenSoureProjects/Forks/translip/scripts/run_task_a_to_d.py)
   Demo script that runs stage 1 plus tasks A to D in sequence
-- [../scripts/run_task_a_to_e.py](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/scripts/run_task_a_to_e.py)
+- [../scripts/run_task_a_to_e.py](/Users/masamiyui/OpenSoureProjects/Forks/translip/scripts/run_task_a_to_e.py)
   Demo script that runs stage 1 plus tasks A to E in sequence

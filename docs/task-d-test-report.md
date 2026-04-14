@@ -1,7 +1,7 @@
 # 任务 D 测试报告: Qwen3-TTS 单模型声音克隆
 
-- 项目: `video-voice-separate`
-- 对应设计: [task-d-single-speaker-voice-cloning.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-d-single-speaker-voice-cloning.md)
+- 项目: `translip`
+- 对应设计: [task-d-single-speaker-voice-cloning.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-d-single-speaker-voice-cloning.md)
 - 测试日期: 2026-04-14
 - 当前开发后端: `Qwen/Qwen3-TTS-12Hz-0.6B-Base`
 - 测试机器: `MacBook M4 16GB`
@@ -80,7 +80,7 @@ uv run pytest -q
 
 ```bash
 env HF_HUB_DISABLE_XET=1 HF_HUB_ENABLE_HF_TRANSFER=0 \
-uv run video-voice-separate synthesize-speaker \
+uv run translip synthesize-speaker \
   --translation ./tmp/e2e-task-a-to-e-full/task-c/voice/translation.en.json \
   --profiles ./tmp/e2e-task-a-to-e-full/task-b/voice/speaker_profiles.json \
   --speaker-id spk_0000 \
@@ -102,7 +102,7 @@ uv run video-voice-separate synthesize-speaker \
 
 ```bash
 env HF_HUB_DISABLE_XET=1 HF_HUB_ENABLE_HF_TRANSFER=0 \
-uv run video-voice-separate synthesize-speaker \
+uv run translip synthesize-speaker \
   --translation ./tmp/e2e-task-a-to-e-qwen-full/task-c/voice/translation.en.json \
   --profiles ./tmp/e2e-task-a-to-e-qwen-full/task-b/voice/speaker_profiles.json \
   --speaker-id spk_0001 \
@@ -141,12 +141,12 @@ uv run python scripts/run_task_a_to_e.py \
 
 目录:
 
-- [spk_0001](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0001)
-- [spk_0004](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0004)
-- [spk_0003](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0003)
-- [spk_0000](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0000)
-- [spk_0007](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0007)
-- [spk_0002](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0002)
+- [spk_0001](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0001)
+- [spk_0004](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0004)
+- [spk_0003](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0003)
+- [spk_0000](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0000)
+- [spk_0007](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0007)
+- [spk_0002](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0002)
 
 全量统计:
 
@@ -166,8 +166,8 @@ uv run python scripts/run_task_a_to_e.py \
 
 代表性结果可以直接查看:
 
-- [spk_0001/speaker_segments.en.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0001/speaker_segments.en.json)
-- [spk_0003/speaker_segments.en.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0003/speaker_segments.en.json)
+- [spk_0001/speaker_segments.en.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0001/speaker_segments.en.json)
+- [spk_0003/speaker_segments.en.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-e-qwen-full/task-d/voice/spk_0003/speaker_segments.en.json)
 
 ### 6.3 结果解释
 

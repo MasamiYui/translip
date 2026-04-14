@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from video_voice_separate.types import ExportVideoRequest, MediaInfo
+from translip.types import ExportVideoRequest, MediaInfo
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -74,7 +74,7 @@ def test_export_video_infers_inputs_from_pipeline_root_and_writes_delivery_artif
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    from video_voice_separate.delivery.runner import export_video
+    from translip.delivery.runner import export_video
 
     pipeline_root, input_video_path, preview_mix_path, dub_voice_path = _build_task_e_fixture(tmp_path)
     mux_calls: list[dict[str, object]] = []
@@ -104,8 +104,8 @@ def test_export_video_infers_inputs_from_pipeline_root_and_writes_delivery_artif
         )
         return output_path
 
-    monkeypatch.setattr("video_voice_separate.delivery.runner.mux_video_with_audio", fake_mux_video_with_audio)
-    monkeypatch.setattr("video_voice_separate.delivery.runner.probe_media", _fake_media_info)
+    monkeypatch.setattr("translip.delivery.runner.mux_video_with_audio", fake_mux_video_with_audio)
+    monkeypatch.setattr("translip.delivery.runner.probe_media", _fake_media_info)
 
     result = export_video(
         ExportVideoRequest(
@@ -140,7 +140,7 @@ def test_export_video_infers_inputs_from_pipeline_root_and_writes_delivery_artif
 
 
 def test_export_video_can_export_preview_only(tmp_path: Path, monkeypatch) -> None:
-    from video_voice_separate.delivery.runner import export_video
+    from translip.delivery.runner import export_video
 
     pipeline_root, input_video_path, preview_mix_path, _dub_voice_path = _build_task_e_fixture(tmp_path)
     output_dir = tmp_path / "delivery"
@@ -161,8 +161,8 @@ def test_export_video_can_export_preview_only(tmp_path: Path, monkeypatch) -> No
         mux_calls.append(input_audio_path)
         return output_path
 
-    monkeypatch.setattr("video_voice_separate.delivery.runner.mux_video_with_audio", fake_mux_video_with_audio)
-    monkeypatch.setattr("video_voice_separate.delivery.runner.probe_media", _fake_media_info)
+    monkeypatch.setattr("translip.delivery.runner.mux_video_with_audio", fake_mux_video_with_audio)
+    monkeypatch.setattr("translip.delivery.runner.probe_media", _fake_media_info)
 
     result = export_video(
         ExportVideoRequest(

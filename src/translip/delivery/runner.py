@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from ..exceptions import VideoVoiceSeparateError
+from ..exceptions import TranslipError
 from ..types import ExportVideoArtifacts, ExportVideoRequest, ExportVideoResult
 from ..utils.ffmpeg import mux_video_with_audio, probe_media
 from ..utils.files import ensure_directory
@@ -162,16 +162,16 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
 def _resolve_request(request: ExportVideoRequest) -> ExportVideoRequest:
     normalized = request.normalized()
     if not normalized.export_preview and not normalized.export_dub:
-        raise VideoVoiceSeparateError("At least one export target must be enabled for Task G")
+        raise TranslipError("At least one export target must be enabled for Task G")
 
     pipeline_root = normalized.pipeline_root
     task_e_dir = normalized.task_e_dir
     if task_e_dir is None and pipeline_root is not None:
         task_e_dir = pipeline_root / "task-e" / "voice"
     if task_e_dir is None:
-        raise VideoVoiceSeparateError("Task G requires task_e_dir or pipeline_root")
+        raise TranslipError("Task G requires task_e_dir or pipeline_root")
     if not task_e_dir.exists():
-        raise VideoVoiceSeparateError(f"Task E directory does not exist: {task_e_dir}")
+        raise TranslipError(f"Task E directory does not exist: {task_e_dir}")
 
     input_video_path = normalized.input_video_path
     if input_video_path is None and pipeline_root is not None:
@@ -182,9 +182,9 @@ def _resolve_request(request: ExportVideoRequest) -> ExportVideoRequest:
             if inferred:
                 input_video_path = Path(str(inferred)).expanduser().resolve()
     if input_video_path is None:
-        raise VideoVoiceSeparateError("Task G requires input_video_path or pipeline_root with pipeline-manifest.json")
+        raise TranslipError("Task G requires input_video_path or pipeline_root with pipeline-manifest.json")
     if not input_video_path.exists():
-        raise VideoVoiceSeparateError(f"Task G input video does not exist: {input_video_path}")
+        raise TranslipError(f"Task G input video does not exist: {input_video_path}")
 
     output_dir = normalized.output_dir
     if output_dir is None:
@@ -229,7 +229,7 @@ def _resolve_preview_audio_path(request: ExportVideoRequest, task_e_manifest: di
         target_lang = _resolve_target_lang(request, task_e_manifest)
         resolved = (request.task_e_dir / f"preview_mix.{target_lang}.wav").resolve()
     if not resolved.exists():
-        raise VideoVoiceSeparateError(f"Task G preview mix does not exist: {resolved}")
+        raise TranslipError(f"Task G preview mix does not exist: {resolved}")
     return resolved
 
 
@@ -241,7 +241,7 @@ def _resolve_dub_audio_path(request: ExportVideoRequest, task_e_manifest: dict[s
         target_lang = _resolve_target_lang(request, task_e_manifest)
         resolved = (request.task_e_dir / f"dub_voice.{target_lang}.wav").resolve()
     if not resolved.exists():
-        raise VideoVoiceSeparateError(f"Task G dub voice does not exist: {resolved}")
+        raise TranslipError(f"Task G dub voice does not exist: {resolved}")
     return resolved
 
 

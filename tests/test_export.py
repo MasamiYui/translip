@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from video_voice_separate.pipeline.export import export_pair
+from translip.pipeline.export import export_pair
 
 
 def test_export_pair_wav(tmp_path: Path) -> None:

@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 from ..config import OUTPUT_ROOT, SUPPORTED_OUTPUT_FORMATS
-from ..exceptions import VideoVoiceSeparateError
+from ..exceptions import TranslipError
 from ..models.cdx23_dialogue import Cdx23DialogueSeparator
 from ..models.clearervoice import NoOpVoiceEnhancer
 from ..models.demucs_music import DemucsMusicSeparator
@@ -29,7 +29,7 @@ def _resolve_music_model(request: SeparationRequest) -> str:
 def _validate_request(request: SeparationRequest) -> SeparationRequest:
     normalized = request.normalized()
     if normalized.output_format not in SUPPORTED_OUTPUT_FORMATS:
-        raise VideoVoiceSeparateError(
+        raise TranslipError(
             f"Unsupported output format: {normalized.output_format}. "
             f"Expected one of: {sorted(SUPPORTED_OUTPUT_FORMATS)}"
         )

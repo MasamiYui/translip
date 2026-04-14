@@ -45,7 +45,7 @@ SUPPORTED_OUTPUT_FORMATS = {"wav", "mp3", "flac", "aac", "opus"}
 OUTPUT_ROOT = Path("output")
 CACHE_ROOT = Path(
     os.environ.get(
-        "VIDEO_VOICE_SEPARATE_CACHE_DIR",
-        Path.home() / ".cache" / "video-voice-separate",
+        "TRANSLIP_CACHE_DIR",
+        Path.home() / ".cache" / "translip",
     )
 )

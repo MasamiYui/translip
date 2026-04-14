@@ -13,14 +13,14 @@ Package manager: **uv**. Build backend: hatchling.
 ```sh
 uv sync                  # Install all dependencies
 uv run pytest tests/     # Run test suite
-uv run video-voice-separate --help   # CLI entry point
+uv run translip --help   # CLI entry point
 ```
 
 No linter/formatter config is enforced — no ruff, black, or mypy configuration exists.
 
 ## Architecture
 
-Each pipeline stage lives in its own module under `src/video_voice_separate/`:
+Each pipeline stage lives in its own module under `src/translip/`:
 
 | Module | Stage | Purpose |
 |--------|-------|---------|
@@ -65,7 +65,7 @@ Every task follows the same shape:
 
 ### Error handling
 
-- Custom hierarchy rooted at `VideoVoiceSeparateError(RuntimeError)` in `exceptions.py`
+- Custom hierarchy rooted at `TranslipError(RuntimeError)` in `exceptions.py`
 - Subclasses: `DependencyError`, `FFmpegError`, `BackendUnavailableError`
 - Runners catch errors and write error payloads to manifests
 
@@ -82,10 +82,10 @@ All FFmpeg interaction goes through `utils/ffmpeg.py` helpers (`probe_media`, `r
 
 ## Key Config
 
-Defaults live in `src/video_voice_separate/config.py`. Notable:
+Defaults live in `src/translip/config.py`. Notable:
 - `DEFAULT_SAMPLE_RATE = 44_100`, transcription at `16_000`
 - Device auto-detection: CPU/CUDA/MPS
-- Cache: `~/.cache/video-voice-separate` (override with `VIDEO_VOICE_SEPARATE_CACHE_DIR`)
+- Cache: `~/.cache/translip` (override with `TRANSLIP_CACHE_DIR`)
 - HuggingFace: `HF_HUB_DISABLE_XET=1` set at import time
 
 ## CLI Subcommands

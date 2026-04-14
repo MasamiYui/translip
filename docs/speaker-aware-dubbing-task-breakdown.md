@@ -1,9 +1,9 @@
 # 说话人感知配音能力任务拆解
 
-- 项目: `video-voice-separate`
+- 项目: `translip`
 - 文档状态: Draft v4
 - 创建日期: 2026-04-14
-- 关联文档: [speaker-aware-dubbing-plan.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/speaker-aware-dubbing-plan.md)
+- 关联文档: [speaker-aware-dubbing-plan.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-aware-dubbing-plan.md)
 
 ## 1. 目标
 

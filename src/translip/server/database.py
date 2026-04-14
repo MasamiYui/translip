@@ -10,7 +10,7 @@ from ..config import CACHE_ROOT
 
 _DB_PATH = Path(
     os.environ.get(
-        "VIDEO_VOICE_SEPARATE_DB_PATH",
+        "TRANSLIP_DB_PATH",
         str(CACHE_ROOT / "data.db"),
     )
 )

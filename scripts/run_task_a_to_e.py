@@ -7,7 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from video_voice_separate.dubbing.planning import (
+from translip.dubbing.planning import (
     pick_segment_ids_for_speaker,
     pick_task_d_speaker_ids,
 )
@@ -284,7 +284,7 @@ def _run_cli(args: list[str]) -> None:
 
 
 def _cli_executable() -> Path:
-    return Path(sys.executable).with_name("video-voice-separate")
+    return Path(sys.executable).with_name("translip")
 
 
 def _cli_env() -> dict[str, str]:

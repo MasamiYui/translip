@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from ..dubbing.planning import pick_segment_ids_for_speaker, pick_task_d_speaker_ids
-from ..exceptions import VideoVoiceSeparateError
+from ..exceptions import TranslipError
 from ..types import PipelineRequest, PipelineResult, PipelineStageName
 from ..utils.files import ensure_directory
 from .cache import StageCacheSpec, compute_cache_key, is_stage_cache_hit
@@ -249,7 +249,7 @@ def execute_stage(
             limit=candidate_limit,
         )
         if not ranked_speaker_ids:
-            raise VideoVoiceSeparateError("No suitable speakers found for Task D pipeline stage")
+            raise TranslipError("No suitable speakers found for Task D pipeline stage")
 
         reports: list[str] = []
         selected_segment_map: dict[str, list[str] | None] = {}
@@ -277,7 +277,7 @@ def execute_stage(
                 break
 
         if not reports:
-            raise VideoVoiceSeparateError("Task D did not produce any reports for Task E")
+            raise TranslipError("Task D did not produce any reports for Task E")
 
         stage_manifest = {
             "status": "succeeded",
@@ -323,7 +323,7 @@ def run_pipeline(
     if stage_executor is None:
         stage_executor = execute_stage
     if not request.input_path.exists():
-        raise VideoVoiceSeparateError(f"Pipeline input path does not exist: {request.input_path}")
+        raise TranslipError(f"Pipeline input path does not exist: {request.input_path}")
 
     ensure_directory(request.output_root)
     paths = _pipeline_paths(request)
@@ -442,7 +442,7 @@ def run_pipeline(
         write_json(report, paths["report_path"])
         monitor.finalize(status="failed")
         if isinstance(exc, StageSubprocessError):
-            raise VideoVoiceSeparateError(
+            raise TranslipError(
                 f"{exc}\nlog={exc.log_path}\nlast_output={' | '.join(exc.tail)}"
             ) from exc
         raise

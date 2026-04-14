@@ -1,12 +1,12 @@
 # 任务 G 技术设计: 最终视频合成与交付封装
 
-- 项目: `video-voice-separate`
+- 项目: `translip`
 - 文档状态: Draft v1
 - 创建日期: 2026-04-14
-- 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/speaker-aware-dubbing-task-breakdown.md)
+- 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-aware-dubbing-task-breakdown.md)
 - 前置依赖:
-  - [task-e-timeline-fitting-and-mixing.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-e-timeline-fitting-and-mixing.md)
-  - [task-f-pipeline-and-engineering-orchestration.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-f-pipeline-and-engineering-orchestration.md)
+  - [task-e-timeline-fitting-and-mixing.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-e-timeline-fitting-and-mixing.md)
+  - [task-f-pipeline-and-engineering-orchestration.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-f-pipeline-and-engineering-orchestration.md)
 
 ## 1. 目标
 
@@ -362,7 +362,7 @@
 建议新增一个独立 CLI:
 
 ```bash
-uv run video-voice-separate export-video \
+uv run translip export-video \
   --input-video ./test_video/example.mp4 \
   --pipeline-root ./output-pipeline \
   --output-dir ./output-delivery \

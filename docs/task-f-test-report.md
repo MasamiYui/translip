@@ -37,7 +37,7 @@ Input:
 Command:
 
 ```bash
-uv run video-voice-separate run-pipeline \
+uv run translip run-pipeline \
   --input ./test_video/我在迪拜等你.mp4 \
   --output-root ./tmp/task-f-pipeline-full \
   --target-lang en \
@@ -68,7 +68,7 @@ Primary result:
 Command:
 
 ```bash
-uv run video-voice-separate run-pipeline \
+uv run translip run-pipeline \
   --input ./test_video/我在迪拜等你.mp4 \
   --output-root ./tmp/task-f-pipeline-full \
   --target-lang en \

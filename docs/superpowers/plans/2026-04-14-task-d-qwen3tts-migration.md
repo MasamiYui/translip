@@ -29,7 +29,7 @@ Expected: FAIL because the code still defaults to `f5tts` and still exposes `ope
 
 - [ ] **Step 3: Make the minimal typing and CLI changes**
 
-Update `src/video_voice_separate/types.py`, `src/video_voice_separate/config.py`, and `src/video_voice_separate/cli.py` so Task D only exposes `qwen3tts`.
+Update `src/translip/types.py`, `src/translip/config.py`, and `src/translip/cli.py` so Task D only exposes `qwen3tts`.
 
 - [ ] **Step 4: Re-run the targeted tests**
 
@@ -39,14 +39,14 @@ Expected: PASS for the contract changes, with later failures reserved for the mi
 - [ ] **Step 5: Commit**
 
 ```bash
-git add tests/test_dubbing.py tests/test_cli.py src/video_voice_separate/types.py src/video_voice_separate/config.py src/video_voice_separate/cli.py
+git add tests/test_dubbing.py tests/test_cli.py src/translip/types.py src/translip/config.py src/translip/cli.py
 git commit -m "test: lock Task D to qwen3tts"
 ```
 
 ### Task 2: Add The Qwen3-TTS Backend
 
 **Files:**
-- Create: `src/video_voice_separate/dubbing/qwen_tts_backend.py`
+- Create: `src/translip/dubbing/qwen_tts_backend.py`
 - Modify: `tests/test_dubbing.py`
 - Test: `tests/test_dubbing.py`
 
@@ -61,7 +61,7 @@ Expected: FAIL because `qwen_tts_backend.py` does not exist.
 
 - [ ] **Step 3: Implement the minimal backend**
 
-Create `src/video_voice_separate/dubbing/qwen_tts_backend.py` with:
+Create `src/translip/dubbing/qwen_tts_backend.py` with:
 - lazy model loading
 - device resolution
 - a single `QwenTTSBackend.synthesize(...)`
@@ -75,17 +75,17 @@ Expected: PASS for backend-specific tests.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add tests/test_dubbing.py src/video_voice_separate/dubbing/qwen_tts_backend.py
+git add tests/test_dubbing.py src/translip/dubbing/qwen_tts_backend.py
 git commit -m "feat: add qwen3tts dubbing backend"
 ```
 
 ### Task 3: Migrate The Task D Runner
 
 **Files:**
-- Modify: `src/video_voice_separate/dubbing/runner.py`
-- Modify: `src/video_voice_separate/dubbing/__init__.py`
-- Delete: `src/video_voice_separate/dubbing/f5tts_backend.py`
-- Delete: `src/video_voice_separate/dubbing/openvoice_backend.py`
+- Modify: `src/translip/dubbing/runner.py`
+- Modify: `src/translip/dubbing/__init__.py`
+- Delete: `src/translip/dubbing/f5tts_backend.py`
+- Delete: `src/translip/dubbing/openvoice_backend.py`
 - Test: `tests/test_dubbing.py`
 
 - [ ] **Step 1: Write the failing runner test**
@@ -99,7 +99,7 @@ Expected: FAIL because the runner still imports and selects `F5TTSBackend` / `Op
 
 - [ ] **Step 3: Implement the runner migration**
 
-Update `src/video_voice_separate/dubbing/runner.py` to:
+Update `src/translip/dubbing/runner.py` to:
 - import `QwenTTSBackend`
 - route `_build_backend(...)` only to Qwen
 - remove legacy imports
@@ -114,8 +114,8 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/video_voice_separate/dubbing/runner.py src/video_voice_separate/dubbing/__init__.py src/video_voice_separate/dubbing/qwen_tts_backend.py tests/test_dubbing.py
-git rm src/video_voice_separate/dubbing/f5tts_backend.py src/video_voice_separate/dubbing/openvoice_backend.py
+git add src/translip/dubbing/runner.py src/translip/dubbing/__init__.py src/translip/dubbing/qwen_tts_backend.py tests/test_dubbing.py
+git rm src/translip/dubbing/f5tts_backend.py src/translip/dubbing/openvoice_backend.py
 git commit -m "refactor: migrate task d runner to qwen3tts"
 ```
 

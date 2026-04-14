@@ -1,8 +1,8 @@
 # 任务 C 测试报告: 多语种翻译脚本生成
 
-- 项目: `video-voice-separate`
+- 项目: `translip`
 - 测试日期: 2026-04-12
-- 对应设计文档: [task-c-dubbing-script-generation.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-c-dubbing-script-generation.md)
+- 对应设计文档: [task-c-dubbing-script-generation.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-c-dubbing-script-generation.md)
 
 ## 1. 本轮实现范围
 
@@ -48,12 +48,12 @@ uv run pytest -q
 
 - `output-task-a/voice/segments.zh.json` 前 12 条
 - `output-task-b/voice/speaker_profiles.json`
-- glossary: [config/glossary.example.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/config/glossary.example.json)
+- glossary: [config/glossary.example.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/config/glossary.example.json)
 
 执行命令:
 
 ```bash
-uv run video-voice-separate translate-script \
+uv run translip translate-script \
   --segments ./tmp/task-c-smoke/segments.zh.json \
   --profiles ./tmp/task-c-smoke/speaker_profiles.json \
   --target-lang en \
@@ -148,7 +148,7 @@ uv run video-voice-separate translate-script \
 
 新增脚本:
 
-- [scripts/run_task_a_to_c.py](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/scripts/run_task_a_to_c.py)
+- [scripts/run_task_a_to_c.py](/Users/masamiyui/OpenSoureProjects/Forks/translip/scripts/run_task_a_to_c.py)
 
 执行命令:
 
@@ -165,9 +165,9 @@ uv run python scripts/run_task_a_to_c.py \
 
 产物:
 
-- [voice.mp3](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/stage1/我在迪拜等你/voice.mp3)
-- [background.mp3](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/stage1/我在迪拜等你/background.mp3)
-- [manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/stage1/我在迪拜等你/manifest.json)
+- [voice.mp3](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/stage1/我在迪拜等你/voice.mp3)
+- [background.mp3](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/stage1/我在迪拜等你/background.mp3)
+- [manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/stage1/我在迪拜等你/manifest.json)
 
 统计:
 
@@ -179,9 +179,9 @@ uv run python scripts/run_task_a_to_c.py \
 
 产物:
 
-- [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/task-a/voice/segments.zh.json)
-- [segments.zh.srt](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/task-a/voice/segments.zh.srt)
-- [task-a-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/task-a/voice/task-a-manifest.json)
+- [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/task-a/voice/segments.zh.json)
+- [segments.zh.srt](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/task-a/voice/segments.zh.srt)
+- [task-a-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/task-a/voice/task-a-manifest.json)
 
 统计:
 
@@ -193,10 +193,10 @@ uv run python scripts/run_task_a_to_c.py \
 
 产物:
 
-- [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/task-b/voice/speaker_profiles.json)
-- [speaker_matches.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/task-b/voice/speaker_matches.json)
-- [speaker_registry.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/task-b/voice/speaker_registry.json)
-- [task-b-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/task-b/voice/task-b-manifest.json)
+- [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/task-b/voice/speaker_profiles.json)
+- [speaker_matches.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/task-b/voice/speaker_matches.json)
+- [speaker_registry.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/task-b/voice/speaker_registry.json)
+- [task-b-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/task-b/voice/task-b-manifest.json)
 
 统计:
 
@@ -213,10 +213,10 @@ uv run python scripts/run_task_a_to_c.py \
 
 产物:
 
-- [translation.en.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/task-c/voice/translation.en.json)
-- [translation.en.editable.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/task-c/voice/translation.en.editable.json)
-- [translation.en.srt](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/task-c/voice/translation.en.srt)
-- [task-c-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/tmp/e2e-task-a-to-c-local/task-c/voice/task-c-manifest.json)
+- [translation.en.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/task-c/voice/translation.en.json)
+- [translation.en.editable.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/task-c/voice/translation.en.editable.json)
+- [translation.en.srt](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/task-c/voice/translation.en.srt)
+- [task-c-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/tmp/e2e-task-a-to-c-local/task-c/voice/task-c-manifest.json)
 
 统计:
 

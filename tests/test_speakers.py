@@ -2,10 +2,10 @@ from pathlib import Path
 
 import numpy as np
 
-from video_voice_separate.speakers.profile import build_profiles_payload
-from video_voice_separate.speakers.reference import build_profile_drafts
-from video_voice_separate.speakers.registry import apply_registry_updates, load_registry, match_profiles
-from video_voice_separate.types import TranscriptionSegment
+from translip.speakers.profile import build_profiles_payload
+from translip.speakers.reference import build_profile_drafts
+from translip.speakers.registry import apply_registry_updates, load_registry, match_profiles
+from translip.types import TranscriptionSegment
 
 
 def _segments_for_label(label: str, starts: list[float]) -> list[TranscriptionSegment]:

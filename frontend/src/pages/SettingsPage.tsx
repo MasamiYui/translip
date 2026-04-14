@@ -62,7 +62,7 @@ export function SettingsPage() {
       <section className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
         <h2 className="text-sm font-semibold text-slate-700 mb-4">关于</h2>
         <div className="text-sm text-slate-600 space-y-1">
-          <p>Video Voice Separate — Pipeline Management System</p>
+          <p>Translip — Pipeline Management System</p>
           <p className="text-slate-400">v0.1.0 · Speaker-aware multilingual dubbing pipeline</p>
         </div>
       </section>

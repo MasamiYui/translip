@@ -1,4 +1,4 @@
-# dubforge
+# translip
 
 **Speaker-aware multilingual video dubbing pipeline.**
 
@@ -12,7 +12,7 @@ Separates voice and background audio from a source video, transcribes with speak
 
 ### Overview
 
-`dubforge` is a local, end-to-end video dubbing pipeline. Given a source video file and a target language, it produces a fully dubbed MP4 with per-speaker voice cloning.
+`translip` is a local, end-to-end video dubbing pipeline. Given a source video file and a target language, it produces a fully dubbed MP4 with per-speaker voice cloning.
 
 **Pipeline stages:**
 
@@ -43,15 +43,15 @@ Separates voice and background audio from a source video, transcribes with speak
 ### Installation
 
 ```bash
-git clone https://github.com/MasamiYui/video-voice-separate.git
-cd video-voice-separate
+git clone https://github.com/MasamiYui/translip.git
+cd translip
 uv sync
 ```
 
 Pre-download CDX23 dialogue separation checkpoints (recommended):
 
 ```bash
-uv run dubforge download-models --backend cdx23 --quality balanced
+uv run translip download-models --backend cdx23 --quality balanced
 ```
 
 ---
@@ -61,7 +61,7 @@ uv run dubforge download-models --backend cdx23 --quality balanced
 Run the full pipeline on a source video (Stage 1 → Task G):
 
 ```bash
-uv run dubforge run-pipeline \
+uv run translip run-pipeline \
   --input ./test_video/example.mp4 \
   --output-root ./output-pipeline \
   --target-lang en \
@@ -71,7 +71,7 @@ uv run dubforge run-pipeline \
 Then export the final video:
 
 ```bash
-uv run dubforge export-video \
+uv run translip export-video \
   --pipeline-root ./output-pipeline
 ```
 
@@ -86,9 +86,9 @@ uv run dubforge export-video \
 Start the backend API server:
 
 ```bash
-uv run dubforge-server --host 127.0.0.1 --port 8765
+uv run translip-server --host 127.0.0.1 --port 8765
 # or directly:
-uv run uvicorn video_voice_separate.server.app:app --host 127.0.0.1 --port 8765
+uv run uvicorn translip.server.app:app --host 127.0.0.1 --port 8765
 ```
 
 Start the frontend dev server:
@@ -114,7 +114,7 @@ Features:
 #### Stage 1 — Audio Separation
 
 ```bash
-uv run dubforge run \
+uv run translip run \
   --input ./test_video/example.mp4 \
   --mode auto \
   --quality balanced \
@@ -126,7 +126,7 @@ uv run dubforge run \
 #### Task A — Transcription
 
 ```bash
-uv run dubforge transcribe \
+uv run translip transcribe \
   --input ./output/example/voice.mp3 \
   --output-dir ./output-task-a
 ```
@@ -136,7 +136,7 @@ Outputs: `segments.zh.json`, `segments.zh.srt`, `task-a-manifest.json`
 #### Task B — Speaker Registry
 
 ```bash
-uv run dubforge build-speaker-registry \
+uv run translip build-speaker-registry \
   --segments ./output-task-a/voice/segments.zh.json \
   --audio ./output/example/voice.mp3 \
   --output-dir ./output-task-b \
@@ -150,7 +150,7 @@ Outputs: `speaker_profiles.json`, `speaker_matches.json`, `speaker_registry.json
 
 ```bash
 # Local M2M100
-uv run dubforge translate-script \
+uv run translip translate-script \
   --segments ./output-task-a/voice/segments.zh.json \
   --profiles ./output-task-b/voice/speaker_profiles.json \
   --target-lang en \
@@ -160,7 +160,7 @@ uv run dubforge translate-script \
 
 # SiliconFlow API
 export SILICONFLOW_API_KEY=<your-key>
-uv run dubforge translate-script \
+uv run translip translate-script \
   ... \
   --backend siliconflow \
   --api-model deepseek-ai/DeepSeek-V3
@@ -171,7 +171,7 @@ Outputs: `translation.en.json`, `translation.en.srt`
 #### Task D — Voice Cloning
 
 ```bash
-uv run dubforge synthesize-speaker \
+uv run translip synthesize-speaker \
   --translation ./output-task-c/voice/translation.en.json \
   --profiles ./output-task-b/voice/speaker_profiles.json \
   --speaker-id spk_0001 \
@@ -185,7 +185,7 @@ Outputs: `speaker_segments.en.json`, `speaker_demo.en.wav`
 #### Task E — Timeline Fitting & Mixing
 
 ```bash
-uv run dubforge render-dub \
+uv run translip render-dub \
   --background ./output/example/background.mp3 \
   --segments ./output-task-a/voice/segments.zh.json \
   --translation ./output-task-c/voice/translation.en.json \
@@ -200,7 +200,7 @@ Outputs: `dub_voice.en.wav`, `preview_mix.en.wav`, `timeline.en.json`
 #### Task G — Export Video
 
 ```bash
-uv run dubforge export-video \
+uv run translip export-video \
   --pipeline-root ./output-pipeline
 ```
 
@@ -215,14 +215,14 @@ uv run dubforge export-video \
 
 ### Configuration
 
-Default values are in `src/video_voice_separate/config.py`:
+Default values are in `src/translip/config.py`:
 
 | Key | Default | Description |
 |-----|---------|-------------|
 | `DEFAULT_SAMPLE_RATE` | 44,100 Hz | Output sample rate |
 | Transcription sample rate | 16,000 Hz | Internal ASR rate |
 | Device | auto (CPU/CUDA/MPS) | Compute device |
-| Cache root | `~/.cache/dubforge` | Override with `DUBFORGE_CACHE_DIR` |
+| Cache root | `~/.cache/translip` | Override with `TRANSLIP_CACHE_DIR` |
 
 ---
 
@@ -238,7 +238,7 @@ uv run pytest tests/
 ### Architecture
 
 ```
-src/video_voice_separate/
+src/translip/
 ├── pipeline/        # Stage 1 — audio separation (Demucs, CDX23)
 ├── transcription/   # Task A — ASR + diarization
 ├── speakers/        # Task B — speaker embeddings, registry
@@ -268,7 +268,7 @@ src/video_voice_separate/
 
 ### 概述
 
-`dubforge` 是一个本地端到端视频配音流水线。输入一个源视频和目标语言，即可输出带有逐说话人声音克隆的完整配音 MP4。
+`translip` 是一个本地端到端视频配音流水线。输入一个源视频和目标语言，即可输出带有逐说话人声音克隆的完整配音 MP4。
 
 **流水线阶段：**
 
@@ -299,15 +299,15 @@ src/video_voice_separate/
 ### 安装
 
 ```bash
-git clone https://github.com/MasamiYui/video-voice-separate.git
-cd video-voice-separate
+git clone https://github.com/MasamiYui/translip.git
+cd translip
 uv sync
 ```
 
 预下载 CDX23 对话分离模型（推荐）：
 
 ```bash
-uv run dubforge download-models --backend cdx23 --quality balanced
+uv run translip download-models --backend cdx23 --quality balanced
 ```
 
 ---
@@ -317,7 +317,7 @@ uv run dubforge download-models --backend cdx23 --quality balanced
 对源视频运行完整流水线（Stage 1 → Task G）：
 
 ```bash
-uv run dubforge run-pipeline \
+uv run translip run-pipeline \
   --input ./test_video/example.mp4 \
   --output-root ./output-pipeline \
   --target-lang en \
@@ -327,7 +327,7 @@ uv run dubforge run-pipeline \
 导出最终视频：
 
 ```bash
-uv run dubforge export-video \
+uv run translip export-video \
   --pipeline-root ./output-pipeline
 ```
 
@@ -342,9 +342,9 @@ uv run dubforge export-video \
 启动后端 API 服务：
 
 ```bash
-uv run dubforge-server --host 127.0.0.1 --port 8765
+uv run translip-server --host 127.0.0.1 --port 8765
 # 或直接启动：
-uv run uvicorn video_voice_separate.server.app:app --host 127.0.0.1 --port 8765
+uv run uvicorn translip.server.app:app --host 127.0.0.1 --port 8765
 ```
 
 启动前端开发服务：
@@ -370,7 +370,7 @@ npm run dev
 #### Stage 1 — 音频分离
 
 ```bash
-uv run dubforge run \
+uv run translip run \
   --input ./test_video/example.mp4 \
   --mode auto \
   --quality balanced \
@@ -382,7 +382,7 @@ uv run dubforge run \
 #### Task A — 语音转写
 
 ```bash
-uv run dubforge transcribe \
+uv run translip transcribe \
   --input ./output/example/voice.mp3 \
   --output-dir ./output-task-a
 ```
@@ -392,7 +392,7 @@ uv run dubforge transcribe \
 #### Task B — 说话人注册表
 
 ```bash
-uv run dubforge build-speaker-registry \
+uv run translip build-speaker-registry \
   --segments ./output-task-a/voice/segments.zh.json \
   --audio ./output/example/voice.mp3 \
   --output-dir ./output-task-b \
@@ -406,7 +406,7 @@ uv run dubforge build-speaker-registry \
 
 ```bash
 # 本地 M2M100
-uv run dubforge translate-script \
+uv run translip translate-script \
   --segments ./output-task-a/voice/segments.zh.json \
   --profiles ./output-task-b/voice/speaker_profiles.json \
   --target-lang en \
@@ -416,7 +416,7 @@ uv run dubforge translate-script \
 
 # SiliconFlow API
 export SILICONFLOW_API_KEY=<your-key>
-uv run dubforge translate-script \
+uv run translip translate-script \
   ... \
   --backend siliconflow \
   --api-model deepseek-ai/DeepSeek-V3
@@ -427,7 +427,7 @@ uv run dubforge translate-script \
 #### Task D — 声音克隆
 
 ```bash
-uv run dubforge synthesize-speaker \
+uv run translip synthesize-speaker \
   --translation ./output-task-c/voice/translation.en.json \
   --profiles ./output-task-b/voice/speaker_profiles.json \
   --speaker-id spk_0001 \
@@ -441,7 +441,7 @@ uv run dubforge synthesize-speaker \
 #### Task E — 时间轴拟合与混音
 
 ```bash
-uv run dubforge render-dub \
+uv run translip render-dub \
   --background ./output/example/background.mp3 \
   --segments ./output-task-a/voice/segments.zh.json \
   --translation ./output-task-c/voice/translation.en.json \
@@ -456,7 +456,7 @@ uv run dubforge render-dub \
 #### Task G — 视频导出
 
 ```bash
-uv run dubforge export-video \
+uv run translip export-video \
   --pipeline-root ./output-pipeline
 ```
 
@@ -471,14 +471,14 @@ uv run dubforge export-video \
 
 ### 配置
 
-默认值在 `src/video_voice_separate/config.py` 中：
+默认值在 `src/translip/config.py` 中：
 
 | 配置项 | 默认值 | 说明 |
 |--------|--------|------|
 | `DEFAULT_SAMPLE_RATE` | 44,100 Hz | 输出采样率 |
 | 转写采样率 | 16,000 Hz | ASR 内部采样率 |
 | 设备 | auto（CPU/CUDA/MPS） | 运算设备 |
-| 缓存目录 | `~/.cache/dubforge` | 可通过 `DUBFORGE_CACHE_DIR` 覆盖 |
+| 缓存目录 | `~/.cache/translip` | 可通过 `TRANSLIP_CACHE_DIR` 覆盖 |
 
 ---
 
@@ -494,7 +494,7 @@ uv run pytest tests/
 ### 架构说明
 
 ```
-src/video_voice_separate/
+src/translip/
 ├── pipeline/        # Stage 1 — 音频分离（Demucs、CDX23）
 ├── transcription/   # Task A — ASR + 说话人分割
 ├── speakers/        # Task B — 说话人嵌入、注册表

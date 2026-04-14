@@ -1,6 +1,6 @@
 # 说话人识别、声纹建档与跨语种配音流水线规划
 
-- 项目: `video-voice-separate`
+- 项目: `translip`
 - 文档状态: Draft v1
 - 调研日期: 2026-04-11
 - 目标: 基于上游输出的 `voice.mp3`，完成多人识别、声纹建档、中文转英文、英文声音克隆与配音替换，服务“出海视频”场景
@@ -512,7 +512,7 @@ flowchart TD
 建议新增目录:
 
 ```text
-src/video_voice_separate/
+src/translip/
   asr/
     whisperx_runner.py
     alignment.py

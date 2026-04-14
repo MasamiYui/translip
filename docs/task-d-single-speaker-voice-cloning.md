@@ -1,13 +1,13 @@
 # 任务 D 技术设计: 单模型 Qwen3-TTS 声音克隆与目标语言合成
 
-- 项目: `video-voice-separate`
+- 项目: `translip`
 - 文档状态: Draft v2
 - 创建日期: 2026-04-14
-- 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/speaker-aware-dubbing-task-breakdown.md)
+- 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-aware-dubbing-task-breakdown.md)
 - 前置依赖:
-  - [task-b-speaker-registry-and-retrieval.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-b-speaker-registry-and-retrieval.md)
-  - [task-c-dubbing-script-generation.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-c-dubbing-script-generation.md)
-  - [task-e-timeline-fitting-and-mixing.md](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/docs/task-e-timeline-fitting-and-mixing.md)
+  - [task-b-speaker-registry-and-retrieval.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-b-speaker-registry-and-retrieval.md)
+  - [task-c-dubbing-script-generation.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-c-dubbing-script-generation.md)
+  - [task-e-timeline-fitting-and-mixing.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-e-timeline-fitting-and-mixing.md)
 
 ## 1. 文档目的
 

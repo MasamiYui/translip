@@ -3,11 +3,11 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from video_voice_separate.pipeline.runner import separate_file
-from video_voice_separate.speakers.runner import build_speaker_registry
-from video_voice_separate.translation.runner import translate_script
-from video_voice_separate.types import SeparationRequest, SpeakerRegistryRequest, TranscriptionRequest, TranslationRequest
-from video_voice_separate.transcription.runner import transcribe_file
+from translip.pipeline.runner import separate_file
+from translip.speakers.runner import build_speaker_registry
+from translip.translation.runner import translate_script
+from translip.types import SeparationRequest, SpeakerRegistryRequest, TranscriptionRequest, TranslationRequest
+from translip.transcription.runner import transcribe_file
 
 
 def build_parser() -> argparse.ArgumentParser:

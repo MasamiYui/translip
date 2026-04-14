@@ -1,6 +1,6 @@
 # 任务 A 测试报告: 说话人归因转写
 
-- 项目: `video-voice-separate`
+- 项目: `translip`
 - 任务: `任务 A`
 - 报告日期: 2026-04-11
 - 状态: Passed
@@ -18,11 +18,11 @@
 
 ### 原始测试视频
 
-- [我在迪拜等你.mp4](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/test_video/我在迪拜等你.mp4)
+- [我在迪拜等你.mp4](/Users/masamiyui/OpenSoureProjects/Forks/translip/test_video/我在迪拜等你.mp4)
 
 ### 上游人声轨
 
-- [voice.mp3](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output/我在迪拜等你/voice.mp3)
+- [voice.mp3](/Users/masamiyui/OpenSoureProjects/Forks/translip/output/我在迪拜等你/voice.mp3)
 
 说明:
 
@@ -53,7 +53,7 @@ uv run pytest
 ### 真实素材验证
 
 ```bash
-uv run video-voice-separate transcribe \
+uv run translip transcribe \
   --input ./output/我在迪拜等你/voice.mp3 \
   --output-dir ./output-task-a \
   --keep-intermediate
@@ -61,10 +61,10 @@ uv run video-voice-separate transcribe \
 
 ## 5. 产物路径
 
-- JSON: [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output-task-a/voice/segments.zh.json)
-- SRT: [segments.zh.srt](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output-task-a/voice/segments.zh.srt)
-- Manifest: [task-a-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output-task-a/voice/task-a-manifest.json)
-- 中间音频: [transcription_input.wav](/Users/masamiyui/OpenSoureProjects/Forks/video-voice-separate/output-task-a/voice/intermediate/transcription_input.wav)
+- JSON: [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-a/voice/segments.zh.json)
+- SRT: [segments.zh.srt](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-a/voice/segments.zh.srt)
+- Manifest: [task-a-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-a/voice/task-a-manifest.json)
+- 中间音频: [transcription_input.wav](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-a/voice/intermediate/transcription_input.wav)
 
 ## 6. 测试结果
 

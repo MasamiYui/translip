@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from video_voice_separate.pipeline.manifest import build_manifest
-from video_voice_separate.types import MediaInfo, RouteDecision, SeparationRequest
+from translip.pipeline.manifest import build_manifest
+from translip.types import MediaInfo, RouteDecision, SeparationRequest
 
 
 def test_manifest_shape(tmp_path: Path) -> None:

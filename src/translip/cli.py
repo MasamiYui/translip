@@ -55,7 +55,7 @@ from .utils.logging import configure_logging
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="video-voice-separate")
+    parser = argparse.ArgumentParser(prog="translip")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
