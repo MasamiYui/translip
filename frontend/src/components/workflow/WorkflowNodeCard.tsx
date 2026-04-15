@@ -28,11 +28,85 @@ interface WorkflowNodeCardProps {
 }
 
 export function WorkflowNodeCard({ node, selected = false, compact = false, onClick }: WorkflowNodeCardProps) {
-  const { getStageLabel, getStatusLabel, t } = useI18n()
+  const { getStageLabel, getStageShortLabel, getStatusLabel, t } = useI18n()
   const reduceMotion = useReducedMotion()
   const Icon = GROUP_ICON[node.group]
-  const label = getStageLabel(node.id as keyof typeof t.stages)
+  const label = compact
+    ? getStageShortLabel(node.id as keyof typeof t.stageShort)
+    : getStageLabel(node.id as keyof typeof t.stages)
   const statusLabel = getStatusLabel(node.status as keyof typeof t.status)
+
+  if (compact) {
+    return (
+      <motion.button
+        type="button"
+        layout={!reduceMotion}
+        whileHover={reduceMotion ? undefined : { y: -2, scale: 1.02 }}
+        whileTap={reduceMotion ? undefined : { scale: 0.98 }}
+        onClick={() => onClick?.(node.id)}
+        className={cn(
+          'relative flex w-full flex-col items-center gap-2 overflow-hidden rounded-2xl border px-2 py-3 text-center transition-all duration-200',
+          STATUS_STYLES[node.status],
+          selected && 'ring-2 ring-sky-400/70 ring-offset-2 ring-offset-white',
+        )}
+      >
+        {/* Required/optional indicator */}
+        <span
+          className={cn(
+            'absolute right-2 top-2 rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest leading-none',
+            node.required
+              ? 'bg-slate-200/90 text-slate-500'
+              : 'border border-dashed border-slate-300/80 text-slate-400',
+          )}
+        >
+          {node.required ? t.workflow.required : t.workflow.optional}
+        </span>
+
+        {/* Icon */}
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/85 text-current shadow-sm">
+          <Icon size={16} />
+        </div>
+
+        {/* Label */}
+        <div className="w-full px-1 text-[11px] font-semibold leading-tight text-current/90 line-clamp-2">
+          {label}
+        </div>
+
+        {/* Status chip — only when not pending */}
+        {node.status !== 'pending' && (
+          <div className="flex items-center gap-1 text-[10px] font-medium text-current/70">
+            {node.status === 'running' && (
+              <span className="font-bold">{node.progress_percent.toFixed(0)}%</span>
+            )}
+            {node.status !== 'running' && (
+              <span>{statusLabel}</span>
+            )}
+          </div>
+        )}
+
+        {/* Progress bar */}
+        {node.status === 'running' && (
+          <div className="mt-0.5 w-full overflow-hidden rounded-full bg-white/55 px-1">
+            <motion.div
+              className="h-1 rounded-full bg-sky-500"
+              initial={false}
+              animate={{ width: `${node.progress_percent}%` }}
+              transition={{ duration: reduceMotion ? 0 : 0.45, ease: 'easeOut' }}
+            />
+          </div>
+        )}
+
+        {/* Running shimmer */}
+        {node.status === 'running' && !reduceMotion && (
+          <motion.div
+            className="pointer-events-none absolute inset-0 rounded-2xl bg-linear-to-r from-transparent via-white/25 to-transparent"
+            animate={{ x: ['-115%', '115%'] }}
+            transition={{ duration: 1.6, ease: 'linear', repeat: Infinity }}
+          />
+        )}
+      </motion.button>
+    )
+  }
 
   return (
     <motion.button
@@ -42,9 +116,8 @@ export function WorkflowNodeCard({ node, selected = false, compact = false, onCl
       whileTap={reduceMotion ? undefined : { scale: 0.99 }}
       onClick={() => onClick?.(node.id)}
       className={cn(
-        'relative w-full overflow-hidden rounded-[22px] border px-4 py-3 text-left transition-all duration-200',
+        'relative w-full overflow-hidden rounded-[22px] border px-4 py-3 text-left transition-all duration-200 min-h-[132px]',
         STATUS_STYLES[node.status],
-        compact ? 'min-h-[110px]' : 'min-h-[132px]',
         selected && 'ring-2 ring-sky-400/70 ring-offset-2 ring-offset-white',
       )}
     >
@@ -89,7 +162,7 @@ export function WorkflowNodeCard({ node, selected = false, compact = false, onCl
         </span>
       </div>
 
-      {!compact && (node.current_step || node.error_message) && (
+      {(node.current_step || node.error_message) && (
         <div className="mt-2 line-clamp-2 rounded-2xl bg-white/65 px-3 py-2 text-[11px] text-current/80 shadow-inner">
           {node.error_message ?? node.current_step}
         </div>

@@ -16,7 +16,7 @@ export function WorkflowLane({ label, hint, children, compact = false }: Workflo
         compact && 'rounded-[24px] px-3 py-3',
       )}
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className={cn('flex items-center justify-between gap-3', compact ? 'mb-2' : 'mb-3')}>
         <div>
           <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">{label}</div>
           {hint && <div className="mt-1 text-xs text-slate-500">{hint}</div>}

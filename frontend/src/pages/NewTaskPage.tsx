@@ -316,11 +316,23 @@ export function NewTaskPage() {
           </Field>
         </div>
 
-        <div className="mt-4 rounded-[26px] bg-slate-50 p-4">
-          <div className="mb-3 text-xs font-semibold uppercase tracking-[0.22em] text-slate-400">
-            {t.workflow.previewTitle}
+        <div className="mt-4 rounded-2xl border border-slate-100 bg-slate-50/70 px-3 py-3">
+          <div className="mb-2.5 flex items-center justify-between gap-3">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+              {t.workflow.previewTitle}
+            </div>
+            <div className="flex items-center gap-3 text-[10px] text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full border border-slate-400 bg-slate-400" />
+                {t.workflow.required}
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full border border-slate-300 bg-transparent" />
+                {t.workflow.optional}
+              </span>
+            </div>
           </div>
-          <PipelineGraph graph={previewGraph} templateId={templateId} compact showLegend />
+          <PipelineGraph graph={previewGraph} templateId={templateId} compact />
         </div>
       </SectionCard>
 

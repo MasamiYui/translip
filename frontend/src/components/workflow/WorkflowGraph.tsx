@@ -113,7 +113,7 @@ export function WorkflowGraph({
         <div className="relative space-y-4">
           {groupedNodes.map(entry => (
             <WorkflowLane key={entry.lane} label={entry.label} compact={compact}>
-              <div className={cn('grid gap-3', compact ? 'grid-cols-7' : 'grid-cols-7')}>
+              <div className={cn('grid', compact ? 'gap-2 grid-cols-7' : 'gap-3 grid-cols-7')}>
                 {entry.nodes.map(node => (
                   <div key={node.id} style={{ gridColumn: `${getWorkflowColumn(node.id)} / span 1` }}>
                     <div ref={element => { nodeRefs.current[node.id] = element?.querySelector('button') ?? null }}>
