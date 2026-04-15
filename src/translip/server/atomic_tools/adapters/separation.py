@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 
 from ....pipeline.runner import separate_file
 from ....types import SeparationRequest
@@ -27,6 +28,15 @@ class SeparationAdapter(ToolAdapter):
         result = separate_file(request)
         voice_path = self.copy_output(Path(result.artifacts.voice_path), output_dir)
         background_path = self.copy_output(Path(result.artifacts.background_path), output_dir)
+        manifest_path = self.copy_output(Path(result.artifacts.manifest_path), output_dir, "manifest.json")
+        bundle_dir = Path(result.artifacts.bundle_dir)
+        if bundle_dir.exists() and bundle_dir != output_dir:
+            try:
+                bundle_dir.relative_to(output_dir)
+            except ValueError:
+                pass
+            else:
+                shutil.rmtree(bundle_dir, ignore_errors=True)
         on_progress(95.0, "collecting_artifacts")
         manifest = getattr(result, "manifest", {}) or {}
         resolved = manifest.get("resolved", {}) if isinstance(manifest, dict) else {}
@@ -36,6 +46,7 @@ class SeparationAdapter(ToolAdapter):
             "backend": resolved.get("dialogue_backend") or resolved.get("music_backend"),
             "voice_file": voice_path.name,
             "background_file": background_path.name,
+            "manifest_file": manifest_path.name,
         }
 
 
