@@ -16,6 +16,14 @@ from .routes.tasks import router as tasks_router
 
 logger = logging.getLogger(__name__)
 
+
+def _find_project_root(start: Path) -> Path:
+    for candidate in [start.parent, *start.parents]:
+        if (candidate / "pyproject.toml").exists():
+            return candidate
+    return start.parents[3]
+
+
 app = FastAPI(
     title="Translip — Pipeline Manager",
     version="0.1.0",
@@ -44,7 +52,7 @@ app.include_router(system_router)
 app.include_router(artifacts_router)
 
 # Serve frontend static files if built
-_FRONTEND_DIST = Path(__file__).parent.parent.parent.parent.parent / "frontend" / "dist"
+_FRONTEND_DIST = _find_project_root(Path(__file__).resolve()) / "frontend" / "dist"
 if _FRONTEND_DIST.exists():
     app.mount("/", StaticFiles(directory=_FRONTEND_DIST, html=True), name="frontend")
 
