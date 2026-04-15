@@ -1,5 +1,17 @@
 import { motion, useReducedMotion } from 'framer-motion'
-import { AudioWaveform, Captions, Eraser, PackageCheck } from 'lucide-react'
+import {
+  Scissors,
+  MicVocal,
+  Users,
+  Languages,
+  Headphones,
+  Clapperboard,
+  Film,
+  ScanText,
+  FileOutput,
+  Eraser,
+  AudioWaveform,
+} from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useI18n } from '../../i18n/useI18n'
 import type { WorkflowGraphNode } from '../../types'
@@ -13,11 +25,17 @@ const STATUS_STYLES: Record<WorkflowGraphNode['status'], string> = {
   skipped: 'border-amber-300 bg-linear-to-br from-amber-50 via-white to-orange-50 text-amber-800 shadow-[0_16px_45px_-24px_rgba(245,158,11,0.6)]',
 }
 
-const GROUP_ICON: Record<WorkflowGraphNode['group'], typeof AudioWaveform> = {
-  'audio-spine': AudioWaveform,
-  'ocr-subtitles': Captions,
-  'video-cleanup': Eraser,
-  delivery: PackageCheck,
+const NODE_ICON: Record<string, typeof AudioWaveform> = {
+  'stage1':          Scissors,
+  'task-a':          MicVocal,
+  'task-b':          Users,
+  'task-c':          Languages,
+  'task-d':          Headphones,
+  'task-e':          Clapperboard,
+  'task-g':          Film,
+  'ocr-detect':      ScanText,
+  'ocr-translate':   FileOutput,
+  'subtitle-erase':  Eraser,
 }
 
 interface WorkflowNodeCardProps {
@@ -30,7 +48,7 @@ interface WorkflowNodeCardProps {
 export function WorkflowNodeCard({ node, selected = false, compact = false, onClick }: WorkflowNodeCardProps) {
   const { getStageLabel, getStageShortLabel, getStatusLabel, t } = useI18n()
   const reduceMotion = useReducedMotion()
-  const Icon = GROUP_ICON[node.group]
+  const Icon = NODE_ICON[node.id] ?? AudioWaveform
   const label = compact
     ? getStageShortLabel(node.id as keyof typeof t.stageShort)
     : getStageLabel(node.id as keyof typeof t.stages)

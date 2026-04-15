@@ -1,7 +1,19 @@
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { motion } from 'framer-motion'
-import { AudioWaveform, Captions, Eraser, PackageCheck } from 'lucide-react'
+import {
+  Scissors,
+  MicVocal,
+  Users,
+  Languages,
+  Headphones,
+  Clapperboard,
+  Film,
+  ScanText,
+  FileOutput,
+  Eraser,
+  AudioWaveform,
+} from 'lucide-react'
 import { cn } from '../../lib/utils'
 import type { WorkflowGraphNode } from '../../types'
 
@@ -25,11 +37,18 @@ const STATUS_CIRCLE: Record<WorkflowGraphNode['status'], string> = {
 
 // ─── icons ────────────────────────────────────────────────────────────────────
 
-const GROUP_ICON: Record<WorkflowGraphNode['group'], typeof AudioWaveform> = {
-  'audio-spine':    AudioWaveform,
-  'ocr-subtitles':  Captions,
-  'video-cleanup':  Eraser,
-  'delivery':       PackageCheck,
+/** Per-node icon: each stage gets a unique icon reflecting its purpose */
+const NODE_ICON: Record<string, typeof AudioWaveform> = {
+  'stage1':          Scissors,      // 音频分离
+  'task-a':          MicVocal,      // 语音转写
+  'task-b':          Users,          // 说话人注册
+  'task-c':          Languages,      // 翻译
+  'task-d':          Headphones,    // 语音合成
+  'task-e':          Clapperboard,  // 时间线装配
+  'task-g':          Film,          // 视频交付
+  'ocr-detect':      ScanText,      // 字幕定位
+  'ocr-translate':   FileOutput,    // 字幕翻译
+  'subtitle-erase':  Eraser,        // 字幕擦除
 }
 
 // ─── data shape ───────────────────────────────────────────────────────────────
@@ -48,7 +67,7 @@ function _WorkflowFlowNode({ data }: NodeProps) {
   const d = data as WorkflowFlowNodeData
   const { node, compact, shortLabel, isSelected, onSelect } = d
 
-  const Icon = GROUP_ICON[node.group] ?? AudioWaveform
+  const Icon = NODE_ICON[node.id] ?? AudioWaveform
   const circleSize = compact ? COMPACT_CIRCLE : FULL_CIRCLE
   const nodeWidth = compact ? COMPACT_NODE_WIDTH : FULL_NODE_WIDTH
   const iconSize = compact ? 18 : 22
