@@ -6,6 +6,7 @@ from pathlib import Path
 
 from translip.orchestration.request import build_pipeline_request
 from translip.orchestration.stages import resolve_stage_sequence
+from translip.translation.backend import BackendSegmentOutput
 
 
 def test_pipeline_request_merges_json_config_with_cli_override(tmp_path: Path) -> None:
@@ -50,6 +51,20 @@ def test_build_pipeline_request_keeps_template_and_delivery_policy() -> None:
     assert request.template_id == "asr-dub+ocr-subs"
     assert request.delivery_policy["subtitle_source"] == "both"
     assert request.delivery_policy["video_source"] == "clean_if_available"
+
+
+def test_build_pipeline_request_keeps_external_project_roots() -> None:
+    request = build_pipeline_request(
+        {
+            "input": "sample.mp4",
+            "output_root": "out",
+            "ocr_project_root": "/tmp/subtitle-ocr",
+            "erase_project_root": "/tmp/video-subtitle-erasure",
+        }
+    )
+
+    assert Path(request.ocr_project_root) == Path("/tmp/subtitle-ocr").resolve()
+    assert Path(request.erase_project_root) == Path("/tmp/video-subtitle-erasure").resolve()
 
 
 def test_stage_sequence_respects_from_and_to() -> None:
@@ -258,3 +273,49 @@ def test_run_pipeline_marks_partial_success_when_optional_node_fails(tmp_path: P
 
     payload = json.loads(result.report_path.read_text(encoding="utf-8"))
     assert payload["status"] == "partial_success"
+
+
+def test_translate_ocr_events_writes_json_and_srt(tmp_path: Path) -> None:
+    from translip.subtitles.runner import translate_ocr_events
+
+    class FakeBackend:
+        backend_name = "fake"
+        resolved_model = "fake-model"
+        resolved_device = "cpu"
+
+        def translate_batch(self, *, items, source_lang: str, target_lang: str):
+            return [
+                BackendSegmentOutput(segment_id=item.segment_id, target_text=f"{target_lang}:{item.source_text}")
+                for item in items
+            ]
+
+    events_path = tmp_path / "ocr_events.json"
+    events_path.write_text(
+        json.dumps(
+            {
+                "events": [
+                    {
+                        "event_id": "evt-1",
+                        "start": 0.0,
+                        "end": 1.5,
+                        "text": "你好",
+                        "language": "zh",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = translate_ocr_events(
+        events_path=events_path,
+        output_dir=tmp_path / "ocr-translate",
+        target_lang="en",
+        backend_name="local-m2m100",
+        backend_override=FakeBackend(),
+    )
+
+    assert result.json_path.exists()
+    assert result.srt_path.exists()
+    payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+    assert payload["events"][0]["translated_text"] == "en:你好"

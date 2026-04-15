@@ -59,6 +59,8 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
             "audio_source": delivery_policy.get("audio_source", merged.get("audio_source", "both")),
             "subtitle_source": delivery_policy.get("subtitle_source", merged.get("subtitle_source", "asr")),
         },
+        ocr_project_root=merged.get("ocr_project_root"),
+        erase_project_root=merged.get("erase_project_root"),
         target_lang=merged.get("target_lang", DEFAULT_TRANSLATION_TARGET_LANG),
         translation_backend=merged.get("translation_backend", DEFAULT_TRANSLATION_BACKEND),
         tts_backend=merged.get("tts_backend", DEFAULT_DUBBING_BACKEND),

@@ -8,10 +8,19 @@ from typing import Any
 from ..dubbing.planning import pick_segment_ids_for_speaker, pick_task_d_speaker_ids
 from ..exceptions import TranslipError
 from ..types import PipelineRequest, PipelineResult, PipelineStageName
+from ..translation.backend import output_tag_for_language
 from ..utils.files import ensure_directory
 from .cache import StageCacheSpec, compute_cache_key, is_stage_cache_hit
+from .erase_bridge import run_subtitle_erase
 from .graph import resolve_template_plan
 from .nodes import NODE_REGISTRY
+from .ocr_bridge import (
+    ocr_detect_manifest_path,
+    ocr_detection_path,
+    ocr_events_path,
+    ocr_source_srt_path,
+    run_ocr_detect,
+)
 from .commands import (
     build_stage1_command,
     build_task_a_command,
@@ -170,6 +179,20 @@ def _node_cache_spec(
     elif stage_name == "task-g":
         manifest_path = request.output_root / "task-g" / "delivery-manifest.json"
         artifact_paths = [manifest_path, request.output_root / "task-g" / "delivery-report.json"]
+    elif stage_name == "ocr-detect":
+        manifest_path = ocr_detect_manifest_path(request)
+        artifact_paths = [ocr_events_path(request), ocr_detection_path(request), ocr_source_srt_path(request)]
+    elif stage_name == "ocr-translate":
+        output_tag = output_tag_for_language(request.target_lang)
+        manifest_path = request.output_root / "ocr-translate" / "ocr-translate-manifest.json"
+        artifact_paths = [
+            request.output_root / "ocr-translate" / f"ocr_subtitles.{output_tag}.json",
+            request.output_root / "ocr-translate" / f"ocr_subtitles.{output_tag}.srt",
+            manifest_path,
+        ]
+    elif stage_name == "subtitle-erase":
+        manifest_path = request.output_root / "subtitle-erase" / "subtitle-erase-manifest.json"
+        artifact_paths = [request.output_root / "subtitle-erase" / "clean_video.mp4", manifest_path]
     else:
         manifest_path = request.output_root / stage_name / f"{stage_name}-manifest.json"
         artifact_paths = [manifest_path]
@@ -357,15 +380,17 @@ def execute_delivery_node(
     monitor: PipelineMonitor,
 ) -> dict[str, Any]:
     from ..delivery.runner import export_video
+    from ..delivery.runner import resolve_delivery_inputs
     from ..types import ExportVideoRequest
 
+    delivery_inputs = resolve_delivery_inputs(request)
     audio_source = request.delivery_policy.get("audio_source", "both")
     export_preview = audio_source in {"preview_mix", "both"}
     export_dub = audio_source in {"dub_voice", "both"}
     monitor.update_stage_progress("task-g", 5.0, "assembling delivery")
     result = export_video(
         ExportVideoRequest(
-            input_video_path=request.input_path,
+            input_video_path=delivery_inputs.video_path,
             pipeline_root=request.output_root,
             output_dir=request.output_root / "task-g",
             target_lang=request.target_lang,
@@ -398,6 +423,30 @@ def execute_node(
 ) -> dict[str, Any]:
     if node_name in {"stage1", "task-a", "task-b", "task-c", "task-d", "task-e"}:
         return execute_stage(node_name, request, monitor=monitor)
+    if node_name == "ocr-detect":
+        monitor.update_stage_progress(node_name, 5.0, "extracting hard subtitles")
+        return run_ocr_detect(request, log_path=_node_log_path(request, node_name))
+    if node_name == "ocr-translate":
+        from ..subtitles.runner import translate_ocr_events
+
+        monitor.update_stage_progress(node_name, 5.0, "translating OCR subtitles")
+        result = translate_ocr_events(
+            events_path=ocr_events_path(request),
+            output_dir=request.output_root / "ocr-translate",
+            target_lang=request.target_lang,
+            backend_name=request.translation_backend,
+            device=request.device,
+            api_model=request.api_model,
+            api_base_url=request.api_base_url,
+        )
+        return {
+            "manifest_path": str(result.manifest_path),
+            "artifact_paths": [str(result.json_path), str(result.srt_path), str(result.manifest_path)],
+            "log_path": str(_node_log_path(request, node_name)),
+        }
+    if node_name == "subtitle-erase":
+        monitor.update_stage_progress(node_name, 5.0, "erasing hard subtitles")
+        return run_subtitle_erase(request, log_path=_node_log_path(request, node_name))
     if node_name == "task-g":
         return execute_delivery_node(request, monitor=monitor)
     raise TranslipError(f"Unsupported workflow node: {node_name}")

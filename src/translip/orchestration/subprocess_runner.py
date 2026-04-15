@@ -28,10 +28,18 @@ def _default_env() -> dict[str, str]:
     return env
 
 
-def run_stage_command(command: list[str], *, log_path: Path) -> dict[str, Any]:
+def run_stage_command(
+    command: list[str],
+    *,
+    log_path: Path,
+    env_overrides: dict[str, str] | None = None,
+) -> dict[str, Any]:
     ensure_directory(log_path.parent)
     outputs: dict[str, str] = {}
     tail: deque[str] = deque(maxlen=20)
+    env = _default_env()
+    if env_overrides:
+        env.update(env_overrides)
     with log_path.open("w", encoding="utf-8") as log_file:
         process = subprocess.Popen(
             command,
@@ -39,7 +47,7 @@ def run_stage_command(command: list[str], *, log_path: Path) -> dict[str, Any]:
             stderr=subprocess.STDOUT,
             text=True,
             encoding="utf-8",
-            env=_default_env(),
+            env=env,
         )
         assert process.stdout is not None
         for line in process.stdout:

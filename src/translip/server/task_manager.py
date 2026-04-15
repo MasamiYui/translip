@@ -38,6 +38,8 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
             "audio_source": cfg.get("audio_source", "both"),
             "subtitle_source": cfg.get("subtitle_source", "asr"),
         },
+        ocr_project_root=cfg.get("ocr_project_root"),
+        erase_project_root=cfg.get("erase_project_root"),
         target_lang=task.target_lang,
         translation_backend=cfg.get("translation_backend", "local-m2m100"),
         tts_backend=cfg.get("tts_backend", "qwen3tts"),

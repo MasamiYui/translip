@@ -12,6 +12,31 @@ from translip.server.database import get_session
 from translip.server.models import Task
 
 
+def test_task_manager_build_pipeline_request_keeps_external_roots(tmp_path: Path) -> None:
+    from translip.server.task_manager import _build_pipeline_request
+
+    task = Task(
+        id="task-roots",
+        name="Roots Task",
+        status="pending",
+        input_path=str(tmp_path / "input.mp4"),
+        output_root=str(tmp_path / "output"),
+        source_lang="zh",
+        target_lang="en",
+        config={
+            "ocr_project_root": "/tmp/subtitle-ocr",
+            "erase_project_root": "/tmp/video-subtitle-erasure",
+        },
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    request = _build_pipeline_request(task)
+
+    assert str(request.ocr_project_root) == "/tmp/subtitle-ocr"
+    assert str(request.erase_project_root) == "/tmp/video-subtitle-erasure"
+
+
 def test_build_workflow_graph_payload_returns_nodes_and_edges() -> None:
     from translip.orchestration.graph_export import build_workflow_graph_payload
 

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from translip.types import ExportVideoRequest, MediaInfo
+from translip.types import PipelineRequest
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -183,3 +184,38 @@ def test_export_video_can_export_preview_only(tmp_path: Path, monkeypatch) -> No
     report = json.loads(result.artifacts.report_path.read_text(encoding="utf-8"))
     assert report["summary"]["exported_count"] == 1
     assert report["summary"]["requested_exports"] == ["preview"]
+
+
+def test_resolve_delivery_inputs_prefers_clean_video_when_available(tmp_path: Path) -> None:
+    from translip.delivery.runner import resolve_delivery_inputs
+
+    request = PipelineRequest(
+        input_path=tmp_path / "input.mp4",
+        output_root=tmp_path / "out",
+        template_id="asr-dub+ocr-subs+erase",
+        delivery_policy={"video_source": "clean_if_available", "audio_source": "both", "subtitle_source": "both"},
+    )
+    request.input_path.write_text("video", encoding="utf-8")
+
+    clean_video = request.output_root / "subtitle-erase" / "clean_video.mp4"
+    clean_video.parent.mkdir(parents=True, exist_ok=True)
+    clean_video.write_text("clean", encoding="utf-8")
+
+    resolved = resolve_delivery_inputs(request)
+
+    assert resolved.video_path == clean_video
+
+
+def test_resolve_delivery_inputs_falls_back_to_original_video(tmp_path: Path) -> None:
+    from translip.delivery.runner import resolve_delivery_inputs
+
+    request = PipelineRequest(
+        input_path=tmp_path / "input.mp4",
+        output_root=tmp_path / "out",
+        delivery_policy={"video_source": "clean_if_available", "audio_source": "original", "subtitle_source": "none"},
+    )
+    request.input_path.write_text("video", encoding="utf-8")
+
+    resolved = resolve_delivery_inputs(request)
+
+    assert resolved.video_path == request.input_path

@@ -421,6 +421,8 @@ class PipelineRequest:
             },
         )
     )
+    ocr_project_root: Path | str | None = None
+    erase_project_root: Path | str | None = None
     target_lang: str = "en"
     translation_backend: TranslationBackendName = "local-m2m100"
     tts_backend: TtsBackendName = "qwen3tts"
@@ -468,6 +470,16 @@ class PipelineRequest:
             ),
             template_id=self.template_id,
             delivery_policy=cast(DeliveryPolicy, dict(self.delivery_policy)),
+            ocr_project_root=(
+                Path(self.ocr_project_root).expanduser().resolve()
+                if self.ocr_project_root is not None
+                else None
+            ),
+            erase_project_root=(
+                Path(self.erase_project_root).expanduser().resolve()
+                if self.erase_project_root is not None
+                else None
+            ),
             target_lang=self.target_lang,
             translation_backend=self.translation_backend,
             tts_backend=self.tts_backend,

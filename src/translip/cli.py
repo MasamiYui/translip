@@ -284,6 +284,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         choices=["asr-dub-basic", "asr-dub+ocr-subs", "asr-dub+ocr-subs+erase"],
     )
+    pipeline_parser.add_argument("--ocr-project-root", default=None)
+    pipeline_parser.add_argument("--erase-project-root", default=None)
     pipeline_parser.add_argument("--target-lang", default=None)
     pipeline_parser.add_argument(
         "--translation-backend",

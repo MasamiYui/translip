@@ -2,14 +2,42 @@ from __future__ import annotations
 
 import json
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from ..exceptions import TranslipError
-from ..types import ExportVideoArtifacts, ExportVideoRequest, ExportVideoResult
+from ..types import ExportVideoArtifacts, ExportVideoRequest, ExportVideoResult, PipelineRequest
 from ..utils.ffmpeg import mux_video_with_audio, probe_media
 from ..utils.files import ensure_directory
 from .export import build_delivery_manifest, build_delivery_report, now_iso, write_json
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedDeliveryInputs:
+    video_path: Path
+    preview_mix_path: Path | None
+    dub_voice_path: Path | None
+
+
+def resolve_delivery_inputs(request: PipelineRequest) -> ResolvedDeliveryInputs:
+    clean_video_path = request.output_root / "subtitle-erase" / "clean_video.mp4"
+    video_source = request.delivery_policy.get("video_source", "original")
+    if video_source == "clean":
+        if not clean_video_path.exists():
+            raise FileNotFoundError("clean video requested but missing")
+        video_path = clean_video_path
+    elif video_source == "clean_if_available" and clean_video_path.exists():
+        video_path = clean_video_path
+    else:
+        video_path = Path(request.input_path)
+
+    target_lang = request.target_lang
+    return ResolvedDeliveryInputs(
+        video_path=video_path,
+        preview_mix_path=request.output_root / "task-e" / "voice" / f"preview_mix.{target_lang}.wav",
+        dub_voice_path=request.output_root / "task-e" / "voice" / f"dub_voice.{target_lang}.wav",
+    )
 
 
 def export_video(request: ExportVideoRequest) -> ExportVideoResult:

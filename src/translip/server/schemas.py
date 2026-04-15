@@ -76,6 +76,8 @@ class TaskConfigInput(BaseModel):
     video_source: str = "original"
     audio_source: str = "both"
     subtitle_source: str = "asr"
+    ocr_project_root: Optional[str] = None
+    erase_project_root: Optional[str] = None
     # Stage 1
     separation_mode: str = "auto"
     separation_quality: str = "balanced"
