@@ -35,6 +35,23 @@ def test_pipeline_request_merges_json_config_with_cli_override(tmp_path: Path) -
     assert request.write_status is True
 
 
+def test_build_pipeline_request_keeps_template_and_delivery_policy() -> None:
+    request = build_pipeline_request(
+        {
+            "input": "sample.mp4",
+            "output_root": "out",
+            "template": "asr-dub+ocr-subs",
+            "subtitle_source": "both",
+            "video_source": "clean_if_available",
+            "audio_source": "both",
+        }
+    )
+
+    assert request.template_id == "asr-dub+ocr-subs"
+    assert request.delivery_policy["subtitle_source"] == "both"
+    assert request.delivery_policy["video_source"] == "clean_if_available"
+
+
 def test_stage_sequence_respects_from_and_to() -> None:
     stages = resolve_stage_sequence("task-b", "task-d")
     assert stages == ["task-b", "task-c", "task-d"]

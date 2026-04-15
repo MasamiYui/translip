@@ -204,6 +204,27 @@ def test_cli_run_pipeline_parser_leaves_optional_overrides_unset() -> None:
     assert args.status_update_interval_sec is None
 
 
+def test_cli_run_pipeline_parser_accepts_template_and_policy() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "run-pipeline",
+            "--input",
+            "sample.mp4",
+            "--template",
+            "asr-dub+ocr-subs",
+            "--subtitle-source",
+            "both",
+            "--video-source",
+            "clean_if_available",
+        ]
+    )
+
+    assert args.template == "asr-dub+ocr-subs"
+    assert args.subtitle_source == "both"
+    assert args.video_source == "clean_if_available"
+
+
 def test_cli_export_video_parser() -> None:
     parser = build_parser()
     args = parser.parse_args(

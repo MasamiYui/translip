@@ -279,6 +279,11 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument("--config", default=None, help="Optional pipeline JSON config path")
     pipeline_parser.add_argument("--input", required=True, help="Input video or audio path")
     pipeline_parser.add_argument("--output-root", default=None)
+    pipeline_parser.add_argument(
+        "--template",
+        default=None,
+        choices=["asr-dub-basic", "asr-dub+ocr-subs", "asr-dub+ocr-subs+erase"],
+    )
     pipeline_parser.add_argument("--target-lang", default=None)
     pipeline_parser.add_argument(
         "--translation-backend",
@@ -317,6 +322,21 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument("--max-compress-ratio", type=float, default=None)
     pipeline_parser.add_argument("--speaker-limit", type=int, default=None)
     pipeline_parser.add_argument("--segments-per-speaker", type=int, default=None)
+    pipeline_parser.add_argument(
+        "--video-source",
+        default=None,
+        choices=["original", "clean", "clean_if_available"],
+    )
+    pipeline_parser.add_argument(
+        "--audio-source",
+        default=None,
+        choices=["preview_mix", "dub_voice", "both", "original"],
+    )
+    pipeline_parser.add_argument(
+        "--subtitle-source",
+        default=None,
+        choices=["none", "asr", "ocr", "both"],
+    )
     pipeline_parser.add_argument("--separation-mode", default=None, choices=["music", "dialogue", "auto"])
     pipeline_parser.add_argument("--separation-quality", default=None, choices=["balanced", "high"])
     pipeline_parser.add_argument("--stage1-output-format", default=None, choices=["wav", "mp3", "flac", "aac", "opus"])

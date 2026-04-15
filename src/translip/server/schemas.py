@@ -50,10 +50,14 @@ class TaskListResponse(BaseModel):
 
 class TaskConfigInput(BaseModel):
     device: str = "auto"
+    template: str = "asr-dub-basic"
     run_from_stage: str = "stage1"
     run_to_stage: str = "task-e"
     use_cache: bool = True
     keep_intermediate: bool = False
+    video_source: str = "original"
+    audio_source: str = "both"
+    subtitle_source: str = "asr"
     # Stage 1
     separation_mode: str = "auto"
     separation_quality: str = "balanced"

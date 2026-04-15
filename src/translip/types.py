@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict, cast
 
 Mode = Literal["music", "dialogue", "auto"]
 Route = Literal["music", "dialogue"]
@@ -18,10 +18,35 @@ DuckingModeName = Literal["static", "sidechain"]
 PreviewFormat = Literal["wav", "mp3"]
 PipelineStageName = Literal["stage1", "task-a", "task-b", "task-c", "task-d", "task-e"]
 PipelineStageStatus = Literal["pending", "running", "succeeded", "cached", "failed", "skipped"]
+WorkflowTemplateName = Literal["asr-dub-basic", "asr-dub+ocr-subs", "asr-dub+ocr-subs+erase"]
+WorkflowNodeName = Literal[
+    "stage1",
+    "ocr-detect",
+    "task-a",
+    "task-b",
+    "task-c",
+    "ocr-translate",
+    "task-d",
+    "task-e",
+    "subtitle-erase",
+    "task-g",
+]
+WorkflowNodeGroup = Literal["audio-spine", "ocr-subtitles", "video-cleanup", "delivery"]
+WorkflowNodeStatus = Literal["pending", "running", "succeeded", "cached", "failed", "skipped"]
+WorkflowStatus = Literal["pending", "running", "succeeded", "partial_success", "failed"]
+DeliveryVideoSource = Literal["original", "clean", "clean_if_available"]
+DeliveryAudioSource = Literal["preview_mix", "dub_voice", "both", "original"]
+DeliverySubtitleSource = Literal["none", "asr", "ocr", "both"]
 DeliveryContainer = Literal["mp4"]
 DeliveryVideoCodec = Literal["copy", "libx264"]
 DeliveryAudioCodec = Literal["aac"]
 DeliveryEndPolicy = Literal["trim_audio_to_video", "keep_longest"]
+
+
+class DeliveryPolicy(TypedDict):
+    video_source: DeliveryVideoSource
+    audio_source: DeliveryAudioSource
+    subtitle_source: DeliverySubtitleSource
 
 
 @dataclass(slots=True)
@@ -385,6 +410,17 @@ class PipelineRequest:
     input_path: Path | str
     output_root: Path | str = Path("output-pipeline")
     config_path: Path | str | None = None
+    template_id: WorkflowTemplateName = "asr-dub-basic"
+    delivery_policy: DeliveryPolicy = field(
+        default_factory=lambda: cast(
+            DeliveryPolicy,
+            {
+                "video_source": "original",
+                "audio_source": "both",
+                "subtitle_source": "asr",
+            },
+        )
+    )
     target_lang: str = "en"
     translation_backend: TranslationBackendName = "local-m2m100"
     tts_backend: TtsBackendName = "qwen3tts"
@@ -430,6 +466,8 @@ class PipelineRequest:
                 if self.config_path is not None
                 else None
             ),
+            template_id=self.template_id,
+            delivery_policy=cast(DeliveryPolicy, dict(self.delivery_policy)),
             target_lang=self.target_lang,
             translation_backend=self.translation_backend,
             tts_backend=self.tts_backend,

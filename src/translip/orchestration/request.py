@@ -46,10 +46,19 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
         if value is not None:
             merged[key] = value
 
+    merged_policy = merged.get("delivery_policy")
+    delivery_policy = merged_policy if isinstance(merged_policy, dict) else {}
+
     return PipelineRequest(
         input_path=merged["input"],
         output_root=merged.get("output_root", DEFAULT_PIPELINE_OUTPUT_ROOT),
         config_path=merged.get("config"),
+        template_id=merged.get("template") or merged.get("template_id", "asr-dub-basic"),
+        delivery_policy={
+            "video_source": delivery_policy.get("video_source", merged.get("video_source", "original")),
+            "audio_source": delivery_policy.get("audio_source", merged.get("audio_source", "both")),
+            "subtitle_source": delivery_policy.get("subtitle_source", merged.get("subtitle_source", "asr")),
+        },
         target_lang=merged.get("target_lang", DEFAULT_TRANSLATION_TARGET_LANG),
         translation_backend=merged.get("translation_backend", DEFAULT_TRANSLATION_BACKEND),
         tts_backend=merged.get("tts_backend", DEFAULT_DUBBING_BACKEND),
