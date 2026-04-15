@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from ....pipeline.runner import separate_file
+from ....types import SeparationRequest
 from ..registry import ToolSpec, register_tool
 from ..schemas import SeparationToolRequest
 from . import ToolAdapter
@@ -10,7 +14,29 @@ class SeparationAdapter(ToolAdapter):
         return SeparationToolRequest(**params).model_dump()
 
     def run(self, params, input_dir, output_dir, on_progress):
-        raise NotImplementedError("Separation adapter is not implemented yet")
+        input_file = self.first_input(input_dir, "file")
+        on_progress(5.0, "preparing")
+        request = SeparationRequest(
+            input_path=input_file,
+            output_dir=output_dir,
+            mode=params.get("mode", "auto"),
+            quality=params.get("quality", "balanced"),
+            output_format=params.get("output_format", "wav"),
+        ).normalized()
+        on_progress(10.0, "separating")
+        result = separate_file(request)
+        voice_path = self.copy_output(Path(result.artifacts.voice_path), output_dir)
+        background_path = self.copy_output(Path(result.artifacts.background_path), output_dir)
+        on_progress(95.0, "collecting_artifacts")
+        manifest = getattr(result, "manifest", {}) or {}
+        resolved = manifest.get("resolved", {}) if isinstance(manifest, dict) else {}
+        return {
+            "route": result.route.route,
+            "route_reason": result.route.reason,
+            "backend": resolved.get("dialogue_backend") or resolved.get("music_backend"),
+            "voice_file": voice_path.name,
+            "background_file": background_path.name,
+        }
 
 
 register_tool(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ....utils.ffmpeg import probe_media
 from ..registry import ToolSpec, register_tool
 from ..schemas import ProbeToolRequest
 from . import ToolAdapter
@@ -10,7 +11,22 @@ class ProbeAdapter(ToolAdapter):
         return ProbeToolRequest(**params).model_dump()
 
     def run(self, params, input_dir, output_dir, on_progress):
-        raise NotImplementedError("Probe adapter is not implemented yet")
+        input_file = self.first_input(input_dir, "file")
+        on_progress(50.0, "probing")
+        info = probe_media(input_file)
+        payload = {
+            "path": input_file.name,
+            "media_type": info.media_type,
+            "format_name": info.format_name,
+            "duration_sec": info.duration_sec,
+            "has_video": info.media_type == "video",
+            "has_audio": info.audio_stream_count > 0,
+            "audio_streams": info.audio_stream_count,
+            "sample_rate": info.sample_rate,
+            "channels": info.channels,
+        }
+        self.write_json(output_dir / "probe.json", payload)
+        return payload
 
 
 register_tool(
