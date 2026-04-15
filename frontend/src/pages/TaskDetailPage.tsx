@@ -14,6 +14,7 @@ import { formatBytes } from '../lib/utils'
 import { subscribeToProgress } from '../api/progress'
 import type { Artifact, Task, TaskConfig } from '../types'
 import { useI18n } from '../i18n/useI18n'
+import { resolveActiveStageId, resolveRerunStage } from './taskDetailSelection'
 
 const ARTIFACT_PREFIX: Record<string, string[]> = {
   stage1: ['stage1/', 'voice/', 'background/'],
@@ -33,9 +34,8 @@ export function TaskDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
-  const [hasAutoSelected, setHasAutoSelected] = useState(false)
-  const [rerunStage, setRerunStage] = useState('stage1')
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null | undefined>(undefined)
+  const [rerunStage, setRerunStage] = useState<string | undefined>(undefined)
 
   const { data: task, refetch } = useQuery({
     queryKey: ['task', id],
@@ -70,19 +70,6 @@ export function TaskDetailPage() {
     return unsub
   }, [id, queryClient, refetch, task])
 
-  useEffect(() => {
-    if (hasAutoSelected) {
-      return
-    }
-    const nextNodeId = task?.current_stage ?? graph?.nodes[0]?.id ?? null
-    if (!nextNodeId) {
-      return
-    }
-    setSelectedNodeId(nextNodeId)
-    setHasAutoSelected(true)
-    setRerunStage(nextNodeId)
-  }, [graph?.nodes, hasAutoSelected, task?.current_stage])
-
   const stopMutation = useMutation({
     mutationFn: () => tasksApi.stop(id!),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['task', id] }),
@@ -94,7 +81,7 @@ export function TaskDetailPage() {
   })
 
   const rerunMutation = useMutation({
-    mutationFn: () => tasksApi.rerun(id!, rerunStage),
+    mutationFn: () => tasksApi.rerun(id!, effectiveRerunStage),
     onSuccess: newTask => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
       navigate(`/tasks/${newTask.id}`)
@@ -111,9 +98,11 @@ export function TaskDetailPage() {
 
   const elapsedSec = task.elapsed_sec
   const artifacts: Artifact[] = artifactsData?.artifacts ?? []
-  const selectedNode = graph?.nodes.find(node => node.id === selectedNodeId) ?? null
-  const selectedStage = selectedNodeId
-    ? task.stages.find(stage => stage.stage_name === selectedNodeId) ?? null
+  const activeStageId = resolveActiveStageId(selectedNodeId, task.current_stage, graph)
+  const effectiveRerunStage = resolveRerunStage(rerunStage, task.current_stage, graph)
+  const selectedNode = graph?.nodes.find(node => node.id === activeStageId) ?? null
+  const selectedStage = activeStageId
+    ? task.stages.find(stage => stage.stage_name === activeStageId) ?? null
     : null
   const selectedArtifacts = selectedNode
     ? artifacts.filter(artifact => (ARTIFACT_PREFIX[selectedNode.id] ?? []).some(prefix => artifact.path.startsWith(prefix)))
@@ -191,7 +180,7 @@ export function TaskDetailPage() {
             <div className="mt-5">
               <PipelineGraph
                 graph={graph}
-                activeStage={selectedNodeId ?? undefined}
+                activeStage={activeStageId ?? undefined}
                 onStageClick={nodeId => {
                   setSelectedNodeId(nodeId)
                   setRerunStage(nodeId)
@@ -204,7 +193,7 @@ export function TaskDetailPage() {
               <PipelineGraph
                 stages={task.stages}
                 templateId={templateId}
-                activeStage={selectedNodeId ?? undefined}
+                activeStage={activeStageId ?? undefined}
                 onStageClick={nodeId => {
                   setSelectedNodeId(nodeId)
                   setRerunStage(nodeId)
@@ -264,7 +253,7 @@ export function TaskDetailPage() {
             <div className="flex flex-wrap gap-3">
               <div className="flex items-center gap-2">
                 <select
-                  value={rerunStage}
+                  value={effectiveRerunStage}
                   onChange={event => setRerunStage(event.target.value)}
                   className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none"
                 >

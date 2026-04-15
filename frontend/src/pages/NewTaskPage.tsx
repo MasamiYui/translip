@@ -546,7 +546,7 @@ export function NewTaskPage() {
   const stepContent = [step1, step2, step3, step4]
 
   return (
-    <PageContainer className="max-w-2xl">
+    <PageContainer className="max-w-5xl">
       <h1 className="text-2xl font-bold text-slate-900 mb-6">{t.newTask.title}</h1>
 
       <div className="flex items-center mb-8">

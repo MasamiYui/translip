@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* React Flow base styles – imported here so they're globally available */
+@import "@xyflow/react/dist/style.css";
+
 :root {
   --sidebar-width: 220px;
   --header-height: 64px;

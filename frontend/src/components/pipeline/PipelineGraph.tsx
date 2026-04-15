@@ -1,6 +1,6 @@
 import { buildGraphFromStages } from '../../lib/workflowPreview'
 import type { TaskConfig, TaskStage, WorkflowGraph as WorkflowGraphPayload } from '../../types'
-import { WorkflowGraph } from '../workflow/WorkflowGraph'
+import { WorkflowFlowGraph } from '../workflow/WorkflowFlowGraph'
 
 interface PipelineGraphProps {
   stages?: TaskStage[]
@@ -24,7 +24,7 @@ export function PipelineGraph({
   const resolvedGraph = graph ?? buildGraphFromStages(stages, templateId)
 
   return (
-    <WorkflowGraph
+    <WorkflowFlowGraph
       graph={resolvedGraph}
       selectedNodeId={activeStage}
       onNodeSelect={onStageClick}
