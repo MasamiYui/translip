@@ -205,6 +205,22 @@ npm run dev
 - `frontend/vite.config.ts` 已将 `/api` 代理到 `127.0.0.1:8765`
 - 前端使用相对路径访问 API，不需要额外配置前端环境变量
 
+也可以直接使用仓库内置的开发控制脚本：
+
+```bash
+./scripts/dev.sh start
+./scripts/dev.sh stop
+./scripts/dev.sh restart
+./scripts/dev.sh status
+```
+
+该脚本会固定使用以下地址：
+
+- 前端：`http://127.0.0.1:5173`
+- 后端：`http://127.0.0.1:8765`
+
+运行日志和 PID 文件会写入 `.dev-runtime/`。
+
 ### 构建后由后端托管
 
 先构建前端：
