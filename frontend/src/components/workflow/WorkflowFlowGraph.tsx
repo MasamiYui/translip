@@ -50,12 +50,12 @@ function LaneBgNode({ data }: NodeProps) {
   const d = data as LaneBgData
   return (
     <div
-      className="flex flex-col overflow-hidden rounded-2xl border border-slate-200/70 bg-slate-50/50"
+      className="flex flex-col border-b border-slate-100"
       style={{ width: d.nodeWidth, height: d.nodeHeight, pointerEvents: 'none' }}
     >
-      {/* Lane label strip */}
-      <div className="px-3 pt-2.5 pb-1">
-        <span className="text-[10px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+      {/* Lane label */}
+      <div className="px-1 pt-2.5 pb-1">
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
           {d.label}
         </span>
       </div>
@@ -239,12 +239,7 @@ export function WorkflowFlowGraph({
       {showLegend && <WorkflowLegend />}
 
       <div
-        className={cn(
-          'overflow-hidden rounded-[28px] border border-slate-200/80',
-          'bg-gradient-to-br from-white via-slate-50 to-sky-50/40',
-          'shadow-[0_20px_70px_-30px_rgba(15,23,42,0.3)]',
-          compact && 'rounded-[20px]',
-        )}
+        className="overflow-hidden bg-slate-50/40"
         style={{ height: containerHeight }}
       >
         <ReactFlow
@@ -269,7 +264,7 @@ export function WorkflowFlowGraph({
             variant={BackgroundVariant.Dots}
             gap={28}
             size={1}
-            color={compact ? '#e8edf3' : '#dde4ed'}
+            color="#e8edf3"
           />
         </ReactFlow>
       </div>
