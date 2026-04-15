@@ -32,9 +32,11 @@ Two sibling projects introduce additional capabilities that matter for translati
 - `subtitle-ocr`
   - detects hard subtitles from the input video
   - can output subtitle timing, text, geometry, and SRT/JSON data
+  - current local reference repository: `/Users/masamiyui/OpenSoureProjects/Forks/subtitle-ocr`
 - `video-subtitle-erasure`
   - removes original hard subtitles from the input video
   - depends on OCR-derived subtitle timing and geometry
+  - current local reference repository: `/Users/masamiyui/OpenSoureProjects/Forks/video-subtitle-erasure`
 
 The user requirements from this discussion are:
 
@@ -841,8 +843,10 @@ Recommended integration pattern:
 
 - `ocr-detect` runner
   - invokes the `subtitle-ocr` project through a stable CLI or service wrapper
+  - first-pass local reference path: `/Users/masamiyui/OpenSoureProjects/Forks/subtitle-ocr`
 - `subtitle-erase` runner
   - invokes the `video-subtitle-erasure` project through a stable CLI or service wrapper
+  - first-pass local reference path: `/Users/masamiyui/OpenSoureProjects/Forks/video-subtitle-erasure`
 
 Requirements for wrappers:
 
@@ -850,6 +854,7 @@ Requirements for wrappers:
 - normalized manifest writing
 - normalized exit-code handling
 - stable parameter mapping from workflow request to sibling project CLI
+- repository roots remain configurable through request or environment-level settings such as `ocr_project_root` and `erase_project_root`; the absolute paths above are local reference roots for this workspace and must not be hard-coded into product logic
 
 This keeps boundaries clean and allows later in-repo convergence if the projects are eventually merged.
 

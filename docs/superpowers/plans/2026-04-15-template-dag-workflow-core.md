@@ -8,6 +8,12 @@
 
 **Tech Stack:** Python 3.11+, FastAPI, SQLModel, pytest, existing `translip` orchestration stack, sibling repo CLI bridges
 
+**Local Reference Repositories:** 第一版 bridge 实现以相邻仓库为参考接入目标。
+
+- OCR reference root: `/Users/masamiyui/OpenSoureProjects/Forks/subtitle-ocr`
+- Subtitle erasure reference root: `/Users/masamiyui/OpenSoureProjects/Forks/video-subtitle-erasure`
+- 要求：实现中通过 `ocr_project_root`、`erase_project_root` 或等价配置注入仓库路径；以上绝对路径仅作为当前工作区的默认参考位置，不应在产品逻辑中硬编码
+
 ---
 
 ## File Structure
@@ -720,6 +726,8 @@ from pathlib import Path
 
 
 def build_ocr_detect_command(request: PipelineRequest) -> list[str]:
+    # Local development reference root:
+    # /Users/masamiyui/OpenSoureProjects/Forks/subtitle-ocr
     project_root = Path(request.ocr_project_root or "../subtitle-ocr").expanduser().resolve()
     return [
         sys.executable,
@@ -837,6 +845,8 @@ from pathlib import Path
 
 
 def build_subtitle_erase_command(request: PipelineRequest) -> list[str]:
+    # Local development reference root:
+    # /Users/masamiyui/OpenSoureProjects/Forks/video-subtitle-erasure
     project_root = Path(request.erase_project_root or "../video-subtitle-erasure").expanduser().resolve()
     return [
         sys.executable,
