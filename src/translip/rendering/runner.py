@@ -33,6 +33,7 @@ from .export import (
 
 logger = logging.getLogger(__name__)
 OVERLAP_TOLERANCE_SEC = 0.05
+OVERFLOW_MAX_SPILL_RATIO = 1.3
 SHORT_SEGMENT_COMPRESS_MAX_SOURCE_SEC = 1.5
 SHORT_SEGMENT_COMPRESS_MAX_OVERFLOW_SEC = 0.75
 SHORT_SEGMENT_COMPRESS_MAX_RATIO = 1.75
@@ -363,6 +364,22 @@ def _apply_fit_strategy(
                 backend=request.fit_backend,
                 output_sample_rate=request.output_sample_rate,
             )
+        elif strategy == "overflow_unfitted":
+            tempo = request.max_compress_ratio
+            fitted_path = compress_audio(
+                input_path=item.audio_path,
+                output_path=fit_dir / f"{item.segment_id}.wav",
+                tempo=tempo,
+                backend=request.fit_backend,
+                output_sample_rate=request.output_sample_rate,
+            )
+            max_dur = item.source_duration_sec * OVERFLOW_MAX_SPILL_RATIO
+            actual_dur = audio_duration_sec(fitted_path)
+            if actual_dur > max_dur:
+                _trim_audio_inplace(fitted_path, max_dur, request.output_sample_rate)
+                item.notes.append("overflow_trimmed")
+            else:
+                item.notes.append("overflow_compressed")
         else:
             fitted_path = compress_audio(
                 input_path=item.audio_path,
@@ -371,9 +388,7 @@ def _apply_fit_strategy(
                 backend="atempo",
                 output_sample_rate=request.output_sample_rate,
             )
-        if strategy == "overflow_unfitted":
-            item.notes.append("fit_overflow_passthrough")
-        elif strategy == "underflow_unfitted":
+        if strategy == "underflow_unfitted":
             item.notes.append("fit_underflow_passthrough")
         item.fitted_audio_path = fitted_path
         item.fitted_duration_sec = audio_duration_sec(fitted_path)
@@ -418,6 +433,10 @@ def _resolve_overlaps(items: list[TimelineItem]) -> tuple[list[TimelineItem], li
             if _interval_overlap(item.placement_start, item.placement_end, existing.placement_start, existing.placement_end)
         ]
         if not conflicts:
+            item.mix_status = "placed"
+            placed.append(item)
+            continue
+        if _try_trim_conflicts(item, conflicts):
             item.mix_status = "placed"
             placed.append(item)
             continue
@@ -529,6 +548,30 @@ def _interval_overlap(start_a: float | None, end_a: float | None, start_b: float
     return overlap_sec > OVERLAP_TOLERANCE_SEC
 
 
+MAX_TRIM_FRACTION = 0.30
+
+
+def _try_trim_conflicts(new_item: TimelineItem, conflicts: list[TimelineItem]) -> bool:
+    if new_item.placement_start is None:
+        return False
+    for conflict in conflicts:
+        if conflict.placement_end is None or conflict.fitted_duration_sec is None:
+            return False
+        trim_to = new_item.placement_start - OVERLAP_TOLERANCE_SEC
+        if trim_to <= (conflict.placement_start or 0.0):
+            return False
+        original_dur = conflict.fitted_duration_sec
+        new_dur = trim_to - (conflict.placement_start or 0.0)
+        if new_dur <= 0 or (original_dur - new_dur) / original_dur > MAX_TRIM_FRACTION:
+            return False
+    for conflict in conflicts:
+        trim_to = new_item.placement_start - OVERLAP_TOLERANCE_SEC
+        conflict.placement_end = trim_to
+        conflict.fitted_duration_sec = trim_to - (conflict.placement_start or 0.0)
+        conflict.notes.append(f"tail_trimmed_for:{new_item.segment_id}")
+    return True
+
+
 def _quality_score(item: TimelineItem) -> float:
     status_weight = {"passed": 2.0, "review": 1.0}.get(item.overall_status, 0.0)
     speaker_score = max(0.0, float(item.speaker_similarity or 0.0))
@@ -549,6 +592,19 @@ def _float_or_none(value: Any) -> float | None:
 
 def _timeline_sort_key(item: TimelineItem) -> tuple[float, float, str]:
     return (float(item.anchor_start or 0.0), float(item.anchor_end or 0.0), item.segment_id)
+
+
+def _trim_audio_inplace(path: Path, max_duration_sec: float, sample_rate: int) -> None:
+    waveform = prepare_audio_for_mix(path, target_sample_rate=sample_rate)
+    max_samples = int(round(max_duration_sec * sample_rate))
+    if waveform.size <= max_samples:
+        return
+    trimmed = waveform[:max_samples]
+    fade_samples = min(int(0.03 * sample_rate), max_samples // 4)
+    if fade_samples > 0:
+        ramp = np.linspace(1.0, 0.0, fade_samples, dtype=np.float32)
+        trimmed[-fade_samples:] *= ramp
+    write_wav(path, trimmed, sample_rate=sample_rate)
 
 
 __all__ = ["render_dub"]
