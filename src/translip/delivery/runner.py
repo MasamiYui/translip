@@ -23,11 +23,12 @@ class ResolvedDeliveryInputs:
 def resolve_delivery_inputs(request: PipelineRequest) -> ResolvedDeliveryInputs:
     clean_video_path = request.output_root / "subtitle-erase" / "clean_video.mp4"
     video_source = request.delivery_policy.get("video_source", "original")
+    clean_video_available = _is_usable_clean_video(clean_video_path)
     if video_source == "clean":
-        if not clean_video_path.exists():
-            raise FileNotFoundError("clean video requested but missing")
+        if not clean_video_available:
+            raise FileNotFoundError("clean video requested but missing or invalid")
         video_path = clean_video_path
-    elif video_source == "clean_if_available" and clean_video_path.exists():
+    elif video_source == "clean_if_available" and clean_video_available:
         video_path = clean_video_path
     else:
         video_path = Path(request.input_path)
@@ -38,6 +39,16 @@ def resolve_delivery_inputs(request: PipelineRequest) -> ResolvedDeliveryInputs:
         preview_mix_path=request.output_root / "task-e" / "voice" / f"preview_mix.{target_lang}.wav",
         dub_voice_path=request.output_root / "task-e" / "voice" / f"dub_voice.{target_lang}.wav",
     )
+
+
+def _is_usable_clean_video(path: Path) -> bool:
+    if not path.exists():
+        return False
+    try:
+        media_info = probe_media(path)
+    except Exception:
+        return False
+    return media_info.media_type == "video"
 
 
 def export_video(request: ExportVideoRequest) -> ExportVideoResult:

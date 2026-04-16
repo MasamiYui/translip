@@ -186,7 +186,9 @@ def test_export_video_can_export_preview_only(tmp_path: Path, monkeypatch) -> No
     assert report["summary"]["requested_exports"] == ["preview"]
 
 
-def test_resolve_delivery_inputs_prefers_clean_video_when_available(tmp_path: Path) -> None:
+def test_resolve_delivery_inputs_prefers_clean_video_when_available(
+    tmp_path: Path, monkeypatch
+) -> None:
     from translip.delivery.runner import resolve_delivery_inputs
 
     request = PipelineRequest(
@@ -201,6 +203,7 @@ def test_resolve_delivery_inputs_prefers_clean_video_when_available(tmp_path: Pa
     clean_video.parent.mkdir(parents=True, exist_ok=True)
     clean_video.write_text("clean", encoding="utf-8")
 
+    monkeypatch.setattr("translip.delivery.runner.probe_media", _fake_media_info)
     resolved = resolve_delivery_inputs(request)
 
     assert resolved.video_path == clean_video
@@ -215,6 +218,35 @@ def test_resolve_delivery_inputs_falls_back_to_original_video(tmp_path: Path) ->
         delivery_policy={"video_source": "clean_if_available", "audio_source": "original", "subtitle_source": "none"},
     )
     request.input_path.write_text("video", encoding="utf-8")
+
+    resolved = resolve_delivery_inputs(request)
+
+    assert resolved.video_path == request.input_path
+
+
+def test_resolve_delivery_inputs_ignores_invalid_clean_video(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from translip.delivery.runner import resolve_delivery_inputs
+    from translip.utils.ffmpeg import FFmpegError
+
+    request = PipelineRequest(
+        input_path=tmp_path / "input.mp4",
+        output_root=tmp_path / "out",
+        delivery_policy={"video_source": "clean_if_available", "audio_source": "both", "subtitle_source": "asr"},
+    )
+    request.input_path.write_text("video", encoding="utf-8")
+
+    clean_video = request.output_root / "subtitle-erase" / "clean_video.mp4"
+    clean_video.parent.mkdir(parents=True, exist_ok=True)
+    clean_video.write_text("corrupt", encoding="utf-8")
+
+    def fake_probe_media(path: Path) -> MediaInfo:
+        if path == clean_video:
+            raise FFmpegError("invalid clean video")
+        return _fake_media_info(path)
+
+    monkeypatch.setattr("translip.delivery.runner.probe_media", fake_probe_media)
 
     resolved = resolve_delivery_inputs(request)
 

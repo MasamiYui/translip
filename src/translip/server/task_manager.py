@@ -17,6 +17,7 @@ from ..orchestration.nodes import NODE_REGISTRY
 from ..types import PipelineRequest
 from .database import engine
 from .models import Task, TaskLog, TaskStage
+from .task_config import normalize_task_config
 from .schemas import CreateTaskRequest, TaskConfigInput
 
 logger = logging.getLogger(__name__)
@@ -26,7 +27,7 @@ def _now_task_id() -> str:
 
 
 def _build_pipeline_request(task: Task) -> PipelineRequest:
-    cfg: Dict[str, Any] = task.config or {}
+    cfg: Dict[str, Any] = normalize_task_config(task.config)
     output_root = Path(task.output_root)
 
     return PipelineRequest(
@@ -65,6 +66,7 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
 
 
 def _planned_task_nodes(config_dict: Dict[str, Any]) -> list[str]:
+    config_dict = normalize_task_config(config_dict)
     template_id = config_dict.get("template", "asr-dub-basic")
     run_from = config_dict.get("run_from_stage", "stage1")
     run_to = config_dict.get("run_to_stage", "task-g")
@@ -291,7 +293,7 @@ class TaskManager:
         else:
             output_root = str(CACHE_ROOT / "output-pipeline" / task_id)
 
-        config_dict = req.config.model_dump() if req.config else {}
+        config_dict = normalize_task_config(req.config.model_dump() if req.config else {})
 
         task = Task(
             id=task_id,

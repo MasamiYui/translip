@@ -19,6 +19,7 @@ from ..schemas import (
     TaskRead,
     TaskStageRead,
 )
+from ..task_config import normalize_task_config
 from ..task_manager import task_manager
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -60,6 +61,25 @@ def _task_to_read(task: Task, stages: list[TaskStage]) -> TaskRead:
             for s in sorted(stages, key=lambda x: x.id or 0)
         ],
     )
+
+
+def _task_graph_payload_from_db(task: Task, stages: list[TaskStage]) -> dict:
+    config = normalize_task_config(task.config)
+    return {
+        "template_id": config.get("template", "asr-dub-basic"),
+        "status": task.status,
+        "nodes": [
+            {
+                "node_name": stage.stage_name,
+                "stage_name": stage.stage_name,
+                "status": stage.status,
+                "progress_percent": stage.progress_percent,
+                "manifest_path": stage.manifest_path,
+                "error_message": stage.error_message,
+            }
+            for stage in stages
+        ],
+    }
 
 
 @router.post("", response_model=TaskRead)
@@ -215,12 +235,14 @@ def get_task_graph(task_id: str, session: Session = Depends(get_session)):
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    stages = list(session.exec(select(TaskStage).where(TaskStage.task_id == task_id)).all())
     manifest_path = Path(task.output_root) / "workflow-manifest.json"
     if not manifest_path.exists():
         manifest_path = Path(task.output_root) / "pipeline-manifest.json"
-    if not manifest_path.exists():
-        raise HTTPException(status_code=404, detail="Workflow manifest not found")
-    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest_path.exists():
+        payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    else:
+        payload = _task_graph_payload_from_db(task, stages)
     return build_workflow_graph_payload(payload)
 
 
