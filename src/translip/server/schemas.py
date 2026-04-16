@@ -111,6 +111,19 @@ class TaskConfigInput(BaseModel):
     delivery_container: str = "mp4"
     delivery_video_codec: str = "copy"
     delivery_audio_codec: str = "aac"
+    subtitle_mode: str = "none"
+    subtitle_render_source: str = "ocr"
+    subtitle_font: Optional[str] = None
+    subtitle_font_size: int = 0
+    subtitle_color: str = "#FFFFFF"
+    subtitle_outline_color: str = "#000000"
+    subtitle_outline_width: float = 2.0
+    subtitle_position: str = "bottom"
+    subtitle_margin_v: int = 0
+    subtitle_bold: bool = False
+    bilingual_chinese_position: str = "bottom"
+    bilingual_english_position: str = "top"
+    subtitle_preview_duration_sec: float = 10.0
 
 
 class CreateTaskRequest(BaseModel):

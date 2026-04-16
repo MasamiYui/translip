@@ -397,6 +397,11 @@ def execute_delivery_node(
             target_lang=request.target_lang,
             export_preview=export_preview,
             export_dub=export_dub,
+            subtitle_mode=request.subtitle_mode,
+            subtitle_source=request.subtitle_source,
+            subtitle_style=request.subtitle_style,
+            bilingual_chinese_position=request.bilingual_chinese_position,
+            bilingual_english_position=request.bilingual_english_position,
         )
     )
     artifact_paths = [

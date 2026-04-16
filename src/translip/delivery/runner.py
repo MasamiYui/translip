@@ -6,9 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ..config import DEFAULT_SUBTITLE_FONT_CJK
 from ..exceptions import TranslipError
-from ..types import ExportVideoArtifacts, ExportVideoRequest, ExportVideoResult, PipelineRequest
-from ..utils.ffmpeg import mux_video_with_audio, probe_media
+from ..subtitles.burn import merge_bilingual_ass, recommend_style, srt_to_ass
+from ..types import ExportVideoArtifacts, ExportVideoRequest, ExportVideoResult, PipelineRequest, SubtitleStyle
+from ..utils.ffmpeg import burn_subtitle_and_mux, mux_video_with_audio, probe_media, probe_video_resolution
 from ..utils.files import ensure_directory
 from .export import build_delivery_manifest, build_delivery_report, now_iso, write_json
 
@@ -18,6 +20,7 @@ class ResolvedDeliveryInputs:
     video_path: Path
     preview_mix_path: Path | None
     dub_voice_path: Path | None
+    clean_video_path: Path | None = None
 
 
 def resolve_delivery_inputs(request: PipelineRequest) -> ResolvedDeliveryInputs:
@@ -38,6 +41,7 @@ def resolve_delivery_inputs(request: PipelineRequest) -> ResolvedDeliveryInputs:
         video_path=video_path,
         preview_mix_path=request.output_root / "task-e" / "voice" / f"preview_mix.{target_lang}.wav",
         dub_voice_path=request.output_root / "task-e" / "voice" / f"dub_voice.{target_lang}.wav",
+        clean_video_path=clean_video_path if clean_video_available else None,
     )
 
 
@@ -60,6 +64,8 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
     preview_audio_path = _resolve_preview_audio_path(normalized_request, task_e_manifest)
     dub_audio_path = _resolve_dub_audio_path(normalized_request, task_e_manifest)
     target_lang = _resolve_target_lang(normalized_request, task_e_manifest)
+    subtitle_path = _resolve_subtitle_path(normalized_request, target_lang)
+    chinese_subtitle_path = _resolve_chinese_subtitle_path(normalized_request)
     normalized_request = ExportVideoRequest(
         input_video_path=normalized_request.input_video_path,
         pipeline_root=normalized_request.pipeline_root,
@@ -75,6 +81,11 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
         end_policy=normalized_request.end_policy,
         overwrite=normalized_request.overwrite,
         keep_temp=normalized_request.keep_temp,
+        subtitle_mode=normalized_request.subtitle_mode,
+        subtitle_source=normalized_request.subtitle_source,
+        subtitle_style=normalized_request.subtitle_style,
+        bilingual_chinese_position=normalized_request.bilingual_chinese_position,
+        bilingual_english_position=normalized_request.bilingual_english_position,
     )
 
     manifest_path = normalized_request.output_dir / "delivery-manifest.json"
@@ -88,27 +99,28 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
         preview_video_path: Path | None = None
         dub_video_path: Path | None = None
 
+        try:
+            width, height = probe_video_resolution(normalized_request.input_video_path)
+        except Exception:
+            width, height = 1920, 1080
+        style = _resolve_subtitle_style(normalized_request.subtitle_style, width, height)
+
         if normalized_request.export_preview:
             preview_video_path = _build_output_video_path(
                 normalized_request.output_dir / "final-preview",
                 stem=f"final_preview.{target_lang}",
                 container=normalized_request.container,
             )
-            mux_video_with_audio(
-                input_video_path=normalized_request.input_video_path,
-                input_audio_path=preview_audio_path,
+            _export_video_variant(
+                request=normalized_request,
+                audio_path=preview_audio_path,
                 output_path=preview_video_path,
-                video_codec=normalized_request.video_codec,
-                audio_codec=normalized_request.audio_codec,
-                audio_bitrate=normalized_request.audio_bitrate,
-                end_policy=normalized_request.end_policy,
+                target_lang=target_lang,
+                subtitle_path=subtitle_path,
+                chinese_subtitle_path=chinese_subtitle_path,
+                style=style,
             )
-            outputs.append(
-                _output_payload(
-                    kind="preview",
-                    output_path=preview_video_path,
-                )
-            )
+            outputs.append(_output_payload(kind="preview", output_path=preview_video_path))
 
         if normalized_request.export_dub:
             dub_video_path = _build_output_video_path(
@@ -116,21 +128,16 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
                 stem=f"final_dub.{target_lang}",
                 container=normalized_request.container,
             )
-            mux_video_with_audio(
-                input_video_path=normalized_request.input_video_path,
-                input_audio_path=dub_audio_path,
+            _export_video_variant(
+                request=normalized_request,
+                audio_path=dub_audio_path,
                 output_path=dub_video_path,
-                video_codec=normalized_request.video_codec,
-                audio_codec=normalized_request.audio_codec,
-                audio_bitrate=normalized_request.audio_bitrate,
-                end_policy=normalized_request.end_policy,
+                target_lang=target_lang,
+                subtitle_path=subtitle_path,
+                chinese_subtitle_path=chinese_subtitle_path,
+                style=style,
             )
-            outputs.append(
-                _output_payload(
-                    kind="dub",
-                    output_path=dub_video_path,
-                )
-            )
+            outputs.append(_output_payload(kind="dub", output_path=dub_video_path))
 
         manifest = build_delivery_manifest(
             request=normalized_request,
@@ -247,6 +254,11 @@ def _resolve_request(request: ExportVideoRequest) -> ExportVideoRequest:
         end_policy=normalized.end_policy,
         overwrite=normalized.overwrite,
         keep_temp=normalized.keep_temp,
+        subtitle_mode=normalized.subtitle_mode,
+        subtitle_source=normalized.subtitle_source,
+        subtitle_style=normalized.subtitle_style,
+        bilingual_chinese_position=normalized.bilingual_chinese_position,
+        bilingual_english_position=normalized.bilingual_english_position,
     )
 
 
@@ -257,6 +269,152 @@ def _resolve_target_lang(request: ExportVideoRequest, task_e_manifest: dict[str,
         task_e_manifest.get("resolved", {}).get("target_lang")
         or task_e_manifest.get("request", {}).get("target_lang")
         or "en"
+    )
+
+
+def _resolve_subtitle_style(style: SubtitleStyle | None, width: int, height: int) -> SubtitleStyle:
+    if style is None:
+        return recommend_style(width, height)
+    auto = recommend_style(width, height, position=style.position)
+    return SubtitleStyle(
+        font_family=style.font_family,
+        font_size=style.font_size or auto.font_size,
+        primary_color=style.primary_color,
+        outline_color=style.outline_color,
+        outline_width=style.outline_width,
+        shadow_depth=style.shadow_depth,
+        bold=style.bold,
+        position=style.position,
+        margin_v=style.margin_v or auto.margin_v,
+        margin_h=style.margin_h,
+        alignment=style.alignment,
+    )
+
+
+def _resolve_subtitle_path(request: ExportVideoRequest, target_lang: str) -> Path | None:
+    if request.subtitle_mode in {"none", "chinese_only"}:
+        return None
+    if request.pipeline_root is None:
+        raise TranslipError("subtitle export requires pipeline_root")
+    if request.subtitle_source == "ocr":
+        path = request.pipeline_root / "ocr-translate" / f"ocr_subtitles.{target_lang}.srt"
+        if path.exists():
+            return path
+    else:
+        candidates = sorted(request.pipeline_root.glob(f"task-c/**/translation.{target_lang}.srt"))
+        if candidates:
+            return candidates[0]
+        direct_path = request.pipeline_root / "task-c" / f"translation.{target_lang}.srt"
+        if direct_path.exists():
+            return direct_path
+        path = direct_path
+    raise TranslipError(f"Subtitle file does not exist: {path}")
+
+
+def _resolve_chinese_subtitle_path(request: ExportVideoRequest) -> Path | None:
+    if request.subtitle_mode != "bilingual":
+        return None
+    if request.pipeline_root is None:
+        raise TranslipError("bilingual export requires pipeline_root")
+    candidates = [
+        request.pipeline_root / "ocr-detect" / "ocr_subtitles.source.srt",
+        *sorted(request.pipeline_root.glob("task-a/**/segments.zh.srt")),
+        request.pipeline_root / "task-a" / "segments.zh.srt",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path
+    raise TranslipError("Bilingual mode requires Chinese subtitle source SRT")
+
+
+def _export_video_variant(
+    *,
+    request: ExportVideoRequest,
+    audio_path: Path,
+    output_path: Path,
+    target_lang: str,
+    subtitle_path: Path | None,
+    chinese_subtitle_path: Path | None,
+    style: SubtitleStyle,
+) -> None:
+    if request.subtitle_mode in {"none", "chinese_only"}:
+        mux_video_with_audio(
+            input_video_path=Path(request.input_video_path),
+            input_audio_path=audio_path,
+            output_path=output_path,
+            video_codec=request.video_codec,
+            audio_codec=request.audio_codec,
+            audio_bitrate=request.audio_bitrate,
+            end_policy=request.end_policy,
+        )
+        return
+
+    work_dir = ensure_directory(request.output_dir / ".delivery-subtitles")
+    ass_path = work_dir / f"{output_path.stem}.ass"
+
+    if request.subtitle_mode == "english_only":
+        english_style = SubtitleStyle(
+            font_family=style.font_family,
+            font_size=style.font_size,
+            primary_color=style.primary_color,
+            outline_color=style.outline_color,
+            outline_width=style.outline_width,
+            shadow_depth=style.shadow_depth,
+            bold=style.bold,
+            position=request.bilingual_english_position,
+            margin_v=style.margin_v,
+            margin_h=style.margin_h,
+            alignment=8 if request.bilingual_english_position == "top" else 2,
+        )
+        srt_to_ass(Path(subtitle_path), english_style, ass_path)
+    elif request.subtitle_mode == "bilingual":
+        english_style = SubtitleStyle(
+            font_family=style.font_family,
+            font_size=style.font_size,
+            primary_color=style.primary_color,
+            outline_color=style.outline_color,
+            outline_width=style.outline_width,
+            shadow_depth=style.shadow_depth,
+            bold=style.bold,
+            position=request.bilingual_english_position,
+            margin_v=style.margin_v,
+            margin_h=style.margin_h,
+            alignment=8 if request.bilingual_english_position == "top" else 2,
+        )
+        chinese_style = SubtitleStyle(
+            font_family=DEFAULT_SUBTITLE_FONT_CJK,
+            font_size=max(style.font_size, 1),
+            primary_color="#FFFFFF",
+            outline_color="#000000",
+            outline_width=style.outline_width,
+            shadow_depth=style.shadow_depth,
+            bold=False,
+            position=request.bilingual_chinese_position,
+            margin_v=style.margin_v,
+            margin_h=style.margin_h,
+            alignment=8 if request.bilingual_chinese_position == "top" else 2,
+        )
+        merge_bilingual_ass(Path(chinese_subtitle_path), Path(subtitle_path), chinese_style, english_style, ass_path)
+    else:
+        raise TranslipError(f"Unsupported subtitle mode: {request.subtitle_mode}")
+
+    source_video_path = Path(request.input_video_path)
+    if request.subtitle_mode == "english_only" and request.pipeline_root is not None:
+        clean_candidate = request.pipeline_root / "subtitle-erase" / "clean_video.mp4"
+        if clean_candidate.exists():
+            source_video_path = clean_candidate
+        else:
+            raise TranslipError("english_only mode requires subtitle-erase clean_video.mp4")
+
+    burn_subtitle_and_mux(
+        input_video_path=source_video_path,
+        input_audio_path=audio_path,
+        subtitle_path=ass_path,
+        output_path=output_path,
+        video_codec="libx264" if request.video_codec == "copy" else request.video_codec,
+        audio_codec=request.audio_codec,
+        audio_bitrate=request.audio_bitrate,
+        end_policy=request.end_policy,
     )
 
 

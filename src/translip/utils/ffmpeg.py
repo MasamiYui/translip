@@ -229,3 +229,97 @@ def mux_video_with_audio(
     args.extend(["-movflags", "+faststart", str(output_path)])
     run_ffmpeg(args)
     return output_path
+
+
+def probe_video_resolution(path: Path) -> tuple[int, int]:
+    payload = run_ffprobe_json(path)
+    for stream in payload.get("streams", []):
+        if stream.get("codec_type") == "video":
+            width = int(stream.get("width", 0))
+            height = int(stream.get("height", 0))
+            if width > 0 and height > 0:
+                return width, height
+    raise FFmpegError(f"No video stream found in {path}")
+
+
+def burn_subtitle_and_mux(
+    *,
+    input_video_path: Path,
+    input_audio_path: Path,
+    subtitle_path: Path,
+    output_path: Path,
+    video_codec: str = "libx264",
+    audio_codec: str = "aac",
+    audio_bitrate: str | None = None,
+    end_policy: str = "trim_audio_to_video",
+    crf: int = 18,
+    preset: str = "medium",
+) -> Path:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    escaped_sub = str(subtitle_path).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
+    vf = f"ass={escaped_sub}"
+    args = [
+        "-y",
+        "-i",
+        str(input_video_path),
+        "-i",
+        str(input_audio_path),
+        "-map",
+        "0:v:0",
+        "-map",
+        "1:a:0",
+        "-vf",
+        vf,
+        "-c:v",
+        video_codec,
+    ]
+    if video_codec == "libx264":
+        args.extend(["-crf", str(crf), "-preset", preset])
+    args.extend(["-c:a", audio_codec])
+    if audio_bitrate:
+        args.extend(["-b:a", audio_bitrate])
+    if end_policy == "trim_audio_to_video":
+        args.extend(["-shortest"])
+    args.extend(["-movflags", "+faststart", str(output_path)])
+    run_ffmpeg(args)
+    return output_path
+
+
+def burn_subtitle_preview(
+    *,
+    input_video_path: Path,
+    subtitle_path: Path,
+    output_path: Path,
+    start_sec: float,
+    duration_sec: float = 10.0,
+    video_codec: str = "libx264",
+    crf: int = 20,
+    preset: str = "fast",
+) -> Path:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    escaped_sub = str(subtitle_path).replace("\\", "\\\\").replace(":", "\\:").replace("'", "\\'")
+    vf = f"ass={escaped_sub}"
+    args = [
+        "-y",
+        "-ss",
+        str(start_sec),
+        "-i",
+        str(input_video_path),
+        "-t",
+        str(duration_sec),
+        "-vf",
+        vf,
+        "-c:v",
+        video_codec,
+        "-crf",
+        str(crf),
+        "-preset",
+        preset,
+        "-c:a",
+        "aac",
+        "-movflags",
+        "+faststart",
+        str(output_path),
+    ]
+    run_ffmpeg(args)
+    return output_path

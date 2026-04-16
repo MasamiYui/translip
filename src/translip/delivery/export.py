@@ -52,6 +52,11 @@ def build_delivery_manifest(
             "end_policy": request.end_policy,
             "overwrite": request.overwrite,
             "keep_temp": request.keep_temp,
+            "subtitle_mode": request.subtitle_mode,
+            "subtitle_source": request.subtitle_source,
+            "subtitle_style": request.subtitle_style.__dict__ if request.subtitle_style else None,
+            "bilingual_chinese_position": request.bilingual_chinese_position,
+            "bilingual_english_position": request.bilingual_english_position,
         },
         "artifacts": {
             "final_preview_video": str(preview_video_path) if preview_video_path else None,
@@ -105,6 +110,11 @@ def build_delivery_report(
             "audio_codec": request.audio_codec,
             "audio_bitrate": request.audio_bitrate,
             "end_policy": request.end_policy,
+            "subtitle_mode": request.subtitle_mode,
+            "subtitle_source": request.subtitle_source,
+            "subtitle_style": request.subtitle_style.__dict__ if request.subtitle_style else None,
+            "bilingual_chinese_position": request.bilingual_chinese_position,
+            "bilingual_english_position": request.bilingual_english_position,
         },
         "outputs": outputs,
     }

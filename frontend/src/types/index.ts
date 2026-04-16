@@ -56,6 +56,19 @@ export interface TaskConfig {
   video_source: 'original' | 'clean' | 'clean_if_available'
   audio_source: 'dub' | 'preview' | 'both'
   subtitle_source: 'none' | 'asr' | 'ocr' | 'both'
+  subtitle_mode?: 'none' | 'chinese_only' | 'english_only' | 'bilingual'
+  subtitle_render_source?: 'ocr' | 'asr'
+  subtitle_font?: string
+  subtitle_font_size?: number
+  subtitle_color?: string
+  subtitle_outline_color?: string
+  subtitle_outline_width?: number
+  subtitle_position?: 'top' | 'bottom'
+  subtitle_margin_v?: number
+  subtitle_bold?: boolean
+  bilingual_chinese_position?: 'top' | 'bottom'
+  bilingual_english_position?: 'top' | 'bottom'
+  subtitle_preview_duration_sec?: number
   separation_mode: string
   separation_quality: string
   music_backend: string

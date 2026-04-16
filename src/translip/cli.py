@@ -41,6 +41,7 @@ from .pipeline.ingest import probe_input
 from .pipeline.runner import separate_file
 from .rendering.runner import render_dub
 from .speakers.runner import build_speaker_registry
+from .subtitles.preview import SubtitlePreviewRequest, preview_subtitle
 from .translation.runner import translate_script
 from .transcription.runner import transcribe_file
 from .types import (
@@ -49,6 +50,7 @@ from .types import (
     RenderDubRequest,
     SeparationRequest,
     SpeakerRegistryRequest,
+    SubtitleStyle,
     TranscriptionRequest,
     TranslationRequest,
 )
@@ -261,6 +263,20 @@ def build_parser() -> argparse.ArgumentParser:
     probe_parser = subparsers.add_parser("probe", help="Inspect a media file")
     probe_parser.add_argument("--input", required=True, help="Input media file path")
 
+    preview_parser = subparsers.add_parser(
+        "preview-subtitles",
+        help="Render a short preview video with burned subtitles",
+    )
+    preview_parser.add_argument("--input-video", required=True)
+    preview_parser.add_argument("--subtitle", required=True)
+    preview_parser.add_argument("--output", default=None)
+    preview_parser.add_argument("--font-family", default="Noto Sans")
+    preview_parser.add_argument("--font-size", type=int, default=0)
+    preview_parser.add_argument("--position", choices=["top", "bottom"], default="bottom")
+    preview_parser.add_argument("--margin-v", type=int, default=0)
+    preview_parser.add_argument("--start-sec", type=float, default=None)
+    preview_parser.add_argument("--duration", type=float, default=10.0)
+
     download_parser = subparsers.add_parser(
         "download-models",
         help="Download external model weights into the local cache",
@@ -360,6 +376,9 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument("--top-k", type=int, default=None)
     pipeline_parser.add_argument("--update-registry", dest="update_registry", action=argparse.BooleanOptionalAction, default=None)
     pipeline_parser.add_argument("--keep-logs", dest="keep_logs", action=argparse.BooleanOptionalAction, default=None)
+    pipeline_parser.add_argument("--subtitle-mode", default=None, choices=["none", "chinese_only", "english_only", "bilingual"])
+    pipeline_parser.add_argument("--bilingual-chinese-position", default=None, choices=["top", "bottom"])
+    pipeline_parser.add_argument("--bilingual-english-position", default=None, choices=["top", "bottom"])
 
     export_parser = subparsers.add_parser(
         "export-video",
@@ -383,6 +402,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     export_parser.add_argument("--overwrite", dest="overwrite", action=argparse.BooleanOptionalAction, default=True)
     export_parser.add_argument("--keep-temp", dest="keep_temp", action=argparse.BooleanOptionalAction, default=False)
+    export_parser.add_argument("--subtitle-mode", choices=["none", "chinese_only", "english_only", "bilingual"], default="none")
+    export_parser.add_argument("--subtitle-source", choices=["ocr", "asr"], default="ocr")
+    export_parser.add_argument("--subtitle-font", default="Noto Sans")
+    export_parser.add_argument("--subtitle-font-size", type=int, default=0)
+    export_parser.add_argument("--subtitle-color", default="#FFFFFF")
+    export_parser.add_argument("--subtitle-outline-color", default="#000000")
+    export_parser.add_argument("--subtitle-outline-width", type=float, default=2.0)
+    export_parser.add_argument("--subtitle-position", choices=["top", "bottom"], default="bottom")
+    export_parser.add_argument("--subtitle-margin-v", type=int, default=0)
+    export_parser.add_argument("--subtitle-bold", action="store_true")
+    export_parser.add_argument("--bilingual-chinese-position", choices=["top", "bottom"], default="bottom")
+    export_parser.add_argument("--bilingual-english-position", choices=["top", "bottom"], default="top")
     return parser
 
 
@@ -409,6 +440,33 @@ def main(argv: list[str] | None = None) -> int:
                 indent=2,
             )
         )
+        return 0
+
+    if args.command == "preview-subtitles":
+        style = SubtitleStyle(
+            font_family=args.font_family,
+            font_size=args.font_size,
+            primary_color="#FFFFFF",
+            outline_color="#000000",
+            outline_width=2.0,
+            shadow_depth=1.0,
+            bold=False,
+            position=args.position,
+            margin_v=args.margin_v,
+            margin_h=20,
+            alignment=8 if args.position == "top" else 2,
+        )
+        result = preview_subtitle(
+            SubtitlePreviewRequest(
+                input_video_path=args.input_video,
+                subtitle_path=args.subtitle,
+                output_path=args.output,
+                style=style,
+                start_sec=args.start_sec,
+                duration_sec=args.duration,
+            )
+        )
+        print(f"preview_video={result.preview_path}")
         return 0
 
     if args.command == "download-models":
@@ -579,6 +637,23 @@ def main(argv: list[str] | None = None) -> int:
             end_policy=args.end_policy,
             overwrite=args.overwrite,
             keep_temp=args.keep_temp,
+            subtitle_mode=args.subtitle_mode,
+            subtitle_source=args.subtitle_source,
+            subtitle_style=SubtitleStyle(
+                font_family=args.subtitle_font,
+                font_size=args.subtitle_font_size,
+                primary_color=args.subtitle_color,
+                outline_color=args.subtitle_outline_color,
+                outline_width=args.subtitle_outline_width,
+                shadow_depth=1.0,
+                bold=args.subtitle_bold,
+                position=args.subtitle_position,
+                margin_v=args.subtitle_margin_v,
+                margin_h=20,
+                alignment=8 if args.subtitle_position == "top" else 2,
+            ),
+            bilingual_chinese_position=args.bilingual_chinese_position,
+            bilingual_english_position=args.bilingual_english_position,
         )
         result = export_video(request)
         if result.artifacts.preview_video_path:

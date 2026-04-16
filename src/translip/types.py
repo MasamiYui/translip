@@ -42,12 +42,30 @@ DeliveryContainer = Literal["mp4"]
 DeliveryVideoCodec = Literal["copy", "libx264"]
 DeliveryAudioCodec = Literal["aac"]
 DeliveryEndPolicy = Literal["trim_audio_to_video", "keep_longest"]
+SubtitleCompositionMode = Literal["none", "chinese_only", "english_only", "bilingual"]
+SubtitleSourceType = Literal["ocr", "asr"]
+SubtitlePosition = Literal["top", "bottom"]
 
 
 class DeliveryPolicy(TypedDict):
     video_source: DeliveryVideoSource
     audio_source: DeliveryAudioSource
     subtitle_source: DeliverySubtitleSource
+
+
+@dataclass(slots=True)
+class SubtitleStyle:
+    font_family: str = "Noto Sans CJK SC"
+    font_size: int = 0
+    primary_color: str = "#FFFFFF"
+    outline_color: str = "#000000"
+    outline_width: float = 2.0
+    shadow_depth: float = 1.0
+    bold: bool = False
+    position: SubtitlePosition = "bottom"
+    margin_v: int = 0
+    margin_h: int = 20
+    alignment: int = 2
 
 
 @dataclass(slots=True)
@@ -462,6 +480,11 @@ class PipelineRequest:
     audio_stream_index: int = 0
     top_k: int = 3
     update_registry: bool = True
+    subtitle_mode: SubtitleCompositionMode = "none"
+    subtitle_source: SubtitleSourceType = "ocr"
+    subtitle_style: SubtitleStyle | None = None
+    bilingual_chinese_position: SubtitlePosition = "bottom"
+    bilingual_english_position: SubtitlePosition = "top"
 
     def normalized(self) -> "PipelineRequest":
         return PipelineRequest(
@@ -528,6 +551,11 @@ class PipelineRequest:
             audio_stream_index=self.audio_stream_index,
             top_k=self.top_k,
             update_registry=self.update_registry,
+            subtitle_mode=self.subtitle_mode,
+            subtitle_source=self.subtitle_source,
+            subtitle_style=self.subtitle_style,
+            bilingual_chinese_position=self.bilingual_chinese_position,
+            bilingual_english_position=self.bilingual_english_position,
         )
 
 
@@ -559,6 +587,11 @@ class ExportVideoRequest:
     end_policy: DeliveryEndPolicy = "trim_audio_to_video"
     overwrite: bool = True
     keep_temp: bool = False
+    subtitle_mode: SubtitleCompositionMode = "none"
+    subtitle_source: SubtitleSourceType = "ocr"
+    subtitle_style: SubtitleStyle | None = None
+    bilingual_chinese_position: SubtitlePosition = "bottom"
+    bilingual_english_position: SubtitlePosition = "top"
 
     def normalized(self) -> "ExportVideoRequest":
         return ExportVideoRequest(
@@ -592,6 +625,11 @@ class ExportVideoRequest:
             end_policy=self.end_policy,
             overwrite=self.overwrite,
             keep_temp=self.keep_temp,
+            subtitle_mode=self.subtitle_mode,
+            subtitle_source=self.subtitle_source,
+            subtitle_style=self.subtitle_style,
+            bilingual_chinese_position=self.bilingual_chinese_position,
+            bilingual_english_position=self.bilingual_english_position,
         )
 
 

@@ -100,6 +100,10 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
         audio_stream_index=int(merged.get("audio_stream_index", 0)),
         top_k=int(merged.get("top_k", 3)),
         update_registry=bool(merged.get("update_registry", True)),
+        subtitle_mode=merged.get("subtitle_mode", "none"),
+        subtitle_source=merged.get("subtitle_source", "ocr"),
+        bilingual_chinese_position=merged.get("bilingual_chinese_position", "bottom"),
+        bilingual_english_position=merged.get("bilingual_english_position", "top"),
     ).normalized()
 
 

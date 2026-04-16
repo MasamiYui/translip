@@ -57,8 +57,14 @@ function getStepTwoSelects() {
   const selects = screen.getAllByRole('combobox') as HTMLSelectElement[]
   return {
     template: selects[0],
-    videoSource: selects[2],
-    toStage: selects[5],
+    subtitleSource: selects[1],
+    subtitleMode: selects[2],
+    subtitleRenderSource: selects[3],
+    videoSource: selects[4],
+    audioSource: selects[5],
+    subtitlePosition: selects[6],
+    fromStage: selects[7],
+    toStage: selects[8],
   }
 }
 
