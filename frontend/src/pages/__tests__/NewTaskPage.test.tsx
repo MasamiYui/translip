@@ -58,13 +58,10 @@ function getStepTwoSelects() {
   return {
     template: selects[0],
     subtitleSource: selects[1],
-    subtitleMode: selects[2],
-    subtitleRenderSource: selects[3],
-    videoSource: selects[4],
-    audioSource: selects[5],
-    subtitlePosition: selects[6],
-    fromStage: selects[7],
-    toStage: selects[8],
+    videoSource: selects[2],
+    audioSource: selects[3],
+    fromStage: selects[4],
+    toStage: selects[5],
   }
 }
 
@@ -104,5 +101,18 @@ describe('NewTaskPage defaults', () => {
 
     expect(videoSource).toHaveValue('clean')
     expect(toStage).toHaveValue('task-e')
+  })
+
+  it('keeps delivery-only subtitle styling out of the new task flow', async () => {
+    vi.mocked(configApi.getPresets).mockResolvedValue([])
+
+    renderStepTwo()
+
+    expect(screen.queryByText('成品字幕模式')).not.toBeInTheDocument()
+    expect(screen.queryByText('英文字幕来源')).not.toBeInTheDocument()
+    expect(screen.queryByText('字幕字体')).not.toBeInTheDocument()
+    expect(screen.queryByText('字幕字号（0=自动推荐）')).not.toBeInTheDocument()
+    expect(screen.queryByText('字幕位置')).not.toBeInTheDocument()
+    expect(screen.queryByText('字幕颜色')).not.toBeInTheDocument()
   })
 })

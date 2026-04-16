@@ -52,6 +52,18 @@ describe('TaskDetailPage delivery composer', () => {
       source_lang: 'zh',
       target_lang: 'en',
       config: { template: 'asr-dub-basic', video_source: 'original', audio_source: 'both', subtitle_source: 'asr' },
+      delivery_config: {
+        subtitle_mode: 'bilingual',
+        subtitle_render_source: 'asr',
+        subtitle_font: 'Source Han Sans',
+        subtitle_font_size: 36,
+        subtitle_position: 'top',
+        subtitle_margin_v: 18,
+        subtitle_color: '#FFEEAA',
+        subtitle_outline_color: '#111111',
+        subtitle_outline_width: 3,
+        subtitle_bold: true,
+      },
       overall_progress: 100,
       current_stage: 'task-g',
       created_at: '2026-04-16T00:00:00Z',
@@ -78,5 +90,9 @@ describe('TaskDetailPage delivery composer', () => {
     expect(screen.getByText('生成字幕预览')).toBeInTheDocument()
     expect(screen.getByText('生成成品视频')).toBeInTheDocument()
     expect(screen.getByText('预览与导出结果')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Source Han Sans')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('36')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('#FFEEAA')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('#111111')).toBeInTheDocument()
   })
 })

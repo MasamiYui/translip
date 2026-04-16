@@ -14,6 +14,7 @@ from ...subtitles.preview import SubtitlePreviewRequest, preview_subtitle
 from ...types import ExportVideoRequest, SubtitleStyle
 from ..database import get_session
 from ..models import Task
+from ..task_config import replace_task_delivery_config
 
 router = APIRouter(prefix="/api/tasks", tags=["delivery"])
 
@@ -160,21 +161,25 @@ def compose_delivery(
         )
     )
 
-    task.config = {
-        **dict(task.config or {}),
-        "subtitle_mode": payload.subtitle_mode,
-        "subtitle_render_source": payload.subtitle_source,
-        "subtitle_font": payload.font_family,
-        "subtitle_font_size": payload.font_size,
-        "subtitle_color": payload.primary_color,
-        "subtitle_outline_color": payload.outline_color,
-        "subtitle_outline_width": payload.outline_width,
-        "subtitle_position": payload.position,
-        "subtitle_margin_v": payload.margin_v,
-        "subtitle_bold": payload.bold,
-        "bilingual_chinese_position": payload.bilingual_chinese_position,
-        "bilingual_english_position": payload.bilingual_english_position,
-    }
+    task.config = replace_task_delivery_config(
+        task.config,
+        {
+            "export_preview": payload.export_preview,
+            "export_dub": payload.export_dub,
+            "subtitle_mode": payload.subtitle_mode,
+            "subtitle_render_source": payload.subtitle_source,
+            "subtitle_font": payload.font_family,
+            "subtitle_font_size": payload.font_size,
+            "subtitle_color": payload.primary_color,
+            "subtitle_outline_color": payload.outline_color,
+            "subtitle_outline_width": payload.outline_width,
+            "subtitle_position": payload.position,
+            "subtitle_margin_v": payload.margin_v,
+            "subtitle_bold": payload.bold,
+            "bilingual_chinese_position": payload.bilingual_chinese_position,
+            "bilingual_english_position": payload.bilingual_english_position,
+        },
+    )
     session.add(task)
     session.commit()
 

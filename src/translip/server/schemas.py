@@ -28,6 +28,7 @@ class TaskRead(BaseModel):
     source_lang: str
     target_lang: str
     config: Dict[str, Any]
+    delivery_config: Dict[str, Any]
     overall_progress: float
     current_stage: Optional[str] = None
     created_at: datetime

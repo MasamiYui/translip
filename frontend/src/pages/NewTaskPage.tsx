@@ -49,11 +49,6 @@ const defaultConfig: Partial<TaskConfig> = {
   mix_profile: 'preview',
   ducking_mode: 'static',
   background_gain_db: -8.0,
-  export_preview: true,
-  export_dub: true,
-  delivery_container: 'mp4',
-  delivery_video_codec: 'copy',
-  delivery_audio_codec: 'aac',
 }
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
@@ -326,28 +321,6 @@ export function NewTaskPage() {
               ]}
             />
           </Field>
-          <Field label="成品字幕模式">
-            <Select
-              value={config.subtitle_mode ?? 'none'}
-              onChange={value => patchConfig({ subtitle_mode: value as TaskConfig['subtitle_mode'] })}
-              options={[
-                { value: 'none', label: '不压字幕' },
-                { value: 'chinese_only', label: '仅中文' },
-                { value: 'english_only', label: '仅英文（擦中文）' },
-                { value: 'bilingual', label: '中英双语' },
-              ]}
-            />
-          </Field>
-          <Field label="英文字幕来源">
-            <Select
-              value={config.subtitle_render_source ?? 'ocr'}
-              onChange={value => patchConfig({ subtitle_render_source: value as TaskConfig['subtitle_render_source'] })}
-              options={[
-                { value: 'ocr', label: 'OCR 翻译' },
-                { value: 'asr', label: 'ASR 翻译' },
-              ]}
-            />
-          </Field>
           <Field label={t.newTask.fields.videoSource}>
             <Select
               value={config.video_source ?? 'original'}
@@ -372,49 +345,15 @@ export function NewTaskPage() {
           </Field>
         </div>
 
-        <div className="grid gap-4 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 md:grid-cols-2">
-          <Field label="字幕字体">
-            <TextInput value={config.subtitle_font ?? 'Noto Sans'} onChange={value => patchConfig({ subtitle_font: value })} />
-          </Field>
-          <Field label="字幕字号（0=自动推荐）">
-            <TextInput value={String(config.subtitle_font_size ?? 0)} onChange={value => patchConfig({ subtitle_font_size: Number(value) || 0 })} type="number" />
-          </Field>
-          <Field label="字幕位置">
-            <Select
-              value={config.subtitle_position ?? 'bottom'}
-              onChange={value => patchConfig({ subtitle_position: value as TaskConfig['subtitle_position'] })}
-              options={[
-                { value: 'bottom', label: '底部' },
-                { value: 'top', label: '顶部' },
-              ]}
-            />
-          </Field>
-          <Field label="垂直边距（0=自动推荐）">
-            <TextInput value={String(config.subtitle_margin_v ?? 0)} onChange={value => patchConfig({ subtitle_margin_v: Number(value) || 0 })} type="number" />
-          </Field>
-          <Field label="字幕颜色">
-            <TextInput value={config.subtitle_color ?? '#FFFFFF'} onChange={value => patchConfig({ subtitle_color: value })} />
-          </Field>
-          <Field label="描边颜色">
-            <TextInput value={config.subtitle_outline_color ?? '#000000'} onChange={value => patchConfig({ subtitle_outline_color: value })} />
-          </Field>
-          <Field label="描边宽度">
-            <TextInput value={String(config.subtitle_outline_width ?? 2)} onChange={value => patchConfig({ subtitle_outline_width: Number(value) || 2 })} type="number" />
-          </Field>
-          <div className="flex items-end pb-2">
-            <Checkbox checked={Boolean(config.subtitle_bold)} onChange={value => patchConfig({ subtitle_bold: value })} label="加粗字幕" />
-          </div>
-        </div>
-
         <div className="rounded-2xl border border-sky-100 bg-sky-50/70 p-4 text-sm text-slate-700 shadow-sm">
           <div className="mb-2 flex items-center justify-between">
-            <div className="text-sm font-semibold text-slate-900">成品导出预设</div>
+            <div className="text-sm font-semibold text-slate-900">交付阶段说明</div>
             <div className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-sky-700 shadow-sm">自动推荐 + 手动可调</div>
           </div>
           <ul className="space-y-1.5 text-slate-600">
-            <li>• 仅中文：保留原始中文字幕硬字幕，仅替换音轨</li>
-            <li>• 仅英文：优先使用擦字幕 clean video，并压入英文字幕</li>
-            <li>• 中英双语：保留中文硬字幕，英文默认置顶避免重叠</li>
+            <li>• 新建任务只负责决定流水线怎么跑，不在这里调整成品字幕样式。</li>
+            <li>• 视频、音轨与字幕输入策略会影响 Task G 的默认交付行为。</li>
+            <li>• 字幕模式、字体、颜色和双语布局在任务跑完后到详情页里配置。</li>
           </ul>
         </div>
 

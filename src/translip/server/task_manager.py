@@ -17,7 +17,11 @@ from ..orchestration.nodes import NODE_REGISTRY
 from ..types import PipelineRequest, SubtitleStyle
 from .database import engine
 from .models import Task, TaskLog, TaskStage
-from .task_config import normalize_task_config
+from .task_config import (
+    normalize_task_config,
+    normalize_task_delivery_config,
+    normalize_task_storage,
+)
 from .schemas import CreateTaskRequest, TaskConfigInput
 
 logger = logging.getLogger(__name__)
@@ -28,6 +32,7 @@ def _now_task_id() -> str:
 
 def _build_pipeline_request(task: Task) -> PipelineRequest:
     cfg: Dict[str, Any] = normalize_task_config(task.config)
+    delivery_cfg: Dict[str, Any] = normalize_task_delivery_config(task.config)
     output_root = Path(task.output_root)
 
     return PipelineRequest(
@@ -63,23 +68,23 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
         condense_mode=cfg.get("condense_mode", "off"),
         glossary_path=cfg.get("translation_glossary"),
         registry_path=cfg.get("existing_registry"),
-        subtitle_mode=cfg.get("subtitle_mode", "none"),
-        subtitle_source=cfg.get("subtitle_render_source", "ocr"),
+        subtitle_mode=delivery_cfg.get("subtitle_mode", "none"),
+        subtitle_source=delivery_cfg.get("subtitle_render_source", "ocr"),
         subtitle_style=SubtitleStyle(
-            font_family=cfg.get("subtitle_font") or "Noto Sans",
-            font_size=int(cfg.get("subtitle_font_size", 0)),
-            primary_color=cfg.get("subtitle_color", "#FFFFFF"),
-            outline_color=cfg.get("subtitle_outline_color", "#000000"),
-            outline_width=float(cfg.get("subtitle_outline_width", 2.0)),
+            font_family=delivery_cfg.get("subtitle_font") or "Noto Sans",
+            font_size=int(delivery_cfg.get("subtitle_font_size", 0)),
+            primary_color=delivery_cfg.get("subtitle_color", "#FFFFFF"),
+            outline_color=delivery_cfg.get("subtitle_outline_color", "#000000"),
+            outline_width=float(delivery_cfg.get("subtitle_outline_width", 2.0)),
             shadow_depth=1.0,
-            bold=bool(cfg.get("subtitle_bold", False)),
-            position=cfg.get("subtitle_position", "bottom"),
-            margin_v=int(cfg.get("subtitle_margin_v", 0)),
+            bold=bool(delivery_cfg.get("subtitle_bold", False)),
+            position=delivery_cfg.get("subtitle_position", "bottom"),
+            margin_v=int(delivery_cfg.get("subtitle_margin_v", 0)),
             margin_h=20,
-            alignment=8 if cfg.get("subtitle_position", "bottom") == "top" else 2,
+            alignment=8 if delivery_cfg.get("subtitle_position", "bottom") == "top" else 2,
         ),
-        bilingual_chinese_position=cfg.get("bilingual_chinese_position", "bottom"),
-        bilingual_english_position=cfg.get("bilingual_english_position", "top"),
+        bilingual_chinese_position=delivery_cfg.get("bilingual_chinese_position", "bottom"),
+        bilingual_english_position=delivery_cfg.get("bilingual_english_position", "top"),
     )
 
 
@@ -311,7 +316,7 @@ class TaskManager:
         else:
             output_root = str(CACHE_ROOT / "output-pipeline" / task_id)
 
-        config_dict = normalize_task_config(req.config.model_dump() if req.config else {})
+        config_dict = normalize_task_storage(req.config.model_dump() if req.config else {})
 
         task = Task(
             id=task_id,

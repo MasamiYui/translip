@@ -19,13 +19,19 @@ from ..schemas import (
     TaskRead,
     TaskStageRead,
 )
-from ..task_config import normalize_task_config
+from ..task_config import (
+    normalize_task_config,
+    normalize_task_delivery_config,
+    normalize_task_storage,
+)
 from ..task_manager import task_manager
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 
 
 def _task_to_read(task: Task, stages: list[TaskStage]) -> TaskRead:
+    pipeline_config = normalize_task_config(task.config)
+    delivery_config = normalize_task_delivery_config(task.config)
     return TaskRead(
         id=task.id,
         name=task.name,
@@ -34,7 +40,8 @@ def _task_to_read(task: Task, stages: list[TaskStage]) -> TaskRead:
         output_root=task.output_root,
         source_lang=task.source_lang,
         target_lang=task.target_lang,
-        config=task.config or {},
+        config=pipeline_config,
+        delivery_config=delivery_config,
         overall_progress=task.overall_progress,
         current_stage=task.current_stage,
         created_at=task.created_at,
@@ -170,15 +177,20 @@ def rerun_task(
 
     from ..schemas import CreateTaskRequest, TaskConfigInput
 
-    config = dict(original.config or {})
-    config["run_from_stage"] = req.from_stage
+    normalized = normalize_task_storage(original.config)
+    pipeline_config = dict(normalized["pipeline"])
+    pipeline_config["run_from_stage"] = req.from_stage
+    merged_config = {
+        **pipeline_config,
+        **dict(normalized["delivery"]),
+    }
 
     new_req = CreateTaskRequest(
         name=original.name + " (重跑)",
         input_path=original.input_path,
         source_lang=original.source_lang,
         target_lang=original.target_lang,
-        config=TaskConfigInput(**config),
+        config=TaskConfigInput(**merged_config),
         output_root=original.output_root,
     )
     new_task = task_manager.create_task(session, new_req)

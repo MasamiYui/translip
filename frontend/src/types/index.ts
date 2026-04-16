@@ -26,6 +26,7 @@ export interface Task {
   source_lang: string
   target_lang: string
   config: Record<string, unknown>
+  delivery_config: Partial<TaskDeliveryConfig>
   overall_progress: number
   current_stage?: string
   created_at: string
@@ -44,6 +45,27 @@ export interface TaskListResponse {
   total: number
   page: number
   size: number
+}
+
+export interface TaskDeliveryConfig {
+  export_preview: boolean
+  export_dub: boolean
+  delivery_container: string
+  delivery_video_codec: string
+  delivery_audio_codec: string
+  subtitle_mode: 'none' | 'chinese_only' | 'english_only' | 'bilingual'
+  subtitle_render_source: 'ocr' | 'asr'
+  subtitle_font?: string | null
+  subtitle_font_size?: number
+  subtitle_color?: string
+  subtitle_outline_color?: string
+  subtitle_outline_width?: number
+  subtitle_position?: 'top' | 'bottom'
+  subtitle_margin_v?: number
+  subtitle_bold?: boolean
+  bilingual_chinese_position?: 'top' | 'bottom'
+  bilingual_english_position?: 'top' | 'bottom'
+  subtitle_preview_duration_sec?: number
 }
 
 export interface TaskConfig {
@@ -89,11 +111,6 @@ export interface TaskConfig {
   mix_profile: string
   ducking_mode: string
   background_gain_db: number
-  export_preview: boolean
-  export_dub: boolean
-  delivery_container: string
-  delivery_video_codec: string
-  delivery_audio_codec: string
   ocr_project_root?: string
   erase_project_root?: string
 }

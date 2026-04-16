@@ -106,7 +106,10 @@ export function TaskDetailPage() {
 
   const composeMutation = useMutation({
     mutationFn: (payload: Parameters<typeof tasksApi.composeDelivery>[1]) => tasksApi.composeDelivery(id!, payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['artifacts', id] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['artifacts', id] })
+      queryClient.invalidateQueries({ queryKey: ['task', id] })
+    },
   })
 
   const elapsedSec = task?.elapsed_sec
@@ -143,6 +146,7 @@ export function TaskDetailPage() {
   }, [artifacts, subtitleSource, task?.target_lang])
 
   const previewTargetPath = previewPathOverride || preferredSubtitlePath
+  const deliveryConfig = task?.delivery_config ?? {}
 
   const previewVideoArtifact = useMemo(
     () => artifacts.find(artifact => artifact.path.endsWith('subtitle-preview.mp4')) ?? null,
@@ -151,6 +155,32 @@ export function TaskDetailPage() {
 
   const previewFiles = artifacts.filter(artifact => isUserArtifact(artifact) && (artifact.path.startsWith('task-g/') || artifact.path.startsWith('delivery/'))).slice(0, 4)
   const finalVideoArtifacts = previewFiles.filter(artifact => artifact.suffix === '.mp4')
+
+  useEffect(() => {
+    if (!task) return
+    setSubtitleMode((deliveryConfig.subtitle_mode as typeof subtitleMode | undefined) ?? 'none')
+    setSubtitleSource((deliveryConfig.subtitle_render_source as typeof subtitleSource | undefined) ?? 'ocr')
+    setFontFamily(deliveryConfig.subtitle_font ?? 'Noto Sans')
+    setFontSize(deliveryConfig.subtitle_font_size ?? 0)
+    setSubtitlePosition((deliveryConfig.subtitle_position as typeof subtitlePosition | undefined) ?? 'bottom')
+    setMarginV(deliveryConfig.subtitle_margin_v ?? 0)
+    setSubtitleColor(deliveryConfig.subtitle_color ?? '#FFFFFF')
+    setOutlineColor(deliveryConfig.subtitle_outline_color ?? '#000000')
+    setOutlineWidth(deliveryConfig.subtitle_outline_width ?? 2)
+    setSubtitleBold(Boolean(deliveryConfig.subtitle_bold))
+  }, [
+    task?.id,
+    deliveryConfig.subtitle_bold,
+    deliveryConfig.subtitle_color,
+    deliveryConfig.subtitle_font,
+    deliveryConfig.subtitle_font_size,
+    deliveryConfig.subtitle_margin_v,
+    deliveryConfig.subtitle_mode,
+    deliveryConfig.subtitle_outline_color,
+    deliveryConfig.subtitle_outline_width,
+    deliveryConfig.subtitle_position,
+    deliveryConfig.subtitle_render_source,
+  ])
 
   if (!task) {
     return (
