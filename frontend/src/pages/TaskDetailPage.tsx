@@ -386,28 +386,109 @@ export function TaskDetailPage() {
             <Sparkles size={12} />
             {t.workflow.runtimeTitle}
           </div>
-          {graph ? (
-            <PipelineGraph
-              graph={graph}
-              activeStage={activeStageId ?? undefined}
-              onStageClick={nodeId => {
-                setSelectedNodeId(nodeId)
-                setRerunStage(nodeId)
-              }}
-              showLegend
-            />
-          ) : (
-            <PipelineGraph
-              stages={task.stages}
-              templateId={templateId}
-              activeStage={activeStageId ?? undefined}
-              onStageClick={nodeId => {
-                setSelectedNodeId(nodeId)
-                setRerunStage(nodeId)
-              }}
-              showLegend
-            />
-          )}
+          <div className="grid gap-6 lg:grid-cols-[1fr_auto]">
+            <div>
+              {graph ? (
+                <PipelineGraph
+                  graph={graph}
+                  activeStage={activeStageId ?? undefined}
+                  onStageClick={nodeId => {
+                    setSelectedNodeId(nodeId)
+                    setRerunStage(nodeId)
+                  }}
+                  showLegend
+                />
+              ) : (
+                <PipelineGraph
+                  stages={task.stages}
+                  templateId={templateId}
+                  activeStage={activeStageId ?? undefined}
+                  onStageClick={nodeId => {
+                    setSelectedNodeId(nodeId)
+                    setRerunStage(nodeId)
+                  }}
+                  showLegend
+                />
+              )}
+            </div>
+
+            {/* 运行控制 */}
+            <div className="min-w-[200px] border-t border-slate-100 pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0">
+              <div className="mb-3 text-xs font-semibold text-slate-500">运行控制</div>
+              <div className="space-y-3">
+                <div>
+                  <div className="mb-1 text-xs text-slate-400">重跑起点</div>
+                  <select
+                    value={rerunStage ?? effectiveRerunStage}
+                    onChange={event => setRerunStage(event.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                  >
+                    {(graph?.nodes ?? task.stages.map(stage => ({ id: stage.stage_name }))).map(node => (
+                      <option key={node.id} value={node.id}>
+                        {getStageLabel(node.id as keyof typeof t.stages)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => rerunMutation.mutate(effectiveRerunStage)}
+                    disabled={rerunMutation.isPending || task.status === 'running'}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {rerunMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                    从所选阶段重跑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => stopMutation.mutate()}
+                    disabled={stopMutation.isPending || task.status !== 'running'}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <Square size={14} />
+                    停止任务
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('确认删除这个任务吗？')) {
+                        deleteMutation.mutate()
+                      }
+                    }}
+                    disabled={deleteMutation.isPending || task.status === 'running'}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50 disabled:opacity-50"
+                  >
+                    <Trash2 size={14} />
+                    删除任务
+                  </button>
+                </div>
+              </div>
+
+              {selectedArtifacts.length > 0 && (
+                <div className="mt-5 border-t border-slate-100 pt-4">
+                  <div className="mb-2 text-xs font-semibold text-slate-500">当前阶段产物</div>
+                  <div className="space-y-1.5">
+                    {selectedArtifacts.slice(0, 5).map(artifact => (
+                      <div key={artifact.path} className="flex items-center justify-between gap-3 py-1 text-xs">
+                        <div className="min-w-0">
+                          <div className="truncate text-slate-700">{artifact.path}</div>
+                          <div className="text-slate-400">{formatBytes(artifact.size_bytes)}</div>
+                        </div>
+                        <a
+                          href={getArtifactHref(task.id, artifact.path)}
+                          className="shrink-0 text-slate-400 transition-colors hover:text-slate-700"
+                        >
+                          <Download size={13} />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <div className="border-b border-slate-100 px-7 py-6">
@@ -502,9 +583,8 @@ export function TaskDetailPage() {
             </div>
           </div>
 
-          {/* 成品素材清单 + 运行控制 */}
-          <div className="mt-6 grid gap-8 border-t border-slate-100 pt-6 lg:grid-cols-[1fr_auto]">
-            {/* 素材清单：2列紧凑网格 */}
+          {/* 成品素材清单 */}
+          <div className="mt-6 border-t border-slate-100 pt-6">
             {(() => {
               const assetRows: Array<{ icon: LucideIcon; title: string; description: string; entry: TaskAssetEntry }> = [
                 { icon: Film, title: '原始视频', description: '所有任务的基础输入素材', entry: task.asset_summary.video.original },
@@ -538,83 +618,6 @@ export function TaskDetailPage() {
                 </div>
               )
             })()}
-
-            {/* 运行控制 */}
-            <div className="min-w-[220px] border-t border-slate-100 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
-              <div className="mb-3 text-xs font-semibold text-slate-500">运行控制</div>
-              <div className="space-y-3">
-                <div>
-                  <div className="mb-1 text-xs text-slate-400">重跑起点</div>
-                  <select
-                    value={rerunStage ?? effectiveRerunStage}
-                    onChange={event => setRerunStage(event.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                  >
-                    {(graph?.nodes ?? task.stages.map(stage => ({ id: stage.stage_name }))).map(node => (
-                      <option key={node.id} value={node.id}>
-                        {getStageLabel(node.id as keyof typeof t.stages)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <button
-                    type="button"
-                    onClick={() => rerunMutation.mutate(effectiveRerunStage)}
-                    disabled={rerunMutation.isPending || task.status === 'running'}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    {rerunMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
-                    从所选阶段重跑
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => stopMutation.mutate()}
-                    disabled={stopMutation.isPending || task.status !== 'running'}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    <Square size={14} />
-                    停止任务
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm('确认删除这个任务吗？')) {
-                        deleteMutation.mutate()
-                      }
-                    }}
-                    disabled={deleteMutation.isPending || task.status === 'running'}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50 disabled:opacity-50"
-                  >
-                    <Trash2 size={14} />
-                    删除任务
-                  </button>
-                </div>
-              </div>
-
-              {selectedArtifacts.length > 0 && (
-                <div className="mt-5 border-t border-slate-100 pt-4">
-                  <div className="mb-2 text-xs font-semibold text-slate-500">当前阶段产物</div>
-                  <div className="space-y-1.5">
-                    {selectedArtifacts.slice(0, 5).map(artifact => (
-                      <div key={artifact.path} className="flex items-center justify-between gap-3 py-1 text-xs">
-                        <div className="min-w-0">
-                          <div className="truncate text-slate-700">{artifact.path}</div>
-                          <div className="text-slate-400">{formatBytes(artifact.size_bytes)}</div>
-                        </div>
-                        <a
-                          href={getArtifactHref(task.id, artifact.path)}
-                          className="shrink-0 text-slate-400 transition-colors hover:text-slate-700"
-                        >
-                          <Download size={13} />
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </div>
