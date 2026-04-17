@@ -80,11 +80,61 @@ const PREVIEW_HINTS: Record<string, { zh: string; en: string }> = {
 
 const STATUS_STYLES: Record<WorkflowGraphNode['status'], string> = {
   pending: 'border-slate-200/90 bg-white text-slate-700',
-  running: 'border-sky-200/90 bg-sky-50/80 text-slate-900',
-  succeeded: 'border-emerald-200/90 bg-emerald-50/70 text-slate-900',
-  cached: 'border-violet-200/90 bg-violet-50/70 text-slate-900',
-  failed: 'border-rose-200/90 bg-rose-50/75 text-slate-900',
+  running: 'border-sky-200/90 bg-white text-slate-900',
+  succeeded: 'border-emerald-200/90 bg-emerald-50/45 text-slate-900',
+  cached: 'border-violet-200/90 bg-violet-50/45 text-slate-900',
+  failed: 'border-rose-200/90 bg-rose-50/55 text-slate-900',
   skipped: 'border-slate-200/85 bg-slate-50/85 text-slate-600',
+}
+
+const STATUS_ACCENTS: Record<
+  WorkflowGraphNode['status'],
+  {
+    rail: string
+    marker: string
+    markerInner?: string
+    progressTrack?: string
+    progressFill?: string
+    statusText: string
+  }
+> = {
+  pending: {
+    rail: 'bg-slate-200/90',
+    marker: 'border border-slate-300 bg-white',
+    statusText: 'text-slate-400',
+  },
+  running: {
+    rail: 'bg-gradient-to-r from-sky-300 via-cyan-400 to-sky-300 animate-pulse',
+    marker: 'border border-sky-300 bg-white',
+    markerInner: 'bg-sky-500 animate-pulse',
+    progressTrack: 'bg-sky-100/95',
+    progressFill: 'bg-gradient-to-r from-sky-400 via-cyan-400 to-sky-500',
+    statusText: 'text-sky-500/90',
+  },
+  succeeded: {
+    rail: 'bg-gradient-to-r from-emerald-300 to-emerald-400',
+    marker: 'border border-emerald-300 bg-emerald-100',
+    markerInner: 'bg-emerald-500',
+    statusText: 'text-emerald-500/90',
+  },
+  cached: {
+    rail: 'bg-gradient-to-r from-violet-300 to-violet-400',
+    marker: 'border border-violet-300 bg-violet-100',
+    markerInner: 'bg-violet-500',
+    statusText: 'text-violet-500/90',
+  },
+  failed: {
+    rail: 'bg-gradient-to-r from-rose-300 to-rose-400',
+    marker: 'border border-rose-300 bg-rose-100',
+    markerInner: 'bg-rose-500',
+    statusText: 'text-rose-500/90',
+  },
+  skipped: {
+    rail: 'bg-slate-200/80',
+    marker: 'border border-slate-300 bg-slate-100',
+    markerInner: 'bg-slate-400',
+    statusText: 'text-slate-400',
+  },
 }
 
 const EDGE_STYLES: Record<WorkflowEdgeState, Partial<Edge>> = {
@@ -95,7 +145,7 @@ const EDGE_STYLES: Record<WorkflowEdgeState, Partial<Edge>> = {
   },
   active: {
     style: { stroke: '#38BDF8', strokeWidth: 2.2 },
-    animated: false,
+    animated: true,
     markerEnd: { type: MarkerType.ArrowClosed, color: '#38BDF8', width: 12, height: 12 },
   },
   completed: {
@@ -114,8 +164,8 @@ const PREVIEW_NODE_WIDTH = 160
 const PREVIEW_NODE_HEIGHT = 82
 const RUNTIME_NODE_WIDTH = 172
 const RUNTIME_NODE_HEIGHT = 92
-const ANCHOR_WIDTH = 86
-const ANCHOR_HEIGHT = 40
+const ANCHOR_WIDTH = 118
+const ANCHOR_HEIGHT = 52
 const HANDLE_STYLE = { width: 8, height: 8, opacity: 0, pointerEvents: 'none' as const }
 const START_NODE_ID = '__dag-start__'
 const END_NODE_ID = '__dag-end__'
@@ -144,7 +194,8 @@ function CompactNodeChrome({
 }: CompactNodeChromeProps) {
   const Icon = NODE_ICON[node.id] ?? AudioWaveform
   const showProgress = !previewOnly && node.status === 'running'
-  const statusChip = showProgress ? `${statusLabel} ${Math.round(node.progress_percent)}%` : statusLabel
+  const accents = STATUS_ACCENTS[node.status]
+  const showStatusMarker = !previewOnly
 
   return (
     <button
@@ -154,61 +205,93 @@ function CompactNodeChrome({
       onMouseLeave={() => onHoverChange?.(null)}
       onFocus={() => onHoverChange?.(node.id)}
       onBlur={() => onHoverChange?.(null)}
+      aria-label={`${shortLabel} · ${statusLabel}`}
       data-ui-elevation="flat"
       data-ui-card-size="matched"
       data-ui-node-role={node.group === 'delivery' ? 'terminal' : 'workflow'}
+      data-ui-node-status={node.status}
       className={cn(
-        'group relative flex h-full w-full overflow-hidden rounded-[22px] border px-3 py-3 text-left transition-colors duration-200',
+        'group relative flex h-full w-full overflow-hidden rounded-[22px] border px-3.5 py-3 text-left transition-[border-color,background-color,box-shadow,transform] duration-200',
         STATUS_STYLES[node.status],
+        node.required === false && 'border-dashed',
         'cursor-pointer',
         focused && 'ring-2 ring-sky-300/80 ring-offset-2 ring-offset-white',
       )}
     >
-      {!previewOnly && (
-        <span className="absolute right-3 top-3 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-          {statusChip}
-        </span>
-      )}
-
       {pinned && !previewOnly && (
         <span className="absolute bottom-3 right-3 inline-flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400">
           <Pin size={11} />
         </span>
       )}
 
-      <div className={cn('min-w-0 flex-1', !previewOnly && 'pr-16')}>
-        <div className="flex items-start gap-2.5">
-          <span
-            data-ui-node-icon="corner"
-            className="mt-0.5 inline-flex shrink-0 items-center justify-center text-current/72"
-          >
-            <Icon size={13} strokeWidth={2.1} />
-          </span>
+      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span
+              data-ui-node-icon="corner"
+              className="mt-0.5 inline-flex shrink-0 items-center justify-center text-current/70"
+            >
+              <Icon size={12.5} strokeWidth={2.05} />
+            </span>
 
-          <div className="min-w-0">
             <div className="text-[10.5px] font-medium uppercase tracking-[0.2em] text-current/42">
               {NODE_CODE[node.id] ?? node.id}
+            </div>
+          </div>
+
+          {showStatusMarker && (
+            <span
+              data-ui-status-marker=""
+              className={cn(
+                'mt-0.5 inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full',
+                accents.marker,
+              )}
+            >
+              {accents.markerInner ? (
+                <span className={cn('h-1.5 w-1.5 rounded-full', accents.markerInner)} />
+              ) : null}
+            </span>
+          )}
+        </div>
+
+        <div className="mt-4 min-w-0">
+          <div
+            data-ui-title-scale="xl"
+            className={cn(
+              'whitespace-nowrap font-semibold leading-[1.12] tracking-[-0.04em] text-current',
+              previewOnly ? 'text-[18.5px]' : 'text-[19px]',
+            )}
+          >
+            {shortLabel}
+          </div>
+        </div>
+
+        {showProgress ? (
+          <div className="mt-auto pt-3.5">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="inline-flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.18em] text-sky-500/80">
+                <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" />
+                <span>{Math.round(node.progress_percent)}%</span>
+              </span>
             </div>
 
             <div
               className={cn(
-                'font-semibold leading-tight tracking-tight text-current',
-                previewOnly ? 'mt-1 text-[15.75px]' : 'mt-1 text-[15.75px]',
+                'overflow-hidden rounded-full',
+                accents.progressTrack ?? 'bg-sky-100/95',
               )}
             >
-              {shortLabel}
+              <div
+                data-ui-progress-bar=""
+                className={cn(
+                  'h-1 rounded-full transition-[width] duration-500 ease-out',
+                  accents.progressFill ?? 'bg-sky-400',
+                )}
+                style={{ width: `${node.progress_percent}%` }}
+              />
             </div>
           </div>
-        </div>
-
-        {showProgress && (
-          <div className="mt-2 overflow-hidden rounded-full bg-sky-100/90">
-            <div
-              className="h-1 rounded-full bg-sky-400"
-              style={{ width: `${node.progress_percent}%` }}
-            />
-          </div>
-        )}
+        ) : null}
       </div>
     </button>
   )
@@ -267,10 +350,13 @@ function AnchorNode({ data }: NodeProps) {
       {d.kind === 'end' && <Handle id="left" type="target" position={Position.Left} style={HANDLE_STYLE} />}
       {d.kind === 'start' && <Handle id="right" type="source" position={Position.Right} style={HANDLE_STYLE} />}
 
-      <div className="inline-flex items-center gap-2 rounded-full border border-slate-200/90 bg-white/92 px-3 py-2 text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">
+      <div
+        data-ui-anchor-size="xl"
+        className="inline-flex items-center gap-3 rounded-full border border-slate-200/90 bg-white/92 px-4 py-3 text-[12px] font-semibold uppercase tracking-[0.16em] text-slate-500"
+      >
         <span
           className={cn(
-            'h-2.5 w-2.5 rounded-full',
+            'h-3.5 w-3.5 rounded-full',
             d.kind === 'start' ? 'bg-sky-400' : 'border border-slate-300 bg-white',
           )}
         />
@@ -297,6 +383,9 @@ function resolveNodeHint(node: WorkflowGraphNode, locale: 'zh-CN' | 'en-US', pre
   }
   if (node.error_message) {
     return node.error_message
+  }
+  if (node.current_step) {
+    return node.current_step
   }
   return getPreviewHint(node, locale)
 }
@@ -688,6 +777,8 @@ export function WorkflowCompactCardGraph({
   const FocusRailIcon = focusRailContent
     ? (NODE_ICON[focusRailContent.node.id] ?? AudioWaveform)
     : AudioWaveform
+  const focusStatusAccent = focusRailContent ? STATUS_ACCENTS[focusRailContent.node.status] : null
+  const showFocusStatus = Boolean(focusRailContent && !previewOnly && focusStatusAccent)
 
   return (
     <div className="space-y-3">
@@ -734,62 +825,101 @@ export function WorkflowCompactCardGraph({
               data-ui-focus-rail="active"
               className="flex items-start justify-between gap-4"
             >
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[15px] border border-slate-200 bg-slate-50 text-slate-600">
+              <div className="flex min-w-0 flex-1 items-start gap-3">
+                <span
+                  data-ui-focus-icon="inline"
+                  className="mt-1 inline-flex shrink-0 items-center justify-center text-slate-500"
+                >
                   <FocusRailIcon size={16} />
-                </div>
+                </span>
 
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 text-[10px] font-medium uppercase tracking-[0.18em] text-slate-400">
-                    <span>{focusRailContent.code}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                      <div className="text-[17px] font-semibold tracking-tight text-slate-900">
+                        {focusRailContent.shortLabel}
+                      </div>
+
+                      {showFocusStatus && focusStatusAccent ? (
+                        <div
+                          data-ui-focus-status=""
+                          className="inline-flex items-center gap-2"
+                        >
+                          <span
+                            data-ui-focus-status-rail=""
+                            className={cn('h-1 w-7 rounded-full', focusStatusAccent.rail)}
+                          />
+                          <span
+                            data-ui-focus-status-marker=""
+                            className={cn(
+                              'inline-flex h-3.5 w-3.5 items-center justify-center rounded-full',
+                              focusStatusAccent.marker,
+                            )}
+                          >
+                            {focusStatusAccent.markerInner ? (
+                              <span className={cn('h-1.5 w-1.5 rounded-full', focusStatusAccent.markerInner)} />
+                            ) : null}
+                          </span>
+                          <span
+                            className={cn(
+                              'text-[10px] font-semibold uppercase tracking-[0.18em]',
+                              focusStatusAccent.statusText,
+                            )}
+                          >
+                            {focusRailContent.statusLabel}
+                          </span>
+                          {focusRailContent.node.status === 'running' && (
+                            <span
+                              data-ui-focus-progress-bar=""
+                              className="text-[10px] font-semibold uppercase tracking-[0.18em] text-sky-500/75"
+                            >
+                              {Math.round(focusRailContent.node.progress_percent)}%
+                            </span>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+
+                    {focusRailContent.pinned && (
+                      <button
+                        type="button"
+                        onClick={() => setPinnedNodeId(null)}
+                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-medium text-slate-500 transition-colors hover:bg-slate-50"
+                      >
+                        <X size={11} />
+                        {getFocusRailClearLabel(locale)}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-slate-500">
+                    <span className="font-medium uppercase tracking-[0.18em] text-slate-400">
+                      {focusRailContent.code}
+                    </span>
                     <span className="h-1 w-1 rounded-full bg-slate-300" />
                     <span>{focusRailContent.groupLabel}</span>
                     {focusRailContent.node.required === false && (
-                      <span className="rounded-full border border-dashed border-slate-200 bg-white px-2 py-0.5 text-[9px] font-semibold tracking-[0.16em] text-slate-500">
-                        {t.workflow.optional}
-                      </span>
+                      <>
+                        <span className="h-1 w-1 rounded-full bg-slate-300" />
+                        <span className="font-medium text-slate-500">{t.workflow.optional}</span>
+                      </>
                     )}
                     {focusRailContent.pinned && (
-                      <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[9px] font-semibold tracking-[0.16em] text-slate-500">
-                        <Pin size={10} />
-                        {getFocusRailPinnedLabel(locale)}
-                      </span>
+                      <>
+                        <span className="h-1 w-1 rounded-full bg-slate-300" />
+                        <span className="font-medium text-slate-500">{getFocusRailPinnedLabel(locale)}</span>
+                      </>
                     )}
+                    <span className="h-1 w-1 rounded-full bg-slate-300" />
+                    <span
+                      data-ui-focus-inline-detail=""
+                      className="min-w-0 flex-1 truncate text-slate-600"
+                      title={focusRailContent.hint}
+                    >
+                      {focusRailContent.hint}
+                    </span>
                   </div>
-
-                  <div className="mt-1 text-sm font-semibold tracking-tight text-slate-900">
-                    {focusRailContent.shortLabel}
-                  </div>
-
-                  <p className="mt-1 text-sm leading-6 text-slate-600">
-                    {focusRailContent.hint}
-                  </p>
-
-                  {!previewOnly && focusRailContent.node.current_step && (
-                    <div className="mt-2 text-xs font-medium text-slate-500">
-                      {focusRailContent.node.current_step}
-                    </div>
-                  )}
                 </div>
-              </div>
-
-              <div className="flex shrink-0 items-center gap-2">
-                {!previewOnly && (
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    {focusRailContent.statusLabel}
-                  </span>
-                )}
-
-                {focusRailContent.pinned && (
-                  <button
-                    type="button"
-                    onClick={() => setPinnedNodeId(null)}
-                    className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-medium text-slate-500 transition-colors hover:bg-slate-50"
-                  >
-                    <X size={11} />
-                    {getFocusRailClearLabel(locale)}
-                  </button>
-                )}
               </div>
             </div>
           ) : (
