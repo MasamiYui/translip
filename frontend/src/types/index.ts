@@ -3,6 +3,62 @@ export type StageStatus = 'pending' | 'running' | 'succeeded' | 'cached' | 'fail
 export type WorkflowStatus = TaskStatus
 export type WorkflowEdgeState = 'inactive' | 'active' | 'completed' | 'blocked'
 export type WorkflowNodeGroup = 'audio-spine' | 'ocr-subtitles' | 'video-cleanup' | 'delivery'
+export type TaskOutputIntent = 'dub_final' | 'bilingual_review' | 'english_subtitle' | 'fast_validation'
+export type TaskQualityPreset = 'fast' | 'standard' | 'high_quality'
+export type TaskExportProfile = 'dub_no_subtitles' | 'bilingual_review' | 'english_subtitle_burned' | 'preview_only'
+export type TaskExportReadinessStatus = 'not_ready' | 'ready' | 'exported' | 'blocked' | 'exporting'
+
+export interface TaskAssetEntry {
+  status: 'available' | 'missing' | 'building' | 'failed'
+  path: string | null
+}
+
+export interface TaskAssetSummary {
+  video: {
+    original: TaskAssetEntry
+    clean: TaskAssetEntry
+  }
+  audio: {
+    preview: TaskAssetEntry
+    dub: TaskAssetEntry
+  }
+  subtitles: {
+    ocr_translated: TaskAssetEntry
+    asr_translated: TaskAssetEntry
+  }
+  exports: {
+    subtitle_preview: TaskAssetEntry
+    final_preview: TaskAssetEntry
+    final_dub: TaskAssetEntry
+  }
+}
+
+export interface TaskExportBlocker {
+  code: string
+  message: string
+  action: string
+  action_label: string
+}
+
+export interface TaskExportReadiness {
+  status: TaskExportReadinessStatus
+  recommended_profile: TaskExportProfile
+  summary: string
+  blockers: TaskExportBlocker[]
+}
+
+export interface TaskLastExportFile {
+  kind: string
+  label: string
+  path: string
+}
+
+export interface TaskLastExportSummary {
+  status: 'not_exported' | 'exported'
+  profile: TaskExportProfile | null
+  updated_at?: string | null
+  files: TaskLastExportFile[]
+}
 
 export interface TaskStage {
   stage_name: string
@@ -25,8 +81,13 @@ export interface Task {
   output_root: string
   source_lang: string
   target_lang: string
-  config: Record<string, unknown>
+  output_intent: TaskOutputIntent
+  quality_preset: TaskQualityPreset
+  config: Partial<TaskConfig>
   delivery_config: Partial<TaskDeliveryConfig>
+  asset_summary: TaskAssetSummary
+  export_readiness: TaskExportReadiness
+  last_export_summary: TaskLastExportSummary
   overall_progress: number
   current_stage?: string
   created_at: string
@@ -70,6 +131,8 @@ export interface TaskDeliveryConfig {
 
 export interface TaskConfig {
   device: string
+  output_intent: TaskOutputIntent
+  quality_preset: TaskQualityPreset
   template: 'asr-dub-basic' | 'asr-dub+ocr-subs' | 'asr-dub+ocr-subs+erase'
   run_from_stage: string
   run_to_stage: string

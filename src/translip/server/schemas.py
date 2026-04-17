@@ -27,8 +27,13 @@ class TaskRead(BaseModel):
     output_root: str
     source_lang: str
     target_lang: str
+    output_intent: str = "dub_final"
+    quality_preset: str = "standard"
     config: Dict[str, Any]
     delivery_config: Dict[str, Any]
+    asset_summary: Dict[str, Any] = {}
+    export_readiness: Dict[str, Any] = {}
+    last_export_summary: Dict[str, Any] = {}
     overall_progress: float
     current_stage: Optional[str] = None
     created_at: datetime
@@ -69,6 +74,8 @@ class TaskGraphRead(BaseModel):
 
 class TaskConfigInput(BaseModel):
     device: str = "auto"
+    output_intent: str = "dub_final"
+    quality_preset: str = "standard"
     template: str = "asr-dub-basic"
     run_from_stage: str = "stage1"
     run_to_stage: str = "task-g"

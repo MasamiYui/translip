@@ -1,20 +1,48 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Download, PlayCircle, RotateCcw, Sparkles, Square, Trash2, Wand2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Captions,
+  Download,
+  Eraser,
+  Film,
+  Headphones,
+  Loader2,
+  Mic,
+  PlayCircle,
+  RotateCcw,
+  ScanText,
+  Sparkles,
+  Square,
+  Trash2,
+  Wand2,
+  X,
+  type LucideIcon,
+} from 'lucide-react'
 import { tasksApi } from '../api/tasks'
+import { subscribeToProgress } from '../api/progress'
 import { PageContainer } from '../components/layout/PageContainer'
 import { PipelineGraph } from '../components/pipeline/PipelineGraph'
-import { StatusBadge } from '../components/shared/StatusBadge'
 import { ProgressBar } from '../components/shared/ProgressBar'
+import { StatusBadge } from '../components/shared/StatusBadge'
 import { WorkflowNodeDrawer } from '../components/workflow/WorkflowNodeDrawer'
 import { useWorkflowGraph } from '../hooks/useWorkflowGraph'
 import { useWorkflowRuntimeUpdates } from '../hooks/useWorkflowRuntimeUpdates'
-import { formatBytes } from '../lib/utils'
-import { subscribeToProgress } from '../api/progress'
-import type { Artifact, Task, TaskConfig } from '../types'
 import { useI18n } from '../i18n/useI18n'
+import { getExportProfileLabel, getOutputIntentLabel, getQualityPresetLabel } from '../lib/taskPresentation'
+import { formatBytes } from '../lib/utils'
 import { resolveActiveStageId, resolveRerunStage } from './taskDetailSelection'
+import type {
+  Artifact,
+  Task,
+  TaskAssetEntry,
+  TaskConfig,
+  TaskDeliveryConfig,
+  TaskExportBlocker,
+  TaskExportProfile,
+} from '../types'
 
 const ARTIFACT_PREFIX: Record<string, string[]> = {
   stage1: ['stage1/', 'voice/', 'background/'],
@@ -26,19 +54,66 @@ const ARTIFACT_PREFIX: Record<string, string[]> = {
   'task-d': ['task-d/'],
   'task-e': ['task-e/voice/', 'task-e/'],
   'subtitle-erase': ['subtitle-erase/'],
-  'task-g': ['task-g/', 'delivery/'],
+  'task-g': ['task-g/', 'delivery/', 'preview/'],
+}
+
+const PROFILE_CONFIG: Record<
+  TaskExportProfile,
+  {
+    subtitleMode: TaskDeliveryConfig['subtitle_mode']
+    exportPreview: boolean
+    exportDub: boolean
+    videoLabel: string
+    audioLabel: string
+    description: string
+  }
+> = {
+  dub_no_subtitles: {
+    subtitleMode: 'none',
+    exportPreview: false,
+    exportDub: true,
+    videoLabel: '原始视频',
+    audioLabel: '正式配音音轨',
+    description: '导出正式配音成片，不烧录英文字幕。',
+  },
+  bilingual_review: {
+    subtitleMode: 'bilingual',
+    exportPreview: false,
+    exportDub: true,
+    videoLabel: '原始视频',
+    audioLabel: '正式配音音轨',
+    description: '保留原视频画面并叠加中英双语字幕，适合审片。',
+  },
+  english_subtitle_burned: {
+    subtitleMode: 'english_only',
+    exportPreview: false,
+    exportDub: true,
+    videoLabel: '干净画面',
+    audioLabel: '正式配音音轨',
+    description: '优先使用干净画面并烧录英文字幕，适合正式分发。',
+  },
+  preview_only: {
+    subtitleMode: 'none',
+    exportPreview: true,
+    exportDub: false,
+    videoLabel: '原始视频',
+    audioLabel: '预览混音音轨',
+    description: '快速生成可看片预览，优先验证整体结果。',
+  },
 }
 
 export function TaskDetailPage() {
-  const { t, formatDuration, getStageLabel } = useI18n()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { t, formatDuration, formatRelativeTime, getLanguageLabel, getStageLabel, locale } = useI18n()
+
   const [selectedNodeId, setSelectedNodeId] = useState<string | null | undefined>(undefined)
   const [rerunStage, setRerunStage] = useState<string | undefined>(undefined)
-  const [subtitleMode, setSubtitleMode] = useState<'none' | 'chinese_only' | 'english_only' | 'bilingual'>('none')
+  const [isExportDrawerOpen, setExportDrawerOpen] = useState(false)
+  const [exportProfile, setExportProfile] = useState<TaskExportProfile>('dub_no_subtitles')
   const [subtitleSource, setSubtitleSource] = useState<'ocr' | 'asr'>('ocr')
-  const [fontFamily, setFontFamily] = useState('Noto Sans')
+  const [fontFamily, setFontFamily] = useState('Noto Sans CJK SC')
   const [fontSize, setFontSize] = useState(0)
   const [subtitlePosition, setSubtitlePosition] = useState<'top' | 'bottom'>('bottom')
   const [marginV, setMarginV] = useState(0)
@@ -46,14 +121,15 @@ export function TaskDetailPage() {
   const [outlineColor, setOutlineColor] = useState('#000000')
   const [outlineWidth, setOutlineWidth] = useState(2)
   const [subtitleBold, setSubtitleBold] = useState(false)
-  const [previewPathOverride, setPreviewPathOverride] = useState<string>('')
+  const [previewDurationSec, setPreviewDurationSec] = useState(10)
 
   const { data: task, refetch } = useQuery({
     queryKey: ['task', id],
     queryFn: () => tasksApi.get(id!),
-    refetchInterval: (query) => {
-      const data = query.state.data as Task | undefined
-      return data?.status === 'running' || data?.status === 'pending' ? 3000 : false
+    enabled: Boolean(id),
+    refetchInterval: query => {
+      const current = query.state.data as Task | undefined
+      return current?.status === 'running' || current?.status === 'pending' ? 3000 : false
     },
   })
 
@@ -69,16 +145,17 @@ export function TaskDetailPage() {
   })
 
   useEffect(() => {
-    if (!id || !task) return
-    if (task.status !== 'running') return
-    const unsub = subscribeToProgress(id, event => {
+    if (!id || !task || task.status !== 'running') {
+      return
+    }
+    const unsubscribe = subscribeToProgress(id, event => {
       refetch()
       if (event.type === 'done') {
         queryClient.invalidateQueries({ queryKey: ['task-graph', id] })
         queryClient.invalidateQueries({ queryKey: ['artifacts', id] })
       }
     })
-    return unsub
+    return unsubscribe
   }, [id, queryClient, refetch, task])
 
   const stopMutation = useMutation({
@@ -92,7 +169,7 @@ export function TaskDetailPage() {
   })
 
   const rerunMutation = useMutation({
-    mutationFn: () => tasksApi.rerun(id!, effectiveRerunStage),
+    mutationFn: (fromStage: string) => tasksApi.rerun(id!, fromStage),
     onSuccess: newTask => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
       navigate(`/tasks/${newTask.id}`)
@@ -100,87 +177,83 @@ export function TaskDetailPage() {
   })
 
   const previewMutation = useMutation({
-    mutationFn: (payload: Parameters<typeof tasksApi.createSubtitlePreview>[1]) => tasksApi.createSubtitlePreview(id!, payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['artifacts', id] }),
-  })
-
-  const composeMutation = useMutation({
-    mutationFn: (payload: Parameters<typeof tasksApi.composeDelivery>[1]) => tasksApi.composeDelivery(id!, payload),
+    mutationFn: (payload: Parameters<typeof tasksApi.createSubtitlePreview>[1]) =>
+      tasksApi.createSubtitlePreview(id!, payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['artifacts', id] })
       queryClient.invalidateQueries({ queryKey: ['task', id] })
     },
   })
 
-  const elapsedSec = task?.elapsed_sec
+  const composeMutation = useMutation({
+    mutationFn: (payload: Parameters<typeof tasksApi.composeDelivery>[1]) =>
+      tasksApi.composeDelivery(id!, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['artifacts', id] })
+      queryClient.invalidateQueries({ queryKey: ['task', id] })
+    },
+  })
+
   const artifacts: Artifact[] = artifactsData?.artifacts ?? []
   const activeStageId = resolveActiveStageId(selectedNodeId, task?.current_stage, graph)
   const effectiveRerunStage = resolveRerunStage(rerunStage, task?.current_stage, graph)
-  const selectedNode = graph?.nodes.find(node => node.id === activeStageId) ?? null
-  const selectedStage = activeStageId && task
-    ? task.stages.find(stage => stage.stage_name === activeStageId) ?? null
+  const detailNode = selectedNodeId
+    ? graph?.nodes.find(node => node.id === selectedNodeId) ?? null
     : null
-  const isUserArtifact = (a: Artifact) => !a.path.endsWith('.ass') && !a.path.includes('.delivery-subtitles/')
-  const selectedArtifacts = selectedNode
-    ? artifacts.filter(artifact => (ARTIFACT_PREFIX[selectedNode.id] ?? []).some(prefix => artifact.path.startsWith(prefix)) && isUserArtifact(artifact))
+  const detailStage = selectedNodeId && task
+    ? task.stages.find(stage => stage.stage_name === selectedNodeId) ?? null
+    : null
+  const artifactStageId = selectedNodeId ?? activeStageId
+  const artifactNode = graph?.nodes.find(node => node.id === artifactStageId) ?? null
+
+  const selectedArtifacts = artifactNode
+    ? artifacts.filter(artifact => isUserArtifact(artifact) && (ARTIFACT_PREFIX[artifactNode.id] ?? []).some(prefix => artifact.path.startsWith(prefix)))
     : []
 
-  const deliveryPolicy = [
-    task?.config.video_source,
-    task?.config.audio_source,
-    task?.config.subtitle_source,
-  ].filter(Boolean).join(' · ')
+  useEffect(() => {
+    if (!task) {
+      return
+    }
+    setExportProfile(resolveInitialProfile(task))
+    setSubtitleSource(resolveInitialSubtitleSource(task))
+    setFontFamily(task.delivery_config.subtitle_font ?? 'Noto Sans CJK SC')
+    setFontSize(task.delivery_config.subtitle_font_size ?? 0)
+    setSubtitlePosition(task.delivery_config.subtitle_position ?? 'bottom')
+    setMarginV(task.delivery_config.subtitle_margin_v ?? 0)
+    setSubtitleColor(task.delivery_config.subtitle_color ?? '#FFFFFF')
+    setOutlineColor(task.delivery_config.subtitle_outline_color ?? '#000000')
+    setOutlineWidth(task.delivery_config.subtitle_outline_width ?? 2)
+    setSubtitleBold(Boolean(task.delivery_config.subtitle_bold))
+    setPreviewDurationSec(task.delivery_config.subtitle_preview_duration_sec ?? 10)
+  }, [task])
 
-  const preferredSubtitlePath = useMemo(() => {
-    const targetLang = task?.target_lang ?? 'en'
-    const candidates = subtitleSource === 'ocr'
-      ? [
-          'ocr-translate/ocr_subtitles.en.srt',
-          `ocr-translate/ocr_subtitles.${targetLang}.srt`,
-        ]
-      : [
-          `task-c/voice/translation.${targetLang}.srt`,
-          `task-c/translation.${targetLang}.srt`,
-        ]
-    return artifacts.find(artifact => candidates.some(candidate => artifact.path.endsWith(candidate)))?.path ?? ''
-  }, [artifacts, subtitleSource, task?.target_lang])
-
-  const previewTargetPath = previewPathOverride || preferredSubtitlePath
-  const deliveryConfig = task?.delivery_config ?? {}
-
-  const previewVideoArtifact = useMemo(
-    () => artifacts.find(artifact => artifact.path.endsWith('subtitle-preview.mp4')) ?? null,
-    [artifacts],
-  )
-
-  const previewFiles = artifacts.filter(artifact => isUserArtifact(artifact) && (artifact.path.startsWith('task-g/') || artifact.path.startsWith('delivery/'))).slice(0, 4)
-  const finalVideoArtifacts = previewFiles.filter(artifact => artifact.suffix === '.mp4')
+  const profileConfig = PROFILE_CONFIG[exportProfile]
+  const subtitleOptions = useMemo(() => {
+    if (!task) {
+      return []
+    }
+    const options: Array<{ value: 'ocr' | 'asr'; label: string; path: string }> = []
+    if (task.asset_summary.subtitles.ocr_translated.path) {
+      options.push({ value: 'ocr', label: 'OCR 翻译字幕', path: task.asset_summary.subtitles.ocr_translated.path })
+    }
+    if (task.asset_summary.subtitles.asr_translated.path) {
+      options.push({ value: 'asr', label: 'ASR 翻译字幕', path: task.asset_summary.subtitles.asr_translated.path })
+    }
+    return options
+  }, [task])
 
   useEffect(() => {
-    if (!task) return
-    setSubtitleMode((deliveryConfig.subtitle_mode as typeof subtitleMode | undefined) ?? 'none')
-    setSubtitleSource((deliveryConfig.subtitle_render_source as typeof subtitleSource | undefined) ?? 'ocr')
-    setFontFamily(deliveryConfig.subtitle_font ?? 'Noto Sans')
-    setFontSize(deliveryConfig.subtitle_font_size ?? 0)
-    setSubtitlePosition((deliveryConfig.subtitle_position as typeof subtitlePosition | undefined) ?? 'bottom')
-    setMarginV(deliveryConfig.subtitle_margin_v ?? 0)
-    setSubtitleColor(deliveryConfig.subtitle_color ?? '#FFFFFF')
-    setOutlineColor(deliveryConfig.subtitle_outline_color ?? '#000000')
-    setOutlineWidth(deliveryConfig.subtitle_outline_width ?? 2)
-    setSubtitleBold(Boolean(deliveryConfig.subtitle_bold))
-  }, [
-    task?.id,
-    deliveryConfig.subtitle_bold,
-    deliveryConfig.subtitle_color,
-    deliveryConfig.subtitle_font,
-    deliveryConfig.subtitle_font_size,
-    deliveryConfig.subtitle_margin_v,
-    deliveryConfig.subtitle_mode,
-    deliveryConfig.subtitle_outline_color,
-    deliveryConfig.subtitle_outline_width,
-    deliveryConfig.subtitle_position,
-    deliveryConfig.subtitle_render_source,
-  ])
+    if (subtitleOptions.length === 0) {
+      return
+    }
+    if (!subtitleOptions.some(option => option.value === subtitleSource)) {
+      setSubtitleSource(subtitleOptions[0].value)
+    }
+  }, [subtitleOptions, subtitleSource])
+
+  const selectedSubtitleOption = subtitleOptions.find(option => option.value === subtitleSource) ?? null
+  const previewArtifact = artifacts.find(artifact => artifact.path.endsWith('subtitle-preview.mp4')) ?? null
+  const exportFiles = task?.last_export_summary.files ?? []
 
   if (!task) {
     return (
@@ -190,18 +263,65 @@ export function TaskDetailPage() {
     )
   }
 
+  const readinessMessage = getReadinessMessage(task)
+  const canOpenExportDrawer = task.export_readiness.status === 'ready' || task.export_readiness.status === 'exported'
+  const canPreview = profileConfig.subtitleMode !== 'none' && Boolean(selectedSubtitleOption)
+  const previewVideoPath = resolvePreviewVideoPath(task, exportProfile)
+
+  function handlePreview() {
+    if (!selectedSubtitleOption) {
+      return
+    }
+    previewMutation.mutate({
+      input_video_path: previewVideoPath,
+      subtitle_path: selectedSubtitleOption.path,
+      font_family: fontFamily,
+      font_size: fontSize,
+      primary_color: subtitleColor,
+      outline_color: outlineColor,
+      outline_width: outlineWidth,
+      position: subtitlePosition,
+      margin_v: marginV,
+      bold: subtitleBold,
+      duration_sec: previewDurationSec,
+    })
+  }
+
+  function handleExport() {
+    composeMutation.mutate({
+      subtitle_mode: profileConfig.subtitleMode,
+      subtitle_source: subtitleSource,
+      font_family: fontFamily,
+      font_size: fontSize,
+      primary_color: subtitleColor,
+      outline_color: outlineColor,
+      outline_width: outlineWidth,
+      position: subtitlePosition,
+      margin_v: marginV,
+      bold: subtitleBold,
+      bilingual_chinese_position: 'bottom',
+      bilingual_english_position: subtitlePosition,
+      export_preview: profileConfig.exportPreview,
+      export_dub: profileConfig.exportDub,
+    })
+  }
+
+  function handleBlockerAction(blocker: TaskExportBlocker) {
+    const stage = blockerActionToStage(blocker.action, effectiveRerunStage)
+    if (!stage) {
+      return
+    }
+    rerunMutation.mutate(stage)
+  }
+
   return (
     <PageContainer className="max-w-6xl">
-      {/* Back link */}
       <Link to="/tasks" className="mb-5 flex w-fit items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600">
         <ArrowLeft size={14} />
         {t.taskDetail.backToList}
       </Link>
 
-      {/* Unified panel */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-
-        {/* ── Title section ── */}
         <div className="border-b border-slate-100 px-7 py-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -210,14 +330,13 @@ export function TaskDetailPage() {
             </div>
             <div className="flex items-center gap-2.5">
               <StatusBadge status={task.status} />
-              <span className="border-l border-slate-200 pl-2.5 text-xs font-medium text-slate-400 uppercase tracking-widest">
+              <span className="border-l border-slate-200 pl-2.5 text-xs font-medium uppercase tracking-widest text-slate-400">
                 {t.workflow.templates[templateId]}
               </span>
             </div>
           </div>
         </div>
 
-        {/* ── Progress + meta section ── */}
         <div className="border-b border-slate-100 px-7 py-5">
           <div className="mb-4 flex items-baseline gap-3">
             <span className="text-4xl font-bold tabular-nums text-slate-900">
@@ -243,28 +362,25 @@ export function TaskDetailPage() {
               {task.error_message}
             </div>
           )}
-          <div className="mt-5 flex flex-wrap gap-x-8 gap-y-3">
+          <div className="mt-5 grid gap-x-8 gap-y-3 md:grid-cols-2 xl:grid-cols-5">
             <MetaItem
               label={t.workflow.runtimeTitle}
               value={
                 task.status === 'running'
-                  ? t.taskDetail.runningFor(formatDuration(elapsedSec))
+                  ? t.taskDetail.runningFor(formatDuration(task.elapsed_sec))
                   : formatDuration(task.elapsed_sec)
               }
             />
-            <MetaItem label={t.newTask.summary.direction} value={`${task.source_lang} → ${task.target_lang}`} />
-            <MetaItem label={t.newTask.summary.template} value={t.workflow.templates[templateId]} />
-            <MetaItem label={t.newTask.summary.deliveryPolicy} value={deliveryPolicy || t.common.notAvailable} />
-            {task.current_stage && (
-              <MetaItem
-                label={t.taskDetail.currentStage('')}
-                value={selectedNode ? getStageLabel(selectedNode.id as keyof typeof t.stages) : getStageLabel((task.current_stage) as keyof typeof t.stages)}
-              />
-            )}
+            <MetaItem label={t.newTask.summary.direction} value={`${getLanguageLabel(task.source_lang)} → ${getLanguageLabel(task.target_lang)}`} />
+            <MetaItem label="成品目标" value={getOutputIntentLabel(task.output_intent, locale)} />
+            <MetaItem label="质量档位" value={getQualityPresetLabel(task.quality_preset, locale)} />
+            <MetaItem
+              label={t.taskDetail.currentStage('')}
+              value={task.current_stage ? getStageLabel(task.current_stage as keyof typeof t.stages) : t.common.notAvailable}
+            />
           </div>
         </div>
 
-        {/* ── Pipeline graph section ── */}
         <div className="border-b border-slate-100 px-7 py-5">
           <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
             <Sparkles size={12} />
@@ -294,221 +410,449 @@ export function TaskDetailPage() {
           )}
         </div>
 
-        {/* ── Delivery composer ── */}
         <div className="border-b border-slate-100 px-7 py-6">
           <div className="mb-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
             <Wand2 size={12} />
-            Delivery Composer
+            导出区
           </div>
-          <div className="grid gap-6 lg:grid-cols-[1.25fr_0.95fr]">
-            <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
-              <div className="grid gap-4 md:grid-cols-2">
-                <ComposerField label="字幕模式">
-                  <select value={subtitleMode} onChange={event => setSubtitleMode(event.target.value as typeof subtitleMode)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    <option value="none">不压字幕</option>
-                    <option value="chinese_only">仅中文</option>
-                    <option value="english_only">仅英文（擦中文）</option>
-                    <option value="bilingual">中英双语</option>
-                  </select>
-                </ComposerField>
-                <ComposerField label="英文字幕来源">
-                  <select value={subtitleSource} onChange={event => setSubtitleSource(event.target.value as typeof subtitleSource)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    <option value="ocr">OCR 翻译</option>
-                    <option value="asr">ASR 翻译</option>
-                  </select>
-                </ComposerField>
-                <ComposerField label="字体">
-                  <input value={fontFamily} onChange={event => setFontFamily(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" />
-                </ComposerField>
-                <ComposerField label="字号（0=自动）">
-                  <input value={fontSize} onChange={event => setFontSize(Number(event.target.value) || 0)} type="number" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" />
-                </ComposerField>
-                <ComposerField label="位置">
-                  <select value={subtitlePosition} onChange={event => setSubtitlePosition(event.target.value as typeof subtitlePosition)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm">
-                    <option value="bottom">底部</option>
-                    <option value="top">顶部</option>
-                  </select>
-                </ComposerField>
-                <ComposerField label="垂直边距（0=自动）">
-                  <input value={marginV} onChange={event => setMarginV(Number(event.target.value) || 0)} type="number" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" />
-                </ComposerField>
-                <ComposerField label="字幕颜色">
-                  <input value={subtitleColor} onChange={event => setSubtitleColor(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" />
-                </ComposerField>
-                <ComposerField label="描边颜色">
-                  <input value={outlineColor} onChange={event => setOutlineColor(event.target.value)} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" />
-                </ComposerField>
-                <ComposerField label="描边宽度">
-                  <input value={outlineWidth} onChange={event => setOutlineWidth(Number(event.target.value) || 2)} type="number" className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" />
-                </ComposerField>
-                <ComposerField label="字幕路径预览（可留空）">
-                  <input value={previewPathOverride} onChange={event => setPreviewPathOverride(event.target.value)} placeholder={preferredSubtitlePath || '自动从产物推断'} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm" />
-                </ComposerField>
-              </div>
-              <label className="mt-4 flex items-center gap-2 text-sm text-slate-700">
-                <input type="checkbox" checked={subtitleBold} onChange={event => setSubtitleBold(event.target.checked)} />
-                加粗字幕
-              </label>
-              <div className="mt-3 space-y-2 text-xs text-slate-500">
-                <StatusBadge status={previewMutation.isSuccess ? 'succeeded' : previewMutation.isError ? 'failed' : previewMutation.isPending ? 'running' : 'pending'} size="sm" />
-                <StatusBadge status={composeMutation.isSuccess ? 'succeeded' : composeMutation.isError ? 'failed' : composeMutation.isPending ? 'running' : 'pending'} size="sm" />
-                {preferredSubtitlePath ? <div>自动识别字幕：{preferredSubtitlePath}</div> : <div>当前未识别到可预览字幕文件。</div>}
-              </div>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button
-                  onClick={() => previewMutation.mutate({
-                    input_video_path: task.input_path,
-                    subtitle_path: previewTargetPath,
-                    font_family: fontFamily,
-                    font_size: fontSize,
-                    primary_color: subtitleColor,
-                    outline_color: outlineColor,
-                    outline_width: outlineWidth,
-                    position: subtitlePosition,
-                    margin_v: marginV,
-                    bold: subtitleBold,
-                    duration_sec: 10,
-                  })}
-                  disabled={!previewTargetPath || previewMutation.isPending}
-                  className="inline-flex items-center gap-2 rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-medium text-sky-700 transition hover:bg-sky-100 disabled:opacity-50"
-                >
-                  <PlayCircle size={16} />
-                  {previewMutation.isPending ? '预览生成中…' : '生成字幕预览'}
-                </button>
-                <button
-                  onClick={() => composeMutation.mutate({
-                    subtitle_mode: subtitleMode,
-                    subtitle_source: subtitleSource,
-                    font_family: fontFamily,
-                    font_size: fontSize,
-                    primary_color: subtitleColor,
-                    outline_color: outlineColor,
-                    outline_width: outlineWidth,
-                    position: subtitlePosition,
-                    margin_v: marginV,
-                    bold: subtitleBold,
-                    bilingual_chinese_position: 'bottom',
-                    bilingual_english_position: 'top',
-                    export_preview: true,
-                    export_dub: true,
-                  })}
-                  disabled={composeMutation.isPending}
-                  className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50"
-                >
-                  <Sparkles size={16} />
-                  {composeMutation.isPending ? '成品生成中…' : '生成成品视频'}
-                </button>
-              </div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="mb-3 text-sm font-semibold text-slate-900">预览与导出结果</div>
-              {previewVideoArtifact ? (
-                <video controls className="mb-4 w-full rounded-xl border border-slate-200 bg-black" src={`/api/tasks/${task.id}/artifacts/${previewVideoArtifact.path}`} />
-              ) : (
-                <div className="mb-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-400">生成字幕预览后，这里会直接播放结果。</div>
-              )}
-              <div className="space-y-2">
-                {finalVideoArtifacts.map(artifact => (
-                  <a key={artifact.path} href={`/api/tasks/${task.id}/artifacts/${artifact.path}`} className="flex items-center justify-between rounded-xl border border-slate-100 px-3 py-2 text-sm text-slate-700 transition hover:bg-slate-50">
-                    <span className="truncate">{artifact.path.split('/').pop()}</span>
-                    <span className="ml-3 shrink-0 text-xs text-slate-400">{formatBytes(artifact.size_bytes)}</span>
-                  </a>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* ── Artifacts + Actions section ── */}
-        <div className="grid sm:grid-cols-2 sm:divide-x divide-y sm:divide-y-0 divide-slate-100">
-          {/* Delivery Artifacts */}
-          <div className="px-7 py-5">
-            <div className="mb-3 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-              Delivery Artifacts
-            </div>
-            {previewFiles.length === 0 ? (
-              <div className="text-sm text-slate-400">{t.workflow.drawer.noArtifacts}</div>
-            ) : (
-              <div className="divide-y divide-slate-100">
-                {previewFiles.map(artifact => (
-                  <div key={artifact.path} className="flex items-center justify-between py-2.5 text-sm">
-                    <div className="min-w-0">
-                      <div className="truncate font-medium text-slate-700">{artifact.path.split('/').pop()}</div>
-                      <div className="text-xs text-slate-400">{formatBytes(artifact.size_bytes)}</div>
-                    </div>
-                    <a
-                      href={`/api/tasks/${task.id}/artifacts/${artifact.path}`}
-                      download
-                      className="ml-3 shrink-0 rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                    >
-                      <Download size={14} />
-                    </a>
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-lg font-semibold text-slate-900">导出状态</div>
+                    <div className="mt-1 text-sm leading-6 text-slate-600">{readinessMessage}</div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                  <ReadinessPill status={task.export_readiness.status} />
+                </div>
 
-          {/* Actions */}
-          <div className="px-7 py-5">
-            <div className="mb-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-              {t.taskDetail.actions}
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <QuickInfoChip label="推荐版本" value={getExportProfileLabel(task.export_readiness.recommended_profile, locale)} />
+                  <QuickInfoChip label="当前意图" value={getOutputIntentLabel(task.output_intent, locale)} />
+                  <QuickInfoChip label="上次导出" value={task.last_export_summary.status === 'exported' ? '已生成' : '尚未导出'} />
+                </div>
+
+                {task.export_readiness.blockers.length > 0 && (
+                  <div className="mt-5 space-y-3">
+                    {task.export_readiness.blockers.map(blocker => (
+                      <div key={blocker.code} className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <div>{blocker.message}</div>
+                            <div className="mt-3">
+                              <button
+                                type="button"
+                                onClick={() => handleBlockerAction(blocker)}
+                                disabled={rerunMutation.isPending}
+                                className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 disabled:opacity-60"
+                              >
+                                {rerunMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                                {blocker.action_label}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setExportDrawerOpen(true)}
+                    disabled={!canOpenExportDrawer}
+                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <Wand2 size={16} />
+                    导出成品
+                  </button>
+                  {task.last_export_summary.status === 'exported' && (
+                    <span className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                      最近一次导出时间：{task.last_export_summary.updated_at ? formatRelativeTime(task.last_export_summary.updated_at) : '刚刚'}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {(() => {
+                const assetRows: Array<{ icon: LucideIcon; title: string; description: string; entry: TaskAssetEntry }> = [
+                  { icon: Film, title: '原始视频', description: '所有任务的基础输入素材', entry: task.asset_summary.video.original },
+                  { icon: Eraser, title: '干净画面', description: '英文字幕版会优先使用', entry: task.asset_summary.video.clean },
+                  { icon: Mic, title: '正式配音音轨', description: '用于正式成片导出', entry: task.asset_summary.audio.dub },
+                  { icon: Headphones, title: '预览混音音轨', description: '用于快速验证版导出', entry: task.asset_summary.audio.preview },
+                  { icon: ScanText, title: 'OCR 英文字幕', description: '适合画面原有中文字幕翻译', entry: task.asset_summary.subtitles.ocr_translated },
+                  { icon: Captions, title: 'ASR 英文字幕', description: '适合语音转字幕链路', entry: task.asset_summary.subtitles.asr_translated },
+                ]
+                const readyCount = assetRows.filter(r => r.entry.status === 'available').length
+                return (
+                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
+                      <div className="text-sm font-semibold text-slate-900">成品素材清单</div>
+                      <div className="text-xs text-slate-500">
+                        已就绪{' '}
+                        <span className="font-semibold text-emerald-600">{readyCount}</span>
+                        <span className="text-slate-400"> / {assetRows.length}</span>
+                      </div>
+                    </div>
+                    <ul className="divide-y divide-slate-100">
+                      {assetRows.map(row => (
+                        <AssetStatusRow
+                          key={row.title}
+                          icon={row.icon}
+                          title={row.title}
+                          description={row.description}
+                          entry={row.entry}
+                        />
+                      ))}
+                    </ul>
+                  </div>
+                )
+              })()}
             </div>
-            <div className="flex flex-wrap gap-2.5">
-              <div className="flex items-center gap-2">
-                <select
-                  value={effectiveRerunStage}
-                  onChange={event => setRerunStage(event.target.value)}
-                  className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
-                >
-                  {task.stages.map(stage => (
-                    <option key={stage.stage_name} value={stage.stage_name}>
-                      {getStageLabel(stage.stage_name as keyof typeof t.stages)}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  onClick={() => rerunMutation.mutate()}
-                  disabled={rerunMutation.isPending}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-sky-200 bg-sky-50 px-3 py-1.5 text-sm font-medium text-sky-700 transition-colors hover:bg-sky-100 disabled:opacity-50"
-                >
-                  <RotateCcw size={13} />
-                  {t.taskDetail.rerunFromStage}
-                </button>
+
+            <div className="space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="text-sm font-semibold text-slate-900">最近导出结果</div>
+                {exportFiles.length === 0 ? (
+                  <div className="mt-3 text-sm text-slate-500">当前还没有导出的成品文件。</div>
+                ) : (
+                  <div className="mt-4 space-y-3">
+                    {exportFiles.map(file => (
+                      <a
+                        key={file.path}
+                        href={getArtifactHref(task.id, file.path)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                      >
+                        <div>
+                          <div className="font-medium text-slate-900">{file.label}</div>
+                          <div className="mt-1 text-xs text-slate-500">{file.path}</div>
+                        </div>
+                        <Download size={16} />
+                      </a>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              {(task.status === 'running' || task.status === 'pending') && (
-                <button
-                  onClick={() => stopMutation.mutate()}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-100"
-                >
-                  <Square size={13} />
-                  {t.taskDetail.stopTask}
-                </button>
-              )}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="mb-3 text-sm font-semibold text-slate-900">运行控制</div>
+                <div className="space-y-3">
+                  <label className="block">
+                    <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">重跑起点</div>
+                    <select
+                      value={rerunStage ?? effectiveRerunStage}
+                      onChange={event => setRerunStage(event.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                    >
+                      {(graph?.nodes ?? task.stages.map(stage => ({ id: stage.stage_name }))).map(node => (
+                        <option key={node.id} value={node.id}>
+                          {getStageLabel(node.id as keyof typeof t.stages)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-              <button
-                onClick={() => {
-                  if (confirm(t.taskDetail.deleteConfirm)) deleteMutation.mutate()
-                }}
-                className="inline-flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100"
-              >
-                <Trash2 size={13} />
-                {t.taskDetail.deleteTask}
-              </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => rerunMutation.mutate(effectiveRerunStage)}
+                      disabled={rerunMutation.isPending || task.status === 'running'}
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {rerunMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                      从所选阶段重跑
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => stopMutation.mutate()}
+                      disabled={stopMutation.isPending || task.status !== 'running'}
+                      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
+                    >
+                      <Square size={14} />
+                      停止任务
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm('确认删除这个任务吗？')) {
+                          deleteMutation.mutate()
+                        }
+                      }}
+                      disabled={deleteMutation.isPending || task.status === 'running'}
+                      className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-50"
+                    >
+                      <Trash2 size={14} />
+                      删除任务
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {selectedArtifacts.length > 0 && (
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="mb-3 text-sm font-semibold text-slate-900">当前阶段产物</div>
+                  <div className="space-y-2">
+                    {selectedArtifacts.slice(0, 5).map(artifact => (
+                      <div key={artifact.path} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
+                        <div className="min-w-0">
+                          <div className="truncate text-slate-900">{artifact.path}</div>
+                          <div className="text-xs text-slate-500">{formatBytes(artifact.size_bytes)}</div>
+                        </div>
+                        <a
+                          href={getArtifactHref(task.id, artifact.path)}
+                          className="ml-3 shrink-0 text-slate-400 transition-colors hover:text-slate-700"
+                        >
+                          <Download size={14} />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
-
       </div>
 
       <WorkflowNodeDrawer
-        node={selectedNode}
-        stage={selectedStage}
+        node={detailNode}
+        stage={detailStage}
         artifacts={selectedArtifacts}
         taskId={task.id}
         onClose={() => setSelectedNodeId(null)}
       />
+
+      {isExportDrawerOpen && (
+        <>
+          <button
+            type="button"
+            className="fixed inset-0 z-30 bg-slate-950/25"
+            onClick={() => setExportDrawerOpen(false)}
+            aria-label="关闭导出抽屉"
+          />
+          <aside className="fixed inset-y-0 right-0 z-40 flex w-full max-w-2xl flex-col border-l border-slate-200 bg-white shadow-[0_24px_80px_-38px_rgba(15,23,42,0.65)]">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">导出向导</div>
+                <h2 className="mt-2 text-xl font-semibold text-slate-900">导出成品</h2>
+                <div className="mt-1 text-sm text-slate-500">保持现有视觉风格，只把复杂配置收敛到这里。</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setExportDrawerOpen(false)}
+                className="rounded-md border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
+              <DrawerSection title="1. 选择导出版本">
+                <div className="grid gap-3 md:grid-cols-2">
+                  {(Object.keys(PROFILE_CONFIG) as TaskExportProfile[]).map(profile => (
+                    <button
+                      key={profile}
+                      type="button"
+                      onClick={() => setExportProfile(profile)}
+                      className={`rounded-xl border p-4 text-left transition-colors ${
+                        exportProfile === profile
+                          ? 'border-blue-500 bg-blue-50 shadow-sm'
+                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="text-sm font-semibold text-slate-900">{getExportProfileLabel(profile, locale)}</div>
+                      <div className="mt-1.5 text-sm leading-6 text-slate-600">{PROFILE_CONFIG[profile].description}</div>
+                    </button>
+                  ))}
+                </div>
+              </DrawerSection>
+
+              <DrawerSection title="2. 确认素材来源">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <SourceSummaryCard
+                    title="视频底板"
+                    value={profileConfig.videoLabel}
+                    entry={resolveVideoEntry(task, exportProfile)}
+                  />
+                  <SourceSummaryCard
+                    title="音轨来源"
+                    value={profileConfig.audioLabel}
+                    entry={resolveAudioEntry(task, exportProfile)}
+                  />
+                </div>
+
+                {profileConfig.subtitleMode !== 'none' ? (
+                  <label className="block">
+                    <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">英文字幕来源</div>
+                    <select
+                      value={subtitleSource}
+                      onChange={event => setSubtitleSource(event.target.value as 'ocr' | 'asr')}
+                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                    >
+                      {subtitleOptions.map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedSubtitleOption && (
+                      <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                        当前字幕文件：{selectedSubtitleOption.path}
+                      </div>
+                    )}
+                  </label>
+                ) : (
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                    当前导出版本不需要烧录英文字幕。
+                  </div>
+                )}
+              </DrawerSection>
+
+              <DrawerSection title="3. 选择字幕样式">
+                {profileConfig.subtitleMode === 'none' ? (
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                    当前导出版本不需要字幕样式配置。
+                  </div>
+                ) : (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <DrawerField label="字体">
+                      <input
+                        value={fontFamily}
+                        onChange={event => setFontFamily(event.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      />
+                    </DrawerField>
+                    <DrawerField label="字号（0=自动推荐）">
+                      <input
+                        type="number"
+                        value={fontSize}
+                        onChange={event => setFontSize(Number(event.target.value) || 0)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      />
+                    </DrawerField>
+                    <DrawerField label="字幕位置">
+                      <select
+                        value={subtitlePosition}
+                        onChange={event => setSubtitlePosition(event.target.value as 'top' | 'bottom')}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      >
+                        <option value="top">顶部</option>
+                        <option value="bottom">底部</option>
+                      </select>
+                    </DrawerField>
+                    <DrawerField label="垂直边距（0=自动推荐）">
+                      <input
+                        type="number"
+                        value={marginV}
+                        onChange={event => setMarginV(Number(event.target.value) || 0)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      />
+                    </DrawerField>
+                    <DrawerField label="字幕颜色">
+                      <input
+                        value={subtitleColor}
+                        onChange={event => setSubtitleColor(event.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      />
+                    </DrawerField>
+                    <DrawerField label="描边颜色">
+                      <input
+                        value={outlineColor}
+                        onChange={event => setOutlineColor(event.target.value)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      />
+                    </DrawerField>
+                    <DrawerField label="描边宽度">
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={outlineWidth}
+                        onChange={event => setOutlineWidth(Number(event.target.value) || 0)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      />
+                    </DrawerField>
+                    <DrawerField label="字幕加粗">
+                      <label className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={subtitleBold}
+                          onChange={event => setSubtitleBold(event.target.checked)}
+                        />
+                        使用加粗字幕
+                      </label>
+                    </DrawerField>
+                  </div>
+                )}
+              </DrawerSection>
+
+              <DrawerSection title="4. 预览并导出">
+                <div className="space-y-4">
+                  {profileConfig.subtitleMode !== 'none' && (
+                    <DrawerField label="预览时长（秒）">
+                      <input
+                        type="number"
+                        min="3"
+                        max="30"
+                        value={previewDurationSec}
+                        onChange={event => setPreviewDurationSec(Number(event.target.value) || 10)}
+                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                      />
+                    </DrawerField>
+                  )}
+
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={handlePreview}
+                      disabled={!canPreview || previewMutation.isPending}
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                    >
+                      {previewMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <PlayCircle size={15} />}
+                      生成字幕预览
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleExport}
+                      disabled={composeMutation.isPending}
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {composeMutation.isPending ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                      导出成品
+                    </button>
+                  </div>
+
+                  {previewArtifact && (
+                    <a
+                      href={getArtifactHref(task.id, previewArtifact.path)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                    >
+                      <div>
+                        <div className="font-medium text-slate-900">最新字幕预览</div>
+                        <div className="mt-1 text-xs text-slate-500">{previewArtifact.path}</div>
+                      </div>
+                      <Download size={16} />
+                    </a>
+                  )}
+
+                  {(previewMutation.isError || composeMutation.isError) && (
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                      {previewMutation.isError
+                        ? '字幕预览生成失败，请检查素材来源和样式配置。'
+                        : '成品导出失败，请检查任务产物是否完整。'}
+                    </div>
+                  )}
+                </div>
+              </DrawerSection>
+            </div>
+          </aside>
+        </>
+      )}
     </PageContainer>
   )
 }
@@ -524,6 +868,99 @@ function normalizeTemplateId(value: unknown): TaskConfig['template'] {
   return 'asr-dub-basic'
 }
 
+function resolveInitialProfile(task: Task): TaskExportProfile {
+  if (task.last_export_summary.profile) {
+    return task.last_export_summary.profile
+  }
+  const mode = task.delivery_config.subtitle_mode
+  if (mode === 'english_only') {
+    return 'english_subtitle_burned'
+  }
+  if (mode === 'bilingual') {
+    return 'bilingual_review'
+  }
+  if (task.output_intent === 'fast_validation') {
+    return 'preview_only'
+  }
+  return task.export_readiness.recommended_profile
+}
+
+function resolveInitialSubtitleSource(task: Task): 'ocr' | 'asr' {
+  if (task.delivery_config.subtitle_render_source) {
+    return task.delivery_config.subtitle_render_source
+  }
+  if (task.asset_summary.subtitles.ocr_translated.path) {
+    return 'ocr'
+  }
+  return 'asr'
+}
+
+function resolvePreviewVideoPath(task: Task, profile: TaskExportProfile): string {
+  if (profile === 'english_subtitle_burned' && task.asset_summary.video.clean.path) {
+    return resolveTaskPath(task, task.asset_summary.video.clean.path)
+  }
+  return task.input_path
+}
+
+function resolveTaskPath(task: Task, path: string): string {
+  if (path.startsWith('/')) {
+    return path
+  }
+  return `${task.output_root.replace(/\/$/, '')}/${path}`
+}
+
+function resolveVideoEntry(task: Task, profile: TaskExportProfile): TaskAssetEntry {
+  if (profile === 'english_subtitle_burned') {
+    return task.asset_summary.video.clean
+  }
+  return task.asset_summary.video.original
+}
+
+function resolveAudioEntry(task: Task, profile: TaskExportProfile): TaskAssetEntry {
+  if (profile === 'preview_only') {
+    return task.asset_summary.audio.preview
+  }
+  return task.asset_summary.audio.dub
+}
+
+function blockerActionToStage(action: string, fallbackStage: string): string | null {
+  switch (action) {
+    case 'rerun_subtitle_erase':
+      return 'subtitle-erase'
+    case 'rerun_subtitle_generation':
+      return 'task-c'
+    case 'rerun_audio_pipeline':
+      return 'task-e'
+    case 'rerun_task':
+      return fallbackStage
+    default:
+      return null
+  }
+}
+
+function getReadinessMessage(task: Task): string {
+  switch (task.export_readiness.summary) {
+    case 'ready_for_export':
+      return '当前素材已经满足推荐导出条件，可以直接生成成品视频。'
+    case 'already_exported':
+      return '当前任务已经导出过成品，你可以继续调整样式并重新导出。'
+    case 'task_running':
+      return '任务仍在运行中，关键素材生成完毕后这里会自动开放导出。'
+    case 'task_failed':
+      return '任务尚未成功完成，请先处理失败阶段后再导出。'
+    default:
+      return '当前还缺少导出所需素材，请先补齐对应链路。'
+  }
+}
+
+function getArtifactHref(taskId: string, path: string): string {
+  return `/api/tasks/${taskId}/artifacts/${path}`
+}
+
+function isUserArtifact(artifact: Artifact) {
+  return !artifact.path.endsWith('.ass') && !artifact.path.includes('.delivery-subtitles/')
+}
+
 function MetaItem({ label, value }: { label: string; value: string }) {
   return (
     <div>
@@ -533,11 +970,136 @@ function MetaItem({ label, value }: { label: string; value: string }) {
   )
 }
 
-function ComposerField({ label, children }: { label: string; children: React.ReactNode }) {
+function ReadinessPill({ status }: { status: Task['export_readiness']['status'] }) {
+  const cls = {
+    ready: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    exported: 'border-blue-200 bg-blue-50 text-blue-700',
+    blocked: 'border-amber-200 bg-amber-50 text-amber-700',
+    not_ready: 'border-slate-200 bg-slate-100 text-slate-600',
+    exporting: 'border-blue-200 bg-blue-50 text-blue-700',
+  }[status]
+
+  const label = {
+    ready: '可直接导出',
+    exported: '已导出',
+    blocked: '存在阻塞',
+    not_ready: '等待素材',
+    exporting: '导出中',
+  }[status]
+
+  return (
+    <span className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-medium ${cls}`}>
+      {label}
+    </span>
+  )
+}
+
+function QuickInfoChip({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="whitespace-nowrap rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-600 shadow-sm">
+      <span className="text-slate-400">{label}：</span>
+      <span className="font-medium text-slate-700">{value}</span>
+    </div>
+  )
+}
+
+function AssetStatusRow({
+  icon: Icon,
+  title,
+  description,
+  entry,
+}: {
+  icon: LucideIcon
+  title: string
+  description: string
+  entry: TaskAssetEntry
+}) {
+  const isAvailable = entry.status === 'available'
+  return (
+    <li className="flex items-center gap-4 px-5 py-3.5">
+      <div
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+          isAvailable ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'
+        }`}
+      >
+        <Icon size={16} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-sm font-medium text-slate-900">{title}</span>
+            <span className="truncate text-xs text-slate-400">· {description}</span>
+          </div>
+          <AssetStatusPill status={entry.status} />
+        </div>
+        <div
+          className="mt-1 truncate font-mono text-[11px] text-slate-400"
+          title={entry.path ?? undefined}
+        >
+          {entry.path ?? '当前还没有生成对应文件'}
+        </div>
+      </div>
+    </li>
+  )
+}
+
+function AssetStatusPill({ status }: { status: TaskAssetEntry['status'] }) {
+  const cls = {
+    available: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+    missing: 'border-slate-200 bg-slate-100 text-slate-600',
+    building: 'border-blue-200 bg-blue-50 text-blue-700',
+    failed: 'border-rose-200 bg-rose-50 text-rose-700',
+  }[status]
+
+  const label = {
+    available: '已就绪',
+    missing: '缺失',
+    building: '生成中',
+    failed: '失败',
+  }[status]
+
+  return (
+    <span className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${cls}`}>
+      {label}
+    </span>
+  )
+}
+
+function DrawerSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="text-sm font-semibold text-slate-900">{title}</div>
+      {children}
+    </section>
+  )
+}
+
+function DrawerField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <label className="block">
       <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">{label}</div>
       {children}
     </label>
+  )
+}
+
+function SourceSummaryCard({
+  title,
+  value,
+  entry,
+}: {
+  title: string
+  value: string
+  entry: TaskAssetEntry
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-semibold text-slate-900">{title}</div>
+        <AssetStatusPill status={entry.status} />
+      </div>
+      <div className="mt-2 text-sm text-slate-700">{value}</div>
+      <div className="mt-2 text-xs text-slate-500">{entry.path ?? '当前还没有对应素材'}</div>
+    </div>
   )
 }

@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { configApi, systemApi } from '../../api/config'
+import { configApi } from '../../api/config'
 import { tasksApi } from '../../api/tasks'
 import { I18nProvider } from '../../i18n/I18nProvider'
 import { NewTaskPage } from '../NewTaskPage'
@@ -53,16 +53,14 @@ function renderStepTwo() {
   fireEvent.click(screen.getByRole('button', { name: '下一步' }))
 }
 
-function getStepTwoSelects() {
-  const selects = screen.getAllByRole('combobox') as HTMLSelectElement[]
-  return {
-    template: selects[0],
-    subtitleSource: selects[1],
-    videoSource: selects[2],
-    audioSource: selects[3],
-    fromStage: selects[4],
-    toStage: selects[5],
-  }
+function renderReviewStep() {
+  render(<NewTaskPage />, { wrapper: createWrapper() })
+  fireEvent.change(screen.getByPlaceholderText('/path/to/video.mp4'), {
+    target: { value: '/tmp/demo.mp4' },
+  })
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+  fireEvent.click(screen.getByRole('button', { name: '下一步' }))
 }
 
 afterEach(() => {
@@ -70,37 +68,34 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe('NewTaskPage defaults', () => {
-  it('defaults the execution range to task-g', async () => {
+describe('NewTaskPage redesigned flow', () => {
+  it('shows output intent cards and updates the summary based on the selected result', async () => {
     vi.mocked(configApi.getPresets).mockResolvedValue([])
     vi.mocked(tasksApi.create).mockResolvedValue({ id: 'task-1' } as never)
 
     renderStepTwo()
 
-    const { toStage } = getStepTwoSelects()
-    expect(toStage).toHaveValue('task-g')
+    expect(screen.getByText('英文配音成片')).toBeInTheDocument()
+    expect(screen.getByText('中英双语审片版')).toBeInTheDocument()
+    expect(screen.getByText('英文字幕版')).toBeInTheDocument()
+    expect(screen.getByText('快速验证版')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /英文字幕版/ }))
+
+    expect(screen.getByText('本次任务将生成：')).toBeInTheDocument()
+    expect(screen.getByText('优先干净画面 + 英文字幕')).toBeInTheDocument()
+    expect(screen.getByText('OCR 字幕链路、导出预览能力')).toBeInTheDocument()
   })
 
-  it('switches erase template to clean-if-available video while preserving manual overrides', async () => {
+  it('keeps developer execution controls hidden by default on the creation flow', async () => {
     vi.mocked(configApi.getPresets).mockResolvedValue([])
-    vi.mocked(systemApi.probe).mockResolvedValue({} as never)
 
     renderStepTwo()
 
-    const { template, videoSource, toStage } = getStepTwoSelects()
-    expect(videoSource).toHaveValue('original')
-    expect(toStage).toHaveValue('task-g')
-
-    fireEvent.change(template, { target: { value: 'asr-dub+ocr-subs+erase' } })
-    expect(videoSource).toHaveValue('clean_if_available')
-    expect(toStage).toHaveValue('task-g')
-
-    fireEvent.change(videoSource, { target: { value: 'clean' } })
-    fireEvent.change(toStage, { target: { value: 'task-e' } })
-    fireEvent.change(template, { target: { value: 'asr-dub-basic' } })
-
-    expect(videoSource).toHaveValue('clean')
-    expect(toStage).toHaveValue('task-e')
+    expect(screen.queryByText('工作流模板')).not.toBeInTheDocument()
+    expect(screen.queryByText('从阶段')).not.toBeInTheDocument()
+    expect(screen.queryByText('到阶段')).not.toBeInTheDocument()
+    expect(screen.queryByText('字幕输入策略')).not.toBeInTheDocument()
   })
 
   it('keeps delivery-only subtitle styling out of the new task flow', async () => {
@@ -114,5 +109,14 @@ describe('NewTaskPage defaults', () => {
     expect(screen.queryByText('字幕字号（0=自动推荐）')).not.toBeInTheDocument()
     expect(screen.queryByText('字幕位置')).not.toBeInTheDocument()
     expect(screen.queryByText('字幕颜色')).not.toBeInTheDocument()
+  })
+
+  it('keeps a single create action and still shows the workflow preview on the review step', async () => {
+    vi.mocked(configApi.getPresets).mockResolvedValue([])
+
+    renderReviewStep()
+
+    expect(screen.getAllByRole('button', { name: '创建任务' })).toHaveLength(1)
+    expect(screen.getByText('处理预览')).toBeInTheDocument()
   })
 })

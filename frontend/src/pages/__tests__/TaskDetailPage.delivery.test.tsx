@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
@@ -41,8 +41,8 @@ function createWrapper() {
   }
 }
 
-describe('TaskDetailPage delivery composer', () => {
-  it('renders composer controls and preview section', async () => {
+describe('TaskDetailPage export workflow', () => {
+  it('shows export readiness instead of the inline delivery composer and opens the export drawer', async () => {
     vi.mocked(tasksApi.get).mockResolvedValue({
       id: 'task-1',
       name: 'Demo task',
@@ -51,10 +51,12 @@ describe('TaskDetailPage delivery composer', () => {
       output_root: '/tmp/output',
       source_lang: 'zh',
       target_lang: 'en',
-      config: { template: 'asr-dub-basic', video_source: 'original', audio_source: 'both', subtitle_source: 'asr' },
+      output_intent: 'english_subtitle',
+      quality_preset: 'high_quality',
+      config: { template: 'asr-dub+ocr-subs+erase', video_source: 'clean_if_available', audio_source: 'both', subtitle_source: 'both' },
       delivery_config: {
-        subtitle_mode: 'bilingual',
-        subtitle_render_source: 'asr',
+        subtitle_mode: 'english_only',
+        subtitle_render_source: 'ocr',
         subtitle_font: 'Source Han Sans',
         subtitle_font_size: 36,
         subtitle_position: 'top',
@@ -64,6 +66,37 @@ describe('TaskDetailPage delivery composer', () => {
         subtitle_outline_width: 3,
         subtitle_bold: true,
       },
+      asset_summary: {
+        video: {
+          original: { status: 'available', path: '/tmp/demo.mp4' },
+          clean: { status: 'available', path: 'subtitle-erase/clean_video.mp4' },
+        },
+        audio: {
+          preview: { status: 'available', path: 'task-e/voice/preview_mix.en.wav' },
+          dub: { status: 'available', path: 'task-e/voice/dub_voice.en.wav' },
+        },
+        subtitles: {
+          ocr_translated: { status: 'available', path: 'ocr-translate/ocr_subtitles.en.srt' },
+          asr_translated: { status: 'available', path: 'task-c/voice/translation.en.srt' },
+        },
+        exports: {
+          subtitle_preview: { status: 'missing', path: null },
+          final_preview: { status: 'missing', path: null },
+          final_dub: { status: 'missing', path: null },
+        },
+      },
+      export_readiness: {
+        status: 'ready',
+        recommended_profile: 'english_subtitle_burned',
+        summary: 'ready_for_export',
+        blockers: [],
+      },
+      last_export_summary: {
+        status: 'not_exported',
+        profile: null,
+        updated_at: null,
+        files: [],
+      },
       overall_progress: 100,
       current_stage: 'task-g',
       created_at: '2026-04-16T00:00:00Z',
@@ -71,28 +104,97 @@ describe('TaskDetailPage delivery composer', () => {
       stages: [{ stage_name: 'task-g', status: 'succeeded', progress_percent: 100, cache_hit: false }],
     } as never)
 
-    vi.mocked(tasksApi.listArtifacts).mockResolvedValue({
-      artifacts: [
-        { path: 'ocr-translate/ocr_subtitles.en.srt', size_bytes: 100, suffix: '.srt' },
-        { path: 'task-g/final-preview/final_preview.en.mp4', size_bytes: 5000, suffix: '.mp4' },
-      ],
-    } as never)
-
+    vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
     vi.mocked(tasksApi.getGraph).mockResolvedValue({
-      workflow: { template_id: 'asr-dub-basic', status: 'succeeded' },
+      workflow: { template_id: 'asr-dub+ocr-subs+erase', status: 'succeeded' },
       nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
       edges: [],
     } as never)
 
     render(<TaskDetailPage />, { wrapper: createWrapper() })
 
-    expect(await screen.findByText('Delivery Composer')).toBeInTheDocument()
-    expect(screen.getByText('生成字幕预览')).toBeInTheDocument()
-    expect(screen.getByText('生成成品视频')).toBeInTheDocument()
-    expect(screen.getByText('预览与导出结果')).toBeInTheDocument()
+    expect(await screen.findByText('导出成品')).toBeInTheDocument()
+    expect(screen.queryByText('Delivery Composer')).not.toBeInTheDocument()
+    expect(screen.queryByText('节点详情')).not.toBeInTheDocument()
+    expect(screen.getByText('当前素材已经满足推荐导出条件，可以直接生成成品视频。')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '导出成品' }))
+
+    expect(await screen.findByText('1. 选择导出版本')).toBeInTheDocument()
+    expect(screen.getByText('2. 确认素材来源')).toBeInTheDocument()
+    expect(screen.getByText('3. 选择字幕样式')).toBeInTheDocument()
+    expect(screen.getByText('4. 预览并导出')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Source Han Sans')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('36')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('#FFEEAA')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('#111111')).toBeInTheDocument()
+  })
+
+  it('surfaces blockers for tasks that still need more assets before export', async () => {
+    vi.mocked(tasksApi.get).mockResolvedValue({
+      id: 'task-2',
+      name: 'Blocked task',
+      status: 'succeeded',
+      input_path: '/tmp/demo.mp4',
+      output_root: '/tmp/output',
+      source_lang: 'zh',
+      target_lang: 'en',
+      output_intent: 'english_subtitle',
+      quality_preset: 'standard',
+      config: { template: 'asr-dub+ocr-subs+erase', video_source: 'clean_if_available', audio_source: 'both', subtitle_source: 'both' },
+      delivery_config: {},
+      asset_summary: {
+        video: {
+          original: { status: 'available', path: '/tmp/demo.mp4' },
+          clean: { status: 'missing', path: null },
+        },
+        audio: {
+          preview: { status: 'available', path: 'task-e/voice/preview_mix.en.wav' },
+          dub: { status: 'available', path: 'task-e/voice/dub_voice.en.wav' },
+        },
+        subtitles: {
+          ocr_translated: { status: 'available', path: 'ocr-translate/ocr_subtitles.en.srt' },
+          asr_translated: { status: 'missing', path: null },
+        },
+        exports: {
+          subtitle_preview: { status: 'missing', path: null },
+          final_preview: { status: 'missing', path: null },
+          final_dub: { status: 'missing', path: null },
+        },
+      },
+      export_readiness: {
+        status: 'blocked',
+        recommended_profile: 'english_subtitle_burned',
+        summary: 'missing_required_assets',
+        blockers: [
+          {
+            code: 'missing_clean_video',
+            message: '当前没有干净画面，无法导出英文字幕版。',
+            action: 'rerun_subtitle_erase',
+            action_label: '补跑擦字幕',
+          },
+        ],
+      },
+      last_export_summary: {
+        status: 'not_exported',
+        profile: null,
+        updated_at: null,
+        files: [],
+      },
+      overall_progress: 100,
+      current_stage: 'task-g',
+      created_at: '2026-04-16T00:00:00Z',
+      updated_at: '2026-04-16T00:00:00Z',
+      stages: [{ stage_name: 'task-g', status: 'succeeded', progress_percent: 100, cache_hit: false }],
+    } as never)
+
+    vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
+    vi.mocked(tasksApi.getGraph).mockResolvedValue({
+      workflow: { template_id: 'asr-dub+ocr-subs+erase', status: 'succeeded' },
+      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      edges: [],
+    } as never)
+
+    render(<TaskDetailPage />, { wrapper: createWrapper() })
+
+    expect(await screen.findByText('当前没有干净画面，无法导出英文字幕版。')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '补跑擦字幕' })).toBeInTheDocument()
   })
 })

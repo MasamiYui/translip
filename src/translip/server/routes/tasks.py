@@ -24,6 +24,13 @@ from ..task_config import (
     normalize_task_delivery_config,
     normalize_task_storage,
 )
+from ..task_read_model import (
+    build_asset_summary,
+    build_export_readiness,
+    build_last_export_summary,
+    infer_output_intent,
+    infer_quality_preset,
+)
 from ..task_manager import task_manager
 
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
@@ -32,6 +39,18 @@ router = APIRouter(prefix="/api/tasks", tags=["tasks"])
 def _task_to_read(task: Task, stages: list[TaskStage]) -> TaskRead:
     pipeline_config = normalize_task_config(task.config)
     delivery_config = normalize_task_delivery_config(task.config)
+    output_intent = infer_output_intent(task.config)
+    quality_preset = infer_quality_preset(task.config)
+    asset_summary = build_asset_summary(task)
+    export_readiness = build_export_readiness(
+        task,
+        output_intent=output_intent,
+        asset_summary=asset_summary,
+    )
+    last_export_summary = build_last_export_summary(
+        task,
+        asset_summary=asset_summary,
+    )
     return TaskRead(
         id=task.id,
         name=task.name,
@@ -40,8 +59,13 @@ def _task_to_read(task: Task, stages: list[TaskStage]) -> TaskRead:
         output_root=task.output_root,
         source_lang=task.source_lang,
         target_lang=task.target_lang,
+        output_intent=output_intent,
+        quality_preset=quality_preset,
         config=pipeline_config,
         delivery_config=delivery_config,
+        asset_summary=asset_summary,
+        export_readiness=export_readiness,
+        last_export_summary=last_export_summary,
         overall_progress=task.overall_progress,
         current_stage=task.current_stage,
         created_at=task.created_at,
