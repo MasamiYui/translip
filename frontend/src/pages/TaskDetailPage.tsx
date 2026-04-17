@@ -411,202 +411,203 @@ export function TaskDetailPage() {
         </div>
 
         <div className="border-b border-slate-100 px-7 py-6">
-          <div className="mb-4 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+          <div className="mb-5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
             <Wand2 size={12} />
             导出区
           </div>
-          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="text-lg font-semibold text-slate-900">导出状态</div>
-                    <div className="mt-1 text-sm leading-6 text-slate-600">{readinessMessage}</div>
-                  </div>
-                  <ReadinessPill status={task.export_readiness.status} />
-                </div>
 
-                <div className="mt-4 flex flex-wrap gap-3">
-                  <QuickInfoChip label="推荐版本" value={getExportProfileLabel(task.export_readiness.recommended_profile, locale)} />
-                  <QuickInfoChip label="当前意图" value={getOutputIntentLabel(task.output_intent, locale)} />
-                  <QuickInfoChip label="上次导出" value={task.last_export_summary.status === 'exported' ? '已生成' : '尚未导出'} />
+          {/* 主行动区：导出状态 + 成品下载并列 */}
+          <div className="grid gap-0 lg:grid-cols-[1fr_1fr]">
+            {/* 左：导出状态 + 操作 */}
+            <div className="border-b border-slate-100 pb-5 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-slate-900">导出状态</div>
+                  <div className="mt-1 text-sm leading-6 text-slate-500">{readinessMessage}</div>
                 </div>
-
-                {task.export_readiness.blockers.length > 0 && (
-                  <div className="mt-5 space-y-3">
-                    {task.export_readiness.blockers.map(blocker => (
-                      <div key={blocker.code} className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                        <div className="flex items-start gap-2">
-                          <AlertTriangle size={16} className="mt-0.5 shrink-0" />
-                          <div className="min-w-0 flex-1">
-                            <div>{blocker.message}</div>
-                            <div className="mt-3">
-                              <button
-                                type="button"
-                                onClick={() => handleBlockerAction(blocker)}
-                                disabled={rerunMutation.isPending}
-                                className="inline-flex items-center gap-2 rounded-lg border border-amber-300 bg-white px-3 py-2 text-sm font-medium text-amber-800 transition-colors hover:bg-amber-100 disabled:opacity-60"
-                              >
-                                {rerunMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
-                                {blocker.action_label}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setExportDrawerOpen(true)}
-                    disabled={!canOpenExportDrawer}
-                    className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Wand2 size={16} />
-                    导出成品
-                  </button>
-                  {task.last_export_summary.status === 'exported' && (
-                    <span className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                      最近一次导出时间：{task.last_export_summary.updated_at ? formatRelativeTime(task.last_export_summary.updated_at) : '刚刚'}
-                    </span>
-                  )}
-                </div>
+                <ReadinessPill status={task.export_readiness.status} />
               </div>
 
-              {(() => {
-                const assetRows: Array<{ icon: LucideIcon; title: string; description: string; entry: TaskAssetEntry }> = [
-                  { icon: Film, title: '原始视频', description: '所有任务的基础输入素材', entry: task.asset_summary.video.original },
-                  { icon: Eraser, title: '干净画面', description: '英文字幕版会优先使用', entry: task.asset_summary.video.clean },
-                  { icon: Mic, title: '正式配音音轨', description: '用于正式成片导出', entry: task.asset_summary.audio.dub },
-                  { icon: Headphones, title: '预览混音音轨', description: '用于快速验证版导出', entry: task.asset_summary.audio.preview },
-                  { icon: ScanText, title: 'OCR 英文字幕', description: '适合画面原有中文字幕翻译', entry: task.asset_summary.subtitles.ocr_translated },
-                  { icon: Captions, title: 'ASR 英文字幕', description: '适合语音转字幕链路', entry: task.asset_summary.subtitles.asr_translated },
-                ]
-                const readyCount = assetRows.filter(r => r.entry.status === 'available').length
-                return (
-                  <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                    <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5">
-                      <div className="text-sm font-semibold text-slate-900">成品素材清单</div>
-                      <div className="text-xs text-slate-500">
-                        已就绪{' '}
-                        <span className="font-semibold text-emerald-600">{readyCount}</span>
-                        <span className="text-slate-400"> / {assetRows.length}</span>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
+                <span>推荐版本：<span className="font-medium text-slate-700">{getExportProfileLabel(task.export_readiness.recommended_profile, locale)}</span></span>
+                <span className="text-slate-300">·</span>
+                <span>成品目标：<span className="font-medium text-slate-700">{getOutputIntentLabel(task.output_intent, locale)}</span></span>
+                {task.last_export_summary.status === 'exported' && (
+                  <>
+                    <span className="text-slate-300">·</span>
+                    <span>上次导出：<span className="font-medium text-slate-700">{task.last_export_summary.updated_at ? formatRelativeTime(task.last_export_summary.updated_at) : '刚刚'}</span></span>
+                  </>
+                )}
+              </div>
+
+              {task.export_readiness.blockers.length > 0 && (
+                <div className="mt-4 space-y-2.5">
+                  {task.export_readiness.blockers.map(blocker => (
+                    <div key={blocker.code} className="flex items-start gap-2.5 rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+                      <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <div>{blocker.message}</div>
+                        <button
+                          type="button"
+                          onClick={() => handleBlockerAction(blocker)}
+                          disabled={rerunMutation.isPending}
+                          className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 underline-offset-2 hover:underline disabled:opacity-60"
+                        >
+                          {rerunMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                          {blocker.action_label}
+                        </button>
                       </div>
                     </div>
-                    <ul className="divide-y divide-slate-100">
-                      {assetRows.map(row => (
-                        <AssetStatusRow
-                          key={row.title}
-                          icon={row.icon}
-                          title={row.title}
-                          description={row.description}
-                          entry={row.entry}
-                        />
-                      ))}
-                    </ul>
-                  </div>
-                )
-              })()}
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-5">
+                <button
+                  type="button"
+                  onClick={() => setExportDrawerOpen(true)}
+                  disabled={!canOpenExportDrawer}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Wand2 size={14} />
+                  导出成品
+                </button>
+              </div>
             </div>
 
-            <div className="space-y-4">
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="text-sm font-semibold text-slate-900">最近导出结果</div>
-                {exportFiles.length === 0 ? (
-                  <div className="mt-3 text-sm text-slate-500">当前还没有导出的成品文件。</div>
-                ) : (
-                  <div className="mt-4 space-y-3">
-                    {exportFiles.map(file => (
-                      <a
-                        key={file.path}
-                        href={getArtifactHref(task.id, file.path)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-700 transition-colors hover:bg-slate-50"
-                      >
-                        <div>
-                          <div className="font-medium text-slate-900">{file.label}</div>
-                          <div className="mt-1 text-xs text-slate-500">{file.path}</div>
-                        </div>
-                        <Download size={16} />
-                      </a>
+            {/* 右：最近导出结果 */}
+            <div className="pt-5 lg:pl-8 lg:pt-0">
+              <div className="text-sm font-semibold text-slate-900">最近导出结果</div>
+              {exportFiles.length === 0 ? (
+                <div className="mt-2 text-sm text-slate-400">当前还没有导出的成品文件。</div>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {exportFiles.map(file => (
+                    <a
+                      key={file.path}
+                      href={getArtifactHref(task.id, file.path)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center justify-between gap-4 py-2 text-sm text-slate-700 transition-colors hover:text-slate-900"
+                    >
+                      <div className="min-w-0">
+                        <div className="font-medium">{file.label}</div>
+                        <div className="mt-0.5 truncate text-xs text-slate-400">{file.path}</div>
+                      </div>
+                      <Download size={14} className="shrink-0 text-slate-400" />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 成品素材清单 + 运行控制 */}
+          <div className="mt-6 grid gap-8 border-t border-slate-100 pt-6 lg:grid-cols-[1fr_auto]">
+            {/* 素材清单：2列紧凑网格 */}
+            {(() => {
+              const assetRows: Array<{ icon: LucideIcon; title: string; description: string; entry: TaskAssetEntry }> = [
+                { icon: Film, title: '原始视频', description: '所有任务的基础输入素材', entry: task.asset_summary.video.original },
+                { icon: Eraser, title: '干净画面', description: '英文字幕版会优先使用', entry: task.asset_summary.video.clean },
+                { icon: Mic, title: '正式配音音轨', description: '用于正式成片导出', entry: task.asset_summary.audio.dub },
+                { icon: Headphones, title: '预览混音音轨', description: '用于快速验证版导出', entry: task.asset_summary.audio.preview },
+                { icon: ScanText, title: 'OCR 英文字幕', description: '适合画面原有中文字幕翻译', entry: task.asset_summary.subtitles.ocr_translated },
+                { icon: Captions, title: 'ASR 英文字幕', description: '适合语音转字幕链路', entry: task.asset_summary.subtitles.asr_translated },
+              ]
+              const readyCount = assetRows.filter(r => r.entry.status === 'available').length
+              return (
+                <div>
+                  <div className="mb-3 flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-500">成品素材清单</span>
+                    <span className="text-xs text-slate-400">
+                      <span className="font-semibold text-emerald-600">{readyCount}</span>
+                      <span> / {assetRows.length} 就绪</span>
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-x-8 gap-y-0 sm:grid-cols-2">
+                    {assetRows.map(row => (
+                      <AssetStatusRow
+                        key={row.title}
+                        icon={row.icon}
+                        title={row.title}
+                        description={row.description}
+                        entry={row.entry}
+                      />
                     ))}
                   </div>
-                )}
-              </div>
+                </div>
+              )
+            })()}
 
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                <div className="mb-3 text-sm font-semibold text-slate-900">运行控制</div>
-                <div className="space-y-3">
-                  <label className="block">
-                    <div className="mb-1.5 text-xs font-medium uppercase tracking-wide text-slate-400">重跑起点</div>
-                    <select
-                      value={rerunStage ?? effectiveRerunStage}
-                      onChange={event => setRerunStage(event.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                    >
-                      {(graph?.nodes ?? task.stages.map(stage => ({ id: stage.stage_name }))).map(node => (
-                        <option key={node.id} value={node.id}>
-                          {getStageLabel(node.id as keyof typeof t.stages)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+            {/* 运行控制 */}
+            <div className="min-w-[220px] border-t border-slate-100 pt-6 lg:border-l lg:border-t-0 lg:pl-8 lg:pt-0">
+              <div className="mb-3 text-xs font-semibold text-slate-500">运行控制</div>
+              <div className="space-y-3">
+                <div>
+                  <div className="mb-1 text-xs text-slate-400">重跑起点</div>
+                  <select
+                    value={rerunStage ?? effectiveRerunStage}
+                    onChange={event => setRerunStage(event.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                  >
+                    {(graph?.nodes ?? task.stages.map(stage => ({ id: stage.stage_name }))).map(node => (
+                      <option key={node.id} value={node.id}>
+                        {getStageLabel(node.id as keyof typeof t.stages)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => rerunMutation.mutate(effectiveRerunStage)}
-                      disabled={rerunMutation.isPending || task.status === 'running'}
-                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      {rerunMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
-                      从所选阶段重跑
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => stopMutation.mutate()}
-                      disabled={stopMutation.isPending || task.status !== 'running'}
-                      className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
-                    >
-                      <Square size={14} />
-                      停止任务
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm('确认删除这个任务吗？')) {
-                          deleteMutation.mutate()
-                        }
-                      }}
-                      disabled={deleteMutation.isPending || task.status === 'running'}
-                      className="inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition-colors hover:bg-rose-100 disabled:opacity-50"
-                    >
-                      <Trash2 size={14} />
-                      删除任务
-                    </button>
-                  </div>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={() => rerunMutation.mutate(effectiveRerunStage)}
+                    disabled={rerunMutation.isPending || task.status === 'running'}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {rerunMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
+                    从所选阶段重跑
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => stopMutation.mutate()}
+                    disabled={stopMutation.isPending || task.status !== 'running'}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    <Square size={14} />
+                    停止任务
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('确认删除这个任务吗？')) {
+                        deleteMutation.mutate()
+                      }
+                    }}
+                    disabled={deleteMutation.isPending || task.status === 'running'}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50 disabled:opacity-50"
+                  >
+                    <Trash2 size={14} />
+                    删除任务
+                  </button>
                 </div>
               </div>
 
               {selectedArtifacts.length > 0 && (
-                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-                  <div className="mb-3 text-sm font-semibold text-slate-900">当前阶段产物</div>
-                  <div className="space-y-2">
+                <div className="mt-5 border-t border-slate-100 pt-4">
+                  <div className="mb-2 text-xs font-semibold text-slate-500">当前阶段产物</div>
+                  <div className="space-y-1.5">
                     {selectedArtifacts.slice(0, 5).map(artifact => (
-                      <div key={artifact.path} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
+                      <div key={artifact.path} className="flex items-center justify-between gap-3 py-1 text-xs">
                         <div className="min-w-0">
-                          <div className="truncate text-slate-900">{artifact.path}</div>
-                          <div className="text-xs text-slate-500">{formatBytes(artifact.size_bytes)}</div>
+                          <div className="truncate text-slate-700">{artifact.path}</div>
+                          <div className="text-slate-400">{formatBytes(artifact.size_bytes)}</div>
                         </div>
                         <a
                           href={getArtifactHref(task.id, artifact.path)}
-                          className="ml-3 shrink-0 text-slate-400 transition-colors hover:text-slate-700"
+                          className="shrink-0 text-slate-400 transition-colors hover:text-slate-700"
                         >
-                          <Download size={14} />
+                          <Download size={13} />
                         </a>
                       </div>
                     ))}
