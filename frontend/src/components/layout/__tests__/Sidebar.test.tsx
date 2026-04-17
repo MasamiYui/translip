@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
 import { Sidebar } from '../Sidebar'
@@ -23,8 +23,9 @@ describe('Sidebar', () => {
     const { container } = renderSidebar('/tasks/new')
 
     expect(container.firstChild).toHaveClass('bg-[#F5F7FB]')
-    expect(screen.getByRole('link', { name: '任务列表' })).not.toHaveClass('bg-blue-600')
-    expect(screen.getByRole('link', { name: '新建任务' })).toHaveClass('bg-blue-600')
+    expect(screen.getByRole('link', { name: '任务列表' })).not.toHaveClass('bg-white')
+    expect(screen.getByRole('link', { name: '新建任务' })).toHaveClass('bg-white')
+    expect(screen.getByRole('link', { name: '新建任务' })).toHaveClass('text-blue-700')
     expect(screen.getByRole('link', { name: '任务列表' })).toHaveClass('text-slate-600')
     expect(screen.getByText('Pipeline Manager')).toHaveClass('text-slate-500')
     expect(screen.getByText('v0.1.0')).toHaveClass('text-slate-400')
@@ -34,14 +35,26 @@ describe('Sidebar', () => {
   it('highlights the task list entry on the task list page', () => {
     renderSidebar('/tasks')
 
-    expect(screen.getByRole('link', { name: '任务列表' })).toHaveClass('bg-blue-600')
-    expect(screen.getByRole('link', { name: '新建任务' })).not.toHaveClass('bg-blue-600')
+    expect(screen.getByRole('link', { name: '任务列表' })).toHaveClass('bg-white')
+    expect(screen.getByRole('link', { name: '任务列表' })).toHaveClass('text-blue-700')
+    expect(screen.getByRole('link', { name: '新建任务' })).not.toHaveClass('bg-white')
   })
 
   it('keeps the task list entry active on task detail pages', () => {
     renderSidebar('/tasks/task-123')
 
-    expect(screen.getByRole('link', { name: '任务列表' })).toHaveClass('bg-blue-600')
-    expect(screen.getByRole('link', { name: '新建任务' })).not.toHaveClass('bg-blue-600')
+    expect(screen.getByRole('link', { name: '任务列表' })).toHaveClass('bg-white')
+    expect(screen.getByRole('link', { name: '任务列表' })).toHaveClass('text-blue-700')
+    expect(screen.getByRole('link', { name: '新建任务' })).not.toHaveClass('bg-white')
+  })
+
+  it('collapses the atomic tools group when clicked again on the tools page', () => {
+    renderSidebar('/tools')
+
+    expect(screen.getByRole('link', { name: '人声/背景分离' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /原子工具集/ }))
+
+    expect(screen.queryByRole('link', { name: '人声/背景分离' })).not.toBeInTheDocument()
   })
 })

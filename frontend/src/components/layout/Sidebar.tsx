@@ -32,7 +32,6 @@ export function Sidebar() {
   const isNewTaskRoute = currentPath === '/tasks/new' || currentPath.startsWith('/tasks/new/')
   const isToolsRoute = currentPath === '/tools' || currentPath.startsWith('/tools/')
   const [toolsExpanded, setToolsExpanded] = useState(isToolsRoute)
-  const toolsOpen = isToolsRoute || toolsExpanded
 
   const navItems = [
     {
@@ -71,6 +70,8 @@ export function Sidebar() {
     { to: '/tools/probe', label: t.atomicTools.tools.probe, icon: ScanSearch },
     { to: '/tools/muxing', label: t.atomicTools.tools.muxing, icon: Clapperboard },
   ]
+  const activeNavClass =
+    'bg-white text-blue-700 ring-1 ring-blue-100 shadow-[0_10px_24px_-20px_rgba(37,99,235,0.55)]'
 
   return (
     <aside className="fixed left-0 top-0 z-40 flex h-full w-[220px] flex-col border-r border-slate-200/80 bg-[#F5F7FB]">
@@ -97,9 +98,7 @@ export function Sidebar() {
             aria-current={isActive ? 'page' : undefined}
             className={cn(
               'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
-              isActive
-                ? 'bg-blue-600 text-white shadow-[0_10px_24px_-18px_rgba(37,99,235,0.95)]'
-                : 'text-slate-600 hover:bg-white hover:text-slate-900',
+              isActive ? activeNavClass : 'text-slate-600 hover:bg-white hover:text-slate-900',
             )}
           >
             <Icon size={16} />
@@ -110,47 +109,60 @@ export function Sidebar() {
         <button
           type="button"
           onClick={() => {
-            setToolsExpanded(prev => !prev)
-            navigate('/tools')
+            if (toolsExpanded) {
+              setToolsExpanded(false)
+              return
+            }
+
+            setToolsExpanded(true)
+            if (!isToolsRoute) {
+              navigate('/tools')
+            }
           }}
           className={cn(
             'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
-            isToolsRoute
-              ? 'bg-blue-600 text-white shadow-[0_10px_24px_-18px_rgba(37,99,235,0.95)]'
-              : 'text-slate-600 hover:bg-white hover:text-slate-900',
+            isToolsRoute ? activeNavClass : 'text-slate-600 hover:bg-white hover:text-slate-900',
           )}
         >
           <Wrench size={16} />
           {t.atomicTools.title}
           <ChevronDown
             size={14}
-            className={cn('ml-auto transition-transform', toolsOpen && 'rotate-180')}
+            className={cn('ml-auto transition-transform', toolsExpanded && 'rotate-180')}
           />
         </button>
 
-        {toolsOpen && (
-          <div className="ml-4 space-y-1 border-l border-slate-200 pl-3">
-            {toolNavItems.map(({ to, label, icon: Icon }) => {
-              const isActive = currentPath === to
-              return (
-                <Link
-                  key={to}
-                  to={to}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={cn(
-                    'flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors',
-                    isActive
-                      ? 'bg-white text-blue-700 ring-1 ring-blue-100 shadow-sm'
-                      : 'text-slate-500 hover:bg-white hover:text-slate-900',
-                  )}
-                >
-                  <Icon size={14} />
-                  {label}
-                </Link>
-              )
-            })}
+        <div
+          aria-hidden={!toolsExpanded}
+          className={cn(
+            'grid transition-[grid-template-rows,opacity,margin] duration-200 ease-out',
+            toolsExpanded ? 'mt-1 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+          )}
+        >
+          <div className="overflow-hidden">
+            <div className="ml-4 space-y-1 border-l border-slate-200 pl-3 pb-1">
+              {toolNavItems.map(({ to, label, icon: Icon }) => {
+                const isActive = currentPath === to
+                return (
+                  <Link
+                    key={to}
+                    to={to}
+                    aria-current={isActive ? 'page' : undefined}
+                    className={cn(
+                      'flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors',
+                      isActive
+                        ? 'bg-white text-blue-700 ring-1 ring-blue-100 shadow-sm'
+                        : 'text-slate-500 hover:bg-white hover:text-slate-900',
+                    )}
+                  >
+                    <Icon size={14} />
+                    {label}
+                  </Link>
+                )
+              })}
+            </div>
           </div>
-        )}
+        </div>
       </nav>
 
       {/* Footer */}
