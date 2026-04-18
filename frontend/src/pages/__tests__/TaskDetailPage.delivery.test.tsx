@@ -129,13 +129,24 @@ describe('TaskDetailPage export workflow', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '导出成品' }))
 
-    expect(await screen.findByText('1. 选择导出版本')).toBeInTheDocument()
+    expect(await screen.findByText('1. 默认导出')).toBeInTheDocument()
+    expect(screen.getByText('将导出为')).toBeInTheDocument()
+    expect(screen.getByText(/来自成品目标/)).toBeInTheDocument()
+    const toggleProfilesButton = screen.getByRole('button', { name: '切换其他版本' })
+    expect(toggleProfilesButton).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('1. 选择导出版本')).not.toBeInTheDocument()
+    expect(screen.queryByText('无字幕配音版')).not.toBeInTheDocument()
     expect(screen.getByText('2. 确认素材来源')).toBeInTheDocument()
     expect(screen.getByText('3. 选择字幕样式')).toBeInTheDocument()
     expect(screen.getByText('4. 预览并导出')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Source Han Sans')).toBeInTheDocument()
     expect((screen.getByText('导出向导').closest('aside') as HTMLElement).className).not.toContain('shadow')
-    ;['1. 选择导出版本', '2. 确认素材来源', '3. 选择字幕样式', '4. 预览并导出'].forEach(title => {
+
+    fireEvent.click(toggleProfilesButton)
+
+    expect(screen.getByRole('button', { name: '收起其他版本' })).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('无字幕配音版')).toBeInTheDocument()
+    ;['1. 默认导出', '2. 确认素材来源', '3. 选择字幕样式', '4. 预览并导出'].forEach(title => {
       expect((screen.getByText(title).closest('section') as HTMLElement).className).not.toContain('shadow')
     })
   })

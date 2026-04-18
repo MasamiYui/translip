@@ -177,6 +177,30 @@ function IntentCard({
   )
 }
 
+function IntentCapabilityCard({
+  title,
+  capabilities,
+  helper,
+}: {
+  title: string
+  capabilities: string[]
+  helper: string
+}) {
+  return (
+    <div className="rounded-[20px] border border-slate-200/80 bg-white/80 p-4 backdrop-blur-sm">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-500">{title}</div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {capabilities.map(item => (
+          <span key={item} className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 shadow-sm ring-1 ring-slate-200">
+            {item}
+          </span>
+        ))}
+      </div>
+      <div className="mt-3 text-sm text-slate-500">{helper}</div>
+    </div>
+  )
+}
+
 function SegmentedControl<T extends string>({
   value,
   options,
@@ -379,6 +403,10 @@ export function NewTaskPage() {
     () => buildTaskSummary(outputIntent, sourceLang, targetLang, locale, getLanguageLabel),
     [getLanguageLabel, locale, outputIntent, sourceLang, targetLang],
   )
+  const capabilitySummary = useMemo(
+    () => getIntentCapabilityDetails(outputIntent, locale === 'zh-CN' ? 'zh-CN' : 'en-US'),
+    [locale, outputIntent],
+  )
 
   const stepOne = (
     <div className="space-y-5">
@@ -462,6 +490,11 @@ export function NewTaskPage() {
               />
             ))}
           </div>
+          <IntentCapabilityCard
+            title={capabilitySummary.title}
+            capabilities={capabilitySummary.capabilities}
+            helper={capabilitySummary.helper}
+          />
         </SectionCard>
 
         <SectionCard
@@ -1060,5 +1093,63 @@ function getIntentTip(intent: TaskOutputIntent, locale: 'zh-CN' | 'en-US'): stri
       return '系统会优先选择更快的默认方案，帮助你尽早看到结果。'
     default:
       return '系统会优先准备正式配音成片所需的默认链路。'
+  }
+}
+
+function getIntentCapabilityDetails(intent: TaskOutputIntent, locale: 'zh-CN' | 'en-US') {
+  if (locale === 'en-US') {
+    switch (intent) {
+      case 'english_subtitle':
+        return {
+          title: 'Auto-enabled capabilities',
+          capabilities: ['OCR subtitle chain', 'Dub synthesis', 'Subtitle erase'],
+          helper: 'This workflow is generated from the selected delivery goal.',
+        }
+      case 'bilingual_review':
+        return {
+          title: 'Auto-enabled capabilities',
+          capabilities: ['OCR subtitle chain', 'Dub synthesis', 'Bilingual burn-in'],
+          helper: 'The system keeps the original frame and prepares review-friendly bilingual output.',
+        }
+      case 'fast_validation':
+        return {
+          title: 'Auto-enabled capabilities',
+          capabilities: ['ASR subtitles', 'Preview mix', 'Fast delivery compose'],
+          helper: 'The workflow will prefer speed-first processing for quicker validation.',
+        }
+      default:
+        return {
+          title: 'Auto-enabled capabilities',
+          capabilities: ['Dub synthesis', 'Formal mixdown', 'Master export'],
+          helper: 'The workflow is generated from the selected delivery goal.',
+        }
+    }
+  }
+
+  switch (intent) {
+    case 'english_subtitle':
+      return {
+        title: '系统将自动启用',
+        capabilities: ['OCR 字幕链路', '配音合成', '字幕擦除'],
+        helper: '该处理链路由成品目标自动生成。',
+      }
+    case 'bilingual_review':
+      return {
+        title: '系统将自动启用',
+        capabilities: ['OCR 字幕链路', '配音合成', '双语字幕烧录'],
+        helper: '系统会保留原视频画面，并自动准备适合审片的双语导出能力。',
+      }
+    case 'fast_validation':
+      return {
+        title: '系统将自动启用',
+        capabilities: ['ASR 字幕链路', 'Preview 混音', '快速导出'],
+        helper: '系统会优先生成尽快可看的结果，帮助你先验证整体效果。',
+      }
+    default:
+      return {
+        title: '系统将自动启用',
+        capabilities: ['配音合成', '正式混音', '正式成片导出'],
+        helper: '该处理链路由成品目标自动生成。',
+      }
   }
 }

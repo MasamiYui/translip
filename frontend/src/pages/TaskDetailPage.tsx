@@ -113,6 +113,7 @@ export function TaskDetailPage() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null | undefined>(undefined)
   const [rerunStage, setRerunStage] = useState<string | undefined>(undefined)
   const [isExportDrawerOpen, setExportDrawerOpen] = useState(false)
+  const [showProfileOverrides, setShowProfileOverrides] = useState(false)
   const [exportProfile, setExportProfile] = useState<TaskExportProfile>('dub_no_subtitles')
   const [subtitleSource, setSubtitleSource] = useState<'ocr' | 'asr'>('ocr')
   const [fontFamily, setFontFamily] = useState('Noto Sans CJK SC')
@@ -217,6 +218,7 @@ export function TaskDetailPage() {
       return
     }
     setExportProfile(resolveInitialProfile(task))
+    setShowProfileOverrides(false)
     setSubtitleSource(resolveInitialSubtitleSource(task))
     setFontFamily(task.delivery_config.subtitle_font ?? 'Noto Sans CJK SC')
     setFontSize(task.delivery_config.subtitle_font_size ?? 0)
@@ -477,7 +479,7 @@ export function TaskDetailPage() {
               <div className="text-sm leading-6 text-slate-500">{readinessMessage}</div>
 
               <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-                <span>推荐版本：<span className="font-medium text-slate-700">{getExportProfileLabel(task.export_readiness.recommended_profile, locale)}</span></span>
+                <span>默认导出：<span className="font-medium text-slate-700">{getExportProfileLabel(task.export_readiness.recommended_profile, locale)}</span></span>
                 <span className="text-slate-300">·</span>
                 <span>成品目标：<span className="font-medium text-slate-700">{getOutputIntentLabel(task.output_intent, locale)}</span></span>
                 {task.last_export_summary.status === 'exported' && (
@@ -663,23 +665,54 @@ export function TaskDetailPage() {
             </div>
 
             <div className="flex-1 space-y-6 overflow-y-auto px-6 py-5">
-              <DrawerSection title="1. 选择导出版本">
-                <div className="grid gap-3 md:grid-cols-2">
-                  {(Object.keys(PROFILE_CONFIG) as TaskExportProfile[]).map(profile => (
+              <DrawerSection title="1. 默认导出">
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3.5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-blue-600">将导出为</span>
+                        <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-slate-500 ring-1 ring-slate-200">
+                          来自成品目标
+                        </span>
+                      </div>
+                      <div className="mt-1.5 text-base font-semibold text-slate-900">
+                        {getExportProfileLabel(exportProfile, locale)}
+                      </div>
+                      <div className="mt-1 text-sm text-slate-500">
+                        {getOutputIntentLabel(task.output_intent, locale)}。默认沿用任务目标，仅在本次需要例外导出时再切换其他版本。
+                      </div>
+                    </div>
                     <button
-                      key={profile}
                       type="button"
-                      onClick={() => setExportProfile(profile)}
-                      className={`rounded-xl border p-4 text-left transition-colors ${
-                        exportProfile === profile
-                          ? 'border-blue-500 bg-blue-50 shadow-sm'
-                          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
-                      }`}
+                      aria-expanded={showProfileOverrides}
+                      aria-controls="delivery-profile-overrides"
+                      onClick={() => setShowProfileOverrides(prev => !prev)}
+                      className="shrink-0 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:border-slate-300 hover:text-slate-800"
                     >
-                      <div className="text-sm font-semibold text-slate-900">{getExportProfileLabel(profile, locale)}</div>
-                      <div className="mt-1.5 text-sm leading-6 text-slate-600">{PROFILE_CONFIG[profile].description}</div>
+                      {showProfileOverrides ? '收起其他版本' : '切换其他版本'}
                     </button>
-                  ))}
+                  </div>
+                  {showProfileOverrides && (
+                    <div id="delivery-profile-overrides" className="mt-4 border-t border-slate-200 pt-4">
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {(Object.keys(PROFILE_CONFIG) as TaskExportProfile[]).map(profile => (
+                          <button
+                            key={profile}
+                            type="button"
+                            onClick={() => setExportProfile(profile)}
+                            className={`rounded-xl border p-3.5 text-left transition-colors ${
+                              exportProfile === profile
+                                ? 'border-blue-500 bg-blue-50 shadow-sm'
+                                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                            }`}
+                          >
+                            <div className="text-sm font-semibold text-slate-900">{getExportProfileLabel(profile, locale)}</div>
+                            <div className="mt-1 text-sm leading-6 text-slate-600">{PROFILE_CONFIG[profile].description}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </DrawerSection>
 
@@ -881,19 +914,6 @@ function normalizeTemplateId(value: unknown): TaskConfig['template'] {
 }
 
 function resolveInitialProfile(task: Task): TaskExportProfile {
-  if (task.last_export_summary.profile) {
-    return task.last_export_summary.profile
-  }
-  const mode = task.delivery_config.subtitle_mode
-  if (mode === 'english_only') {
-    return 'english_subtitle_burned'
-  }
-  if (mode === 'bilingual') {
-    return 'bilingual_review'
-  }
-  if (task.output_intent === 'fast_validation') {
-    return 'preview_only'
-  }
   return task.export_readiness.recommended_profile
 }
 
