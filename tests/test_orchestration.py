@@ -67,6 +67,17 @@ def test_build_pipeline_request_keeps_external_project_roots() -> None:
     assert Path(request.erase_project_root) == Path("/tmp/video-subtitle-erasure").resolve()
 
 
+def test_build_pipeline_request_defaults_to_moss_tts_nano_onnx() -> None:
+    request = build_pipeline_request(
+        {
+            "input": "sample.mp4",
+            "output_root": "out",
+        }
+    )
+
+    assert request.tts_backend == "moss-tts-nano-onnx"
+
+
 def test_stage_sequence_respects_from_and_to() -> None:
     stages = resolve_stage_sequence("task-b", "task-d")
     assert stages == ["task-b", "task-c", "task-d"]

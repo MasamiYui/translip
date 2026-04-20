@@ -40,12 +40,12 @@ def _write_audio(path: Path, duration_sec: float, *, sample_rate: int = 16_000, 
     sf.write(path, waveform, sample_rate)
 
 
-def test_dubbing_request_defaults_to_qwen3tts() -> None:
+def test_dubbing_request_defaults_to_moss_tts_nano_onnx() -> None:
     request = DubbingRequest(
         translation_path="translation.en.json",
         profiles_path="speaker_profiles.json",
     )
-    assert request.backend == "qwen3tts"
+    assert request.backend == "moss-tts-nano-onnx"
 
 
 def test_select_reference_candidates_prefers_ideal_duration(tmp_path: Path) -> None:
@@ -201,6 +201,112 @@ def test_qwen_max_new_tokens_is_calibrated_to_12hz_audio_budget() -> None:
     assert _max_new_tokens_for(short) == 22
     assert _max_new_tokens_for(medium) == 66
     assert _max_new_tokens_for(long) == 143
+
+
+def test_moss_tts_nano_backend_invokes_onnx_cli_for_voice_clone(tmp_path: Path, monkeypatch) -> None:
+    import subprocess
+
+    from translip.dubbing.backend import ReferencePackage, SynthSegmentInput
+    from translip.dubbing.moss_tts_nano_backend import MossTtsNanoOnnxBackend
+
+    commands: list[list[str]] = []
+
+    def fake_run(command, **kwargs):
+        commands.append([str(part) for part in command])
+        output_path = Path(command[command.index("--output") + 1])
+        sample_rate = 48_000
+        waveform = np.ones(int(0.75 * sample_rate), dtype=np.float32) * 0.04
+        sf.write(output_path, waveform, sample_rate)
+        return subprocess.CompletedProcess(command, 0, stdout="ok", stderr="")
+
+    monkeypatch.setattr("translip.dubbing.moss_tts_nano_backend.subprocess.run", fake_run)
+    monkeypatch.setenv("MOSS_TTS_NANO_CLI", "moss-tts-nano")
+    monkeypatch.setenv("MOSS_TTS_NANO_MODEL_DIR", str(tmp_path / "moss-models"))
+
+    reference_path = tmp_path / "reference.wav"
+    _write_audio(reference_path, 8.0)
+    reference = ReferencePackage(
+        speaker_id="spk_0000",
+        profile_id="profile_0000",
+        original_audio_path=reference_path,
+        prepared_audio_path=reference_path,
+        text="This is the reference transcript.",
+        duration_sec=8.0,
+        score=0.9,
+        selection_reason="test",
+    )
+    segment = SynthSegmentInput(
+        segment_id="seg-0001",
+        speaker_id="spk_0000",
+        target_lang="en",
+        target_text="Hello from Dubai.",
+        source_duration_sec=1.0,
+        duration_budget_sec=1.1,
+    )
+
+    backend = MossTtsNanoOnnxBackend(requested_device="mps")
+    result = backend.synthesize(reference=reference, segment=segment, output_path=tmp_path / "out.wav")
+
+    assert result.audio_path.exists()
+    assert result.sample_rate == 48_000
+    assert result.generated_duration_sec == 0.75
+    assert backend.backend_name == "moss-tts-nano-onnx"
+    assert backend.resolved_device == "cpu"
+    assert backend.resolved_model == "OpenMOSS-Team/MOSS-TTS-Nano-100M-ONNX"
+    assert result.backend_metadata["reference_score"] == 0.9
+    assert commands == [
+        [
+            "moss-tts-nano",
+            "generate",
+            "--backend",
+            "onnx",
+            "--output",
+            str(tmp_path / "out.wav"),
+            "--text",
+            "Hello from Dubai.",
+            "--prompt-speech",
+            str(reference.prepared_audio_path),
+            "--onnx-model-dir",
+            str(tmp_path / "moss-models"),
+            "--cpu-threads",
+            "4",
+            "--max-new-frames",
+            "375",
+            "--voice-clone-max-text-tokens",
+            "75",
+            "--sample-mode",
+            "fixed",
+        ]
+    ]
+
+
+def test_moss_tts_nano_backend_uses_repo_local_cli_when_env_and_path_are_absent(tmp_path: Path, monkeypatch) -> None:
+    from translip.dubbing import moss_tts_nano_backend
+    from translip.dubbing.moss_tts_nano_backend import MossTtsNanoOnnxBackend
+
+    local_cli = tmp_path / ".dev-runtime" / "moss-tts-nano-venv" / "bin" / "moss-tts-nano"
+    local_cli.parent.mkdir(parents=True)
+    local_cli.write_text("#!/bin/sh\n", encoding="utf-8")
+    monkeypatch.delenv("MOSS_TTS_NANO_CLI", raising=False)
+    monkeypatch.setattr("translip.dubbing.moss_tts_nano_backend.shutil.which", lambda _name: None)
+    monkeypatch.setattr(moss_tts_nano_backend, "_repo_root", lambda: tmp_path)
+
+    backend = MossTtsNanoOnnxBackend(requested_device="auto")
+
+    assert backend.cli_path == str(local_cli)
+
+
+def test_build_backend_defaults_to_moss_tts_nano_onnx() -> None:
+    from translip.dubbing.runner import _build_backend
+
+    backend = _build_backend(
+        DubbingRequest(
+            translation_path="translation.en.json",
+            profiles_path="speaker_profiles.json",
+            device="auto",
+        )
+    )
+    assert backend.backend_name == "moss-tts-nano-onnx"
 
 
 def test_build_backend_returns_qwen_backend() -> None:

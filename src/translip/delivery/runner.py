@@ -62,7 +62,7 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
     task_e_manifest_path = normalized_request.task_e_dir / "task-e-manifest.json"
     task_e_manifest = _load_json(task_e_manifest_path)
     preview_audio_path = _resolve_preview_audio_path(normalized_request, task_e_manifest)
-    dub_audio_path = _resolve_dub_audio_path(normalized_request, task_e_manifest)
+    final_dub_audio_path = preview_audio_path
     target_lang = _resolve_target_lang(normalized_request, task_e_manifest)
     subtitle_path = _resolve_subtitle_path(normalized_request, target_lang)
     chinese_subtitle_path = _resolve_chinese_subtitle_path(normalized_request)
@@ -131,7 +131,7 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
             )
             _export_video_variant(
                 request=normalized_request,
-                audio_path=dub_audio_path,
+                audio_path=final_dub_audio_path,
                 output_path=dub_video_path,
                 target_lang=target_lang,
                 subtitle_path=subtitle_path,
@@ -145,7 +145,7 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
             input_video_info=input_video_info,
             task_e_manifest_path=task_e_manifest_path,
             preview_audio_path=preview_audio_path,
-            dub_audio_path=dub_audio_path,
+            dub_audio_path=final_dub_audio_path,
             preview_video_path=preview_video_path,
             dub_video_path=dub_video_path,
             started_at=started_at,
@@ -158,7 +158,7 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
             target_lang=target_lang,
             outputs=outputs,
             preview_audio_path=preview_audio_path,
-            dub_audio_path=dub_audio_path,
+            dub_audio_path=final_dub_audio_path,
             task_e_manifest_path=task_e_manifest_path,
             status="succeeded",
         )
@@ -183,7 +183,7 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
             input_video_info=input_video_info,
             task_e_manifest_path=task_e_manifest_path,
             preview_audio_path=preview_audio_path,
-            dub_audio_path=dub_audio_path,
+            dub_audio_path=final_dub_audio_path,
             preview_video_path=None,
             dub_video_path=None,
             started_at=started_at,
@@ -197,7 +197,7 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
             target_lang=target_lang,
             outputs=[],
             preview_audio_path=preview_audio_path,
-            dub_audio_path=dub_audio_path,
+            dub_audio_path=final_dub_audio_path,
             task_e_manifest_path=task_e_manifest_path,
             status="failed",
         )
@@ -440,18 +440,6 @@ def _resolve_preview_audio_path(request: ExportVideoRequest, task_e_manifest: di
         resolved = (request.task_e_dir / f"preview_mix.{target_lang}.wav").resolve()
     if not resolved.exists():
         raise TranslipError(f"Task G preview mix does not exist: {resolved}")
-    return resolved
-
-
-def _resolve_dub_audio_path(request: ExportVideoRequest, task_e_manifest: dict[str, Any]) -> Path:
-    path = task_e_manifest.get("artifacts", {}).get("dub_voice")
-    if path:
-        resolved = Path(str(path)).expanduser().resolve()
-    else:
-        target_lang = _resolve_target_lang(request, task_e_manifest)
-        resolved = (request.task_e_dir / f"dub_voice.{target_lang}.wav").resolve()
-    if not resolved.exists():
-        raise TranslipError(f"Task G dub voice does not exist: {resolved}")
     return resolved
 
 

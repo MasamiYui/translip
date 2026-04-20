@@ -77,24 +77,24 @@ const PROFILE_CONFIG: Record<
     exportPreview: false,
     exportDub: true,
     videoLabel: '原始视频',
-    audioLabel: '正式配音音轨',
-    description: '导出正式配音成片，不烧录英文字幕。',
+    audioLabel: '配音+背景混音音轨',
+    description: '导出含背景声的正式配音成片，不烧录英文字幕。',
   },
   bilingual_review: {
     subtitleMode: 'bilingual',
     exportPreview: false,
     exportDub: true,
     videoLabel: '原始视频',
-    audioLabel: '正式配音音轨',
-    description: '保留原视频画面并叠加中英双语字幕，适合审片。',
+    audioLabel: '配音+背景混音音轨',
+    description: '保留原视频画面、背景声并叠加中英双语字幕，适合审片。',
   },
   english_subtitle_burned: {
     subtitleMode: 'english_only',
     exportPreview: false,
     exportDub: true,
     videoLabel: '干净画面',
-    audioLabel: '正式配音音轨',
-    description: '优先使用干净画面并烧录英文字幕，适合正式分发。',
+    audioLabel: '配音+背景混音音轨',
+    description: '优先使用干净画面、混音音轨并烧录英文字幕，适合正式分发。',
   },
   preview_only: {
     subtitleMode: 'none',
@@ -617,8 +617,8 @@ export function TaskDetailPage() {
                 },
                 {
                   icon: Mic,
-                  title: '正式配音音轨',
-                  description: '用于正式成片导出',
+                  title: '纯配音音轨',
+                  description: '仅包含合成配音，便于单独检查',
                   entry: task.asset_summary.audio.dub,
                   href: getAssetDownloadHref(task, task.asset_summary.audio.dub),
                 },
@@ -814,7 +814,7 @@ export function TaskDetailPage() {
                   <SourceSummaryCard
                     title="音轨来源"
                     value={profileConfig.audioLabel}
-                    entry={resolveAudioEntry(task, exportProfile)}
+                    entry={resolveAudioEntry(task)}
                   />
                 </div>
 
@@ -1083,11 +1083,8 @@ function resolveVideoLabel(defaultLabel: string, strategy: BilingualExportStrate
   return defaultLabel
 }
 
-function resolveAudioEntry(task: Task, profile: TaskExportProfile): TaskAssetEntry {
-  if (profile === 'preview_only') {
-    return task.asset_summary.audio.preview
-  }
-  return task.asset_summary.audio.dub
+function resolveAudioEntry(task: Task): TaskAssetEntry {
+  return task.asset_summary.audio.preview
 }
 
 function blockerActionToStage(action: string, fallbackStage: string): string | null {

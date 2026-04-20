@@ -223,6 +223,40 @@ def test_cli_synthesize_speaker_parser() -> None:
     assert args.max_segments == 2
 
 
+def test_cli_synthesize_speaker_defaults_to_moss_tts_nano_onnx() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "synthesize-speaker",
+            "--translation",
+            "translation.en.json",
+            "--profiles",
+            "speaker_profiles.json",
+            "--speaker-id",
+            "spk_0000",
+        ]
+    )
+    assert args.backend == "moss-tts-nano-onnx"
+
+
+def test_cli_synthesize_speaker_accepts_moss_tts_nano_onnx() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "synthesize-speaker",
+            "--translation",
+            "translation.en.json",
+            "--profiles",
+            "speaker_profiles.json",
+            "--speaker-id",
+            "spk_0000",
+            "--backend",
+            "moss-tts-nano-onnx",
+        ]
+    )
+    assert args.backend == "moss-tts-nano-onnx"
+
+
 def test_cli_render_dub_parser() -> None:
     parser = build_parser()
     args = parser.parse_args(

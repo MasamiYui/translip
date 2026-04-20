@@ -12,6 +12,7 @@ from ..utils.files import ensure_directory, remove_tree, work_directory
 from .backend import ReferencePackage, SynthSegmentInput
 from .export import build_dubbing_manifest, build_dubbing_report, now_iso, render_demo_audio, write_json
 from .metrics import evaluate_segment
+from .moss_tts_nano_backend import MossTtsNanoOnnxBackend
 from .qwen_tts_backend import QwenTTSBackend
 from .reference import (
     load_profiles_payload,
@@ -265,6 +266,8 @@ def _filtered_segments(
 
 
 def _build_backend(request: DubbingRequest) -> object:
+    if request.backend == "moss-tts-nano-onnx":
+        return MossTtsNanoOnnxBackend(requested_device=request.device)
     if request.backend == "qwen3tts":
         return QwenTTSBackend(requested_device=request.device)
     raise TranslipError(f"Unsupported dubbing backend: {request.backend}")

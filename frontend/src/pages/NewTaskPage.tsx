@@ -47,7 +47,7 @@ const defaultConfig: Partial<TaskConfig> = {
   translation_backend: 'local-m2m100',
   translation_batch_size: 4,
   condense_mode: 'off',
-  tts_backend: 'qwen3tts',
+  tts_backend: 'moss-tts-nano-onnx',
   fit_policy: 'conservative',
   fit_backend: 'atempo',
   mix_profile: 'preview',
@@ -638,9 +638,12 @@ export function NewTaskPage() {
                 </Field>
                 <Field label={t.newTask.fields.ttsBackend}>
                   <Select
-                    value={config.tts_backend ?? 'qwen3tts'}
+                    value={config.tts_backend ?? 'moss-tts-nano-onnx'}
                     onChange={value => patchConfig({ tts_backend: value })}
-                    options={[{ value: 'qwen3tts', label: 'Qwen3TTS' }]}
+                    options={[
+                      { value: 'moss-tts-nano-onnx', label: 'MOSS-TTS-Nano ONNX' },
+                      { value: 'qwen3tts', label: 'Qwen3TTS' },
+                    ]}
                   />
                 </Field>
                 <Field label={t.newTask.fields.device}>

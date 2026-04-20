@@ -48,7 +48,7 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
         erase_project_root=cfg.get("erase_project_root"),
         target_lang=task.target_lang,
         translation_backend=cfg.get("translation_backend", "local-m2m100"),
-        tts_backend=cfg.get("tts_backend", "qwen3tts"),
+        tts_backend=cfg.get("tts_backend", "moss-tts-nano-onnx"),
         device=cfg.get("device", "auto"),
         run_from_stage=cfg.get("run_from_stage", "stage1"),
         run_to_stage=cfg.get("run_to_stage", "task-g"),

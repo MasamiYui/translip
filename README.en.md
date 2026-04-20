@@ -81,7 +81,7 @@ flowchart LR
 - Generate speaker-attributed transcripts with `faster-whisper` + `SpeechBrain`.
 - Build reusable speaker profiles and registries for later tasks.
 - Produce dubbing scripts with local `M2M100` or the `SiliconFlow API`.
-- Synthesize target-language speech for each speaker with `Qwen3-TTS`.
+- Synthesize target-language speech locally with `MOSS-TTS-Nano ONNX` by default, with `Qwen3-TTS` still available as an option.
 - Fit generated speech back to the original timeline and export preview/final outputs.
 - Manage tasks, progress, presets, and artifacts through the web UI.
 
@@ -300,11 +300,14 @@ uv run translip translate-script \
 
 ### Task D: Single-speaker Synthesis
 
+`moss-tts-nano-onnx` is the default backend and requires the `moss-tts-nano` CLI from OpenMOSS/MOSS-TTS-Nano to be installed first. Task D reports a clear dependency error when the CLI is missing; pass `--backend qwen3tts` to use the previous model.
+
 ```bash
 uv run translip synthesize-speaker \
   --translation ./output-task-c/voice/translation.en.json \
   --profiles ./output-task-b/voice/speaker_profiles.json \
   --speaker-id spk_0000 \
+  --backend moss-tts-nano-onnx \
   --output-dir ./output-task-d \
   --device auto
 ```
@@ -347,6 +350,9 @@ uv run translip export-video \
 | `SILICONFLOW_API_KEY` | none | Required when using the `siliconflow` translation backend |
 | `SILICONFLOW_BASE_URL` | `https://api.siliconflow.cn/v1` | Override the SiliconFlow API endpoint |
 | `SILICONFLOW_MODEL` | `deepseek-ai/DeepSeek-V3` | Override the default SiliconFlow model |
+| `MOSS_TTS_NANO_CLI` | `moss-tts-nano` | CLI executable used by the `moss-tts-nano-onnx` backend |
+| `MOSS_TTS_NANO_MODEL_DIR` | `~/.cache/translip/models` | MOSS ONNX model directory passed to `--onnx-model-dir` |
+| `MOSS_TTS_NANO_CPU_THREADS` | `4` | CPU thread count for MOSS ONNX inference |
 
 For more defaults, see [src/translip/config.py](src/translip/config.py).
 

@@ -11,6 +11,8 @@ def test_collect_model_statuses_detects_actual_cache_locations(tmp_path: Path) -
 
     (cache_root / "speechbrain" / "spkrec-ecapa-voxceleb").mkdir(parents=True)
     (cache_root / "transformers" / "models--facebook--m2m100_418M").mkdir(parents=True)
+    (cache_root / "models" / "MOSS-TTS-Nano-100M-ONNX").mkdir(parents=True)
+    (cache_root / "models" / "MOSS-Audio-Tokenizer-Nano-ONNX").mkdir(parents=True)
     (huggingface_cache_root / "models--Systran--faster-whisper-small").mkdir(parents=True)
     (huggingface_cache_root / "models--Qwen--Qwen3-TTS-12Hz-0.6B-Base").mkdir(parents=True)
 
@@ -24,6 +26,7 @@ def test_collect_model_statuses_detects_actual_cache_locations(tmp_path: Path) -
     assert status_by_name["SpeechBrain ECAPA"] == "available"
     assert status_by_name["M2M100 418M"] == "available"
     assert status_by_name["faster-whisper small"] == "available"
+    assert status_by_name["MOSS-TTS-Nano ONNX"] == "available"
     assert status_by_name["Qwen3TTS"] == "available"
     assert status_by_name["CDX23 weights"] == "missing"
 

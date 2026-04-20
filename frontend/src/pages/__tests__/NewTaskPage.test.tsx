@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -140,6 +140,21 @@ describe('NewTaskPage redesigned flow', () => {
     fireEvent.click(screen.getByRole('button', { name: /这个选项会做什么/ }))
     expect(screen.getByText(/保留 ASR 时间轴和说话人/)).toBeInTheDocument()
     expect(screen.getByText(/OCR 有但 ASR 没有的字幕只报告/)).toBeInTheDocument()
+  })
+
+  it('defaults task synthesis to MOSS-TTS-Nano ONNX while keeping Qwen selectable', async () => {
+    vi.mocked(configApi.getPresets).mockResolvedValue([])
+
+    renderStepTwo()
+    fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+    fireEvent.click(screen.getAllByRole('button', { name: '展开' })[0])
+
+    const ttsField = screen.getByText('TTS 后端').parentElement as HTMLElement
+    const ttsSelect = within(ttsField).getByRole('combobox') as HTMLSelectElement
+
+    expect(ttsSelect.value).toBe('moss-tts-nano-onnx')
+    expect(screen.getByRole('option', { name: 'MOSS-TTS-Nano ONNX' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'Qwen3TTS' })).toBeInTheDocument()
   })
 
   it('keeps delivery-only subtitle styling out of the new task flow', async () => {

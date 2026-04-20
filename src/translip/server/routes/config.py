@@ -29,7 +29,7 @@ _DEFAULT_CONFIG = {
     "translation_backend": "local-m2m100",
     "translation_batch_size": 4,
     "condense_mode": "off",
-    "tts_backend": "qwen3tts",
+    "tts_backend": "moss-tts-nano-onnx",
     "fit_policy": "conservative",
     "fit_backend": "atempo",
     "mix_profile": "preview",

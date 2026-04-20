@@ -81,7 +81,7 @@ flowchart LR
 - 基于 `faster-whisper` + `SpeechBrain` 生成带说话人标签的转写结果。
 - 为说话人建立 profile / registry，支持跨任务复用。
 - 使用本地 `M2M100` 或 `SiliconFlow API` 生成目标语言配音脚本。
-- 基于 `Qwen3-TTS` 为每位说话人合成目标语言语音。
+- 默认基于 `MOSS-TTS-Nano ONNX` 在本地 CPU 合成目标语言语音，也可切换到 `Qwen3-TTS`。
 - 将配音按原始时间轴回贴，并导出预览版与最终成片。
 - 提供任务管理、进度追踪、配置预设和产物下载 Web UI。
 
@@ -316,11 +316,14 @@ uv run translip translate-script \
 
 ### Task D: 单说话人合成
 
+`moss-tts-nano-onnx` 是默认后端，需要先按 OpenMOSS/MOSS-TTS-Nano 文档安装 `moss-tts-nano` CLI。未安装时，Task D 会给出明确依赖错误；如需使用原有模型，可传 `--backend qwen3tts`。
+
 ```bash
 uv run translip synthesize-speaker \
   --translation ./output-task-c/voice/translation.en.json \
   --profiles ./output-task-b/voice/speaker_profiles.json \
   --speaker-id spk_0000 \
+  --backend moss-tts-nano-onnx \
   --output-dir ./output-task-d \
   --device auto
 ```
@@ -363,6 +366,9 @@ uv run translip export-video \
 | `SILICONFLOW_API_KEY` | 无 | 启用 `siliconflow` 翻译后端时必需 |
 | `SILICONFLOW_BASE_URL` | `https://api.siliconflow.cn/v1` | 覆盖 SiliconFlow API 地址 |
 | `SILICONFLOW_MODEL` | `deepseek-ai/DeepSeek-V3` | 覆盖默认 SiliconFlow 模型 |
+| `MOSS_TTS_NANO_CLI` | `moss-tts-nano` | `moss-tts-nano-onnx` 后端调用的 CLI 路径 |
+| `MOSS_TTS_NANO_MODEL_DIR` | `~/.cache/translip/models` | MOSS ONNX 模型目录，传给 `--onnx-model-dir` |
+| `MOSS_TTS_NANO_CPU_THREADS` | `4` | MOSS ONNX CPU 推理线程数 |
 
 更细的默认参数可以查看 [src/translip/config.py](src/translip/config.py)。
 

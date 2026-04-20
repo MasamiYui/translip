@@ -24,7 +24,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["local-m2m100", "siliconflow"],
         help="Task C translation backend",
     )
-    parser.add_argument("--tts-backend", default="qwen3tts", choices=["qwen3tts"])
+    parser.add_argument(
+        "--tts-backend",
+        default="moss-tts-nano-onnx",
+        choices=["moss-tts-nano-onnx", "qwen3tts"],
+    )
     parser.add_argument("--glossary", default="config/glossary.example.json", help="Optional glossary path")
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
     parser.add_argument("--api-model", default=None, help="Optional SiliconFlow model override")

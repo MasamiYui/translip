@@ -10,7 +10,7 @@ OutputFormat = Literal["wav", "mp3", "flac", "aac", "opus"]
 Device = Literal["auto", "cpu", "cuda", "mps"]
 Quality = Literal["balanced", "high"]
 TranslationBackendName = Literal["local-m2m100", "siliconflow"]
-TtsBackendName = Literal["qwen3tts"]
+TtsBackendName = Literal["moss-tts-nano-onnx", "qwen3tts"]
 CondenseMode = Literal["off", "smart", "aggressive"]
 FitPolicy = Literal["conservative", "high_quality"]
 FitBackendName = Literal["atempo", "rubberband"]
@@ -351,7 +351,7 @@ class DubbingRequest:
     profiles_path: Path | str
     output_dir: Path | str = Path("output")
     speaker_id: str = ""
-    backend: TtsBackendName = "qwen3tts"
+    backend: TtsBackendName = "moss-tts-nano-onnx"
     device: Device = "auto"
     reference_clip_path: Path | str | None = None
     segment_ids: list[str] | None = None
@@ -478,7 +478,7 @@ class PipelineRequest:
     erase_project_root: Path | str | None = None
     target_lang: str = "en"
     translation_backend: TranslationBackendName = "local-m2m100"
-    tts_backend: TtsBackendName = "qwen3tts"
+    tts_backend: TtsBackendName = "moss-tts-nano-onnx"
     device: Device = "auto"
     run_from_stage: PipelineStageName = "stage1"
     run_to_stage: PipelineStageName = "task-g"

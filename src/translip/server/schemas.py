@@ -113,7 +113,7 @@ class TaskConfigInput(BaseModel):
     siliconflow_model: Optional[str] = None
     condense_mode: str = "off"
     # Task D
-    tts_backend: str = "qwen3tts"
+    tts_backend: str = "moss-tts-nano-onnx"
     max_segments: Optional[int] = None
     # Task E
     fit_policy: str = "conservative"

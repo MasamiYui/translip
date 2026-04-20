@@ -31,6 +31,7 @@ from .config import (
     DEFAULT_TRANSLATION_TARGET_LANG,
     DEFAULT_TRANSCRIPTION_ASR_MODEL,
     DEFAULT_TRANSCRIPTION_LANGUAGE,
+    SUPPORTED_DUBBING_BACKENDS,
 )
 from .delivery.runner import export_video
 from .dubbing.runner import synthesize_speaker
@@ -209,7 +210,7 @@ def build_parser() -> argparse.ArgumentParser:
     synthesize_parser.add_argument(
         "--backend",
         default=DEFAULT_DUBBING_BACKEND,
-        choices=["qwen3tts"],
+        choices=list(SUPPORTED_DUBBING_BACKENDS),
     )
     synthesize_parser.add_argument("--device", default=DEFAULT_DEVICE, choices=["auto", "cpu", "cuda", "mps"])
     synthesize_parser.add_argument("--reference-clip", default=None, help="Optional reference clip override")
@@ -352,7 +353,7 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument(
         "--tts-backend",
         default=None,
-        choices=["qwen3tts"],
+        choices=list(SUPPORTED_DUBBING_BACKENDS),
     )
     pipeline_parser.add_argument("--device", default=None, choices=["auto", "cpu", "cuda", "mps"])
     pipeline_parser.add_argument("--run-from-stage", default=None)

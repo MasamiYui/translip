@@ -150,6 +150,9 @@ describe('TaskDetailPage export workflow', () => {
     expect(screen.queryByText('1. 选择导出版本')).not.toBeInTheDocument()
     expect(screen.queryByText('无字幕配音版')).not.toBeInTheDocument()
     expect(screen.getByText('2. 确认素材来源')).toBeInTheDocument()
+    const audioSourceCard = screen.getByText('音轨来源').closest('.rounded-xl') as HTMLElement
+    expect(within(audioSourceCard).getByText('配音+背景混音音轨')).toBeInTheDocument()
+    expect(within(audioSourceCard).getByText('task-e/voice/preview_mix.en.wav')).toBeInTheDocument()
     expect(screen.getByText('3. 选择字幕样式')).toBeInTheDocument()
     expect(screen.getByText('4. 预览并导出')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Source Han Sans')).toBeInTheDocument()
@@ -298,7 +301,7 @@ describe('TaskDetailPage export workflow', () => {
     const originalVideoDownload = await screen.findByRole('link', { name: '下载原始视频' })
     expect(originalVideoDownload).toHaveAttribute('href', '/api/tasks/task-3/input-file')
 
-    expect(screen.getByRole('link', { name: '下载正式配音音轨' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: '下载纯配音音轨' })).toHaveAttribute(
       'href',
       '/api/tasks/task-3/artifacts/task-e/voice/dub_voice.en.wav',
     )

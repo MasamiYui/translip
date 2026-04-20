@@ -56,6 +56,25 @@ def _matches_huggingface_model_glob(cache_root: Path, pattern: str) -> bool:
     return any(path.is_dir() for path in cache_root.glob(pattern))
 
 
+def _has_moss_tts_nano_onnx_assets(cache_root: Path, hf_cache_root: Path) -> bool:
+    model_roots = [cache_root / "models"]
+    if model_dir := os.environ.get("MOSS_TTS_NANO_MODEL_DIR"):
+        model_roots.append(Path(model_dir))
+
+    has_tts = any((root / "MOSS-TTS-Nano-100M-ONNX").exists() for root in model_roots)
+    has_codec = any((root / "MOSS-Audio-Tokenizer-Nano-ONNX").exists() for root in model_roots)
+    if has_tts and has_codec:
+        return True
+
+    return (
+        _matches_huggingface_model_glob(hf_cache_root, "models--OpenMOSS-Team--MOSS-TTS-Nano-100M-ONNX*")
+        and _matches_huggingface_model_glob(
+            hf_cache_root,
+            "models--OpenMOSS-Team--MOSS-Audio-Tokenizer-Nano-ONNX*",
+        )
+    )
+
+
 def collect_model_statuses(
     *,
     cache_root: Path = CACHE_ROOT,
@@ -115,6 +134,10 @@ def collect_model_statuses(
                 or _matches_huggingface_model_glob(hf_cache_root, "models--facebook--m2m100_418M*")
             )
             else "missing",
+        },
+        {
+            "name": "MOSS-TTS-Nano ONNX",
+            "status": "available" if _has_moss_tts_nano_onnx_assets(cache_root, hf_cache_root) else "missing",
         },
         {
             "name": "Qwen3TTS",
