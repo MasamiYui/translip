@@ -104,6 +104,10 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
         subtitle_source=merged.get("subtitle_source", "ocr"),
         bilingual_chinese_position=merged.get("bilingual_chinese_position", "bottom"),
         bilingual_english_position=merged.get("bilingual_english_position", "top"),
+        bilingual_export_strategy=merged.get(
+            "bilingual_export_strategy",
+            "auto_standard_bilingual",
+        ),
     ).normalized()
 
 

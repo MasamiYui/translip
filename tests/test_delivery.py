@@ -186,6 +186,94 @@ def test_export_video_can_export_preview_only(tmp_path: Path, monkeypatch) -> No
     assert report["summary"]["requested_exports"] == ["preview"]
 
 
+def test_bilingual_export_can_preserve_hard_subtitles_and_only_burn_english(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from translip.delivery.runner import export_video
+
+    pipeline_root, input_video_path, _preview_mix_path, dub_voice_path = _build_task_e_fixture(tmp_path)
+    english_srt = pipeline_root / "ocr-translate" / "ocr_subtitles.en.srt"
+    chinese_srt = pipeline_root / "ocr-detect" / "ocr_subtitles.source.srt"
+    _touch(english_srt)
+    _touch(chinese_srt)
+
+    srt_calls: list[Path] = []
+    merge_calls: list[tuple[Path, Path]] = []
+    mux_calls: list[dict[str, Path]] = []
+
+    def fake_srt_to_ass(subtitle_path: Path, style, ass_path: Path) -> None:
+        ass_path.parent.mkdir(parents=True, exist_ok=True)
+        ass_path.write_text("english-only", encoding="utf-8")
+        srt_calls.append(subtitle_path)
+
+    def fake_merge_bilingual_ass(
+        chinese_subtitle_path: Path,
+        english_subtitle_path: Path,
+        chinese_style,
+        english_style,
+        ass_path: Path,
+    ) -> None:
+        merge_calls.append((chinese_subtitle_path, english_subtitle_path))
+        ass_path.parent.mkdir(parents=True, exist_ok=True)
+        ass_path.write_text("bilingual", encoding="utf-8")
+
+    def fake_burn_subtitle_and_mux(
+        *,
+        input_video_path: Path,
+        input_audio_path: Path,
+        subtitle_path: Path,
+        output_path: Path,
+        video_codec: str,
+        audio_codec: str,
+        audio_bitrate: str | None,
+        end_policy: str,
+    ) -> Path:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"video")
+        mux_calls.append(
+            {
+                "input_video_path": input_video_path,
+                "input_audio_path": input_audio_path,
+                "subtitle_path": subtitle_path,
+                "output_path": output_path,
+            }
+        )
+        return output_path
+
+    monkeypatch.setattr("translip.delivery.runner.srt_to_ass", fake_srt_to_ass)
+    monkeypatch.setattr("translip.delivery.runner.merge_bilingual_ass", fake_merge_bilingual_ass)
+    monkeypatch.setattr("translip.delivery.runner.burn_subtitle_and_mux", fake_burn_subtitle_and_mux)
+    monkeypatch.setattr("translip.delivery.runner.probe_media", _fake_media_info)
+    monkeypatch.setattr("translip.delivery.runner.probe_video_resolution", lambda _: (1920, 1080))
+
+    result = export_video(
+        ExportVideoRequest(
+            input_video_path=input_video_path,
+            pipeline_root=pipeline_root,
+            task_e_dir=pipeline_root / "task-e" / "voice",
+            output_dir=tmp_path / "delivery-preserve",
+            target_lang="en",
+            export_preview=False,
+            export_dub=True,
+            subtitle_mode="bilingual",
+            subtitle_source="ocr",
+            bilingual_export_strategy="preserve_hard_subtitles_add_english",
+        )
+    )
+
+    assert result.artifacts.dub_video_path is not None
+    assert srt_calls == [english_srt.resolve()]
+    assert merge_calls == []
+    assert mux_calls[0]["input_video_path"] == input_video_path.resolve()
+    assert mux_calls[0]["input_audio_path"] == dub_voice_path.resolve()
+
+    manifest = json.loads(result.artifacts.manifest_path.read_text(encoding="utf-8"))
+    report = json.loads(result.artifacts.report_path.read_text(encoding="utf-8"))
+    assert manifest["request"]["bilingual_export_strategy"] == "preserve_hard_subtitles_add_english"
+    assert report["config"]["bilingual_export_strategy"] == "preserve_hard_subtitles_add_english"
+
+
 def test_resolve_delivery_inputs_prefers_clean_video_when_available(
     tmp_path: Path, monkeypatch
 ) -> None:

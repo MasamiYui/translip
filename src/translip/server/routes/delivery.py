@@ -38,6 +38,11 @@ class SubtitlePreviewRequestPayload(BaseModel):
 class DeliveryComposeRequestPayload(BaseModel):
     subtitle_mode: Literal["none", "chinese_only", "english_only", "bilingual"] = "none"
     subtitle_source: Literal["ocr", "asr"] = "ocr"
+    bilingual_export_strategy: Literal[
+        "auto_standard_bilingual",
+        "preserve_hard_subtitles_add_english",
+        "clean_video_rebuild_bilingual",
+    ] = "auto_standard_bilingual"
     font_family: str = "Noto Sans"
     font_size: int = 0
     primary_color: str = "#FFFFFF"
@@ -158,6 +163,7 @@ def compose_delivery(
             ),
             bilingual_chinese_position=payload.bilingual_chinese_position,
             bilingual_english_position=payload.bilingual_english_position,
+            bilingual_export_strategy=payload.bilingual_export_strategy,
         )
     )
 
@@ -178,6 +184,7 @@ def compose_delivery(
             "subtitle_bold": payload.bold,
             "bilingual_chinese_position": payload.bilingual_chinese_position,
             "bilingual_english_position": payload.bilingual_english_position,
+            "bilingual_export_strategy": payload.bilingual_export_strategy,
         },
     )
     session.add(task)

@@ -10,7 +10,7 @@ from translip.transcription.export import (
 )
 from translip.transcription.speaker import _cluster_embeddings, _expanded_window, _stable_relabel
 from translip.types import MediaInfo, TranscriptionRequest, TranscriptionSegment
-from translip.transcription.asr import AsrSegment
+from translip.transcription.asr import AsrSegment, resolve_faster_whisper_model_path
 
 
 def test_stable_relabel_preserves_first_seen_order() -> None:
@@ -123,3 +123,17 @@ def test_write_segments_srt(tmp_path: Path) -> None:
     content = output_path.read_text(encoding="utf-8")
     assert "00:00:00,000 --> 00:00:01,000" in content
     assert "[SPEAKER_00] 你好" in content
+
+
+def test_resolve_faster_whisper_model_path_prefers_complete_local_cache(tmp_path: Path) -> None:
+    hf_cache = tmp_path / "hub"
+    model_cache = hf_cache / "models--Systran--faster-whisper-small"
+    snapshot = model_cache / "snapshots" / "abc123"
+    snapshot.mkdir(parents=True)
+    (model_cache / "refs").mkdir()
+    (model_cache / "refs" / "main").write_text("abc123", encoding="utf-8")
+
+    for filename in ["model.bin", "config.json", "tokenizer.json", "vocabulary.txt"]:
+        (snapshot / filename).write_text("cached", encoding="utf-8")
+
+    assert resolve_faster_whisper_model_path("small", cache_dir=hf_cache) == str(snapshot)

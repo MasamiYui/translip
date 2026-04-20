@@ -8,7 +8,14 @@ import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageC
 import { buildTemplatePreviewGraph } from '../lib/workflowPreview'
 import { PipelineGraph } from '../components/pipeline/PipelineGraph'
 import { getOutputIntentLabel, getQualityPresetLabel } from '../lib/taskPresentation'
-import type { CreateTaskRequest, TaskConfig, TaskOutputIntent, TaskQualityPreset } from '../types'
+import type {
+  CreateTaskRequest,
+  TaskConfig,
+  TaskOutputIntent,
+  TaskQualityPreset,
+  TranscriptionCorrectionConfig,
+  TranscriptionCorrectionPreset,
+} from '../types'
 import { LANGUAGE_CODES, STAGE_ORDER } from '../i18n/formatters'
 import { useI18n } from '../i18n/useI18n'
 
@@ -30,6 +37,12 @@ const defaultConfig: Partial<TaskConfig> = {
   dialogue_backend: 'cdx23',
   asr_model: 'small',
   generate_srt: true,
+  transcription_correction: {
+    enabled: true,
+    preset: 'standard',
+    ocr_only_policy: 'report_only',
+    llm_arbitration: 'off',
+  },
   top_k: 3,
   translation_backend: 'local-m2m100',
   translation_batch_size: 4,
@@ -323,6 +336,7 @@ export function NewTaskPage() {
   const [mediaInfo, setMediaInfo] = useState<Record<string, unknown> | null>(null)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showDeveloperSettings, setShowDeveloperSettings] = useState(false)
+  const [showCorrectionExplanation, setShowCorrectionExplanation] = useState(false)
 
   const steps = locale === 'zh-CN'
     ? ['素材与语言', '成品目标', '质量与设置', '确认创建']
@@ -363,6 +377,20 @@ export function NewTaskPage() {
     setConfig(prev => ({ ...prev, ...patch }))
   }
 
+  function patchTranscriptionCorrection(patch: Partial<TranscriptionCorrectionConfig>) {
+    setConfig(prev => ({
+      ...prev,
+      transcription_correction: {
+        enabled: true,
+        preset: 'standard',
+        ocr_only_policy: 'report_only',
+        llm_arbitration: 'off',
+        ...(prev.transcription_correction ?? {}),
+        ...patch,
+      },
+    }))
+  }
+
   function applyPreset(presetId: string) {
     const preset = presets?.find(item => String(item.id) === presetId)
     if (!preset) return
@@ -399,6 +427,7 @@ export function NewTaskPage() {
 
   const outputIntent = (config.output_intent ?? 'dub_final') as TaskOutputIntent
   const qualityPreset = (config.quality_preset ?? 'standard') as TaskQualityPreset
+  const supportsCorrection = supportsTranscriptCorrection(normalizeTemplateId(config.template))
   const summary = useMemo(
     () => buildTaskSummary(outputIntent, sourceLang, targetLang, locale, getLanguageLabel),
     [getLanguageLabel, locale, outputIntent, sourceLang, targetLang],
@@ -538,6 +567,48 @@ export function NewTaskPage() {
               onChange={applyQualityPreset}
             />
           </Field>
+          {supportsCorrection && (
+            <Field
+              label={locale === 'zh-CN' ? '台词校正' : 'Transcript Correction'}
+              hint={locale === 'zh-CN'
+                ? '默认使用标准强度：保留 ASR 时间轴，只替换高置信 OCR 台词文本。'
+                : 'Standard by default: keep ASR timing and replace only high-confidence OCR dialogue.'}
+            >
+              <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                <div className="grid gap-3 md:grid-cols-[1fr_12rem]">
+                  <Checkbox
+                    checked={config.transcription_correction?.enabled ?? true}
+                    onChange={value => patchTranscriptionCorrection({ enabled: value })}
+                    label={locale === 'zh-CN' ? '使用画面字幕校正 ASR 文稿' : 'Use screen subtitles to correct ASR text'}
+                  />
+                  <Select
+                    value={config.transcription_correction?.preset ?? 'standard'}
+                    onChange={value => patchTranscriptionCorrection({ preset: value as TranscriptionCorrectionPreset })}
+                    options={[
+                      { value: 'conservative', label: locale === 'zh-CN' ? '保守' : 'Conservative' },
+                      { value: 'standard', label: locale === 'zh-CN' ? '标准' : 'Standard' },
+                      { value: 'aggressive', label: locale === 'zh-CN' ? '积极' : 'Aggressive' },
+                    ]}
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCorrectionExplanation(prev => !prev)}
+                  className="text-xs font-medium text-slate-500 underline-offset-2 hover:text-slate-700 hover:underline"
+                  aria-expanded={showCorrectionExplanation}
+                >
+                  {locale === 'zh-CN' ? '这个选项会做什么' : 'What does this option do?'}
+                </button>
+                {showCorrectionExplanation && (
+                  <p className="text-xs leading-5 text-slate-500">
+                    {locale === 'zh-CN'
+                      ? '系统会读取画面硬字幕，与 ASR 时间轴对齐；只在 OCR 置信度和时间匹配足够高时替换 ASR 文本。保留 ASR 时间轴和说话人。不确定的段落会保留 ASR，并写入校正报告。OCR 有但 ASR 没有的字幕只报告，不自动加入配音。'
+                      : 'The system aligns screen subtitles with ASR timing, keeps ASR timing and speakers, replaces only high-confidence dialogue text, and reports OCR-only subtitles without adding dubbing segments.'}
+                  </p>
+                )}
+              </div>
+            </Field>
+          )}
         </SectionCard>
 
         <SectionCard
@@ -853,6 +924,10 @@ function normalizeTemplateId(value: unknown): TaskConfig['template'] {
   return 'asr-dub-basic'
 }
 
+function supportsTranscriptCorrection(template: TaskConfig['template']) {
+  return template === 'asr-dub+ocr-subs' || template === 'asr-dub+ocr-subs+erase'
+}
+
 function getIntentDefaults(intent: TaskOutputIntent): Partial<TaskConfig> {
   switch (intent) {
     case 'english_subtitle':
@@ -957,9 +1032,9 @@ function getIntentOptions(locale: string): Array<{
     },
     {
       value: 'bilingual_review',
-      title: '中英双语审片版',
-      description: '保留中文信息，并叠加英文字幕，适合审片和对照。',
-      badges: ['中英双语', '适合审片', '优先 OCR 字幕'],
+      title: '双语审片版',
+      description: '适合审片和对照。导出前系统会检测原片是否已带中文字幕，并推荐合适的双语方式。',
+      badges: ['适合审片', '英文对照', '导出前检测中字'],
     },
     {
       value: 'english_subtitle',
@@ -1054,8 +1129,8 @@ function getIntentSummaryDetails(intent: TaskOutputIntent, locale: 'zh-CN' | 'en
       }
     case 'bilingual_review':
       return {
-        primary: '原视频 + 英文字幕 + 配音音轨',
-        secondary: 'OCR 字幕链路、双语导出能力',
+        primary: '原视频 + 英文对照 + 配音音轨',
+        secondary: 'OCR 字幕链路、导出前双语策略确认',
       }
     case 'fast_validation':
       return {
@@ -1088,7 +1163,7 @@ function getIntentTip(intent: TaskOutputIntent, locale: 'zh-CN' | 'en-US'): stri
     case 'english_subtitle':
       return '系统会优先尝试生成干净画面和英文字幕。'
     case 'bilingual_review':
-      return '系统会优先保留原画面，并为你准备双语导出能力。'
+      return '系统会优先保留原画面，并在导出前根据中文字幕检测结果推荐合适的双语方式。'
     case 'fast_validation':
       return '系统会优先选择更快的默认方案，帮助你尽早看到结果。'
     default:
@@ -1136,8 +1211,8 @@ function getIntentCapabilityDetails(intent: TaskOutputIntent, locale: 'zh-CN' | 
     case 'bilingual_review':
       return {
         title: '系统将自动启用',
-        capabilities: ['OCR 字幕链路', '配音合成', '双语字幕烧录'],
-        helper: '系统会保留原视频画面，并自动准备适合审片的双语导出能力。',
+        capabilities: ['OCR 字幕链路', '配音合成', '审片导出决策'],
+        helper: '系统会保留原视频画面，并在导出时根据中文字幕检测结果推荐合适的双语方式。',
       }
     case 'fast_validation':
       return {

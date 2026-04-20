@@ -9,7 +9,7 @@ import type { Locale } from '../i18n/messages'
 const outputIntentLabels = {
   'zh-CN': {
     dub_final: '英文配音成片',
-    bilingual_review: '中英双语审片版',
+    bilingual_review: '双语审片版',
     english_subtitle: '英文字幕版',
     fast_validation: '快速验证版',
   },
@@ -37,7 +37,7 @@ const qualityLabels = {
 const exportProfileLabels = {
   'zh-CN': {
     dub_no_subtitles: '无字幕配音版',
-    bilingual_review: '中英双语版',
+    bilingual_review: '双语审片版',
     english_subtitle_burned: '英文字幕版',
     preview_only: '预览版',
   },

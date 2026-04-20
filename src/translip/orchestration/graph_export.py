@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 from .graph import resolve_template_plan
-from .nodes import NODE_REGISTRY
 
 
 def _edge_state(source_status: str, target_status: str) -> str:
@@ -49,7 +48,7 @@ def build_workflow_graph_payload(manifest_payload: dict[str, Any]) -> dict[str, 
             ),
         }
         for node_name in plan.node_order
-        for dependency in NODE_REGISTRY[node_name].dependencies
+        for dependency in plan.dependencies_for(node_name)
         if dependency in plan.nodes
     ]
     return {

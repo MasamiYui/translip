@@ -113,6 +113,35 @@ def test_stage1_command_uses_python_module_cli(tmp_path: Path) -> None:
     assert command[3] == "run"
 
 
+def test_effective_task_a_segments_prefers_corrected_segments(tmp_path: Path) -> None:
+    from translip.orchestration.commands import (
+        effective_task_a_segments_path,
+        task_a_corrected_segments_path,
+        task_a_segments_path,
+    )
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(input_path=tmp_path / "sample.mp4", output_root=tmp_path / "out")
+    original = task_a_segments_path(request)
+    corrected = task_a_corrected_segments_path(request)
+    original.parent.mkdir(parents=True)
+    original.write_text("{}", encoding="utf-8")
+    corrected.parent.mkdir(parents=True)
+    corrected.write_text("{}", encoding="utf-8")
+
+    assert effective_task_a_segments_path(request) == corrected
+
+
+def test_effective_task_a_segments_falls_back_to_original(tmp_path: Path) -> None:
+    from translip.orchestration.commands import effective_task_a_segments_path, task_a_segments_path
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(input_path=tmp_path / "sample.mp4", output_root=tmp_path / "out")
+    original = task_a_segments_path(request)
+
+    assert effective_task_a_segments_path(request) == original
+
+
 def test_run_pipeline_writes_manifest_report_and_status(tmp_path: Path, monkeypatch) -> None:
     from translip.orchestration.runner import run_pipeline
     from translip.types import PipelineRequest
@@ -225,6 +254,36 @@ def test_run_pipeline_executes_nodes_from_template_plan(tmp_path: Path, monkeypa
     assert calls == ["stage1", "task-a", "task-b"]
     payload = json.loads(result.report_path.read_text(encoding="utf-8"))
     assert payload["status"] == "succeeded"
+
+
+def test_run_pipeline_executes_asr_ocr_correction_before_task_b(tmp_path: Path, monkeypatch) -> None:
+    from translip.orchestration.runner import run_pipeline
+    from translip.types import PipelineRequest
+
+    input_path = tmp_path / "sample.mp4"
+    input_path.write_text("placeholder", encoding="utf-8")
+    request = PipelineRequest(
+        input_path=input_path,
+        output_root=tmp_path / "workflow-out",
+        template_id="asr-dub+ocr-subs",
+        run_to_stage="task-b",
+    )
+
+    calls: list[str] = []
+
+    def fake_execute(node_name: str, *_args, **_kwargs):
+        calls.append(node_name)
+        node_dir = request.output_root / node_name / "voice"
+        node_dir.mkdir(parents=True, exist_ok=True)
+        manifest_path = node_dir / f"{node_name}.json"
+        manifest_path.write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
+        return {"manifest_path": str(manifest_path), "artifact_paths": [str(manifest_path)]}
+
+    monkeypatch.setattr("translip.orchestration.runner.execute_node", fake_execute)
+
+    run_pipeline(request)
+
+    assert calls == ["stage1", "ocr-detect", "task-a", "asr-ocr-correct", "task-b"]
 
 
 def test_run_pipeline_marks_partial_success_when_optional_node_fails(tmp_path: Path, monkeypatch) -> None:

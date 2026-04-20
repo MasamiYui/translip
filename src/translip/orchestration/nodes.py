@@ -17,6 +17,7 @@ NODE_REGISTRY: dict[WorkflowNodeName, WorkflowNodeDef] = {
     "stage1": WorkflowNodeDef("stage1", "audio-spine", (), 10),
     "ocr-detect": WorkflowNodeDef("ocr-detect", "ocr-subtitles", (), 20),
     "task-a": WorkflowNodeDef("task-a", "audio-spine", ("stage1",), 30),
+    "asr-ocr-correct": WorkflowNodeDef("asr-ocr-correct", "audio-spine", ("task-a", "ocr-detect"), 35),
     "task-b": WorkflowNodeDef("task-b", "audio-spine", ("stage1", "task-a"), 40),
     "task-c": WorkflowNodeDef("task-c", "audio-spine", ("task-a", "task-b"), 50),
     "ocr-translate": WorkflowNodeDef("ocr-translate", "ocr-subtitles", ("ocr-detect",), 60),

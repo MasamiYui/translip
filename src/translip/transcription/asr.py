@@ -7,8 +7,21 @@ from pathlib import Path
 
 import torch
 from faster_whisper import WhisperModel
+try:
+    from faster_whisper.utils import _MODELS as FASTER_WHISPER_MODEL_ALIASES
+except ImportError:  # pragma: no cover - compatibility guard for future faster-whisper releases.
+    FASTER_WHISPER_MODEL_ALIASES = {
+        "tiny": "Systran/faster-whisper-tiny",
+        "base": "Systran/faster-whisper-base",
+        "small": "Systran/faster-whisper-small",
+        "medium": "Systran/faster-whisper-medium",
+        "large-v3": "Systran/faster-whisper-large-v3",
+    }
+from huggingface_hub import try_to_load_from_cache
 
 logger = logging.getLogger(__name__)
+
+_FASTER_WHISPER_REQUIRED_FILES = ("model.bin", "config.json", "tokenizer.json", "vocabulary.txt")
 
 
 @dataclass(slots=True)
@@ -55,6 +68,37 @@ def _compute_type(device: str) -> str:
     return "float16" if device == "cuda" else "int8"
 
 
+def _repo_id_for_model(model_name: str) -> str | None:
+    normalized = model_name.strip()
+    if normalized in FASTER_WHISPER_MODEL_ALIASES:
+        return FASTER_WHISPER_MODEL_ALIASES[normalized]
+    if normalized.startswith("Systran/faster-whisper-"):
+        return normalized
+    return None
+
+
+def resolve_faster_whisper_model_path(model_name: str, *, cache_dir: Path | str | None = None) -> str:
+    """Resolve a cached faster-whisper model to a local snapshot path when possible."""
+    repo_id = _repo_id_for_model(model_name)
+    if repo_id is None:
+        return model_name
+
+    cached_files: list[Path] = []
+    for filename in _FASTER_WHISPER_REQUIRED_FILES:
+        cached_file = try_to_load_from_cache(repo_id, filename, cache_dir=cache_dir)
+        if not isinstance(cached_file, str):
+            return model_name
+        cached_path = Path(cached_file)
+        if not cached_path.exists():
+            return model_name
+        cached_files.append(cached_path)
+
+    snapshot_dir = cached_files[0].parent
+    if any(path.parent != snapshot_dir for path in cached_files):
+        return model_name
+    return str(snapshot_dir)
+
+
 @lru_cache(maxsize=4)
 def _load_model(model_name: str, device: str, compute_type: str) -> WhisperModel:
     return WhisperModel(model_name, device=device, compute_type=compute_type)
@@ -69,7 +113,8 @@ def transcribe_audio(
     options: AsrOptions | None = None,
 ) -> tuple[list[AsrSegment], dict[str, str | float | int | bool]]:
     device = resolve_asr_device(requested_device)
-    model = _load_model(model_name, device, _compute_type(device))
+    resolved_model_path = resolve_faster_whisper_model_path(model_name)
+    model = _load_model(resolved_model_path, device, _compute_type(device))
     resolved_options = options or AsrOptions()
 
     transcribe_kwargs: dict[str, object] = {
@@ -111,6 +156,7 @@ def transcribe_audio(
     metadata: dict[str, str | float | int | bool] = {
         "asr_backend": "faster-whisper",
         "asr_model": model_name,
+        "asr_model_resolved": resolved_model_path,
         "asr_device": device,
         "detected_language": detected_language,
         "segment_count": len(segments),

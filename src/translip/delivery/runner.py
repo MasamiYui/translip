@@ -86,6 +86,7 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
         subtitle_style=normalized_request.subtitle_style,
         bilingual_chinese_position=normalized_request.bilingual_chinese_position,
         bilingual_english_position=normalized_request.bilingual_english_position,
+        bilingual_export_strategy=normalized_request.bilingual_export_strategy,
     )
 
     manifest_path = normalized_request.output_dir / "delivery-manifest.json"
@@ -259,6 +260,7 @@ def _resolve_request(request: ExportVideoRequest) -> ExportVideoRequest:
         subtitle_style=normalized.subtitle_style,
         bilingual_chinese_position=normalized.bilingual_chinese_position,
         bilingual_english_position=normalized.bilingual_english_position,
+        bilingual_export_strategy=normalized.bilingual_export_strategy,
     )
 
 
@@ -313,6 +315,8 @@ def _resolve_subtitle_path(request: ExportVideoRequest, target_lang: str) -> Pat
 
 def _resolve_chinese_subtitle_path(request: ExportVideoRequest) -> Path | None:
     if request.subtitle_mode != "bilingual":
+        return None
+    if request.bilingual_export_strategy == "preserve_hard_subtitles_add_english":
         return None
     if request.pipeline_root is None:
         raise TranslipError("bilingual export requires pipeline_root")
@@ -381,30 +385,39 @@ def _export_video_variant(
             margin_h=style.margin_h,
             alignment=8 if request.bilingual_english_position == "top" else 2,
         )
-        chinese_style = SubtitleStyle(
-            font_family=DEFAULT_SUBTITLE_FONT_CJK,
-            font_size=max(style.font_size, 1),
-            primary_color="#FFFFFF",
-            outline_color="#000000",
-            outline_width=style.outline_width,
-            shadow_depth=style.shadow_depth,
-            bold=False,
-            position=request.bilingual_chinese_position,
-            margin_v=style.margin_v,
-            margin_h=style.margin_h,
-            alignment=8 if request.bilingual_chinese_position == "top" else 2,
-        )
-        merge_bilingual_ass(Path(chinese_subtitle_path), Path(subtitle_path), chinese_style, english_style, ass_path)
+        if request.bilingual_export_strategy == "preserve_hard_subtitles_add_english":
+            srt_to_ass(Path(subtitle_path), english_style, ass_path)
+        else:
+            chinese_style = SubtitleStyle(
+                font_family=DEFAULT_SUBTITLE_FONT_CJK,
+                font_size=max(style.font_size, 1),
+                primary_color="#FFFFFF",
+                outline_color="#000000",
+                outline_width=style.outline_width,
+                shadow_depth=style.shadow_depth,
+                bold=False,
+                position=request.bilingual_chinese_position,
+                margin_v=style.margin_v,
+                margin_h=style.margin_h,
+                alignment=8 if request.bilingual_chinese_position == "top" else 2,
+            )
+            merge_bilingual_ass(Path(chinese_subtitle_path), Path(subtitle_path), chinese_style, english_style, ass_path)
     else:
         raise TranslipError(f"Unsupported subtitle mode: {request.subtitle_mode}")
 
     source_video_path = Path(request.input_video_path)
-    if request.subtitle_mode == "english_only" and request.pipeline_root is not None:
+    needs_clean_video = request.subtitle_mode == "english_only" or (
+        request.subtitle_mode == "bilingual"
+        and request.bilingual_export_strategy == "clean_video_rebuild_bilingual"
+    )
+    if needs_clean_video and request.pipeline_root is not None:
         clean_candidate = request.pipeline_root / "subtitle-erase" / "clean_video.mp4"
         if clean_candidate.exists():
             source_video_path = clean_candidate
         else:
-            raise TranslipError("english_only mode requires subtitle-erase clean_video.mp4")
+            if request.subtitle_mode == "english_only":
+                raise TranslipError("english_only mode requires subtitle-erase clean_video.mp4")
+            raise TranslipError("clean_video_rebuild_bilingual requires subtitle-erase clean_video.mp4")
 
     burn_subtitle_and_mux(
         input_video_path=source_video_path,

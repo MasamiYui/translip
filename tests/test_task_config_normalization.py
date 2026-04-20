@@ -81,6 +81,51 @@ def test_build_pipeline_request_upgrades_legacy_erase_defaults(tmp_path: Path) -
     assert request.subtitle_style.position == "top"
 
 
+def test_transcription_correction_defaults_to_standard_for_pipeline_config() -> None:
+    from translip.server.task_config import normalize_task_config
+
+    config = normalize_task_config({"template": "asr-dub+ocr-subs"})
+
+    assert config["transcription_correction"] == {
+        "enabled": True,
+        "preset": "standard",
+        "ocr_only_policy": "report_only",
+        "llm_arbitration": "off",
+    }
+
+
+def test_build_pipeline_request_maps_transcription_correction(tmp_path: Path) -> None:
+    from translip.server.task_manager import _build_pipeline_request
+
+    task = Task(
+        id="task-correction-config",
+        name="Correction Config",
+        status="pending",
+        input_path=str(tmp_path / "input.mp4"),
+        output_root=str(tmp_path / "output"),
+        source_lang="zh",
+        target_lang="en",
+        config={
+            "pipeline": {
+                "template": "asr-dub+ocr-subs",
+                "transcription_correction": {
+                    "enabled": False,
+                    "preset": "conservative",
+                    "ocr_only_policy": "report_only",
+                    "llm_arbitration": "off",
+                },
+            }
+        },
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    request = _build_pipeline_request(task)
+
+    assert request.transcription_correction["enabled"] is False
+    assert request.transcription_correction["preset"] == "conservative"
+
+
 def test_task_manager_create_task_normalizes_legacy_erase_defaults(
     tmp_path: Path, monkeypatch
 ) -> None:

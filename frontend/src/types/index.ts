@@ -7,6 +7,12 @@ export type TaskOutputIntent = 'dub_final' | 'bilingual_review' | 'english_subti
 export type TaskQualityPreset = 'fast' | 'standard' | 'high_quality'
 export type TaskExportProfile = 'dub_no_subtitles' | 'bilingual_review' | 'english_subtitle_burned' | 'preview_only'
 export type TaskExportReadinessStatus = 'not_ready' | 'ready' | 'exported' | 'blocked' | 'exporting'
+export type HardSubtitleStatus = 'none' | 'confirmed'
+export type BilingualExportStrategy =
+  | 'auto_standard_bilingual'
+  | 'preserve_hard_subtitles_add_english'
+  | 'clean_video_rebuild_bilingual'
+export type TranscriptionCorrectionPreset = 'conservative' | 'standard' | 'aggressive'
 
 export interface TaskAssetEntry {
   status: 'available' | 'missing' | 'building' | 'failed'
@@ -60,6 +66,24 @@ export interface TaskLastExportSummary {
   files: TaskLastExportFile[]
 }
 
+export interface TranscriptionCorrectionConfig {
+  enabled: boolean
+  preset: TranscriptionCorrectionPreset
+  ocr_only_policy: 'report_only'
+  llm_arbitration: 'off'
+}
+
+export interface TranscriptionCorrectionSummary {
+  status: 'not_available' | 'available' | 'unreadable'
+  corrected_count: number
+  kept_asr_count: number
+  review_count: number
+  ocr_only_count: number
+  auto_correction_rate?: number
+  review_rate?: number
+  algorithm_version?: string
+}
+
 export interface TaskStage {
   stage_name: string
   status: StageStatus
@@ -85,9 +109,11 @@ export interface Task {
   quality_preset: TaskQualityPreset
   config: Partial<TaskConfig>
   delivery_config: Partial<TaskDeliveryConfig>
+  hard_subtitle_status?: HardSubtitleStatus
   asset_summary: TaskAssetSummary
   export_readiness: TaskExportReadiness
   last_export_summary: TaskLastExportSummary
+  transcription_correction_summary?: TranscriptionCorrectionSummary
   overall_progress: number
   current_stage?: string
   created_at: string
@@ -126,6 +152,7 @@ export interface TaskDeliveryConfig {
   subtitle_bold?: boolean
   bilingual_chinese_position?: 'top' | 'bottom'
   bilingual_english_position?: 'top' | 'bottom'
+  bilingual_export_strategy?: BilingualExportStrategy
   subtitle_preview_duration_sec?: number
 }
 
@@ -160,6 +187,7 @@ export interface TaskConfig {
   dialogue_backend: string
   asr_model: string
   generate_srt: boolean
+  transcription_correction?: Partial<TranscriptionCorrectionConfig>
   top_k: number
   translation_backend: string
   translation_glossary?: string

@@ -41,6 +41,7 @@ const STATUS_CIRCLE: Record<WorkflowGraphNode['status'], string> = {
 const NODE_ICON: Record<string, typeof AudioWaveform> = {
   'stage1':          Scissors,      // 音频分离
   'task-a':          MicVocal,      // 语音转写
+  'asr-ocr-correct': ScanText,      // 文稿校正
   'task-b':          Users,          // 说话人注册
   'task-c':          Languages,      // 翻译
   'task-d':          Headphones,    // 语音合成

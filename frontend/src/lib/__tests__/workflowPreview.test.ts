@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { WorkflowGraph } from '../../types'
-import { normalizeWorkflowGraph } from '../workflowPreview'
+import { buildTemplatePreviewGraph, normalizeWorkflowGraph } from '../workflowPreview'
 
 describe('normalizeWorkflowGraph', () => {
   it('rebuilds runtime graphs with only canonical direct dependencies', () => {
@@ -34,5 +34,15 @@ describe('normalizeWorkflowGraph', () => {
       { from: 'task-d', to: 'task-e', state: 'inactive' },
       { from: 'task-e', to: 'task-g', state: 'inactive' },
     ])
+  })
+
+  it('routes OCR templates through ASR OCR correction before speaker registration', () => {
+    const graph = buildTemplatePreviewGraph('asr-dub+ocr-subs')
+
+    expect(graph.nodes.map(node => node.id)).toContain('asr-ocr-correct')
+    expect(graph.edges).toContainEqual({ from: 'task-a', to: 'asr-ocr-correct', state: 'inactive' })
+    expect(graph.edges).toContainEqual({ from: 'ocr-detect', to: 'asr-ocr-correct', state: 'inactive' })
+    expect(graph.edges).toContainEqual({ from: 'asr-ocr-correct', to: 'task-b', state: 'inactive' })
+    expect(graph.edges).not.toContainEqual({ from: 'task-a', to: 'task-b', state: 'inactive' })
   })
 })

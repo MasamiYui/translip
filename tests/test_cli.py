@@ -50,6 +50,29 @@ def test_cli_transcribe_parser() -> None:
     assert args.no_srt is True
 
 
+def test_parse_correct_asr_with_ocr_command() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "correct-asr-with-ocr",
+            "--segments",
+            "task-a/voice/segments.zh.json",
+            "--ocr-events",
+            "ocr-detect/ocr_events.json",
+            "--output-dir",
+            "asr-ocr-correct",
+            "--preset",
+            "standard",
+        ]
+    )
+
+    assert args.command == "correct-asr-with-ocr"
+    assert args.segments == "task-a/voice/segments.zh.json"
+    assert args.ocr_events == "ocr-detect/ocr_events.json"
+    assert args.output_dir == "asr-ocr-correct"
+    assert args.preset == "standard"
+
+
 def test_cli_benchmark_transcription_parser() -> None:
     parser = build_parser()
     args = parser.parse_args(

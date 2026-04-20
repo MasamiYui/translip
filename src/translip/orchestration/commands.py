@@ -35,6 +35,31 @@ def task_a_segments_path(request: PipelineRequest) -> Path:
     return task_a_bundle_dir(request) / "segments.zh.json"
 
 
+def task_a_correction_bundle_dir(request: PipelineRequest) -> Path:
+    return request.output_root / "asr-ocr-correct" / "voice"
+
+
+def task_a_corrected_segments_path(request: PipelineRequest) -> Path:
+    return task_a_correction_bundle_dir(request) / "segments.zh.corrected.json"
+
+
+def task_a_corrected_srt_path(request: PipelineRequest) -> Path:
+    return task_a_correction_bundle_dir(request) / "segments.zh.corrected.srt"
+
+
+def task_a_correction_report_path(request: PipelineRequest) -> Path:
+    return task_a_correction_bundle_dir(request) / "correction-report.json"
+
+
+def task_a_correction_manifest_path(request: PipelineRequest) -> Path:
+    return task_a_correction_bundle_dir(request) / "correction-manifest.json"
+
+
+def effective_task_a_segments_path(request: PipelineRequest) -> Path:
+    corrected = task_a_corrected_segments_path(request)
+    return corrected if corrected.exists() else task_a_segments_path(request)
+
+
 def task_a_manifest_path(request: PipelineRequest) -> Path:
     return task_a_bundle_dir(request) / "task-a-manifest.json"
 
@@ -156,7 +181,7 @@ def build_task_b_command(request: PipelineRequest) -> list[str]:
         *_cli_prefix(),
         "build-speaker-registry",
         "--segments",
-        str(task_a_segments_path(request)),
+        str(effective_task_a_segments_path(request)),
         "--audio",
         str(stage1_voice_path(request)),
         "--output-dir",
@@ -178,7 +203,7 @@ def build_task_c_command(request: PipelineRequest) -> list[str]:
         *_cli_prefix(),
         "translate-script",
         "--segments",
-        str(task_a_segments_path(request)),
+        str(effective_task_a_segments_path(request)),
         "--profiles",
         str(task_b_profiles_path(request)),
         "--output-dir",
@@ -231,7 +256,7 @@ def build_task_e_command(request: PipelineRequest, *, task_d_reports: list[Path]
         "--background",
         str(stage1_background_path(request)),
         "--segments",
-        str(task_a_segments_path(request)),
+        str(effective_task_a_segments_path(request)),
         "--translation",
         str(task_c_translation_path(request)),
         "--output-dir",
@@ -262,7 +287,27 @@ def build_task_e_command(request: PipelineRequest, *, task_d_reports: list[Path]
     return command
 
 
+def build_asr_ocr_correction_command(request: PipelineRequest) -> list[str]:
+    config = request.transcription_correction
+    command = [
+        *_cli_prefix(),
+        "correct-asr-with-ocr",
+        "--segments",
+        str(task_a_segments_path(request)),
+        "--ocr-events",
+        str(request.output_root / "ocr-detect" / "ocr_events.json"),
+        "--output-dir",
+        str(request.output_root / "asr-ocr-correct"),
+        "--preset",
+        str(config.get("preset", "standard")),
+    ]
+    if config.get("enabled", True) is False:
+        command.append("--disabled")
+    return command
+
+
 __all__ = [
+    "build_asr_ocr_correction_command",
     "build_stage1_command",
     "build_task_a_command",
     "build_task_b_command",
@@ -273,6 +318,12 @@ __all__ = [
     "stage1_bundle_dir",
     "stage1_manifest_path",
     "stage1_voice_path",
+    "effective_task_a_segments_path",
+    "task_a_corrected_segments_path",
+    "task_a_corrected_srt_path",
+    "task_a_correction_bundle_dir",
+    "task_a_correction_manifest_path",
+    "task_a_correction_report_path",
     "task_a_manifest_path",
     "task_a_segments_path",
     "task_b_manifest_path",

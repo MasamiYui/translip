@@ -112,6 +112,20 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser.add_argument("--keep-intermediate", action="store_true")
     transcribe_parser.add_argument("--no-srt", action="store_true")
 
+    correction_parser = subparsers.add_parser(
+        "correct-asr-with-ocr",
+        help="Correct ASR transcript text with OCR subtitle events while preserving ASR timing",
+    )
+    correction_parser.add_argument("--segments", required=True, help="Task A segments.zh.json path")
+    correction_parser.add_argument("--ocr-events", required=True, help="OCR events JSON path")
+    correction_parser.add_argument("--output-dir", default="asr-ocr-correct", help="Correction output directory")
+    correction_parser.add_argument(
+        "--preset",
+        default="standard",
+        choices=["conservative", "standard", "aggressive"],
+    )
+    correction_parser.add_argument("--disabled", action="store_true")
+
     benchmark_parser = subparsers.add_parser(
         "benchmark-transcription",
         help="Run Task A transcription benchmark against a reference SRT",
@@ -538,6 +552,33 @@ def main(argv: list[str] | None = None) -> int:
         if result.artifacts.srt_path:
             print(f"srt={result.artifacts.srt_path}")
         print(f"manifest={result.artifacts.manifest_path}")
+        return 0
+
+    if args.command == "correct-asr-with-ocr":
+        from .transcription.ocr_correction import (
+            CorrectionConfig,
+            correct_asr_segments_with_ocr,
+            load_json_payload,
+            write_correction_artifacts,
+        )
+
+        preset_map = {
+            "conservative": CorrectionConfig.conservative,
+            "standard": CorrectionConfig.standard,
+            "aggressive": CorrectionConfig.aggressive,
+        }
+        config = preset_map[args.preset]()
+        if args.disabled:
+            config = CorrectionConfig(enabled=False, preset=args.preset)
+        result = correct_asr_segments_with_ocr(
+            segments_payload=load_json_payload(Path(args.segments)),
+            ocr_payload=load_json_payload(Path(args.ocr_events)),
+            config=config,
+        )
+        artifacts = write_correction_artifacts(result, output_dir=Path(args.output_dir) / "voice")
+        print(f"corrected_segments={artifacts.corrected_segments_path}")
+        print(f"report={artifacts.report_path}")
+        print(f"manifest={artifacts.manifest_path}")
         return 0
 
     if args.command == "benchmark-transcription":

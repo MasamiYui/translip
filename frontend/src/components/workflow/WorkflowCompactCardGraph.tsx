@@ -43,6 +43,7 @@ const NODE_ICON: Record<string, LucideIcon> = {
   stage1: Scissors,
   'ocr-detect': ScanText,
   'task-a': MicVocal,
+  'asr-ocr-correct': ScanText,
   'task-b': Users,
   'task-c': Languages,
   'ocr-translate': FileOutput,
@@ -56,6 +57,7 @@ const NODE_CODE: Record<string, string> = {
   stage1: 'S1',
   'ocr-detect': 'O1',
   'task-a': 'A1',
+  'asr-ocr-correct': 'A2',
   'task-b': 'B1',
   'task-c': 'C1',
   'ocr-translate': 'O2',
@@ -69,6 +71,7 @@ const PREVIEW_HINTS: Record<string, { zh: string; en: string }> = {
   stage1: { zh: '拆分人声与背景轨。', en: 'Separate dialogue and background.' },
   'ocr-detect': { zh: '定位画面硬字幕。', en: 'Detect hard subtitles on frame.' },
   'task-a': { zh: '生成时间对齐转写。', en: 'Create aligned transcript segments.' },
+  'asr-ocr-correct': { zh: '用 OCR 字幕校正 ASR 文稿。', en: 'Correct ASR transcript text with OCR subtitles.' },
   'task-b': { zh: '补全说话人身份。', en: 'Register and reconcile speakers.' },
   'task-c': { zh: '翻译配音文本。', en: 'Translate dubbing text.' },
   'ocr-translate': { zh: '翻译展示字幕。', en: 'Translate display subtitles.' },
@@ -169,7 +172,7 @@ const ANCHOR_HEIGHT = 52
 const HANDLE_STYLE = { width: 8, height: 8, opacity: 0, pointerEvents: 'none' as const }
 const START_NODE_ID = '__dag-start__'
 const END_NODE_ID = '__dag-end__'
-const MAINLINE_NODE_IDS = ['stage1', 'task-a', 'task-b', 'task-c', 'task-d', 'task-e', 'task-g'] as const
+const MAINLINE_NODE_IDS = ['stage1', 'task-a', 'asr-ocr-correct', 'task-b', 'task-c', 'task-d', 'task-e', 'task-g'] as const
 
 interface CompactNodeChromeProps {
   node: WorkflowGraphNode
@@ -264,7 +267,7 @@ function CompactNodeChrome({
           <div
             data-ui-title-scale="xl"
             className={cn(
-              'whitespace-nowrap text-center font-semibold leading-[1.12] tracking-[-0.04em] text-current',
+              'whitespace-nowrap text-center font-semibold leading-[1.12] tracking-normal text-current',
               previewOnly ? 'text-[18.5px]' : 'text-[19px]',
             )}
           >

@@ -74,6 +74,14 @@ class TranscriptionToolRequest(BaseModel):
     generate_srt: bool = True
 
 
+class TranscriptCorrectionToolRequest(BaseModel):
+    segments_file_id: str
+    ocr_events_file_id: str
+    enabled: bool = True
+    preset: Literal["conservative", "standard", "aggressive"] = "standard"
+    ocr_only_policy: Literal["report_only"] = "report_only"
+
+
 class TranslationToolRequest(BaseModel):
     text: str | None = None
     file_id: str | None = None

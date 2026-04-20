@@ -22,15 +22,21 @@ from .ocr_bridge import (
     run_ocr_detect,
 )
 from .commands import (
+    build_asr_ocr_correction_command,
     build_stage1_command,
     build_task_a_command,
     build_task_b_command,
     build_task_c_command,
     build_task_d_command,
     build_task_e_command,
+    effective_task_a_segments_path,
     stage1_background_path,
     stage1_manifest_path,
     stage1_voice_path,
+    task_a_corrected_segments_path,
+    task_a_corrected_srt_path,
+    task_a_correction_manifest_path,
+    task_a_correction_report_path,
     task_a_manifest_path,
     task_a_segments_path,
     task_b_manifest_path,
@@ -116,6 +122,8 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
         )
     elif stage_name == "task-a":
         common.update({"language": request.transcription_language, "asr_model": request.asr_model})
+    elif stage_name == "asr-ocr-correct":
+        common.update({"transcription_correction": dict(request.transcription_correction)})
     elif stage_name == "task-b":
         common.update(
             {
@@ -165,6 +173,14 @@ def _node_cache_spec(
     elif stage_name == "task-a":
         manifest_path = task_a_manifest_path(request)
         artifact_paths = [task_a_segments_path(request)]
+    elif stage_name == "asr-ocr-correct":
+        manifest_path = task_a_correction_manifest_path(request)
+        artifact_paths = [
+            task_a_corrected_segments_path(request),
+            task_a_corrected_srt_path(request),
+            task_a_correction_report_path(request),
+            manifest_path,
+        ]
     elif stage_name == "task-b":
         manifest_path = task_b_manifest_path(request)
         artifact_paths = [task_b_profiles_path(request), task_b_matches_path(request), task_b_registry_path(request)]
@@ -211,7 +227,7 @@ def _final_artifacts(request: PipelineRequest) -> dict[str, str]:
     return {
         "voice_path": str(stage1_voice_path(request)),
         "background_path": str(stage1_background_path(request)),
-        "segments_path": str(task_a_segments_path(request)),
+        "segments_path": str(effective_task_a_segments_path(request)),
         "profiles_path": str(task_b_profiles_path(request)),
         "translation_path": str(task_c_translation_path(request)),
         "dub_voice_path": str(task_e_dub_voice_path(request)),
@@ -432,6 +448,19 @@ def execute_node(
     if node_name == "ocr-detect":
         monitor.update_stage_progress(node_name, 5.0, "extracting hard subtitles")
         return run_ocr_detect(request, log_path=_node_log_path(request, node_name))
+    if node_name == "asr-ocr-correct":
+        monitor.update_stage_progress(node_name, 5.0, "correcting ASR transcript with OCR")
+        run_stage_command(build_asr_ocr_correction_command(request), log_path=_node_log_path(request, node_name))
+        return {
+            "manifest_path": str(task_a_correction_manifest_path(request)),
+            "artifact_paths": [
+                str(task_a_corrected_segments_path(request)),
+                str(task_a_corrected_srt_path(request)),
+                str(task_a_correction_report_path(request)),
+                str(task_a_correction_manifest_path(request)),
+            ],
+            "log_path": str(_node_log_path(request, node_name)),
+        }
     if node_name == "ocr-translate":
         from ..subtitles.runner import translate_ocr_events
 

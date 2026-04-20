@@ -28,6 +28,8 @@ from ..task_read_model import (
     build_asset_summary,
     build_export_readiness,
     build_last_export_summary,
+    build_transcription_correction_summary,
+    detect_hard_subtitle_status,
     infer_output_intent,
     infer_quality_preset,
 )
@@ -41,6 +43,7 @@ def _task_to_read(task: Task, stages: list[TaskStage]) -> TaskRead:
     delivery_config = normalize_task_delivery_config(task.config)
     output_intent = infer_output_intent(task.config)
     quality_preset = infer_quality_preset(task.config)
+    hard_subtitle_status = detect_hard_subtitle_status(task)
     asset_summary = build_asset_summary(task)
     export_readiness = build_export_readiness(
         task,
@@ -51,6 +54,7 @@ def _task_to_read(task: Task, stages: list[TaskStage]) -> TaskRead:
         task,
         asset_summary=asset_summary,
     )
+    transcription_correction_summary = build_transcription_correction_summary(task)
     return TaskRead(
         id=task.id,
         name=task.name,
@@ -63,9 +67,11 @@ def _task_to_read(task: Task, stages: list[TaskStage]) -> TaskRead:
         quality_preset=quality_preset,
         config=pipeline_config,
         delivery_config=delivery_config,
+        hard_subtitle_status=hard_subtitle_status,
         asset_summary=asset_summary,
         export_readiness=export_readiness,
         last_export_summary=last_export_summary,
+        transcription_correction_summary=transcription_correction_summary,
         overall_progress=task.overall_progress,
         current_stage=task.current_stage,
         created_at=task.created_at,

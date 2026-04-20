@@ -35,6 +35,7 @@ import { getExportProfileLabel, getOutputIntentLabel, getQualityPresetLabel } fr
 import { resolveActiveStageId, resolveRerunStage } from './taskDetailSelection'
 import type {
   Artifact,
+  BilingualExportStrategy,
   Task,
   TaskAssetEntry,
   TaskConfig,
@@ -47,6 +48,7 @@ const ARTIFACT_PREFIX: Record<string, string[]> = {
   stage1: ['stage1/', 'voice/', 'background/'],
   'ocr-detect': ['ocr-detect/'],
   'task-a': ['task-a/voice/', 'task-a/'],
+  'asr-ocr-correct': ['asr-ocr-correct/voice/', 'asr-ocr-correct/'],
   'task-b': ['task-b/voice/', 'task-b/'],
   'task-c': ['task-c/voice/', 'task-c/'],
   'ocr-translate': ['ocr-translate/'],
@@ -116,6 +118,7 @@ export function TaskDetailPage() {
   const [showProfileOverrides, setShowProfileOverrides] = useState(false)
   const [exportProfile, setExportProfile] = useState<TaskExportProfile>('dub_no_subtitles')
   const [subtitleSource, setSubtitleSource] = useState<'ocr' | 'asr'>('ocr')
+  const [bilingualExportStrategy, setBilingualExportStrategy] = useState<BilingualExportStrategy>('auto_standard_bilingual')
   const [fontFamily, setFontFamily] = useState('Noto Sans CJK SC')
   const [fontSize, setFontSize] = useState(0)
   const [subtitlePosition, setSubtitlePosition] = useState<'top' | 'bottom'>('bottom')
@@ -220,6 +223,7 @@ export function TaskDetailPage() {
     setExportProfile(resolveInitialProfile(task))
     setShowProfileOverrides(false)
     setSubtitleSource(resolveInitialSubtitleSource(task))
+    setBilingualExportStrategy(resolveInitialBilingualStrategy(task))
     setFontFamily(task.delivery_config.subtitle_font ?? 'Noto Sans CJK SC')
     setFontSize(task.delivery_config.subtitle_font_size ?? 0)
     setSubtitlePosition(task.delivery_config.subtitle_position ?? 'bottom')
@@ -269,8 +273,13 @@ export function TaskDetailPage() {
 
   const readinessMessage = getReadinessMessage(task)
   const canOpenExportDrawer = task.export_readiness.status === 'ready' || task.export_readiness.status === 'exported'
+  const effectiveBilingualExportStrategy = resolveEffectiveBilingualStrategy(task, exportProfile, bilingualExportStrategy)
+  const shouldShowHardSubtitleWarning = shouldWarnAboutHardSubtitles(task, exportProfile)
+  const canUseCleanRebuildStrategy = task.asset_summary.video.clean.status === 'available'
+  const lastExportStrategyLabel = resolveLastExportStrategyLabel(task)
+  const correctionSummary = task.transcription_correction_summary
   const canPreview = profileConfig.subtitleMode !== 'none' && Boolean(selectedSubtitleOption)
-  const previewVideoPath = resolvePreviewVideoPath(task, exportProfile)
+  const previewVideoPath = resolvePreviewVideoPath(task, exportProfile, effectiveBilingualExportStrategy)
 
   function handlePreview() {
     if (!selectedSubtitleOption) {
@@ -295,6 +304,7 @@ export function TaskDetailPage() {
     composeMutation.mutate({
       subtitle_mode: profileConfig.subtitleMode,
       subtitle_source: subtitleSource,
+      bilingual_export_strategy: effectiveBilingualExportStrategy,
       font_family: fontFamily,
       font_size: fontSize,
       primary_color: subtitleColor,
@@ -465,6 +475,32 @@ export function TaskDetailPage() {
           </div>
         </div>
 
+        {correctionSummary?.status === 'available' && (
+          <div className="border-b border-slate-100 px-7 py-5">
+            <div className="mb-3 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+              <ScanText size={12} />
+              台词校正
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+              <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-medium text-emerald-700">
+                已校正 {correctionSummary.corrected_count} 段
+              </span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                保留 ASR {correctionSummary.kept_asr_count} 段
+              </span>
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 font-medium text-amber-700">
+                {correctionSummary.review_count} 段建议复核
+              </span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                OCR 漏配 {correctionSummary.ocr_only_count} 条
+              </span>
+            </div>
+            {correctionSummary.algorithm_version && (
+              <div className="mt-2 font-mono text-[11px] text-slate-400">{correctionSummary.algorithm_version}</div>
+            )}
+          </div>
+        )}
+
         <div className="border-b border-slate-100 px-7 py-6">
           <div className="mb-5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
             <Wand2 size={12} />
@@ -532,6 +568,11 @@ export function TaskDetailPage() {
                 <div className="mt-2 text-sm text-slate-400">当前还没有导出的成品文件。</div>
               ) : (
                 <div className="mt-3 space-y-2">
+                  {lastExportStrategyLabel && (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      导出策略：<span className="font-medium text-slate-800">{lastExportStrategyLabel}</span>
+                    </div>
+                  )}
                   {exportFiles.map(file => (
                     <a
                       key={file.path}
@@ -717,11 +758,58 @@ export function TaskDetailPage() {
               </DrawerSection>
 
               <DrawerSection title="2. 确认素材来源">
+                {shouldShowHardSubtitleWarning && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-4">
+                    <div className="flex items-start gap-2.5">
+                      <AlertTriangle size={16} className="mt-0.5 shrink-0 text-amber-600" />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-semibold text-amber-900">检测到原片已有中文字幕</div>
+                        <div className="mt-1 text-sm leading-6 text-amber-800">
+                          如果继续烧录中文，可能出现重复或遮挡。建议保留原片中文字幕，只补英文对照。
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => setBilingualExportStrategy('preserve_hard_subtitles_add_english')}
+                        className={`rounded-xl border p-3.5 text-left transition-colors ${
+                          effectiveBilingualExportStrategy === 'preserve_hard_subtitles_add_english'
+                            ? 'border-blue-500 bg-blue-50 shadow-sm'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="text-sm font-semibold text-slate-900">推荐：保留原字 + 补英文</div>
+                        <div className="mt-1 text-sm leading-6 text-slate-600">
+                          保留原片中的中文字幕，在另一行补英文，适合快速审片和对照。
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => canUseCleanRebuildStrategy && setBilingualExportStrategy('clean_video_rebuild_bilingual')}
+                        disabled={!canUseCleanRebuildStrategy}
+                        className={`rounded-xl border p-3.5 text-left transition-colors ${
+                          effectiveBilingualExportStrategy === 'clean_video_rebuild_bilingual'
+                            ? 'border-blue-500 bg-blue-50 shadow-sm'
+                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                        } disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400`}
+                      >
+                        <div className="text-sm font-semibold text-slate-900">清理原字 + 重做双语</div>
+                        <div className="mt-1 text-sm leading-6 text-slate-600">
+                          先使用干净画面，再由系统统一烧录中英双语字幕，适合需要标准化审片版本时使用。
+                        </div>
+                        {!canUseCleanRebuildStrategy && (
+                          <div className="mt-2 text-xs text-slate-500">当前任务没有干净画面，暂不可用。</div>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 <div className="grid gap-4 md:grid-cols-2">
                   <SourceSummaryCard
                     title="视频底板"
-                    value={profileConfig.videoLabel}
-                    entry={resolveVideoEntry(task, exportProfile)}
+                    value={resolveVideoLabel(profileConfig.videoLabel, effectiveBilingualExportStrategy)}
+                    entry={resolveVideoEntry(task, exportProfile, effectiveBilingualExportStrategy)}
                   />
                   <SourceSummaryCard
                     title="音轨来源"
@@ -927,8 +1015,44 @@ function resolveInitialSubtitleSource(task: Task): 'ocr' | 'asr' {
   return 'asr'
 }
 
-function resolvePreviewVideoPath(task: Task, profile: TaskExportProfile): string {
-  if (profile === 'english_subtitle_burned' && task.asset_summary.video.clean.path) {
+function resolveInitialBilingualStrategy(task: Task): BilingualExportStrategy {
+  const configuredStrategy = task.delivery_config.bilingual_export_strategy ?? 'auto_standard_bilingual'
+  if (
+    task.hard_subtitle_status === 'confirmed'
+    && configuredStrategy === 'auto_standard_bilingual'
+  ) {
+    return 'preserve_hard_subtitles_add_english'
+  }
+  return configuredStrategy
+}
+
+function shouldWarnAboutHardSubtitles(task: Task, profile: TaskExportProfile): boolean {
+  return profile === 'bilingual_review' && task.hard_subtitle_status === 'confirmed'
+}
+
+function resolveEffectiveBilingualStrategy(
+  task: Task,
+  profile: TaskExportProfile,
+  strategy: BilingualExportStrategy,
+): BilingualExportStrategy {
+  if (profile !== 'bilingual_review') {
+    return 'auto_standard_bilingual'
+  }
+  if (!shouldWarnAboutHardSubtitles(task, profile)) {
+    return 'auto_standard_bilingual'
+  }
+  return strategy
+}
+
+function resolvePreviewVideoPath(
+  task: Task,
+  profile: TaskExportProfile,
+  strategy: BilingualExportStrategy,
+): string {
+  if (
+    (profile === 'english_subtitle_burned' || strategy === 'clean_video_rebuild_bilingual')
+    && task.asset_summary.video.clean.path
+  ) {
     return resolveTaskPath(task, task.asset_summary.video.clean.path)
   }
   return task.input_path
@@ -941,11 +1065,22 @@ function resolveTaskPath(task: Task, path: string): string {
   return `${task.output_root.replace(/\/$/, '')}/${path}`
 }
 
-function resolveVideoEntry(task: Task, profile: TaskExportProfile): TaskAssetEntry {
-  if (profile === 'english_subtitle_burned') {
+function resolveVideoEntry(
+  task: Task,
+  profile: TaskExportProfile,
+  strategy: BilingualExportStrategy,
+): TaskAssetEntry {
+  if (profile === 'english_subtitle_burned' || strategy === 'clean_video_rebuild_bilingual') {
     return task.asset_summary.video.clean
   }
   return task.asset_summary.video.original
+}
+
+function resolveVideoLabel(defaultLabel: string, strategy: BilingualExportStrategy): string {
+  if (strategy === 'clean_video_rebuild_bilingual') {
+    return '干净画面'
+  }
+  return defaultLabel
 }
 
 function resolveAudioEntry(task: Task, profile: TaskExportProfile): TaskAssetEntry {
@@ -983,6 +1118,27 @@ function getReadinessMessage(task: Task): string {
     default:
       return '当前还缺少导出所需素材，请先补齐对应链路。'
   }
+}
+
+function getBilingualStrategyLabel(strategy: BilingualExportStrategy): string {
+  switch (strategy) {
+    case 'preserve_hard_subtitles_add_english':
+      return '保留原字 + 补英文'
+    case 'clean_video_rebuild_bilingual':
+      return '清理原字 + 重做双语'
+    default:
+      return '标准双语导出'
+  }
+}
+
+function resolveLastExportStrategyLabel(task: Task): string | null {
+  if (task.last_export_summary.status !== 'exported') {
+    return null
+  }
+  if (task.delivery_config.subtitle_mode !== 'bilingual') {
+    return null
+  }
+  return getBilingualStrategyLabel(task.delivery_config.bilingual_export_strategy ?? 'auto_standard_bilingual')
 }
 
 function getArtifactHref(taskId: string, path: string): string {

@@ -85,6 +85,19 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
         ),
         bilingual_chinese_position=delivery_cfg.get("bilingual_chinese_position", "bottom"),
         bilingual_english_position=delivery_cfg.get("bilingual_english_position", "top"),
+        bilingual_export_strategy=delivery_cfg.get(
+            "bilingual_export_strategy",
+            "auto_standard_bilingual",
+        ),
+        transcription_correction=cfg.get(
+            "transcription_correction",
+            {
+                "enabled": True,
+                "preset": "standard",
+                "ocr_only_policy": "report_only",
+                "llm_arbitration": "off",
+            },
+        ),
     )
 
 

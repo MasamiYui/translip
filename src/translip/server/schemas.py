@@ -31,9 +31,11 @@ class TaskRead(BaseModel):
     quality_preset: str = "standard"
     config: Dict[str, Any]
     delivery_config: Dict[str, Any]
+    hard_subtitle_status: str = "none"
     asset_summary: Dict[str, Any] = {}
     export_readiness: Dict[str, Any] = {}
     last_export_summary: Dict[str, Any] = {}
+    transcription_correction_summary: Dict[str, Any] = {}
     overall_progress: float
     current_stage: Optional[str] = None
     created_at: datetime
@@ -94,6 +96,12 @@ class TaskConfigInput(BaseModel):
     # Task A
     asr_model: str = "small"
     generate_srt: bool = True
+    transcription_correction: Dict[str, Any] = {
+        "enabled": True,
+        "preset": "standard",
+        "ocr_only_policy": "report_only",
+        "llm_arbitration": "off",
+    }
     # Task B
     existing_registry: Optional[str] = None
     top_k: int = 3
@@ -131,6 +139,7 @@ class TaskConfigInput(BaseModel):
     subtitle_bold: bool = False
     bilingual_chinese_position: str = "bottom"
     bilingual_english_position: str = "top"
+    bilingual_export_strategy: str = "auto_standard_bilingual"
     subtitle_preview_duration_sec: float = 10.0
 
 

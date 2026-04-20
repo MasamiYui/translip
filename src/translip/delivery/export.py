@@ -58,6 +58,7 @@ def build_delivery_manifest(
             "subtitle_style": asdict(request.subtitle_style) if request.subtitle_style else None,
             "bilingual_chinese_position": request.bilingual_chinese_position,
             "bilingual_english_position": request.bilingual_english_position,
+            "bilingual_export_strategy": request.bilingual_export_strategy,
         },
         "artifacts": {
             "final_preview_video": str(preview_video_path) if preview_video_path else None,
@@ -116,6 +117,7 @@ def build_delivery_report(
             "subtitle_style": asdict(request.subtitle_style) if request.subtitle_style else None,
             "bilingual_chinese_position": request.bilingual_chinese_position,
             "bilingual_english_position": request.bilingual_english_position,
+            "bilingual_export_strategy": request.bilingual_export_strategy,
         },
         "outputs": outputs,
     }

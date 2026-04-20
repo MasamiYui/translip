@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Mapping
@@ -222,6 +223,16 @@ def build_export_readiness(
     }
 
 
+def detect_hard_subtitle_status(task: Task) -> str:
+    root = Path(task.output_root)
+    candidates = [
+        root / "ocr-detect" / "ocr_subtitles.source.srt",
+        root / "ocr-detect" / "ocr_events.json",
+        root / "ocr-detect" / "detection.json",
+    ]
+    return "confirmed" if any(_has_meaningful_content(path) for path in candidates) else "none"
+
+
 def build_last_export_summary(
     task: Task,
     *,
@@ -259,6 +270,30 @@ def build_last_export_summary(
     }
 
 
+def build_transcription_correction_summary(task: Task) -> dict[str, Any]:
+    report_path = Path(task.output_root) / "asr-ocr-correct" / "voice" / "correction-report.json"
+    if not report_path.exists():
+        return {
+            "status": "not_available",
+            "corrected_count": 0,
+            "kept_asr_count": 0,
+            "review_count": 0,
+            "ocr_only_count": 0,
+        }
+    try:
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {
+            "status": "unreadable",
+            "corrected_count": 0,
+            "kept_asr_count": 0,
+            "review_count": 0,
+            "ocr_only_count": 0,
+        }
+    summary = dict(payload.get("summary") or {})
+    return {"status": "available", **summary}
+
+
 def _profile_from_delivery_config(delivery_config: Mapping[str, Any]) -> str:
     mode = delivery_config.get("subtitle_mode", "none")
     if mode == "bilingual":
@@ -293,10 +328,21 @@ def _first_glob(root: Path, pattern: str) -> Path | None:
     return None
 
 
+def _has_meaningful_content(path: Path) -> bool:
+    if not path.exists() or not path.is_file():
+        return False
+    try:
+        return bool(path.read_text(encoding="utf-8").strip())
+    except UnicodeDecodeError:
+        return path.stat().st_size > 0
+
+
 __all__ = [
     "build_asset_summary",
     "build_export_readiness",
     "build_last_export_summary",
+    "build_transcription_correction_summary",
+    "detect_hard_subtitle_status",
     "infer_output_intent",
     "infer_quality_preset",
 ]

@@ -14,7 +14,7 @@ from ..speaker_embedding import (
     read_audio_mono,
     resolve_speaker_device,
 )
-from ..transcription.asr import _compute_type, resolve_asr_device
+from ..transcription.asr import _compute_type, resolve_asr_device, resolve_faster_whisper_model_path
 from ..translation.backend import canonical_language_code
 
 
@@ -32,7 +32,7 @@ class SegmentEvaluation:
 
 @lru_cache(maxsize=4)
 def _load_backread_model(model_name: str, device: str, compute_type: str) -> WhisperModel:
-    return WhisperModel(model_name, device=device, compute_type=compute_type)
+    return WhisperModel(resolve_faster_whisper_model_path(model_name), device=device, compute_type=compute_type)
 
 
 def evaluate_segment(

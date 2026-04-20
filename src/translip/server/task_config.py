@@ -31,9 +31,16 @@ _DELIVERY_DEFAULTS = {
     "subtitle_bold": False,
     "bilingual_chinese_position": "bottom",
     "bilingual_english_position": "top",
+    "bilingual_export_strategy": "auto_standard_bilingual",
     "subtitle_preview_duration_sec": 10.0,
 }
 _DELIVERY_KEYS = set(_DELIVERY_DEFAULTS)
+_TRANSCRIPTION_CORRECTION_DEFAULTS = {
+    "enabled": True,
+    "preset": "standard",
+    "ocr_only_policy": "report_only",
+    "llm_arbitration": "off",
+}
 
 
 def normalize_task_config(config: Mapping[str, Any] | None) -> dict[str, Any]:
@@ -61,6 +68,12 @@ def normalize_task_storage(config: Mapping[str, Any] | None) -> dict[str, Any]:
 
     if _matches_legacy_erase_defaults(pipeline):
         pipeline.update(_UPGRADED_ERASE_DEFAULTS)
+
+    correction_config = pipeline.get("transcription_correction")
+    pipeline["transcription_correction"] = {
+        **_TRANSCRIPTION_CORRECTION_DEFAULTS,
+        **(dict(correction_config) if isinstance(correction_config, Mapping) else {}),
+    }
 
     normalized_delivery = dict(_DELIVERY_DEFAULTS)
     normalized_delivery.update(delivery)

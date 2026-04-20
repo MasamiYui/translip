@@ -17,13 +17,15 @@ FitBackendName = Literal["atempo", "rubberband"]
 MixProfileName = Literal["preview", "enhanced"]
 DuckingModeName = Literal["static", "sidechain"]
 PreviewFormat = Literal["wav", "mp3"]
-PipelineStageName = Literal["stage1", "task-a", "task-b", "task-c", "task-d", "task-e", "task-g"]
+CorrectionPreset = Literal["conservative", "standard", "aggressive"]
+PipelineStageName = Literal["stage1", "task-a", "asr-ocr-correct", "task-b", "task-c", "task-d", "task-e", "task-g"]
 PipelineStageStatus = Literal["pending", "running", "succeeded", "cached", "failed", "skipped"]
 WorkflowTemplateName = Literal["asr-dub-basic", "asr-dub+ocr-subs", "asr-dub+ocr-subs+erase"]
 WorkflowNodeName = Literal[
     "stage1",
     "ocr-detect",
     "task-a",
+    "asr-ocr-correct",
     "task-b",
     "task-c",
     "ocr-translate",
@@ -45,12 +47,30 @@ DeliveryEndPolicy = Literal["trim_audio_to_video", "keep_longest"]
 SubtitleCompositionMode = Literal["none", "chinese_only", "english_only", "bilingual"]
 SubtitleSourceType = Literal["ocr", "asr"]
 SubtitlePosition = Literal["top", "bottom"]
+BilingualExportStrategy = Literal[
+    "auto_standard_bilingual",
+    "preserve_hard_subtitles_add_english",
+    "clean_video_rebuild_bilingual",
+]
 
 
 class DeliveryPolicy(TypedDict):
     video_source: DeliveryVideoSource
     audio_source: DeliveryAudioSource
     subtitle_source: DeliverySubtitleSource
+
+
+class TranscriptionCorrectionConfig(TypedDict, total=False):
+    enabled: bool
+    preset: CorrectionPreset
+    min_ocr_confidence: float
+    min_alignment_score: float
+    lead_tolerance_sec: float
+    lag_tolerance_sec: float
+    min_length_ratio: float
+    max_length_ratio: float
+    ocr_only_policy: Literal["report_only"]
+    llm_arbitration: Literal["off"]
 
 
 @dataclass(slots=True)
@@ -497,6 +517,18 @@ class PipelineRequest:
     subtitle_style: SubtitleStyle | None = None
     bilingual_chinese_position: SubtitlePosition = "bottom"
     bilingual_english_position: SubtitlePosition = "top"
+    bilingual_export_strategy: BilingualExportStrategy = "auto_standard_bilingual"
+    transcription_correction: TranscriptionCorrectionConfig = field(
+        default_factory=lambda: cast(
+            TranscriptionCorrectionConfig,
+            {
+                "enabled": True,
+                "preset": "standard",
+                "ocr_only_policy": "report_only",
+                "llm_arbitration": "off",
+            },
+        )
+    )
 
     def normalized(self) -> "PipelineRequest":
         return PipelineRequest(
@@ -568,6 +600,8 @@ class PipelineRequest:
             subtitle_style=self.subtitle_style,
             bilingual_chinese_position=self.bilingual_chinese_position,
             bilingual_english_position=self.bilingual_english_position,
+            bilingual_export_strategy=self.bilingual_export_strategy,
+            transcription_correction=cast(TranscriptionCorrectionConfig, dict(self.transcription_correction)),
         )
 
 
@@ -604,6 +638,7 @@ class ExportVideoRequest:
     subtitle_style: SubtitleStyle | None = None
     bilingual_chinese_position: SubtitlePosition = "bottom"
     bilingual_english_position: SubtitlePosition = "top"
+    bilingual_export_strategy: BilingualExportStrategy = "auto_standard_bilingual"
 
     def normalized(self) -> "ExportVideoRequest":
         return ExportVideoRequest(
@@ -642,6 +677,7 @@ class ExportVideoRequest:
             subtitle_style=self.subtitle_style,
             bilingual_chinese_position=self.bilingual_chinese_position,
             bilingual_english_position=self.bilingual_english_position,
+            bilingual_export_strategy=self.bilingual_export_strategy,
         )
 
 

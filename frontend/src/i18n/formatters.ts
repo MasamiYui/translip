@@ -4,6 +4,7 @@ export const STAGE_ORDER = [
   'stage1',
   'ocr-detect',
   'task-a',
+  'asr-ocr-correct',
   'task-b',
   'task-c',
   'ocr-translate',

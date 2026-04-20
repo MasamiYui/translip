@@ -20,23 +20,42 @@ class ResolvedTemplatePlan:
     template_id: WorkflowTemplateName
     node_order: list[WorkflowNodeName]
     nodes: dict[WorkflowNodeName, ResolvedNode]
+    dependencies: dict[WorkflowNodeName, tuple[WorkflowNodeName, ...]]
+
+    def dependencies_for(self, node_name: WorkflowNodeName) -> tuple[WorkflowNodeName, ...]:
+        return self.dependencies.get(node_name, ())
 
 
-def _collect_nodes(node_name: WorkflowNodeName, selected: set[WorkflowNodeName]) -> None:
+def _template_dependencies(template_id: WorkflowTemplateName, node_name: WorkflowNodeName) -> tuple[WorkflowNodeName, ...]:
+    template = TEMPLATE_REGISTRY[template_id]
+    overrides = template.dependency_overrides or {}
+    return overrides.get(node_name, NODE_REGISTRY[node_name].dependencies)
+
+
+def _collect_nodes(
+    template_id: WorkflowTemplateName,
+    node_name: WorkflowNodeName,
+    selected: set[WorkflowNodeName],
+) -> None:
     if node_name in selected:
         return
     selected.add(node_name)
-    for dependency in NODE_REGISTRY[node_name].dependencies:
-        _collect_nodes(dependency, selected)
+    for dependency in _template_dependencies(template_id, node_name):
+        _collect_nodes(template_id, dependency, selected)
 
 
-def _topological_order(selected: set[WorkflowNodeName]) -> list[WorkflowNodeName]:
+def _topological_order(
+    template_id: WorkflowTemplateName,
+    selected: set[WorkflowNodeName],
+) -> tuple[list[WorkflowNodeName], dict[WorkflowNodeName, tuple[WorkflowNodeName, ...]]]:
+    dependencies = {
+        name: tuple(dependency for dependency in _template_dependencies(template_id, name) if dependency in selected)
+        for name in selected
+    }
     indegree = {name: 0 for name in selected}
     dependents: dict[WorkflowNodeName, list[WorkflowNodeName]] = {name: [] for name in selected}
     for name in selected:
-        for dependency in NODE_REGISTRY[name].dependencies:
-            if dependency not in selected:
-                continue
+        for dependency in dependencies[name]:
             indegree[name] += 1
             dependents[dependency].append(name)
 
@@ -56,7 +75,7 @@ def _topological_order(selected: set[WorkflowNodeName]) -> list[WorkflowNodeName
 
     if len(ordered) != len(selected):
         raise ValueError("Workflow graph contains an unresolved cycle")
-    return ordered
+    return ordered, dependencies
 
 
 def resolve_template_plan(template_id: WorkflowTemplateName) -> ResolvedTemplatePlan:
@@ -66,9 +85,9 @@ def resolve_template_plan(template_id: WorkflowTemplateName) -> ResolvedTemplate
     template = TEMPLATE_REGISTRY[template_id]
     selected: set[WorkflowNodeName] = set()
     for node_name in template.selected_nodes:
-        _collect_nodes(node_name, selected)
+        _collect_nodes(template.template_id, node_name, selected)
 
-    node_order = _topological_order(selected)
+    node_order, dependencies = _topological_order(template.template_id, selected)
     nodes = {
         node_name: ResolvedNode(
             name=node_name,
@@ -77,7 +96,12 @@ def resolve_template_plan(template_id: WorkflowTemplateName) -> ResolvedTemplate
         )
         for node_name in node_order
     }
-    return ResolvedTemplatePlan(template_id=template.template_id, node_order=node_order, nodes=nodes)
+    return ResolvedTemplatePlan(
+        template_id=template.template_id,
+        node_order=node_order,
+        nodes=nodes,
+        dependencies=dependencies,
+    )
 
 
 __all__ = ["ResolvedNode", "ResolvedTemplatePlan", "resolve_template_plan"]

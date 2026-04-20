@@ -50,6 +50,7 @@ def test_task_read_exposes_delivery_config(tmp_path: Path) -> None:
                         "subtitle_mode": "bilingual",
                         "subtitle_render_source": "ocr",
                         "subtitle_font": "Source Han Sans",
+                        "bilingual_export_strategy": "preserve_hard_subtitles_add_english",
                     },
                 },
                 created_at=datetime.now(),
@@ -74,6 +75,7 @@ def test_task_read_exposes_delivery_config(tmp_path: Path) -> None:
     assert payload["config"]["template"] == "asr-dub-basic"
     assert payload["delivery_config"]["subtitle_mode"] == "bilingual"
     assert payload["delivery_config"]["subtitle_font"] == "Source Han Sans"
+    assert payload["delivery_config"]["bilingual_export_strategy"] == "preserve_hard_subtitles_add_english"
 
 
 def test_task_input_file_route_downloads_registered_source_video(tmp_path: Path) -> None:
@@ -198,6 +200,7 @@ def test_delivery_compose_updates_delivery_config_only(tmp_path: Path, monkeypat
             json={
                 "subtitle_mode": "bilingual",
                 "subtitle_source": "asr",
+                "bilingual_export_strategy": "preserve_hard_subtitles_add_english",
                 "font_family": "Source Han Sans",
                 "font_size": 42,
                 "primary_color": "#FFEEAA",
@@ -224,5 +227,6 @@ def test_delivery_compose_updates_delivery_config_only(tmp_path: Path, monkeypat
         assert task.config["pipeline"]["run_to_stage"] == "task-g"
         assert task.config["delivery"]["subtitle_mode"] == "bilingual"
         assert task.config["delivery"]["subtitle_render_source"] == "asr"
+        assert task.config["delivery"]["bilingual_export_strategy"] == "preserve_hard_subtitles_add_english"
         assert task.config["delivery"]["subtitle_font"] == "Source Han Sans"
         assert task.config["delivery"]["export_dub"] is False

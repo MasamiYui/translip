@@ -73,6 +73,67 @@ const previewGraph: WorkflowGraphPayload = {
   ],
 }
 
+const previewGraphWithCorrection: WorkflowGraphPayload = {
+  workflow: { template_id: 'asr-dub+ocr-subs', status: 'pending' },
+  nodes: [
+    {
+      id: 'stage1',
+      label: 'Stage 1',
+      group: 'audio-spine',
+      required: true,
+      status: 'pending',
+      progress_percent: 0,
+    },
+    {
+      id: 'ocr-detect',
+      label: 'OCR Detect',
+      group: 'ocr-subtitles',
+      required: true,
+      status: 'pending',
+      progress_percent: 0,
+    },
+    {
+      id: 'task-a',
+      label: 'Task A',
+      group: 'audio-spine',
+      required: true,
+      status: 'pending',
+      progress_percent: 0,
+    },
+    {
+      id: 'asr-ocr-correct',
+      label: 'ASR OCR Correct',
+      group: 'audio-spine',
+      required: true,
+      status: 'pending',
+      progress_percent: 0,
+    },
+    {
+      id: 'task-b',
+      label: 'Task B',
+      group: 'audio-spine',
+      required: true,
+      status: 'pending',
+      progress_percent: 0,
+    },
+    {
+      id: 'task-g',
+      label: 'Task G',
+      group: 'delivery',
+      required: true,
+      status: 'pending',
+      progress_percent: 0,
+    },
+  ],
+  edges: [
+    { from: 'stage1', to: 'task-a', state: 'inactive' },
+    { from: 'ocr-detect', to: 'asr-ocr-correct', state: 'inactive' },
+    { from: 'task-a', to: 'asr-ocr-correct', state: 'inactive' },
+    { from: 'asr-ocr-correct', to: 'task-b', state: 'inactive' },
+    { from: 'task-b', to: 'task-g', state: 'inactive' },
+  ],
+}
+
 describe('PipelineGraph', () => {
   afterEach(() => {
     cleanup()
@@ -107,6 +168,23 @@ describe('PipelineGraph', () => {
     expect(screen.queryByText('最终交付包')).not.toBeInTheDocument()
     expect(screen.getByText('音频分离').closest('button')?.querySelector('[data-ui-title-scale="xl"]')).toHaveClass('text-center')
     expect(screen.getByText('音频分离').closest('button')?.querySelector('[data-ui-title-frame]')).toHaveClass('items-center', 'justify-center')
+  })
+
+  it('renders the OCR correction node with compact metadata instead of the raw node id', () => {
+    render(
+      <I18nProvider>
+        <PipelineGraph graph={previewGraphWithCorrection} compact />
+      </I18nProvider>,
+    )
+
+    const correctionNode = screen.getByText('文稿校正').closest('button')
+    const flowNode = correctionNode?.closest('.react-flow__node')
+
+    expect(correctionNode).not.toBeNull()
+    expect(correctionNode).toHaveTextContent('A2')
+    expect(correctionNode).not.toHaveTextContent('asr-ocr-correct')
+    expect(correctionNode?.querySelector('[data-ui-title-frame]')).toHaveClass('items-center', 'justify-center')
+    expect(flowNode?.getAttribute('style')).not.toContain('translate(0px, 0px)')
   })
 
   it('shows lane headers and stage detail text in compact preview mode', () => {

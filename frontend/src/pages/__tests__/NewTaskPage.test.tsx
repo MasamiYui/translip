@@ -76,7 +76,7 @@ describe('NewTaskPage redesigned flow', () => {
     renderStepTwo()
 
     expect(screen.getByText('英文配音成片')).toBeInTheDocument()
-    expect(screen.getByText('中英双语审片版')).toBeInTheDocument()
+    expect(screen.getByText('双语审片版')).toBeInTheDocument()
     expect(screen.getByText('英文字幕版')).toBeInTheDocument()
     expect(screen.getByText('快速验证版')).toBeInTheDocument()
 
@@ -124,6 +124,22 @@ describe('NewTaskPage redesigned flow', () => {
     expect(screen.queryByText('从阶段')).not.toBeInTheDocument()
     expect(screen.queryByText('到阶段')).not.toBeInTheDocument()
     expect(screen.queryByText('字幕输入策略')).not.toBeInTheDocument()
+  })
+
+  it('defaults OCR-capable tasks to standard transcript correction and explains the setting', async () => {
+    vi.mocked(configApi.getPresets).mockResolvedValue([])
+
+    renderStepTwo()
+
+    fireEvent.click(screen.getByRole('button', { name: /双语审片版/ }))
+    fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+
+    expect(screen.getByText('台词校正')).toBeInTheDocument()
+    expect(screen.getAllByText('标准').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('button', { name: /这个选项会做什么/ }))
+    expect(screen.getByText(/保留 ASR 时间轴和说话人/)).toBeInTheDocument()
+    expect(screen.getByText(/OCR 有但 ASR 没有的字幕只报告/)).toBeInTheDocument()
   })
 
   it('keeps delivery-only subtitle styling out of the new task flow', async () => {

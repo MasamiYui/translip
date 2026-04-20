@@ -5,6 +5,7 @@ from ..types import PipelineStageName
 STAGE_ORDER: list[PipelineStageName] = [
     "stage1",
     "task-a",
+    "asr-ocr-correct",
     "task-b",
     "task-c",
     "task-d",
@@ -15,6 +16,7 @@ STAGE_ORDER: list[PipelineStageName] = [
 STAGE_WEIGHTS: dict[PipelineStageName, float] = {
     "stage1": 0.10,
     "task-a": 0.10,
+    "asr-ocr-correct": 0.05,
     "task-b": 0.10,
     "task-c": 0.15,
     "task-d": 0.35,

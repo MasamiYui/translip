@@ -47,6 +47,7 @@ class ToolAdapter(ABC):
 from .separation import SeparationAdapter  # noqa: E402,F401
 from .mixing import MixingAdapter  # noqa: E402,F401
 from .transcription import TranscriptionAdapter  # noqa: E402,F401
+from .transcript_correction import TranscriptCorrectionAdapter  # noqa: E402,F401
 from .translation import TranslationAdapter  # noqa: E402,F401
 from .tts import TtsAdapter  # noqa: E402,F401
 from .probe import ProbeAdapter  # noqa: E402,F401

@@ -20,6 +20,7 @@ export type SubtitlePreviewPayload = {
 export type DeliveryComposePayload = {
   subtitle_mode: 'none' | 'chinese_only' | 'english_only' | 'bilingual'
   subtitle_source: 'ocr' | 'asr'
+  bilingual_export_strategy: 'auto_standard_bilingual' | 'preserve_hard_subtitles_add_english' | 'clean_video_rebuild_bilingual'
   font_family: string
   font_size: number
   primary_color: string
