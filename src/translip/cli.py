@@ -128,6 +128,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     correction_parser.add_argument("--disabled", action="store_true")
 
+    analyze_speakers_parser = subparsers.add_parser(
+        "analyze-speakers",
+        help="Generate speaker diagnostics and review plan from Task A segments",
+    )
+    analyze_speakers_parser.add_argument("--segments", required=True, help="Task A segments JSON path")
+    analyze_speakers_parser.add_argument("--output-dir", default="speaker-review", help="Output directory")
+
+    apply_speaker_parser = subparsers.add_parser(
+        "apply-speaker-decisions",
+        help="Apply manual speaker review decisions and write speaker-corrected segments",
+    )
+    apply_speaker_parser.add_argument("--segments", required=True, help="Task A or corrected segments JSON path")
+    apply_speaker_parser.add_argument("--decisions", required=True, help="manual_speaker_decisions.zh.json path")
+    apply_speaker_parser.add_argument("--output", required=True, help="segments.zh.speaker-corrected.json output path")
+    apply_speaker_parser.add_argument("--srt-output", default=None, help="Optional speaker-corrected SRT output path")
+    apply_speaker_parser.add_argument("--manifest-output", default=None, help="Optional speaker review manifest output path")
+
     benchmark_parser = subparsers.add_parser(
         "benchmark-transcription",
         help="Run Task A transcription benchmark against a reference SRT",
@@ -648,6 +665,47 @@ def main(argv: list[str] | None = None) -> int:
         print(f"corrected_segments={artifacts.corrected_segments_path}")
         print(f"report={artifacts.report_path}")
         print(f"manifest={artifacts.manifest_path}")
+        return 0
+
+    if args.command == "analyze-speakers":
+        from .speaker_review.diagnostics import load_json, write_speaker_review_artifacts
+
+        segments_path = Path(args.segments).expanduser().resolve()
+        output_dir = Path(args.output_dir).expanduser().resolve()
+        diagnostics_path, plan_path = write_speaker_review_artifacts(
+            load_json(segments_path),
+            output_dir=output_dir,
+            source_path=str(segments_path),
+        )
+        print(f"diagnostics={diagnostics_path}")
+        print(f"review_plan={plan_path}")
+        return 0
+
+    if args.command == "apply-speaker-decisions":
+        from .speaker_review.decisions import write_speaker_corrected_artifacts
+
+        output_path = Path(args.output).expanduser().resolve()
+        srt_output = (
+            Path(args.srt_output).expanduser().resolve()
+            if args.srt_output
+            else output_path.with_suffix(".srt")
+        )
+        manifest_output = (
+            Path(args.manifest_output).expanduser().resolve()
+            if args.manifest_output
+            else output_path.parent / "speaker-review-manifest.json"
+        )
+        manifest = write_speaker_corrected_artifacts(
+            source_segments_path=Path(args.segments).expanduser().resolve(),
+            decisions_path=Path(args.decisions).expanduser().resolve(),
+            output_segments_path=output_path,
+            output_srt_path=srt_output,
+            manifest_path=manifest_output,
+        )
+        print(f"speaker_corrected_segments={output_path}")
+        print(f"srt={srt_output}")
+        print(f"manifest={manifest_output}")
+        print(f"changed_segment_count={manifest.get('summary', {}).get('changed_segment_count', 0)}")
         return 0
 
     if args.command == "benchmark-transcription":

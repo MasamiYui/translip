@@ -389,6 +389,120 @@ export interface DubbingReviewDecisionPayload {
   payload?: Record<string, unknown>
 }
 
+export interface SpeakerReviewDecision {
+  item_id: string
+  item_type: 'speaker_profile' | 'speaker_run' | 'segment' | string
+  decision: string
+  source_speaker_label?: string | null
+  target_speaker_label?: string | null
+  segment_ids?: string[]
+  payload?: Record<string, unknown>
+  updated_at?: string
+}
+
+export interface SpeakerReviewSpeaker {
+  speaker_label: string
+  segment_count: number
+  segment_ids: string[]
+  total_speech_sec: number
+  avg_duration_sec: number
+  short_segment_count: number
+  risk_flags: string[]
+  risk_level: 'low' | 'medium' | 'high'
+  cloneable_by_default: boolean
+  decision?: SpeakerReviewDecision | null
+}
+
+export interface SpeakerReviewRun {
+  run_id: string
+  speaker_label: string
+  start: number
+  end: number
+  duration: number
+  segment_count: number
+  segment_ids: string[]
+  text: string
+  previous_speaker_label?: string | null
+  next_speaker_label?: string | null
+  gap_before_sec?: number | null
+  gap_after_sec?: number | null
+  risk_flags: string[]
+  risk_level: 'low' | 'medium' | 'high'
+  decision?: SpeakerReviewDecision | null
+}
+
+export interface SpeakerReviewSegment {
+  segment_id: string
+  index: number
+  speaker_label: string
+  start: number
+  end: number
+  duration: number
+  text: string
+  previous_speaker_label?: string | null
+  next_speaker_label?: string | null
+  risk_flags: string[]
+  risk_level: 'low' | 'medium' | 'high'
+  decision?: SpeakerReviewDecision | null
+}
+
+export interface SpeakerReviewPlanItem {
+  item_id: string
+  item_type: string
+  speaker_label?: string | null
+  risk_level?: string | null
+  risk_flags: string[]
+  segment_ids: string[]
+  previous_speaker_label?: string | null
+  next_speaker_label?: string | null
+  recommended_actions: string[]
+}
+
+export interface SpeakerReviewResponse {
+  task_id: string
+  status: 'available' | 'missing'
+  summary: {
+    segment_count: number
+    speaker_count: number
+    high_risk_speaker_count: number
+    speaker_run_count: number
+    review_run_count?: number
+    high_risk_run_count: number
+    review_segment_count: number
+    decision_count: number
+    corrected_exists: boolean
+  }
+  artifact_paths: Record<string, string>
+  speakers: SpeakerReviewSpeaker[]
+  speaker_runs: SpeakerReviewRun[]
+  segments: SpeakerReviewSegment[]
+  review_plan: {
+    summary?: Record<string, unknown>
+    items: SpeakerReviewPlanItem[]
+  }
+  decisions: SpeakerReviewDecision[]
+  manifest: Record<string, unknown>
+}
+
+export interface SpeakerReviewDecisionPayload {
+  item_id: string
+  item_type: 'speaker_profile' | 'speaker_run' | 'segment' | string
+  decision: string
+  source_speaker_label?: string | null
+  target_speaker_label?: string | null
+  segment_ids?: string[]
+  payload?: Record<string, unknown>
+}
+
+export interface SpeakerReviewApplyResponse {
+  ok: boolean
+  path: string
+  srt_path: string
+  manifest_path: string
+  summary: Record<string, unknown>
+  applied_at: string
+}
+
 export interface ProgressEvent {
   type: 'progress' | 'done' | 'error' | 'timeout'
   stage?: string

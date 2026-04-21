@@ -47,6 +47,14 @@ def task_a_corrected_srt_path(request: PipelineRequest) -> Path:
     return task_a_correction_bundle_dir(request) / "segments.zh.corrected.srt"
 
 
+def task_a_speaker_corrected_segments_path(request: PipelineRequest) -> Path:
+    return task_a_correction_bundle_dir(request) / "segments.zh.speaker-corrected.json"
+
+
+def task_a_speaker_corrected_srt_path(request: PipelineRequest) -> Path:
+    return task_a_correction_bundle_dir(request) / "segments.zh.speaker-corrected.srt"
+
+
 def task_a_correction_report_path(request: PipelineRequest) -> Path:
     return task_a_correction_bundle_dir(request) / "correction-report.json"
 
@@ -56,6 +64,9 @@ def task_a_correction_manifest_path(request: PipelineRequest) -> Path:
 
 
 def effective_task_a_segments_path(request: PipelineRequest) -> Path:
+    speaker_corrected = task_a_speaker_corrected_segments_path(request)
+    if speaker_corrected.exists():
+        return speaker_corrected
     corrected = task_a_corrected_segments_path(request)
     return corrected if corrected.exists() else task_a_segments_path(request)
 
@@ -323,6 +334,8 @@ __all__ = [
     "effective_task_a_segments_path",
     "task_a_corrected_segments_path",
     "task_a_corrected_srt_path",
+    "task_a_speaker_corrected_segments_path",
+    "task_a_speaker_corrected_srt_path",
     "task_a_correction_bundle_dir",
     "task_a_correction_manifest_path",
     "task_a_correction_report_path",

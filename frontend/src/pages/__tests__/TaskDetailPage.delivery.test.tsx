@@ -19,6 +19,9 @@ vi.mock('../../api/tasks', () => ({
     composeDelivery: vi.fn(),
     getDubbingReview: vi.fn(),
     saveDubbingReviewDecision: vi.fn(),
+    getSpeakerReview: vi.fn(),
+    saveSpeakerReviewDecision: vi.fn(),
+    applySpeakerReviewDecisions: vi.fn(),
   },
 }))
 
@@ -43,6 +46,58 @@ function createWrapper() {
   }
 }
 
+function mockTask(id: string) {
+  return {
+    id,
+    name: 'Demo task',
+    status: 'succeeded',
+    input_path: '/tmp/demo.mp4',
+    output_root: '/tmp/output',
+    source_lang: 'zh',
+    target_lang: 'en',
+    output_intent: 'dub_final',
+    quality_preset: 'standard',
+    config: { template: 'asr-dub-basic', video_source: 'original', audio_source: 'both', subtitle_source: 'asr' },
+    delivery_config: {},
+    asset_summary: {
+      video: {
+        original: { status: 'available', path: '/tmp/demo.mp4' },
+        clean: { status: 'missing', path: null },
+      },
+      audio: {
+        preview: { status: 'available', path: 'task-e/voice/preview_mix.en.wav' },
+        dub: { status: 'available', path: 'task-e/voice/dub_voice.en.wav' },
+      },
+      subtitles: {
+        ocr_translated: { status: 'missing', path: null },
+        asr_translated: { status: 'available', path: 'task-c/voice/translation.en.srt' },
+      },
+      exports: {
+        subtitle_preview: { status: 'missing', path: null },
+        final_preview: { status: 'missing', path: null },
+        final_dub: { status: 'missing', path: null },
+      },
+    },
+    export_readiness: {
+      status: 'ready',
+      recommended_profile: 'dub_no_subtitles',
+      summary: 'ready_for_export',
+      blockers: [],
+    },
+    last_export_summary: {
+      status: 'not_exported',
+      profile: null,
+      updated_at: null,
+      files: [],
+    },
+    overall_progress: 100,
+    current_stage: 'task-g',
+    created_at: '2026-04-16T00:00:00Z',
+    updated_at: '2026-04-16T00:00:00Z',
+    stages: [{ stage_name: 'task-g', status: 'succeeded', progress_percent: 100, cache_hit: false }],
+  }
+}
+
 describe('TaskDetailPage export workflow', () => {
   beforeEach(() => {
     vi.resetAllMocks()
@@ -50,6 +105,82 @@ describe('TaskDetailPage export workflow', () => {
 
   afterEach(() => {
     cleanup()
+  })
+
+  it('opens speaker review drawer and saves speaker decisions', async () => {
+    vi.mocked(tasksApi.get).mockResolvedValue(mockTask('task-speaker') as never)
+    vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
+    vi.mocked(tasksApi.getGraph).mockResolvedValue({
+      workflow: { template_id: 'asr-dub-basic', status: 'succeeded' },
+      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      edges: [],
+    } as never)
+    vi.mocked(tasksApi.getSpeakerReview).mockResolvedValue({
+      task_id: 'task-speaker',
+      status: 'available',
+      summary: {
+        segment_count: 4,
+        speaker_count: 2,
+        high_risk_speaker_count: 1,
+        speaker_run_count: 3,
+        high_risk_run_count: 1,
+        review_segment_count: 2,
+        decision_count: 0,
+        corrected_exists: false,
+      },
+      artifact_paths: {},
+      speakers: [
+        {
+          speaker_label: 'SPEAKER_01',
+          segment_count: 1,
+          segment_ids: ['seg-0002'],
+          total_speech_sec: 0.6,
+          avg_duration_sec: 0.6,
+          short_segment_count: 1,
+          risk_flags: ['single_segment_speaker', 'low_sample_speaker'],
+          risk_level: 'high',
+          cloneable_by_default: false,
+          decision: null,
+        },
+        {
+          speaker_label: 'SPEAKER_00',
+          segment_count: 3,
+          segment_ids: ['seg-0001', 'seg-0003', 'seg-0004'],
+          total_speech_sec: 6,
+          avg_duration_sec: 2,
+          short_segment_count: 0,
+          risk_flags: [],
+          risk_level: 'low',
+          cloneable_by_default: true,
+          decision: null,
+        },
+      ],
+      speaker_runs: [],
+      segments: [],
+      review_plan: { items: [] },
+      decisions: [],
+      manifest: {},
+    } as never)
+    vi.mocked(tasksApi.saveSpeakerReviewDecision).mockResolvedValue({ ok: true } as never)
+
+    render(<TaskDetailPage />, { wrapper: createWrapper() })
+
+    fireEvent.click(await screen.findByRole('button', { name: '说话人审查' }))
+
+    expect(await screen.findByText('说话人识别审查')).toBeInTheDocument()
+    expect((await screen.findAllByText('SPEAKER_01')).length).toBeGreaterThan(0)
+    expect(screen.getByText('单段 speaker')).toBeInTheDocument()
+
+    fireEvent.click(screen.getAllByRole('button', { name: '不克隆' })[0])
+
+    await waitFor(() => {
+      expect(tasksApi.saveSpeakerReviewDecision).toHaveBeenCalledWith('task-speaker', expect.objectContaining({
+        item_id: 'speaker:SPEAKER_01',
+        item_type: 'speaker_profile',
+        decision: 'mark_non_cloneable',
+        source_speaker_label: 'SPEAKER_01',
+      }))
+    })
   })
 
   it('shows export readiness instead of the inline delivery composer and opens the export drawer', async () => {

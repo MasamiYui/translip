@@ -32,6 +32,8 @@ def pick_task_d_speaker_ids(
 
     ranked: list[tuple[int, int, float, float, str]] = []
     for profile in profiles:
+        if profile.get("cloneable") is False or str(profile.get("status") or "") == "non_cloneable":
+            continue
         speaker_id = str(profile.get("speaker_id") or "")
         if not speaker_id or usable_counts.get(speaker_id, 0) <= 0:
             continue

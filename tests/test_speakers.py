@@ -146,3 +146,32 @@ def test_match_profiles_uses_dynamic_thresholds() -> None:
     matches = match_profiles(profiles_payload, registry, top_k=2)["matches"]
     assert matches[0]["decision"] == "matched"
     assert matches[1]["decision"] == "review"
+
+
+def test_match_profiles_skips_non_cloneable_profiles() -> None:
+    profiles_payload = {
+        "profiles": [
+            {
+                "profile_id": "profile_0000",
+                "source_label": "SPEAKER_07",
+                "cloneable": False,
+                "status": "non_cloneable",
+                "prototype_embedding": None,
+                "reference_clips": [],
+            }
+        ]
+    }
+    registry = load_registry(None, backend_name="speechbrain-ecapa", embedding_dim=2)
+    matches = match_profiles(profiles_payload, registry, top_k=2)
+    assert matches["matches"][0]["decision"] == "non_cloneable"
+
+    updated_profiles, updated_registry = apply_registry_updates(
+        profiles_payload,
+        matches,
+        registry,
+        registry_root=None,
+        update_registry=True,
+    )
+    assert updated_profiles["profiles"][0]["status"] == "non_cloneable"
+    assert updated_profiles["profiles"][0]["speaker_id"] is None
+    assert updated_registry["speakers"] == []

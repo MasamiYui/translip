@@ -3,6 +3,9 @@ import type {
   CreateTaskRequest,
   DubbingReviewDecisionPayload,
   DubbingReviewResponse,
+  SpeakerReviewApplyResponse,
+  SpeakerReviewDecisionPayload,
+  SpeakerReviewResponse,
   Task,
   TaskListResponse,
   WorkflowGraph,
@@ -90,6 +93,15 @@ export const tasksApi = {
 
   saveDubbingReviewDecision: (id: string, payload: DubbingReviewDecisionPayload) =>
     api.post(`/api/tasks/${id}/dubbing-review/decisions`, payload).then(r => r.data),
+
+  getSpeakerReview: (id: string) =>
+    api.get<SpeakerReviewResponse>(`/api/tasks/${id}/speaker-review`).then(r => r.data),
+
+  saveSpeakerReviewDecision: (id: string, payload: SpeakerReviewDecisionPayload) =>
+    api.post(`/api/tasks/${id}/speaker-review/decisions`, payload).then(r => r.data),
+
+  applySpeakerReviewDecisions: (id: string) =>
+    api.post<SpeakerReviewApplyResponse>(`/api/tasks/${id}/speaker-review/apply`).then(r => r.data),
 
   createSubtitlePreview: (id: string, payload: SubtitlePreviewPayload) =>
     api.post(`/api/tasks/${id}/subtitle-preview`, payload).then(r => r.data),

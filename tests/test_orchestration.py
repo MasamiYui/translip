@@ -136,7 +136,29 @@ def test_stage1_command_uses_python_module_cli(tmp_path: Path) -> None:
     assert command[3] == "run"
 
 
-def test_effective_task_a_segments_prefers_corrected_segments(tmp_path: Path) -> None:
+def test_effective_task_a_segments_prefers_speaker_corrected_segments(tmp_path: Path) -> None:
+    from translip.orchestration.commands import (
+        effective_task_a_segments_path,
+        task_a_corrected_segments_path,
+        task_a_speaker_corrected_segments_path,
+        task_a_segments_path,
+    )
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(input_path=tmp_path / "sample.mp4", output_root=tmp_path / "out")
+    original = task_a_segments_path(request)
+    corrected = task_a_corrected_segments_path(request)
+    speaker_corrected = task_a_speaker_corrected_segments_path(request)
+    original.parent.mkdir(parents=True)
+    original.write_text("{}", encoding="utf-8")
+    corrected.parent.mkdir(parents=True)
+    corrected.write_text("{}", encoding="utf-8")
+    speaker_corrected.write_text("{}", encoding="utf-8")
+
+    assert effective_task_a_segments_path(request) == speaker_corrected
+
+
+def test_effective_task_a_segments_prefers_text_corrected_before_original(tmp_path: Path) -> None:
     from translip.orchestration.commands import (
         effective_task_a_segments_path,
         task_a_corrected_segments_path,

@@ -15,6 +15,7 @@ from .routes.config import router as config_router
 from .routes.delivery import router as delivery_router
 from .routes.dubbing_review import router as dubbing_review_router
 from .routes.progress import router as progress_router
+from .routes.speaker_review import router as speaker_review_router
 from .routes.system import router as system_router
 from .routes.tasks import router as tasks_router
 
@@ -54,6 +55,7 @@ app.include_router(progress_router)
 app.include_router(config_router)
 app.include_router(delivery_router)
 app.include_router(dubbing_review_router)
+app.include_router(speaker_review_router)
 app.include_router(system_router)
 app.include_router(artifacts_router)
 app.include_router(atomic_tools_router)

@@ -73,6 +73,7 @@ def build_speaker_registry(
             requested_device=normalized_request.device,
         )
         profiles_payload = build_profiles_payload(drafts, backend=backend)
+        _apply_speaker_review_policy(profiles_payload, payload)
 
         registry = load_registry(
             Path(normalized_request.registry_path) if normalized_request.registry_path else None,
@@ -180,3 +181,27 @@ def jsonable_manifest(path: Path) -> dict:
     import json
 
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _apply_speaker_review_policy(profiles_payload: dict, segments_payload: dict) -> None:
+    review = segments_payload.get("speaker_review") if isinstance(segments_payload, dict) else None
+    if not isinstance(review, dict):
+        return
+    non_cloneable = {str(item) for item in review.get("non_cloneable_speakers", []) if str(item)}
+    if not non_cloneable:
+        return
+    for profile in profiles_payload.get("profiles", []):
+        if not isinstance(profile, dict):
+            continue
+        source_label = str(profile.get("source_label") or "")
+        if source_label not in non_cloneable:
+            continue
+        profile["cloneable"] = False
+        profile["status"] = "non_cloneable"
+        profile["speaker_review"] = {
+            "non_cloneable": True,
+            "reason": "manual_speaker_decision",
+        }
+        profile["prototype_embedding"] = None
+        profile["reference_clips"] = []
+        profile["reference_clip_count"] = 0

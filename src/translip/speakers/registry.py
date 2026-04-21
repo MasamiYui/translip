@@ -94,6 +94,18 @@ def match_profiles(
     registry_speakers = [speaker for speaker in registry.get("speakers", []) if speaker.get("status") != "disabled"]
     matched_threshold, review_threshold = _decision_thresholds(registry_speakers)
     for profile in profiles_payload.get("profiles", []):
+        if profile.get("cloneable") is False:
+            matches.append(
+                {
+                    "profile_id": profile["profile_id"],
+                    "decision": "non_cloneable",
+                    "matched_speaker_id": None,
+                    "score": None,
+                    "margin_to_second": None,
+                    "top_k": [],
+                }
+            )
+            continue
         profile_embedding = profile.get("prototype_embedding")
         if not profile_embedding:
             matches.append(
@@ -199,6 +211,11 @@ def apply_registry_updates(
         profile = profiles_by_id[match["profile_id"]]
         decision = match["decision"]
         profile_embedding = profile.get("prototype_embedding")
+        if decision == "non_cloneable" or profile.get("cloneable") is False:
+            profile["status"] = "non_cloneable"
+            profile["cloneable"] = False
+            profile["speaker_id"] = None
+            continue
         if not profile_embedding:
             profile["status"] = "unmatched"
             continue

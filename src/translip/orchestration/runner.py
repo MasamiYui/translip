@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -71,6 +72,13 @@ def _count_renderable_task_d_segments(payload: dict[str, Any]) -> int:
     return sum(1 for row in payload.get("segments", []) if isinstance(row, dict))
 
 
+def _file_fingerprint(path: Path) -> dict[str, Any]:
+    if not path.exists() or not path.is_file():
+        return {"path": str(path), "exists": False, "sha256": None}
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    return {"path": str(path), "exists": True, "sha256": digest}
+
+
 def _pipeline_paths(request: PipelineRequest) -> dict[str, Path]:
     return {
         "request_path": request.output_root / "request.json",
@@ -127,6 +135,7 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
     elif stage_name == "task-b":
         common.update(
             {
+                "segments": _file_fingerprint(effective_task_a_segments_path(request)),
                 "registry_path": str(task_b_registry_path(request)),
                 "top_k": request.top_k,
                 "update_registry": request.update_registry,
@@ -135,6 +144,8 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
     elif stage_name == "task-c":
         common.update(
             {
+                "segments": _file_fingerprint(effective_task_a_segments_path(request)),
+                "profiles": _file_fingerprint(task_b_profiles_path(request)),
                 "glossary_path": str(request.glossary_path) if request.glossary_path else None,
                 "api_model": request.api_model,
                 "api_base_url": request.api_base_url,
@@ -151,6 +162,8 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
     elif stage_name == "task-e":
         common.update(
             {
+                "segments": _file_fingerprint(effective_task_a_segments_path(request)),
+                "translation": _file_fingerprint(task_c_translation_path(request)),
                 "fit_policy": request.fit_policy,
                 "fit_backend": request.fit_backend,
                 "mix_profile": request.mix_profile,
