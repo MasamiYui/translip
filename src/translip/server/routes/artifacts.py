@@ -3,7 +3,7 @@ from __future__ import annotations
 import mimetypes
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlmodel import Session
 
@@ -38,6 +38,7 @@ def get_task_input_file(
 def get_artifact(
     task_id: str,
     artifact_path: str,
+    preview: bool = Query(False),
     session: Session = Depends(get_session),
 ):
     task = session.get(Task, task_id)
@@ -59,4 +60,5 @@ def get_artifact(
         path=full_path,
         filename=full_path.name,
         media_type=media_type or "application/octet-stream",
+        content_disposition_type="inline" if preview else "attachment",
     )

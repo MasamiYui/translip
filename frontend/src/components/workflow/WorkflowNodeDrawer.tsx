@@ -1,12 +1,29 @@
 import { useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { AlertTriangle, Clock3, Download, FileJson2, Layers3, X } from 'lucide-react'
+import { AlertTriangle, Clock3, Download, FileAudio2, FileJson2, FileText, Layers3, Loader2, PlayCircle, X } from 'lucide-react'
 import { tasksApi } from '../../api/tasks'
 import { formatBytes } from '../../lib/utils'
 import { useI18n } from '../../i18n/useI18n'
 import { StatusBadge } from '../shared/StatusBadge'
 import { ProgressBar } from '../shared/ProgressBar'
 import type { Artifact, TaskStage, WorkflowGraphNode } from '../../types'
+
+type ArtifactPreview =
+  | {
+      kind: 'audio'
+      key: string
+      title: string
+      href: string
+    }
+  | {
+      kind: 'json'
+      key: string
+      title: string
+      body: string | null
+      isLoading: boolean
+      error: string | null
+      isRaw: boolean
+    }
 
 interface WorkflowNodeDrawerProps {
   node: WorkflowGraphNode | null
@@ -18,24 +35,114 @@ interface WorkflowNodeDrawerProps {
 
 export function WorkflowNodeDrawer({ node, stage, artifacts = [], taskId, onClose }: WorkflowNodeDrawerProps) {
   const { t, formatDuration, getStageLabel } = useI18n()
-  const [manifest, setManifest] = useState<string | null>(null)
-  const [manifestError, setManifestError] = useState<string | null>(null)
-  const [loadingManifest, setLoadingManifest] = useState(false)
+  const [preview, setPreview] = useState<ArtifactPreview | null>(null)
 
   async function handleLoadManifest() {
     if (!node || !taskId) {
       return
     }
-    setLoadingManifest(true)
-    setManifestError(null)
+    const key = `manifest:${node.id}`
+    if (preview?.key === key) {
+      setPreview(null)
+      return
+    }
+    const title = `${getStageLabel(node.id as keyof typeof t.stages)} Manifest`
+    setPreview({
+      kind: 'json',
+      key,
+      title,
+      body: null,
+      isLoading: true,
+      error: null,
+      isRaw: false,
+    })
     try {
       const payload = await tasksApi.getStageManifest(taskId, node.id)
-      setManifest(JSON.stringify(payload, null, 2))
+      setPreview({
+        kind: 'json',
+        key,
+        title,
+        body: JSON.stringify(payload, null, 2),
+        isLoading: false,
+        error: null,
+        isRaw: false,
+      })
     } catch {
-      setManifest(null)
-      setManifestError(t.workflow.drawer.manifestLoadFailed)
-    } finally {
-      setLoadingManifest(false)
+      setPreview({
+        kind: 'json',
+        key,
+        title,
+        body: null,
+        isLoading: false,
+        error: t.workflow.drawer.manifestLoadFailed,
+        isRaw: false,
+      })
+    }
+  }
+
+  function handlePlayArtifact(artifact: Artifact) {
+    if (!taskId) {
+      return
+    }
+    const title = getArtifactFileName(artifact)
+    const key = `audio:${artifact.path}`
+    setPreview(current =>
+      current?.key === key
+        ? null
+        : {
+            kind: 'audio',
+            key,
+            title,
+            href: getArtifactPreviewHref(taskId, artifact.path),
+          },
+    )
+  }
+
+  async function handleViewJsonArtifact(artifact: Artifact) {
+    if (!taskId) {
+      return
+    }
+    const title = getArtifactFileName(artifact)
+    const key = `json:${artifact.path}`
+    if (preview?.key === key) {
+      setPreview(null)
+      return
+    }
+    setPreview({
+      kind: 'json',
+      key,
+      title,
+      body: null,
+      isLoading: true,
+      error: null,
+      isRaw: false,
+    })
+    try {
+      const response = await fetch(getArtifactPreviewHref(taskId, artifact.path))
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`)
+      }
+      const text = await response.text()
+      const formatted = formatJsonArtifactText(text)
+      setPreview({
+        kind: 'json',
+        key,
+        title,
+        body: formatted.body,
+        isLoading: false,
+        error: null,
+        isRaw: formatted.isRaw,
+      })
+    } catch {
+      setPreview({
+        kind: 'json',
+        key,
+        title,
+        body: null,
+        isLoading: false,
+        error: t.workflow.drawer.jsonLoadFailed,
+        isRaw: false,
+      })
     }
   }
 
@@ -145,10 +252,14 @@ export function WorkflowNodeDrawer({ node, stage, artifacts = [], taskId, onClos
                     <button
                       type="button"
                       onClick={handleLoadManifest}
-                      disabled={loadingManifest}
+                      disabled={preview?.kind === 'json' && preview.key === `manifest:${node.id}` && preview.isLoading}
                       className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
                     >
-                      <FileJson2 size={12} />
+                      {preview?.kind === 'json' && preview.key === `manifest:${node.id}` && preview.isLoading ? (
+                        <Loader2 size={12} className="animate-spin" />
+                      ) : (
+                        <FileJson2 size={12} />
+                      )}
                       {t.workflow.drawer.viewManifest}
                     </button>
                   )}
@@ -159,30 +270,63 @@ export function WorkflowNodeDrawer({ node, stage, artifacts = [], taskId, onClos
                 ) : (
                   <div className="divide-y divide-slate-100">
                     {artifacts.map(artifact => (
-                      <div key={artifact.path} className="flex items-center justify-between py-2.5 text-sm">
-                        <div className="min-w-0">
-                          <div className="truncate font-medium text-slate-700">{artifact.path.split('/').pop()}</div>
-                          <div className="text-xs text-slate-400">{formatBytes(artifact.size_bytes)}</div>
+                      <div key={artifact.path} className="py-2.5 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <ArtifactIcon artifact={artifact} />
+                            <div className="min-w-0">
+                              <div className="truncate font-medium text-slate-700">{getArtifactFileName(artifact)}</div>
+                              <div className="text-xs text-slate-400">{formatBytes(artifact.size_bytes)}</div>
+                            </div>
+                          </div>
+                          {taskId && (
+                            <div className="ml-3 flex shrink-0 items-center gap-1">
+                              {isAudioArtifact(artifact) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handlePlayArtifact(artifact)}
+                                  className="rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                                  aria-label={`${t.workflow.drawer.play} ${getArtifactFileName(artifact)}`}
+                                  title={`${t.workflow.drawer.play} ${getArtifactFileName(artifact)}`}
+                                >
+                                  <PlayCircle size={14} />
+                                </button>
+                              )}
+                              {isJsonArtifact(artifact) && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewJsonArtifact(artifact)}
+                                  className="rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                                  aria-label={`${t.workflow.drawer.view} ${getArtifactFileName(artifact)}`}
+                                  title={`${t.workflow.drawer.view} ${getArtifactFileName(artifact)}`}
+                                >
+                                  <FileJson2 size={14} />
+                                </button>
+                              )}
+                              <a
+                                href={`/api/tasks/${taskId}/artifacts/${artifact.path}`}
+                                download
+                                className="rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                                aria-label={`${t.workflow.drawer.download} ${getArtifactFileName(artifact)}`}
+                                title={`${t.workflow.drawer.download} ${getArtifactFileName(artifact)}`}
+                              >
+                                <Download size={14} />
+                              </a>
+                            </div>
+                          )}
                         </div>
-                        {taskId && (
-                          <a
-                            href={`/api/tasks/${taskId}/artifacts/${artifact.path}`}
-                            download
-                            className="ml-3 shrink-0 rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                          >
-                            <Download size={14} />
-                          </a>
+                        {preview && isPreviewForArtifact(preview, artifact) && (
+                          <ArtifactPreviewPanel preview={preview} invalidJsonLabel={t.workflow.drawer.jsonInvalid} loadingLabel={t.workflow.drawer.loadingPreview} />
                         )}
                       </div>
                     ))}
                   </div>
                 )}
 
-                {manifestError && <div className="mt-3 text-sm text-rose-600">{manifestError}</div>}
-                {manifest && (
-                  <pre className="mt-3 max-h-64 overflow-auto rounded-md bg-slate-950 p-4 text-xs text-slate-200">
-                    {manifest}
-                  </pre>
+                {preview?.key.startsWith('manifest:') && (
+                  <div className="mt-3">
+                    <ArtifactPreviewPanel preview={preview} invalidJsonLabel={t.workflow.drawer.jsonInvalid} loadingLabel={t.workflow.drawer.loadingPreview} />
+                  </div>
                 )}
               </div>
             </div>
@@ -191,4 +335,83 @@ export function WorkflowNodeDrawer({ node, stage, artifacts = [], taskId, onClos
       )}
     </AnimatePresence>
   )
+}
+
+function ArtifactIcon({ artifact }: { artifact: Artifact }) {
+  if (isAudioArtifact(artifact)) {
+    return <FileAudio2 size={15} className="shrink-0 text-blue-500" />
+  }
+  if (isJsonArtifact(artifact)) {
+    return <FileJson2 size={15} className="shrink-0 text-emerald-600" />
+  }
+  return <FileText size={15} className="shrink-0 text-slate-400" />
+}
+
+function ArtifactPreviewPanel({
+  preview,
+  invalidJsonLabel,
+  loadingLabel,
+}: {
+  preview: ArtifactPreview
+  invalidJsonLabel: string
+  loadingLabel: string
+}) {
+  if (preview.kind === 'audio') {
+    return (
+      <div className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+        <audio controls preload="metadata" className="h-9 w-full" src={preview.href} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-2 overflow-hidden rounded-lg border border-slate-800 bg-slate-950">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-800 bg-slate-900 px-3 py-2">
+        <div className="min-w-0 truncate text-xs font-medium text-slate-200">{preview.title}</div>
+        {preview.isRaw && <div className="shrink-0 text-[10px] font-medium text-amber-300">{invalidJsonLabel}</div>}
+      </div>
+      {preview.isLoading && (
+        <div className="flex items-center gap-2 px-3 py-4 text-xs text-slate-300">
+          <Loader2 size={13} className="animate-spin" />
+          {loadingLabel}
+        </div>
+      )}
+      {preview.error && <div className="px-3 py-4 text-xs text-rose-300">{preview.error}</div>}
+      {preview.body && <pre className="max-h-80 overflow-auto p-3 text-xs leading-5 text-slate-200">{preview.body}</pre>}
+    </div>
+  )
+}
+
+function getArtifactFileName(artifact: Artifact) {
+  return artifact.path.split('/').pop() ?? artifact.path
+}
+
+function getArtifactPreviewHref(taskId: string, artifactPath: string) {
+  return `/api/tasks/${taskId}/artifacts/${artifactPath}?preview=1`
+}
+
+function isPreviewForArtifact(preview: ArtifactPreview | null, artifact: Artifact) {
+  return preview?.key === `audio:${artifact.path}` || preview?.key === `json:${artifact.path}`
+}
+
+function isAudioArtifact(artifact: Artifact) {
+  return /\.(wav|mp3|flac|m4a|aac|ogg)$/i.test(artifact.path)
+}
+
+function isJsonArtifact(artifact: Artifact) {
+  return /\.json$/i.test(artifact.path)
+}
+
+function formatJsonArtifactText(text: string) {
+  try {
+    return {
+      body: JSON.stringify(JSON.parse(text), null, 2),
+      isRaw: false,
+    }
+  } catch {
+    return {
+      body: text,
+      isRaw: true,
+    }
+  }
 }
