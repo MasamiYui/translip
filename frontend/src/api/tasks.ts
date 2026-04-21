@@ -35,6 +35,8 @@ export type DeliveryComposePayload = {
   export_dub: boolean
 }
 
+const DELIVERY_COMPOSE_TIMEOUT_MS = 10 * 60 * 1000
+
 export const tasksApi = {
   list: (params?: {
     status?: string
@@ -80,5 +82,5 @@ export const tasksApi = {
     api.post(`/api/tasks/${id}/subtitle-preview`, payload).then(r => r.data),
 
   composeDelivery: (id: string, payload: DeliveryComposePayload) =>
-    api.post(`/api/tasks/${id}/delivery-compose`, payload).then(r => r.data),
+    api.post(`/api/tasks/${id}/delivery-compose`, payload, { timeout: DELIVERY_COMPOSE_TIMEOUT_MS }).then(r => r.data),
 }

@@ -116,6 +116,11 @@ def render_dub(request: RenderDubRequest) -> RenderDubResult:
             (report_path, _load_json(report_path))
             for report_path in normalized_request.task_d_report_paths
         ]
+        selected_payload = (
+            _load_json(Path(normalized_request.selected_segments_path))
+            if normalized_request.selected_segments_path is not None
+            else None
+        )
         target_lang = str(translation_payload.get("backend", {}).get("target_lang") or normalized_request.target_lang)
 
         background_wav_path = render_wav(
@@ -131,6 +136,7 @@ def render_dub(request: RenderDubRequest) -> RenderDubResult:
             segments_payload=segments_payload,
             translation_payload=translation_payload,
             report_payloads=report_payloads,
+            selected_payload=selected_payload,
         )
         planned_items, skipped_fit = _apply_fit_strategy(
             request=normalized_request,
@@ -240,6 +246,8 @@ def _validate_request(request: RenderDubRequest) -> RenderDubRequest:
     for report_path in normalized.task_d_report_paths:
         if not Path(report_path).exists():
             raise TranslipError(f"Task D report does not exist: {report_path}")
+    if normalized.selected_segments_path is not None and not Path(normalized.selected_segments_path).exists():
+        raise TranslipError(f"Selected segments file does not exist: {normalized.selected_segments_path}")
     if normalized.output_sample_rate <= 0:
         raise TranslipError("output_sample_rate must be greater than 0")
     if normalized.max_compress_ratio < 1.0:
@@ -257,6 +265,7 @@ def _load_candidates(
     segments_payload: dict[str, Any],
     translation_payload: dict[str, Any],
     report_payloads: list[tuple[Path, dict[str, Any]]],
+    selected_payload: dict[str, Any] | None = None,
 ) -> tuple[list[TimelineItem], list[TimelineItem]]:
     anchor_map = {
         str(row.get("segment_id") or row.get("id")): row
@@ -271,6 +280,7 @@ def _load_candidates(
     candidates: list[TimelineItem] = []
     skipped: list[TimelineItem] = []
     seen_segment_ids: set[str] = set()
+    selected_map = _selected_segment_map(selected_payload)
 
     for report_path, payload in report_payloads:
         for row in payload.get("segments", []):
@@ -281,6 +291,7 @@ def _load_candidates(
                 continue
             anchor = anchor_map.get(segment_id)
             translation = translation_map.get(segment_id)
+            selected = selected_map.get(segment_id)
             if not segment_id or anchor is None or translation is None:
                 skipped.append(
                     TimelineItem(
@@ -304,27 +315,36 @@ def _load_candidates(
                 )
                 continue
 
+            row_for_mix = _apply_selected_override(row=row, selected=selected)
             item = TimelineItem(
                 segment_id=segment_id,
-                speaker_id=str(row.get("speaker_id") or translation.get("speaker_id") or ""),
+                speaker_id=str(row_for_mix.get("speaker_id") or row.get("speaker_id") or translation.get("speaker_id") or ""),
                 target_lang=str(payload.get("backend", {}).get("target_lang") or request.target_lang),
-                target_text=str(translation.get("target_text") or row.get("target_text") or ""),
+                target_text=str(row_for_mix.get("target_text") or translation.get("target_text") or row.get("target_text") or ""),
                 anchor_start=float(anchor.get("start") or 0.0),
                 anchor_end=float(anchor.get("end") or 0.0),
-                source_duration_sec=float(anchor.get("duration") or row.get("source_duration_sec") or 0.0),
-                generated_duration_sec=float(row.get("generated_duration_sec") or 0.0),
-                audio_path=Path(str(row.get("audio_path"))).expanduser().resolve(),
-                task_d_status=str(row.get("speaker_status") or "unknown"),
-                speaker_similarity=_float_or_none(row.get("speaker_similarity")),
-                text_similarity=_float_or_none(row.get("text_similarity")),
-                overall_status=str(row.get("overall_status") or "failed"),
+                source_duration_sec=float(anchor.get("duration") or row_for_mix.get("source_duration_sec") or row.get("source_duration_sec") or 0.0),
+                generated_duration_sec=float(row_for_mix.get("generated_duration_sec") or row.get("generated_duration_sec") or 0.0),
+                audio_path=Path(str(row_for_mix.get("audio_path") or row.get("audio_path"))).expanduser().resolve(),
+                task_d_status=str(row_for_mix.get("speaker_status") or row.get("speaker_status") or "unknown"),
+                speaker_similarity=_float_or_none(row_for_mix.get("speaker_similarity")),
+                text_similarity=_float_or_none(row_for_mix.get("text_similarity")),
+                overall_status=str(row_for_mix.get("overall_status") or row.get("overall_status") or "failed"),
                 task_d_report_path=report_path,
                 qa_flags=[str(flag) for flag in translation.get("qa_flags", [])],
             )
+            if selected is not None:
+                item.notes.append(f"selected_repair_attempt:{selected.get('selected_attempt_id')}")
             if not item.audio_path.exists():
                 item.mix_status = "skipped_missing_audio"
                 item.notes.append("missing_task_d_audio")
                 skipped.append(item)
+                continue
+            if request.quality_gate == "strict" and item.overall_status == "failed":
+                item.mix_status = "skipped_quality_gate"
+                item.notes.append("strict_quality_gate_failed")
+                skipped.append(item)
+                seen_segment_ids.add(segment_id)
                 continue
             if item.overall_status == "failed":
                 item.notes.append("task_d_failed_upstream")
@@ -335,6 +355,35 @@ def _load_candidates(
     candidates.sort(key=_timeline_sort_key)
     skipped.sort(key=_timeline_sort_key)
     return candidates, skipped
+
+
+def _selected_segment_map(selected_payload: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
+    if not selected_payload:
+        return {}
+    return {
+        str(row.get("segment_id") or ""): row
+        for row in selected_payload.get("segments", [])
+        if isinstance(row, dict) and row.get("segment_id") and row.get("selected_audio_path")
+    }
+
+
+def _apply_selected_override(*, row: dict[str, Any], selected: dict[str, Any] | None) -> dict[str, Any]:
+    if selected is None:
+        return row
+    return {
+        **row,
+        "speaker_id": selected.get("speaker_id") or row.get("speaker_id"),
+        "target_text": selected.get("target_text") or row.get("target_text"),
+        "generated_duration_sec": selected.get("generated_duration_sec") or row.get("generated_duration_sec"),
+        "duration_ratio": selected.get("duration_ratio") or row.get("duration_ratio"),
+        "duration_status": selected.get("duration_status") or row.get("duration_status"),
+        "speaker_similarity": selected.get("speaker_similarity"),
+        "speaker_status": selected.get("speaker_status") or row.get("speaker_status"),
+        "text_similarity": selected.get("text_similarity"),
+        "intelligibility_status": selected.get("intelligibility_status") or row.get("intelligibility_status"),
+        "overall_status": selected.get("overall_status") or row.get("overall_status"),
+        "audio_path": selected.get("selected_audio_path") or row.get("audio_path"),
+    }
 
 
 def _apply_fit_strategy(

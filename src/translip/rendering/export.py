@@ -26,6 +26,7 @@ def build_timeline_payload(
             "translation_path": str(request.translation_path),
             "background_path": str(request.background_path),
             "task_d_report_paths": [str(path) for path in request.task_d_report_paths],
+            "selected_segments_path": str(request.selected_segments_path) if request.selected_segments_path else None,
         },
         "config": {
             "target_lang": target_lang,
@@ -34,6 +35,7 @@ def build_timeline_payload(
             "mix_profile": request.mix_profile,
             "ducking_mode": request.ducking_mode,
             "output_sample_rate": request.output_sample_rate,
+            "quality_gate": request.quality_gate,
         },
         "items": items,
     }
@@ -61,6 +63,7 @@ def build_mix_report(
             "translation_path": str(request.translation_path),
             "background_path": str(request.background_path),
             "task_d_report_paths": [str(path) for path in request.task_d_report_paths],
+            "selected_segments_path": str(request.selected_segments_path) if request.selected_segments_path else None,
         },
         "config": {
             "target_lang": target_lang,
@@ -72,6 +75,7 @@ def build_mix_report(
             "background_gain_db": request.background_gain_db,
             "window_ducking_db": request.window_ducking_db,
             "output_sample_rate": request.output_sample_rate,
+            "quality_gate": request.quality_gate,
         },
         "stats": {
             "placed_count": len(placed_items),
@@ -108,6 +112,7 @@ def build_render_manifest(
             "segments_path": str(request.segments_path),
             "translation_path": str(request.translation_path),
             "task_d_report_paths": [str(path) for path in request.task_d_report_paths],
+            "selected_segments_path": str(request.selected_segments_path) if request.selected_segments_path else None,
         },
         "request": {
             "target_lang": target_lang,
@@ -120,6 +125,8 @@ def build_render_manifest(
             "background_gain_db": request.background_gain_db,
             "window_ducking_db": request.window_ducking_db,
             "preview_format": request.preview_format,
+            "selected_segments_path": str(request.selected_segments_path) if request.selected_segments_path else None,
+            "quality_gate": request.quality_gate,
         },
         "resolved": {
             "placed_count": placed_count,

@@ -17,6 +17,7 @@ FitBackendName = Literal["atempo", "rubberband"]
 MixProfileName = Literal["preview", "enhanced"]
 DuckingModeName = Literal["static", "sidechain"]
 PreviewFormat = Literal["wav", "mp3"]
+RenderQualityGate = Literal["loose", "strict"]
 CorrectionPreset = Literal["conservative", "standard", "aggressive"]
 PipelineStageName = Literal["stage1", "task-a", "asr-ocr-correct", "task-b", "task-c", "task-d", "task-e", "task-g"]
 PipelineStageStatus = Literal["pending", "running", "succeeded", "cached", "failed", "skipped"]
@@ -404,6 +405,8 @@ class RenderDubRequest:
     translation_path: Path | str
     task_d_report_paths: list[Path | str]
     output_dir: Path | str = Path("output")
+    selected_segments_path: Path | str | None = None
+    quality_gate: RenderQualityGate = "loose"
     target_lang: str = "en"
     fit_policy: FitPolicy = "conservative"
     fit_backend: FitBackendName = "atempo"
@@ -425,6 +428,12 @@ class RenderDubRequest:
                 for path in self.task_d_report_paths
             ],
             output_dir=Path(self.output_dir).expanduser().resolve(),
+            selected_segments_path=(
+                Path(self.selected_segments_path).expanduser().resolve()
+                if self.selected_segments_path is not None
+                else None
+            ),
+            quality_gate=self.quality_gate,
             target_lang=self.target_lang,
             fit_policy=self.fit_policy,
             fit_backend=self.fit_backend,

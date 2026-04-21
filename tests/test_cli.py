@@ -272,6 +272,10 @@ def test_cli_render_dub_parser() -> None:
             "spk_0000/speaker_segments.en.json",
             "--task-d-report",
             "spk_0001/speaker_segments.en.json",
+            "--selected-segments",
+            "repair/selected_segments.en.json",
+            "--quality-gate",
+            "strict",
             "--fit-policy",
             "high_quality",
             "--fit-backend",
@@ -292,11 +296,48 @@ def test_cli_render_dub_parser() -> None:
         "spk_0000/speaker_segments.en.json",
         "spk_0001/speaker_segments.en.json",
     ]
+    assert args.selected_segments == "repair/selected_segments.en.json"
+    assert args.quality_gate == "strict"
     assert args.fit_policy == "high_quality"
     assert args.fit_backend == "atempo"
     assert args.mix_profile == "enhanced"
     assert args.ducking_mode == "sidechain"
     assert args.preview_format == "mp3"
+
+
+def test_cli_run_dub_repair_parser() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "run-dub-repair",
+            "--repair-queue",
+            "repair_queue.en.json",
+            "--rewrite-plan",
+            "rewrite_plan.en.json",
+            "--reference-plan",
+            "reference_plan.en.json",
+            "--tts-backend",
+            "moss-tts-nano-onnx",
+            "--tts-backend",
+            "qwen3tts",
+            "--segment-id",
+            "seg-0001",
+            "--max-items",
+            "5",
+            "--attempts-per-item",
+            "4",
+            "--include-risk",
+        ]
+    )
+    assert args.command == "run-dub-repair"
+    assert args.repair_queue == "repair_queue.en.json"
+    assert args.rewrite_plan == "rewrite_plan.en.json"
+    assert args.reference_plan == "reference_plan.en.json"
+    assert args.tts_backends == ["moss-tts-nano-onnx", "qwen3tts"]
+    assert args.segment_ids == ["seg-0001"]
+    assert args.max_items == 5
+    assert args.attempts_per_item == 4
+    assert args.include_risk is True
 
 
 def test_cli_run_pipeline_parser() -> None:

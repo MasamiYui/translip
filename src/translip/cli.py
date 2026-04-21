@@ -41,6 +41,7 @@ from .orchestration.runner import run_pipeline
 from .pipeline.ingest import probe_input
 from .pipeline.runner import separate_file
 from .rendering.runner import render_dub
+from .repair import RepairPlanRequest, RepairRunRequest, plan_dub_repair, run_dub_repair
 from .speakers.runner import build_speaker_registry
 from .subtitles.preview import SubtitlePreviewRequest, preview_subtitle
 from .translation.runner import translate_script
@@ -247,6 +248,17 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="Task D speaker_segments.<lang>.json path; may be passed multiple times",
     )
+    render_parser.add_argument(
+        "--selected-segments",
+        default=None,
+        help="Optional selected_segments.<lang>.json path produced by run-dub-repair",
+    )
+    render_parser.add_argument(
+        "--quality-gate",
+        default="loose",
+        choices=["loose", "strict"],
+        help="loose keeps failed Task D audio when present; strict filters failed segments unless repaired",
+    )
     render_parser.add_argument("--output-dir", default="output-task-e", help="Output directory")
     render_parser.add_argument(
         "--target-lang",
@@ -294,6 +306,62 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_RENDER_PREVIEW_FORMAT,
         choices=["wav", "mp3"],
     )
+
+    repair_parser = subparsers.add_parser(
+        "plan-dub-repair",
+        help="Build a repair queue with rewrite and reference-switch plans from Task D reports",
+    )
+    repair_parser.add_argument("--translation", required=True, help="Task C translation.<lang>.json path")
+    repair_parser.add_argument("--profiles", required=True, help="Task B speaker_profiles.json path")
+    repair_parser.add_argument(
+        "--task-d-report",
+        action="append",
+        dest="task_d_reports",
+        required=True,
+        help="Task D speaker_segments.<lang>.json path; may be passed multiple times",
+    )
+    repair_parser.add_argument("--output-dir", default="output-repair", help="Repair plan output directory")
+    repair_parser.add_argument(
+        "--target-lang",
+        default=DEFAULT_TRANSLATION_TARGET_LANG,
+        help="Target language code, e.g. en",
+    )
+    repair_parser.add_argument("--glossary", default=None, help="Optional glossary JSON path")
+    repair_parser.add_argument("--max-items", type=int, default=None, help="Optional cap for highest-priority repair items")
+
+    repair_run_parser = subparsers.add_parser(
+        "run-dub-repair",
+        help="Generate and evaluate repair candidates from a repair queue",
+    )
+    repair_run_parser.add_argument("--repair-queue", required=True, help="repair_queue.<lang>.json path")
+    repair_run_parser.add_argument("--rewrite-plan", required=True, help="rewrite_plan.<lang>.json path")
+    repair_run_parser.add_argument("--reference-plan", required=True, help="reference_plan.<lang>.json path")
+    repair_run_parser.add_argument("--output-dir", default="output-repair-run", help="Repair run output directory")
+    repair_run_parser.add_argument(
+        "--tts-backend",
+        action="append",
+        dest="tts_backends",
+        default=None,
+        choices=["moss-tts-nano-onnx", "qwen3tts"],
+        help="TTS backend to try; may be passed multiple times",
+    )
+    repair_run_parser.add_argument("--device", default=DEFAULT_DEVICE, choices=["auto", "cpu", "cuda", "mps"])
+    repair_run_parser.add_argument(
+        "--backread-model",
+        default=DEFAULT_DUBBING_BACKREAD_MODEL,
+        help="faster-whisper model name used for generated-audio backread checks",
+    )
+    repair_run_parser.add_argument(
+        "--segment-id",
+        action="append",
+        dest="segment_ids",
+        default=None,
+        help="Only attempt the given segment id; may be passed multiple times",
+    )
+    repair_run_parser.add_argument("--max-items", type=int, default=10, help="Maximum repair items to attempt")
+    repair_run_parser.add_argument("--attempts-per-item", type=int, default=3, help="Maximum generated candidates per item")
+    repair_run_parser.add_argument("--include-risk", action="store_true", help="Also attempt risk_only queue items")
+    repair_run_parser.add_argument("--keep-intermediate", action="store_true")
 
     probe_parser = subparsers.add_parser("probe", help="Inspect a media file")
     probe_parser.add_argument("--input", required=True, help="Input media file path")
@@ -674,6 +742,8 @@ def main(argv: list[str] | None = None) -> int:
             translation_path=args.translation,
             task_d_report_paths=args.task_d_reports,
             output_dir=args.output_dir,
+            selected_segments_path=args.selected_segments,
+            quality_gate=args.quality_gate,
             target_lang=args.target_lang,
             fit_policy=args.fit_policy,
             fit_backend=args.fit_backend,
@@ -693,6 +763,51 @@ def main(argv: list[str] | None = None) -> int:
         print(f"timeline={result.artifacts.timeline_path}")
         print(f"mix_report={result.artifacts.mix_report_path}")
         print(f"manifest={result.artifacts.manifest_path}")
+        return 0
+
+    if args.command == "plan-dub-repair":
+        request = RepairPlanRequest(
+            translation_path=args.translation,
+            profiles_path=args.profiles,
+            task_d_report_paths=args.task_d_reports,
+            output_dir=args.output_dir,
+            target_lang=args.target_lang,
+            glossary_path=args.glossary,
+            max_items=args.max_items,
+        )
+        result = plan_dub_repair(request)
+        print(f"repair_queue={result.artifacts.repair_queue_path}")
+        print(f"rewrite_plan={result.artifacts.rewrite_plan_path}")
+        print(f"reference_plan={result.artifacts.reference_plan_path}")
+        print(f"manifest={result.artifacts.manifest_path}")
+        print(f"repair_count={result.manifest['stats']['repair_count']}")
+        print(f"strict_blocker_count={result.manifest['stats']['strict_blocker_count']}")
+        print(f"risk_only_count={result.manifest['stats']['risk_only_count']}")
+        return 0
+
+    if args.command == "run-dub-repair":
+        request = RepairRunRequest(
+            repair_queue_path=args.repair_queue,
+            rewrite_plan_path=args.rewrite_plan,
+            reference_plan_path=args.reference_plan,
+            output_dir=args.output_dir,
+            tts_backends=args.tts_backends or ["moss-tts-nano-onnx"],
+            device=args.device,
+            backread_model=args.backread_model,
+            segment_ids=args.segment_ids,
+            max_items=args.max_items,
+            attempts_per_item=args.attempts_per_item,
+            include_risk=args.include_risk,
+            keep_intermediate=args.keep_intermediate,
+        )
+        result = run_dub_repair(request)
+        print(f"repair_attempts={result.artifacts.attempts_path}")
+        print(f"selected_segments={result.artifacts.selected_segments_path}")
+        print(f"manual_review={result.artifacts.manual_review_path}")
+        print(f"manifest={result.artifacts.manifest_path}")
+        print(f"attempt_count={result.manifest['stats']['attempt_count']}")
+        print(f"selected_count={result.manifest['stats']['selected_count']}")
+        print(f"manual_required_count={result.manifest['stats']['manual_required_count']}")
         return 0
 
     if args.command == "run-pipeline":

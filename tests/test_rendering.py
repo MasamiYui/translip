@@ -251,6 +251,124 @@ def test_render_dub_writes_outputs_and_places_failed_segments_when_audio_exists(
     assert len(dub_waveform) == int(round(4.0 * 24_000))
 
 
+def test_render_dub_uses_selected_segments_override(tmp_path: Path) -> None:
+    background_path = tmp_path / "background.wav"
+    _write_tone(background_path, duration_sec=2.0, frequency=110.0)
+
+    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.json"
+    _write_json(
+        segments_path,
+        {
+            "segments": [
+                {
+                    "id": "seg-0001",
+                    "start": 0.0,
+                    "end": 1.0,
+                    "duration": 1.0,
+                    "speaker_label": "SPEAKER_00",
+                    "text": "第一句",
+                    "language": "zh",
+                }
+            ]
+        },
+    )
+    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
+    _write_json(
+        translation_path,
+        {
+            "backend": {"target_lang": "en", "output_tag": "en"},
+            "segments": [
+                {
+                    "segment_id": "seg-0001",
+                    "speaker_id": "spk_0000",
+                    "speaker_label": "SPEAKER_00",
+                    "start": 0.0,
+                    "end": 1.0,
+                    "duration": 1.0,
+                    "target_text": "bad line",
+                    "qa_flags": [],
+                }
+            ],
+        },
+    )
+    original_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    repaired_audio = tmp_path / "repair" / "seg-0001.wav"
+    _write_tone(original_audio, duration_sec=2.4, frequency=220.0)
+    _write_tone(repaired_audio, duration_sec=0.9, frequency=330.0)
+    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    _write_json(
+        report_path,
+        {
+            "backend": {"target_lang": "en"},
+            "segments": [
+                {
+                    "segment_id": "seg-0001",
+                    "speaker_id": "spk_0000",
+                    "target_text": "bad line",
+                    "source_duration_sec": 1.0,
+                    "generated_duration_sec": 2.4,
+                    "speaker_similarity": 0.2,
+                    "speaker_status": "failed",
+                    "text_similarity": 0.4,
+                    "overall_status": "failed",
+                    "audio_path": str(original_audio),
+                }
+            ],
+        },
+    )
+    selected_path = tmp_path / "repair" / "selected_segments.en.json"
+    _write_json(
+        selected_path,
+        {
+            "target_lang": "en",
+            "segments": [
+                {
+                    "segment_id": "seg-0001",
+                    "speaker_id": "spk_0000",
+                    "target_text": "good line",
+                    "selected_audio_path": str(repaired_audio),
+                    "selected_attempt_id": "attempt-0001",
+                    "generated_duration_sec": 0.9,
+                    "duration_ratio": 0.9,
+                    "duration_status": "passed",
+                    "speaker_similarity": 0.7,
+                    "speaker_status": "passed",
+                    "text_similarity": 0.98,
+                    "intelligibility_status": "passed",
+                    "overall_status": "passed",
+                }
+            ],
+        },
+    )
+
+    result = render_dub(
+        RenderDubRequest(
+            background_path=background_path,
+            segments_path=segments_path,
+            translation_path=translation_path,
+            task_d_report_paths=[report_path],
+            output_dir=tmp_path / "output-task-e",
+            selected_segments_path=selected_path,
+            quality_gate="strict",
+            target_lang="en",
+            fit_policy="conservative",
+            fit_backend="atempo",
+            mix_profile="preview",
+            ducking_mode="static",
+            output_sample_rate=24_000,
+            preview_format="wav",
+        )
+    )
+
+    timeline = json.loads(result.artifacts.timeline_path.read_text(encoding="utf-8"))
+    item = timeline["items"][0]
+    assert item["audio_path"] == str(repaired_audio.resolve())
+    assert item["target_text"] == "good line"
+    assert item["overall_status"] == "passed"
+    assert item["fit_strategy"] == "direct"
+    assert item["notes"] == ["selected_repair_attempt:attempt-0001"]
+
+
 def test_render_dub_exports_optional_mp3_preview(tmp_path: Path) -> None:
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=2.0, frequency=100.0)
