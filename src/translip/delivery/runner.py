@@ -66,9 +66,10 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
     final_dub_audio_path = (
         _resolve_dub_audio_path(normalized_request, task_e_manifest)
         if normalized_request.export_dub
-        else _resolve_optional_dub_audio_path(normalized_request, task_e_manifest) or preview_audio_path
+        else None
     )
     target_lang = _resolve_target_lang(normalized_request, task_e_manifest)
+    _cleanup_unrequested_outputs(normalized_request, target_lang)
     subtitle_path = _resolve_subtitle_path(normalized_request, target_lang)
     chinese_subtitle_path = _resolve_chinese_subtitle_path(normalized_request)
     normalized_request = ExportVideoRequest(
@@ -129,6 +130,8 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
             outputs.append(_output_payload(kind="preview", output_path=preview_video_path))
 
         if normalized_request.export_dub:
+            if final_dub_audio_path is None:
+                raise TranslipError("Task G dub voice does not exist")
             dub_video_path = _build_output_video_path(
                 normalized_request.output_dir / "final-dub",
                 stem=f"final_dub.{target_lang}",
@@ -493,6 +496,27 @@ def _resolve_optional_dub_audio_path(request: ExportVideoRequest, task_e_manifes
     if not resolved.exists():
         return None
     return resolved
+
+
+def _cleanup_unrequested_outputs(request: ExportVideoRequest, target_lang: str) -> None:
+    if request.output_dir is None:
+        return
+    if not request.export_preview:
+        _remove_matching_outputs(request.output_dir / "final-preview", f"final_preview.{target_lang}.*")
+    if not request.export_dub:
+        _remove_matching_outputs(request.output_dir / "final-dub", f"final_dub.{target_lang}.*")
+
+
+def _remove_matching_outputs(directory: Path, pattern: str) -> None:
+    if not directory.exists():
+        return
+    for path in directory.glob(pattern):
+        if path.is_file() or path.is_symlink():
+            path.unlink()
+    try:
+        directory.rmdir()
+    except OSError:
+        pass
 
 
 def _build_output_video_path(output_dir: Path, *, stem: str, container: str) -> Path:

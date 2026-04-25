@@ -191,6 +191,58 @@ def test_export_video_can_export_preview_only(tmp_path: Path, monkeypatch) -> No
     assert report["summary"]["requested_exports"] == ["preview"]
 
 
+def test_export_video_preview_only_removes_stale_final_dub_and_omits_dub_audio(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from translip.delivery.runner import export_video
+
+    pipeline_root, input_video_path, preview_mix_path, _dub_voice_path = _build_task_e_fixture(tmp_path)
+    output_dir = tmp_path / "delivery"
+    stale_dub_path = output_dir / "final-dub" / "final_dub.en.mp4"
+    _touch(stale_dub_path)
+
+    def fake_mux_video_with_audio(
+        *,
+        input_video_path: Path,
+        input_audio_path: Path,
+        output_path: Path,
+        video_codec: str,
+        audio_codec: str,
+        audio_bitrate: str | None,
+        end_policy: str,
+    ) -> Path:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"preview-only")
+        return output_path
+
+    monkeypatch.setattr("translip.delivery.runner.mux_video_with_audio", fake_mux_video_with_audio)
+    monkeypatch.setattr("translip.delivery.runner.probe_media", _fake_media_info)
+
+    result = export_video(
+        ExportVideoRequest(
+            input_video_path=input_video_path,
+            task_e_dir=pipeline_root / "task-e" / "voice",
+            output_dir=output_dir,
+            target_lang="en",
+            export_preview=True,
+            export_dub=False,
+        )
+    )
+
+    assert result.artifacts.preview_video_path is not None
+    assert result.artifacts.dub_video_path is None
+    assert not stale_dub_path.exists()
+
+    manifest = json.loads(result.artifacts.manifest_path.read_text(encoding="utf-8"))
+    report = json.loads(result.artifacts.report_path.read_text(encoding="utf-8"))
+    assert manifest["input"]["preview_audio_path"] == str(preview_mix_path.resolve())
+    assert manifest["input"]["dub_audio_path"] is None
+    assert manifest["artifacts"]["final_dub_video"] is None
+    assert report["input"]["dub_audio_path"] is None
+    assert report["outputs"][0]["kind"] == "preview"
+
+
 def test_export_video_requires_dub_voice_for_dub_export(tmp_path: Path, monkeypatch) -> None:
     from translip.delivery.runner import export_video
 

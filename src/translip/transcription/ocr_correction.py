@@ -123,6 +123,76 @@ def _alignment_score(segment: dict[str, Any], events: list[_OcrEvent]) -> float:
     return round(min(1.0, max(total_overlap / segment_duration, total_overlap / max(0.001, ocr_duration))), 3)
 
 
+def _round_sec(value: float) -> float:
+    return round(float(value), 3)
+
+
+def _time_window(start: float, end: float) -> dict[str, float]:
+    start = _round_sec(start)
+    end = _round_sec(max(end, start))
+    return {
+        "start": start,
+        "end": end,
+        "duration": _round_sec(max(0.0, end - start)),
+    }
+
+
+def _build_timing_metadata(
+    *,
+    segment: dict[str, Any],
+    events: list[_OcrEvent],
+    config: CorrectionConfig,
+) -> dict[str, Any] | None:
+    if not events:
+        return None
+
+    segment_start = float(segment.get("start", 0.0))
+    segment_end = float(segment.get("end", segment_start))
+    if segment_end < segment_start:
+        segment_start, segment_end = segment_end, segment_start
+
+    ocr_start = min(event.start for event in events)
+    ocr_end = max(event.end for event in events)
+    ocr_quality_score = round(sum(event.confidence for event in events) / len(events), 3)
+
+    warnings: list[str] = []
+    policy = "asr_anchor"
+    dubbing_start = segment_start
+    dubbing_end = segment_end
+
+    if ocr_start - segment_start > config.lead_tolerance_sec:
+        dubbing_start = max(segment_start, ocr_start - config.lead_tolerance_sec)
+        policy = "late_ocr_anchor"
+        warnings.append("asr_start_precedes_ocr_window")
+    if ocr_end - segment_end > config.lag_tolerance_sec:
+        dubbing_end = ocr_end
+        policy = "ocr_extended_anchor" if policy == "asr_anchor" else f"{policy}+ocr_extended_anchor"
+        warnings.append("ocr_window_extends_after_asr")
+    elif ocr_end > segment_end:
+        dubbing_end = ocr_end
+
+    if dubbing_end <= dubbing_start:
+        dubbing_end = max(dubbing_start + 0.001, ocr_end, segment_end)
+        warnings.append("dubbing_window_clamped")
+
+    subtitle_window = _time_window(ocr_start, ocr_end)
+    return {
+        "source": "ocr_correction",
+        "asr_window": _time_window(segment_start, segment_end),
+        "ocr_window": {
+            **subtitle_window,
+            "event_ids": [event.event_id for event in events],
+            "confidence": ocr_quality_score,
+        },
+        "subtitle_window": subtitle_window,
+        "dubbing_window": {
+            **_time_window(dubbing_start, dubbing_end),
+            "policy": policy,
+        },
+        "warnings": warnings,
+    }
+
+
 def _normalize_event(raw: dict[str, Any], index: int) -> _OcrEvent | None:
     text = str(raw.get("text") or "").strip()
     if not text:
@@ -257,25 +327,42 @@ def correct_asr_segments_with_ocr(
         if should_replace:
             reason = None
 
-        corrected_segments.append(corrected)
-        report_segments.append(
-            {
-                "segment_id": str(segment.get("id") or ""),
-                "start": float(segment.get("start", 0.0)),
-                "end": float(segment.get("end", segment.get("start", 0.0))),
-                "speaker_label": segment.get("speaker_label"),
-                "original_asr_text": original_text,
-                "corrected_text": corrected["text"],
-                "decision": decision,
-                "ocr_event_ids": [event.event_id for event in high_confidence_candidates],
-                "alignment_score": alignment_score,
-                "ocr_quality_score": ocr_quality_score,
-                "text_similarity_score": text_similarity_score,
-                "length_ratio": round(length_ratio, 3) if length_ratio != float("inf") else None,
-                "reason": reason,
-                "needs_review": needs_review,
-            }
+        timing_metadata = (
+            _build_timing_metadata(
+                segment=segment,
+                events=high_confidence_candidates,
+                config=config,
+            )
+            if should_replace
+            else None
         )
+        if timing_metadata is not None:
+            existing_timing = corrected.get("timing") if isinstance(corrected.get("timing"), dict) else {}
+            corrected["timing"] = {
+                **existing_timing,
+                **timing_metadata,
+            }
+
+        corrected_segments.append(corrected)
+        report_row = {
+            "segment_id": str(segment.get("id") or ""),
+            "start": float(segment.get("start", 0.0)),
+            "end": float(segment.get("end", segment.get("start", 0.0))),
+            "speaker_label": segment.get("speaker_label"),
+            "original_asr_text": original_text,
+            "corrected_text": corrected["text"],
+            "decision": decision,
+            "ocr_event_ids": [event.event_id for event in high_confidence_candidates],
+            "alignment_score": alignment_score,
+            "ocr_quality_score": ocr_quality_score,
+            "text_similarity_score": text_similarity_score,
+            "length_ratio": round(length_ratio, 3) if length_ratio != float("inf") else None,
+            "reason": reason,
+            "needs_review": needs_review,
+        }
+        if timing_metadata is not None:
+            report_row["timing"] = timing_metadata
+        report_segments.append(report_row)
 
     segment_windows = [(float(segment.get("start", 0.0)), float(segment.get("end", 0.0))) for segment in segments]
     ocr_only_events = []

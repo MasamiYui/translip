@@ -59,10 +59,12 @@ def build_mix_report(
         reason = str(item.get("mix_status") or "skipped")
         skip_counts[reason] = skip_counts.get(reason, 0) + 1
     quality_summary = _build_quality_summary(items=[*placed_items, *skipped_items])
+    audible_coverage = _build_audible_coverage(items=[*placed_items, *skipped_items])
     content_quality = _build_content_quality(
         placed_count=len(placed_items),
         skipped_count=len(skipped_items),
         quality_summary=quality_summary,
+        audible_coverage=audible_coverage,
     )
     return {
         "input": {
@@ -91,6 +93,7 @@ def build_mix_report(
             "skip_reason_counts": skip_counts,
             "total_duration_sec": round(total_duration_sec, 3),
             "quality_summary": quality_summary,
+            "audible_coverage": audible_coverage,
             "content_quality": content_quality,
         },
         "placed_segments": placed_items,
@@ -190,6 +193,7 @@ def _build_content_quality(
     placed_count: int,
     skipped_count: int,
     quality_summary: dict[str, Any],
+    audible_coverage: dict[str, Any],
 ) -> dict[str, Any]:
     total_count = int(quality_summary.get("total_count") or 0)
     overall_counts = quality_summary.get("overall_status_counts", {})
@@ -202,6 +206,7 @@ def _build_content_quality(
     failed_ratio = failed_count / max(total_count, 1)
     speaker_failed_ratio = speaker_failed / max(total_count, 1)
     intelligibility_failed_ratio = intelligibility_failed / max(total_count, 1)
+    audible_coverage_failed = int(audible_coverage.get("failed_count") or 0)
 
     reasons: list[str] = []
     if total_count == 0:
@@ -214,8 +219,10 @@ def _build_content_quality(
         reasons.append("speaker_similarity_failed")
     if intelligibility_failed_ratio > 0.10:
         reasons.append("intelligibility_failed")
+    if audible_coverage_failed > 0:
+        reasons.append("audible_coverage_failed")
 
-    if total_count == 0 or skipped_count > max(0, total_count * 0.20):
+    if total_count == 0 or skipped_count > max(0, total_count * 0.20) or audible_coverage_failed > 0:
         status = "blocked"
     elif reasons:
         status = "review_required"
@@ -228,6 +235,31 @@ def _build_content_quality(
         "speaker_failed_ratio": round(speaker_failed_ratio, 4),
         "intelligibility_failed_ratio": round(intelligibility_failed_ratio, 4),
         "reasons": reasons,
+    }
+
+
+def _build_audible_coverage(*, items: list[dict[str, Any]]) -> dict[str, Any]:
+    rows: list[tuple[str, float]] = []
+    failed_segment_ids: list[str] = []
+    for item in items:
+        if item.get("subtitle_window") is None:
+            continue
+        ratio = item.get("subtitle_coverage_ratio")
+        if not isinstance(ratio, (int, float)):
+            ratio = 0.0
+        ratio = max(0.0, min(1.0, float(ratio)))
+        segment_id = str(item.get("segment_id") or "")
+        rows.append((segment_id, ratio))
+        if ratio < 0.50:
+            failed_segment_ids.append(segment_id)
+
+    ratios = [ratio for _segment_id, ratio in rows]
+    return {
+        "subtitle_window_count": len(rows),
+        "failed_count": len(failed_segment_ids),
+        "failed_segment_ids": failed_segment_ids,
+        "min_coverage_ratio": round(min(ratios), 4) if ratios else None,
+        "average_coverage_ratio": round(statistics.mean(ratios), 4) if ratios else None,
     }
 
 

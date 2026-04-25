@@ -37,6 +37,7 @@ OVERFLOW_MAX_SPILL_RATIO = 1.3
 SHORT_SEGMENT_COMPRESS_MAX_SOURCE_SEC = 1.5
 SHORT_SEGMENT_COMPRESS_MAX_OVERFLOW_SEC = 0.75
 SHORT_SEGMENT_COMPRESS_MAX_RATIO = 1.75
+MIN_SUBTITLE_COVERAGE_RATIO = 0.50
 
 
 @dataclass(slots=True)
@@ -48,6 +49,7 @@ class TimelineItem:
     anchor_start: float
     anchor_end: float
     source_duration_sec: float
+    anchor_source: str
     generated_duration_sec: float
     audio_path: Path
     task_d_status: str
@@ -67,6 +69,10 @@ class TimelineItem:
     mix_status: str = "pending"
     quality_score: float = 0.0
     notes: list[str] = field(default_factory=list)
+    subtitle_start: float | None = None
+    subtitle_end: float | None = None
+    subtitle_coverage_ratio: float | None = None
+    dubbing_window_policy: str | None = None
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -76,6 +82,7 @@ class TimelineItem:
             "target_text": self.target_text,
             "anchor_start": round(self.anchor_start, 3),
             "anchor_end": round(self.anchor_end, 3),
+            "anchor_source": self.anchor_source,
             "source_duration_sec": round(self.source_duration_sec, 3),
             "generated_duration_sec": round(self.generated_duration_sec, 3),
             "fitted_duration_sec": round(self.fitted_duration_sec, 3) if self.fitted_duration_sec is not None else None,
@@ -96,6 +103,21 @@ class TimelineItem:
             "qa_flags": self.qa_flags,
             "quality_score": round(self.quality_score, 4),
             "notes": self.notes,
+            "subtitle_window": (
+                {
+                    "start": round(self.subtitle_start, 3),
+                    "end": round(self.subtitle_end, 3),
+                    "duration": round(max(0.0, self.subtitle_end - self.subtitle_start), 3),
+                }
+                if self.subtitle_start is not None and self.subtitle_end is not None
+                else None
+            ),
+            "subtitle_coverage_ratio": (
+                round(self.subtitle_coverage_ratio, 4)
+                if self.subtitle_coverage_ratio is not None
+                else None
+            ),
+            "dubbing_window_policy": self.dubbing_window_policy,
         }
 
 
@@ -152,6 +174,8 @@ def render_dub(request: RenderDubRequest) -> RenderDubResult:
         skipped_items.extend(skipped_fit)
         placed_items, skipped_overlap = _resolve_overlaps(planned_items)
         skipped_items.extend(skipped_overlap)
+        for item in [*placed_items, *skipped_items]:
+            _apply_subtitle_coverage(item)
 
         timeline_payload = build_timeline_payload(
             request=normalized_request,
@@ -310,6 +334,7 @@ def _load_candidates(
                         anchor_start=float(row.get("index") or 0.0),
                         anchor_end=float(row.get("index") or 0.0),
                         source_duration_sec=float(row.get("source_duration_sec") or 0.0),
+                        anchor_source="missing_anchor",
                         generated_duration_sec=float(row.get("generated_duration_sec") or 0.0),
                         audio_path=Path(str(row.get("audio_path") or report_path)),
                         task_d_status=str(row.get("overall_status") or "failed"),
@@ -327,14 +352,23 @@ def _load_candidates(
                 continue
 
             row_for_mix = _apply_selected_override(row=row, selected=selected)
+            timing = _resolve_anchor_timing(
+                anchor=anchor,
+                fallback_source_duration=float(
+                    row_for_mix.get("source_duration_sec")
+                    or row.get("source_duration_sec")
+                    or 0.0
+                ),
+            )
             item = TimelineItem(
                 segment_id=segment_id,
                 speaker_id=str(row_for_mix.get("speaker_id") or row.get("speaker_id") or translation.get("speaker_id") or ""),
                 target_lang=str(payload.get("backend", {}).get("target_lang") or request.target_lang),
                 target_text=str(row_for_mix.get("target_text") or translation.get("target_text") or row.get("target_text") or ""),
-                anchor_start=float(anchor.get("start") or 0.0),
-                anchor_end=float(anchor.get("end") or 0.0),
-                source_duration_sec=float(anchor.get("duration") or row_for_mix.get("source_duration_sec") or row.get("source_duration_sec") or 0.0),
+                anchor_start=timing["anchor_start"],
+                anchor_end=timing["anchor_end"],
+                source_duration_sec=timing["source_duration_sec"],
+                anchor_source=timing["anchor_source"],
                 generated_duration_sec=float(row_for_mix.get("generated_duration_sec") or row.get("generated_duration_sec") or 0.0),
                 audio_path=Path(str(row_for_mix.get("audio_path") or row.get("audio_path"))).expanduser().resolve(),
                 task_d_status=str(row_for_mix.get("overall_status") or row.get("overall_status") or "failed"),
@@ -348,7 +382,12 @@ def _load_candidates(
                 overall_status=str(row_for_mix.get("overall_status") or row.get("overall_status") or "failed"),
                 task_d_report_path=report_path,
                 qa_flags=[str(flag) for flag in translation.get("qa_flags", [])],
+                subtitle_start=timing["subtitle_start"],
+                subtitle_end=timing["subtitle_end"],
+                dubbing_window_policy=timing["dubbing_window_policy"],
             )
+            if item.anchor_source == "dubbing_window" and item.dubbing_window_policy:
+                item.notes.append(f"dubbing_window:{item.dubbing_window_policy}")
             if selected is not None:
                 item.notes.append(f"selected_repair_attempt:{selected.get('selected_attempt_id')}")
             if not item.audio_path.exists():
@@ -371,6 +410,64 @@ def _load_candidates(
     candidates.sort(key=_timeline_sort_key)
     skipped.sort(key=_timeline_sort_key)
     return candidates, skipped
+
+
+def _resolve_anchor_timing(*, anchor: dict[str, Any], fallback_source_duration: float) -> dict[str, Any]:
+    asr_start = _float_value(anchor.get("start"), default=0.0)
+    asr_end = _float_value(anchor.get("end"), default=asr_start)
+    if asr_end < asr_start:
+        asr_start, asr_end = asr_end, asr_start
+
+    timing = anchor.get("timing") if isinstance(anchor.get("timing"), dict) else {}
+    dubbing_window = _window_from_mapping(timing.get("dubbing_window") if isinstance(timing, dict) else None)
+    subtitle_window = _window_from_mapping(timing.get("subtitle_window") if isinstance(timing, dict) else None)
+    if subtitle_window is None and isinstance(timing, dict):
+        subtitle_window = _window_from_mapping(timing.get("ocr_window"))
+
+    if dubbing_window is not None:
+        anchor_start, anchor_end = dubbing_window
+        anchor_source = "dubbing_window"
+    else:
+        anchor_start, anchor_end = asr_start, asr_end
+        anchor_source = "asr_window"
+
+    source_duration = max(0.0, anchor_end - anchor_start)
+    if source_duration <= 0:
+        source_duration = _float_value(anchor.get("duration"), default=fallback_source_duration)
+
+    return {
+        "anchor_start": anchor_start,
+        "anchor_end": anchor_end,
+        "source_duration_sec": source_duration,
+        "anchor_source": anchor_source,
+        "subtitle_start": subtitle_window[0] if subtitle_window is not None else None,
+        "subtitle_end": subtitle_window[1] if subtitle_window is not None else None,
+        "dubbing_window_policy": (
+            str(timing.get("dubbing_window", {}).get("policy"))
+            if isinstance(timing, dict) and isinstance(timing.get("dubbing_window"), dict)
+            and timing.get("dubbing_window", {}).get("policy")
+            else None
+        ),
+    }
+
+
+def _window_from_mapping(value: Any) -> tuple[float, float] | None:
+    if not isinstance(value, dict) or value.get("start") is None or value.get("end") is None:
+        return None
+    start = _float_value(value.get("start"), default=0.0)
+    end = _float_value(value.get("end"), default=start)
+    if end < start:
+        start, end = end, start
+    if end <= start:
+        return None
+    return start, end
+
+
+def _float_value(value: Any, *, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def _selected_segment_map(selected_payload: dict[str, Any] | None) -> dict[str, dict[str, Any]]:
@@ -487,6 +584,31 @@ def _fit_strategy_for_item(*, item: TimelineItem, request: RenderDubRequest) -> 
     if ratio > request.max_compress_ratio:
         return "overflow_unfitted"
     return "underflow_unfitted"
+
+
+def _apply_subtitle_coverage(item: TimelineItem) -> None:
+    if item.subtitle_start is None or item.subtitle_end is None:
+        item.subtitle_coverage_ratio = None
+        return
+
+    subtitle_duration = max(0.001, item.subtitle_end - item.subtitle_start)
+    if item.mix_status != "placed":
+        coverage_ratio = 0.0
+        if "subtitle_window_not_rendered" not in item.notes:
+            item.notes.append("subtitle_window_not_rendered")
+    elif item.placement_start is None or item.placement_end is None:
+        coverage_ratio = 0.0
+    else:
+        overlap = max(0.0, min(item.subtitle_end, item.placement_end) - max(item.subtitle_start, item.placement_start))
+        coverage_ratio = min(1.0, overlap / subtitle_duration)
+
+    item.subtitle_coverage_ratio = round(coverage_ratio, 4)
+    if coverage_ratio <= 0.0:
+        if "subtitle_window_not_covered" not in item.notes:
+            item.notes.append("subtitle_window_not_covered")
+    elif coverage_ratio < MIN_SUBTITLE_COVERAGE_RATIO:
+        if "subtitle_window_low_coverage" not in item.notes:
+            item.notes.append("subtitle_window_low_coverage")
 
 
 def _resolve_overlaps(items: list[TimelineItem]) -> tuple[list[TimelineItem], list[TimelineItem]]:

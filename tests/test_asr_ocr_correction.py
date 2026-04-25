@@ -123,6 +123,104 @@ def test_low_confidence_ocr_keeps_asr() -> None:
     assert result.report["segments"][0]["needs_review"] is False
 
 
+def test_late_ocr_match_persists_dubbing_and_subtitle_windows() -> None:
+    result = correct_asr_segments_with_ocr(
+        segments_payload={
+            "segments": [
+                {
+                    "id": "seg-late",
+                    "start": 13.35,
+                    "end": 18.11,
+                    "duration": 4.76,
+                    "speaker_label": "SPEAKER_00",
+                    "text": "召集全体成员",
+                    "language": "zh",
+                }
+            ]
+        },
+        ocr_payload={
+            "events": [
+                {
+                    "event_id": "evt-late",
+                    "start": 16.25,
+                    "end": 17.75,
+                    "text": "召集全体成员",
+                    "confidence": 0.999,
+                }
+            ]
+        },
+        config=CorrectionConfig.standard(),
+    )
+
+    segment = result.corrected_payload["segments"][0]
+    assert segment["text"] == "召集全体成员"
+    assert segment["timing"]["asr_window"] == {"start": 13.35, "end": 18.11, "duration": 4.76}
+    assert segment["timing"]["ocr_window"] == {
+        "start": 16.25,
+        "end": 17.75,
+        "duration": 1.5,
+        "event_ids": ["evt-late"],
+        "confidence": 0.999,
+    }
+    assert segment["timing"]["subtitle_window"] == {"start": 16.25, "end": 17.75, "duration": 1.5}
+    assert segment["timing"]["dubbing_window"] == {
+        "start": 15.65,
+        "end": 18.11,
+        "duration": 2.46,
+        "policy": "late_ocr_anchor",
+    }
+    assert "asr_start_precedes_ocr_window" in segment["timing"]["warnings"]
+
+    report_row = result.report["segments"][0]
+    assert report_row["timing"]["dubbing_window"]["start"] == 15.65
+    assert report_row["timing"]["subtitle_window"]["start"] == 16.25
+
+
+def test_review_decision_does_not_claim_ocr_timing_window() -> None:
+    result = correct_asr_segments_with_ocr(
+        segments_payload={
+            "segments": [
+                {
+                    "id": "seg-review",
+                    "start": 71.38,
+                    "end": 72.62,
+                    "duration": 1.24,
+                    "speaker_label": "SPEAKER_00",
+                    "text": "要恨就恨",
+                    "language": "zh",
+                },
+                {
+                    "id": "seg-full",
+                    "start": 72.62,
+                    "end": 75.86,
+                    "duration": 3.24,
+                    "speaker_label": "SPEAKER_00",
+                    "text": "要恨就恨你们为什么生来就是妖",
+                    "language": "zh",
+                },
+            ]
+        },
+        ocr_payload={
+            "events": [
+                {
+                    "event_id": "evt-full",
+                    "start": 71.749,
+                    "end": 74.999,
+                    "text": "要恨就恨你们为什么生来就是妖",
+                    "confidence": 0.998,
+                }
+            ]
+        },
+        config=CorrectionConfig.standard(),
+    )
+
+    review_segment, full_segment = result.corrected_payload["segments"]
+    assert result.report["segments"][0]["decision"] == "review"
+    assert "timing" not in review_segment
+    assert result.report["segments"][1]["decision"] == "use_ocr"
+    assert full_segment["timing"]["ocr_window"]["event_ids"] == ["evt-full"]
+
+
 def test_write_correction_artifacts(tmp_path: Path) -> None:
     from translip.transcription.ocr_correction import write_correction_artifacts
 
