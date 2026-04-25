@@ -534,6 +534,8 @@ describe('TaskDetailPage export workflow', () => {
           subtitle_mode: 'bilingual',
           subtitle_source: 'ocr',
           bilingual_export_strategy: 'preserve_hard_subtitles_add_english',
+          export_preview: true,
+          export_dub: false,
         }),
       )
     })

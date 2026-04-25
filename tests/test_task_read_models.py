@@ -171,6 +171,25 @@ def test_task_read_exposes_last_export_summary(tmp_path: Path) -> None:
     delivery_dir.mkdir(parents=True)
     exported = delivery_dir / "final_preview.en.mp4"
     exported.write_bytes(b"preview")
+    stale_dub = output_root / "task-g" / "final-dub" / "final_dub.en.mp4"
+    stale_dub.parent.mkdir(parents=True)
+    stale_dub.write_bytes(b"stale dub")
+    report_path = output_root / "task-g" / "delivery-report.json"
+    report_path.write_text(
+        json.dumps(
+            {
+                "status": "succeeded",
+                "outputs": [
+                    {
+                        "kind": "preview",
+                        "status": "succeeded",
+                        "path": str(exported),
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
 
     (tmp_path / "input.mp4").write_bytes(b"video")
 
@@ -194,6 +213,8 @@ def test_task_read_exposes_last_export_summary(tmp_path: Path) -> None:
                         "output_intent": "dub_final",
                     },
                     "delivery": {
+                        "export_preview": True,
+                        "export_dub": False,
                         "subtitle_mode": "none",
                         "subtitle_render_source": "asr",
                     },
@@ -214,6 +235,8 @@ def test_task_read_exposes_last_export_summary(tmp_path: Path) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["last_export_summary"]["status"] == "exported"
+    assert len(payload["last_export_summary"]["files"]) == 1
+    assert payload["last_export_summary"]["files"][0]["label"] == "正式成品"
     assert payload["last_export_summary"]["files"][0]["path"].endswith("final_preview.en.mp4")
 
 

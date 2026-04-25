@@ -240,14 +240,19 @@ def build_last_export_summary(
 ) -> dict[str, Any]:
     root = Path(task.output_root)
     delivery_config = normalize_task_delivery_config(task.config)
-    files = []
-    exported_paths: list[Path] = []
+    report_summary = _last_export_files_from_report(root, delivery_config=delivery_config)
+    report_path: Path | None = None
+    if report_summary:
+        files, exported_paths, report_path = report_summary
+    else:
+        files = []
+        exported_paths: list[Path] = []
 
-    for key, label in (("final_preview", "预览成品"), ("final_dub", "正式成品")):
-        rel_path = asset_summary["exports"][key]["path"]
-        if rel_path:
-            files.append({"kind": key, "label": label, "path": rel_path})
-            exported_paths.append(root / rel_path)
+        for key, label in (("final_preview", "预览成品"), ("final_dub", "正式成品")):
+            rel_path = asset_summary["exports"][key]["path"]
+            if rel_path:
+                files.append({"kind": key, "label": label, "path": rel_path})
+                exported_paths.append(root / rel_path)
 
     if not files:
         return {
@@ -258,7 +263,9 @@ def build_last_export_summary(
         }
 
     updated_at = None
-    if exported_paths:
+    if report_path and report_path.exists():
+        updated_at = datetime.fromtimestamp(report_path.stat().st_mtime)
+    elif exported_paths:
         latest_mtime = max(path.stat().st_mtime for path in exported_paths if path.exists())
         updated_at = datetime.fromtimestamp(latest_mtime)
 
@@ -301,6 +308,79 @@ def _profile_from_delivery_config(delivery_config: Mapping[str, Any]) -> str:
     if mode == "english_only":
         return "english_subtitle_burned"
     return "dub_no_subtitles"
+
+
+def _last_export_files_from_report(
+    root: Path,
+    *,
+    delivery_config: Mapping[str, Any],
+) -> tuple[list[dict[str, str]], list[Path], Path] | None:
+    report_path = _latest_delivery_report_path(root)
+    if report_path is None:
+        return None
+    try:
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    outputs = payload.get("outputs")
+    if not isinstance(outputs, list):
+        return None
+
+    files: list[dict[str, str]] = []
+    exported_paths: list[Path] = []
+    for output in outputs:
+        if not isinstance(output, Mapping):
+            continue
+        if output.get("status", "succeeded") != "succeeded":
+            continue
+        raw_path = output.get("path")
+        if not raw_path:
+            continue
+        path = Path(str(raw_path)).expanduser()
+        if not path.is_absolute():
+            path = root / path
+        path = path.resolve()
+        if not path.exists():
+            continue
+        kind = str(output.get("kind") or _export_kind_from_path(path))
+        files.append(
+            {
+                "kind": kind,
+                "label": _export_label(kind, delivery_config=delivery_config),
+                "path": str(path.relative_to(root)) if path.is_relative_to(root) else str(path),
+            }
+        )
+        exported_paths.append(path)
+    return files, exported_paths, report_path
+
+
+def _latest_delivery_report_path(root: Path) -> Path | None:
+    candidates = [
+        root / "task-g" / "delivery-report.json",
+        root / "task-g" / "delivery" / "delivery-report.json",
+    ]
+    existing = [path for path in candidates if path.exists()]
+    if not existing:
+        return None
+    return max(existing, key=lambda path: path.stat().st_mtime)
+
+
+def _export_kind_from_path(path: Path) -> str:
+    if "final_dub" in path.name:
+        return "dub"
+    if "final_preview" in path.name:
+        return "preview"
+    return "export"
+
+
+def _export_label(kind: str, *, delivery_config: Mapping[str, Any]) -> str:
+    if kind in {"preview", "final_preview"}:
+        if delivery_config.get("export_preview") is True and delivery_config.get("export_dub") is False:
+            return "正式成品"
+        return "预览成品"
+    if kind in {"dub", "final_dub"}:
+        return "纯配音质检版"
+    return "成品文件"
 
 
 def _asset_entry(path: Path | None, root: Path | None = None) -> dict[str, str | None]:
