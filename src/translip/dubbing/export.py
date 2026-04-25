@@ -50,9 +50,15 @@ def build_dubbing_report(
     segments: list[dict[str, Any]],
 ) -> dict[str, Any]:
     status_counts: dict[str, int] = {}
+    backend_counts: dict[str, int] = {}
+    synthesis_mode_counts: dict[str, int] = {}
     for segment in segments:
         status = str(segment["overall_status"])
         status_counts[status] = status_counts.get(status, 0) + 1
+        backend = str(segment.get("tts_backend") or backend_name)
+        backend_counts[backend] = backend_counts.get(backend, 0) + 1
+        synthesis_mode = str(segment.get("synthesis_mode") or "segment")
+        synthesis_mode_counts[synthesis_mode] = synthesis_mode_counts.get(synthesis_mode, 0) + 1
     return {
         "input": {
             "translation_path": str(request.translation_path),
@@ -70,6 +76,8 @@ def build_dubbing_report(
         "stats": {
             "segment_count": len(segments),
             "overall_status_counts": status_counts,
+            "tts_backend_counts": backend_counts,
+            "synthesis_mode_counts": synthesis_mode_counts,
         },
         "segments": segments,
     }
@@ -99,6 +107,7 @@ def build_dubbing_manifest(
         "request": {
             "speaker_id": request.speaker_id,
             "backend": request.backend,
+            "tts_backends": request.tts_backends or [request.backend],
             "device": request.device,
             "segment_ids": request.segment_ids,
             "max_segments": request.max_segments,

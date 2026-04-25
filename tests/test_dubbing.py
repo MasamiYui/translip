@@ -5,7 +5,7 @@ import numpy as np
 import soundfile as sf
 
 from translip.dubbing.reference import prepare_reference_package, select_reference_candidates
-from translip.dubbing.runner import synthesize_speaker
+from translip.dubbing.runner import _split_unit_audio, synthesize_speaker
 from translip.types import DubbingRequest
 
 
@@ -44,6 +44,33 @@ class RecordingBackend(FakeBackend):
         self.segment_ids.append(segment.segment_id)
         self.target_texts.append(segment.target_text)
         return super().synthesize(reference=reference, segment=segment, output_path=output_path)
+
+
+class NamedDurationBackend(FakeBackend):
+    def __init__(self, *, backend_name: str, duration_sec: float) -> None:
+        self.backend_name = backend_name
+        self.resolved_model = f"{backend_name}-model"
+        self.resolved_device = "cpu"
+        self.duration_sec = duration_sec
+
+    def synthesize(self, *, reference, segment, output_path):
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        sample_rate = 24_000
+        waveform = 0.05 * np.sin(
+            np.linspace(0, np.pi * 8, int(self.duration_sec * sample_rate), dtype=np.float32)
+        )
+        sf.write(output_path, waveform, sample_rate)
+        return type(
+            "SynthOutput",
+            (),
+            {
+                "segment_id": segment.segment_id,
+                "audio_path": output_path,
+                "sample_rate": sample_rate,
+                "generated_duration_sec": self.duration_sec,
+                "backend_metadata": {},
+            },
+        )()
 
 
 def _write_audio(path: Path, duration_sec: float, *, sample_rate: int = 16_000, amplitude: float = 0.05) -> None:
@@ -534,6 +561,104 @@ def test_synthesize_speaker_retries_second_reference_for_pathological_duration(
     assert segment["attempts"][1]["selected"] is True
 
 
+def test_synthesize_speaker_auditions_backend_pool_and_selects_best(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    reference_clip = tmp_path / "reference.wav"
+    _write_audio(reference_clip, 9.0)
+    translation_path = tmp_path / "translation.en.json"
+    profiles_path = tmp_path / "speaker_profiles.json"
+    translation_path.write_text(
+        json.dumps(
+            {
+                "backend": {"target_lang": "en", "output_tag": "en"},
+                "segments": [
+                    {
+                        "segment_id": "seg-0001",
+                        "speaker_id": "spk_0000",
+                        "speaker_label": "SPEAKER_00",
+                        "start": 0.0,
+                        "duration": 1.0,
+                        "target_text": "Hello.",
+                        "dubbing_text": "Hello.",
+                        "duration_budget": {"estimated_target_sec": 1.0},
+                        "qa_flags": [],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    profiles_path.write_text(
+        json.dumps(
+            {
+                "profiles": [
+                    {
+                        "profile_id": "profile_0000",
+                        "speaker_id": "spk_0000",
+                        "reference_clips": [
+                            {
+                                "path": str(reference_clip),
+                                "text": "这是声音参考文本",
+                                "duration": 9.0,
+                                "rms": 0.05,
+                            }
+                        ],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_evaluate(**kwargs):
+        audio_path = str(kwargs["generated_audio_path"])
+        is_good = "good-tts" in audio_path
+        return type(
+            "Eval",
+            (),
+            {
+                "speaker_similarity": 0.64 if is_good else 0.2,
+                "speaker_status": "passed" if is_good else "failed",
+                "backread_text": "hello",
+                "text_similarity": 1.0 if is_good else 0.4,
+                "intelligibility_status": "passed" if is_good else "failed",
+                "duration_ratio": 1.0 if is_good else 2.4,
+                "duration_status": "passed" if is_good else "failed",
+                "overall_status": "passed" if is_good else "failed",
+            },
+        )()
+
+    monkeypatch.setattr("translip.dubbing.runner.evaluate_segment", fake_evaluate)
+
+    result = synthesize_speaker(
+        DubbingRequest(
+            translation_path=translation_path,
+            profiles_path=profiles_path,
+            output_dir=tmp_path / "output",
+            speaker_id="spk_0000",
+            tts_backends=["bad-tts", "good-tts"],
+        ),
+        backend_override=[
+            NamedDurationBackend(backend_name="bad-tts", duration_sec=2.4),
+            NamedDurationBackend(backend_name="good-tts", duration_sec=1.0),
+        ],
+    )
+
+    report = json.loads(result.artifacts.report_path.read_text(encoding="utf-8"))
+    segment = report["segments"][0]
+    assert segment["tts_backend"] == "good-tts"
+    assert segment["resolved_model"] == "good-tts-model"
+    assert segment["attempt_count"] == 2
+    assert segment["selected_attempt_index"] == 2
+    assert report["stats"]["tts_backend_counts"] == {"good-tts": 1}
+    assert segment["attempts"][0]["backend"] == "bad-tts"
+    assert segment["attempts"][1]["backend"] == "good-tts"
+
+
 def test_synthesize_speaker_groups_short_context_as_dubbing_unit(
     tmp_path: Path,
     monkeypatch,
@@ -640,6 +765,34 @@ def test_synthesize_speaker_groups_short_context_as_dubbing_unit(
     assert report["segments"][0]["dubbing_unit_segment_ids"] == ["seg-0001", "seg-0002"]
     assert Path(report["segments"][0]["audio_path"]).exists()
     assert Path(report["segments"][1]["audio_path"]).exists()
+
+
+def test_split_unit_audio_prefers_silence_boundaries_over_duration_ratio(tmp_path: Path) -> None:
+    sample_rate = 24_000
+    tone_a = 0.05 * np.sin(np.linspace(0, np.pi * 8, int(0.4 * sample_rate), dtype=np.float32))
+    silence_a = np.zeros(int(0.2 * sample_rate), dtype=np.float32)
+    tone_b = 0.05 * np.sin(np.linspace(0, np.pi * 12, int(0.8 * sample_rate), dtype=np.float32))
+    silence_b = np.zeros(int(0.2 * sample_rate), dtype=np.float32)
+    tone_c = 0.05 * np.sin(np.linspace(0, np.pi * 8, int(0.4 * sample_rate), dtype=np.float32))
+    unit_audio = tmp_path / "unit.wav"
+    sf.write(unit_audio, np.concatenate([tone_a, silence_a, tone_b, silence_b, tone_c]), sample_rate)
+
+    outputs = _split_unit_audio(
+        unit_audio_path=unit_audio,
+        segment_rows=[
+            {"segment_id": "seg-0001", "duration": 1.0, "dubbing_text": "One."},
+            {"segment_id": "seg-0002", "duration": 1.0, "dubbing_text": "Two."},
+            {"segment_id": "seg-0003", "duration": 1.0, "dubbing_text": "Three."},
+        ],
+        output_dir=tmp_path / "segments",
+    )
+
+    durations = [round(output.generated_duration_sec, 2) for output in outputs]
+    assert durations[0] == 0.5
+    assert durations[1] == 1.0
+    assert durations[2] == 0.5
+    assert {output.backend_metadata["split_method"] for output in outputs} == {"silence"}
+    assert all(Path(output.audio_path).exists() for output in outputs)
 
 
 def test_synthesize_speaker_prefers_voice_bank_references(

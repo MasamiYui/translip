@@ -3,6 +3,13 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Any
 
+from ..config import (
+    DEFAULT_TASK_D_PREFERRED_MAX_DURATION_SEC,
+    DEFAULT_TASK_D_PREFERRED_MIN_DURATION_SEC,
+    DEFAULT_TASK_D_USABLE_MAX_DURATION_SEC,
+    DEFAULT_TASK_D_USABLE_MIN_DURATION_SEC,
+)
+from ..transcription.resegment import Subsegment, resegment_by_heuristics
 from .reference import select_reference_candidates
 
 
@@ -101,7 +108,9 @@ def pick_segment_ids_for_speaker(
 
 
 def is_usable_task_d_segment(*, duration_sec: float, qa_flags: set[str]) -> bool:
-    if duration_sec < 1.0 or duration_sec > 6.0:
+    if duration_sec < DEFAULT_TASK_D_USABLE_MIN_DURATION_SEC:
+        return False
+    if duration_sec > DEFAULT_TASK_D_USABLE_MAX_DURATION_SEC:
         return False
     if "too_short_source" in qa_flags:
         return False
@@ -113,7 +122,58 @@ def is_preferred_task_d_segment(*, duration_sec: float, qa_flags: set[str]) -> b
         return False
     if "duration_risky" in qa_flags:
         return False
-    return 1.5 <= duration_sec <= 4.5
+    return (
+        DEFAULT_TASK_D_PREFERRED_MIN_DURATION_SEC
+        <= duration_sec
+        <= DEFAULT_TASK_D_PREFERRED_MAX_DURATION_SEC
+    )
+
+
+def try_resegment_for_task_d(
+    *,
+    segment_id: str,
+    start: float,
+    end: float,
+    text: str,
+    qa_flags: set[str] | None = None,
+    min_duration: float = DEFAULT_TASK_D_USABLE_MIN_DURATION_SEC,
+    max_duration: float = DEFAULT_TASK_D_USABLE_MAX_DURATION_SEC,
+) -> list[Subsegment]:
+    """Attempt to resegment a long ASR segment so task-d can use it.
+
+    Returns a list of sub-segments whose duration falls within
+    ``[min_duration, max_duration]`` whenever possible. Returns an empty list
+    if the segment is marked as unusable via ``qa_flags`` (e.g.
+    ``too_short_source``) or if it cannot be split (e.g. zero-duration).
+
+    This is the Sprint-2 mitigation for task-20260425-023015 where an entire
+    speaker was silently dropped because their only segments were 8.9s–34.9s
+    long and the 1.0–6.0 filter hard-excluded them.
+    """
+
+    flags = qa_flags or set()
+    if "too_short_source" in flags:
+        return []
+    try:
+        children = resegment_by_heuristics(
+            segment_id=segment_id,
+            start=start,
+            end=end,
+            text=text,
+            min_duration=min_duration,
+            max_duration=max_duration,
+        )
+    except ValueError:
+        return []
+
+    usable: list[Subsegment] = []
+    for child in children:
+        if is_usable_task_d_segment(
+            duration_sec=child.duration,
+            qa_flags=set(),
+        ):
+            usable.append(child)
+    return usable
 
 
 __all__ = [
@@ -121,4 +181,5 @@ __all__ = [
     "is_usable_task_d_segment",
     "pick_segment_ids_for_speaker",
     "pick_task_d_speaker_ids",
+    "try_resegment_for_task_d",
 ]

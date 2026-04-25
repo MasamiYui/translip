@@ -60,6 +60,44 @@ BUILTIN_DUBBING_GLOSSARY: tuple[GlossaryEntry, ...] = (
         targets={"en": "Dubai"},
         normalized_source="迪拜",
     ),
+    # --- Sprint 1 additions: travel / UAE landmarks commonly mis-translated by
+    # local-m2m100 in task-20260425-023015 (Halifa Tower/Harry Potter/Alibaba).
+    GlossaryEntry(
+        entry_id="builtin-burj-khalifa",
+        source_variants=("哈利法塔", "哈里法塔", "哈利发塔", "哈里巴塔", "哈里法大厦"),
+        targets={"en": "Burj Khalifa"},
+        normalized_source="哈利法塔",
+    ),
+    GlossaryEntry(
+        entry_id="builtin-uae",
+        source_variants=("阿联酋", "阿拉伯联合酋长国"),
+        targets={"en": "the United Arab Emirates"},
+        normalized_source="阿联酋",
+    ),
+    GlossaryEntry(
+        entry_id="builtin-abu-dhabi",
+        source_variants=("阿布扎比",),
+        targets={"en": "Abu Dhabi"},
+        normalized_source="阿布扎比",
+    ),
+    GlossaryEntry(
+        entry_id="builtin-palm-jumeirah",
+        source_variants=("棕榈岛", "朱美拉棕榈岛"),
+        targets={"en": "Palm Jumeirah"},
+        normalized_source="棕榈岛",
+    ),
+    GlossaryEntry(
+        entry_id="builtin-dubai-mall",
+        source_variants=("迪拜购物中心", "迪拜商场"),
+        targets={"en": "The Dubai Mall"},
+        normalized_source="迪拜购物中心",
+    ),
+    GlossaryEntry(
+        entry_id="builtin-burj-al-arab",
+        source_variants=("帆船酒店", "阿拉伯塔"),
+        targets={"en": "Burj Al Arab"},
+        normalized_source="帆船酒店",
+    ),
 )
 
 

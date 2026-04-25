@@ -5,6 +5,16 @@ import statistics
 from pathlib import Path
 from typing import Any
 
+from ..config import (
+    DEFAULT_QUALITY_GATE_AVG_SPEAKER_SIMILARITY_MIN,
+    DEFAULT_QUALITY_GATE_COVERAGE_MIN,
+    DEFAULT_QUALITY_GATE_FAILED_MAX,
+    DEFAULT_QUALITY_GATE_INTELLIGIBILITY_FAILED_MAX,
+    DEFAULT_QUALITY_GATE_SKIPPED_RATIO_BLOCK,
+    DEFAULT_QUALITY_GATE_SPEAKER_FAILED_MAX,
+    DEFAULT_QUALITY_GATE_SPEAKER_SIMILARITY_LOWBAND_MAX,
+    DEFAULT_QUALITY_GATE_SPEAKER_SIMILARITY_REVIEW_FLOOR,
+)
 from ..pipeline.manifest import now_iso
 from ..types import RenderDubRequest
 
@@ -65,6 +75,8 @@ def build_mix_report(
         skipped_count=len(skipped_items),
         quality_summary=quality_summary,
         audible_coverage=audible_coverage,
+        placed_items=placed_items,
+        skipped_items=skipped_items,
     )
     return {
         "input": {
@@ -194,6 +206,8 @@ def _build_content_quality(
     skipped_count: int,
     quality_summary: dict[str, Any],
     audible_coverage: dict[str, Any],
+    placed_items: list[dict[str, Any]] | None = None,
+    skipped_items: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     total_count = int(quality_summary.get("total_count") or 0)
     overall_counts = quality_summary.get("overall_status_counts", {})
@@ -207,22 +221,62 @@ def _build_content_quality(
     speaker_failed_ratio = speaker_failed / max(total_count, 1)
     intelligibility_failed_ratio = intelligibility_failed / max(total_count, 1)
     audible_coverage_failed = int(audible_coverage.get("failed_count") or 0)
+    skipped_ratio = skipped_count / max(total_count, 1)
+
+    # --- Sprint 2: golden metrics -----------------------------------------
+    # Additional signals surfaced for observability. They do not change the
+    # deliverable/review/blocked semantics by themselves — they're exposed so
+    # dashboards + quality-gate-loose-vs-strict can reason about them.
+    speaker_similarities = [
+        float(item.get("speaker_similarity"))
+        for item in (placed_items or [])
+        if isinstance(item.get("speaker_similarity"), (int, float))
+    ]
+    lowband_floor = DEFAULT_QUALITY_GATE_SPEAKER_SIMILARITY_REVIEW_FLOOR
+    low_similarity_count = sum(1 for v in speaker_similarities if v < lowband_floor)
+    speaker_similarity_lowband_ratio = (
+        low_similarity_count / len(speaker_similarities)
+        if speaker_similarities
+        else 0.0
+    )
+    avg_speaker_similarity = (
+        round(sum(speaker_similarities) / len(speaker_similarities), 4)
+        if speaker_similarities
+        else None
+    )
+    overflow_unfitted_count = sum(
+        1
+        for item in (placed_items or [])
+        if "overflow_unfitted" in (item.get("qa_flags") or item.get("notes") or [])
+    )
 
     reasons: list[str] = []
     if total_count == 0:
         reasons.append("no_renderable_segments")
-    if skipped_count > 0 or coverage_ratio < 0.98:
+    if skipped_count > 0 or coverage_ratio < DEFAULT_QUALITY_GATE_COVERAGE_MIN:
         reasons.append("coverage_below_deliverable_threshold")
-    if failed_ratio > 0.05:
+    if failed_ratio > DEFAULT_QUALITY_GATE_FAILED_MAX:
         reasons.append("upstream_failed_segments")
-    if speaker_failed_ratio > 0.10:
+    if speaker_failed_ratio > DEFAULT_QUALITY_GATE_SPEAKER_FAILED_MAX:
         reasons.append("speaker_similarity_failed")
-    if intelligibility_failed_ratio > 0.10:
+    if intelligibility_failed_ratio > DEFAULT_QUALITY_GATE_INTELLIGIBILITY_FAILED_MAX:
         reasons.append("intelligibility_failed")
     if audible_coverage_failed > 0:
         reasons.append("audible_coverage_failed")
+    if speaker_similarity_lowband_ratio > DEFAULT_QUALITY_GATE_SPEAKER_SIMILARITY_LOWBAND_MAX:
+        reasons.append("speaker_similarity_lowband_exceeded")
+    if (
+        avg_speaker_similarity is not None
+        and avg_speaker_similarity < DEFAULT_QUALITY_GATE_AVG_SPEAKER_SIMILARITY_MIN
+    ):
+        reasons.append("avg_speaker_similarity_below_floor")
 
-    if total_count == 0 or skipped_count > max(0, total_count * 0.20) or audible_coverage_failed > 0:
+    if (
+        total_count == 0
+        or skipped_count
+        > max(0, total_count * DEFAULT_QUALITY_GATE_SKIPPED_RATIO_BLOCK)
+        or audible_coverage_failed > 0
+    ):
         status = "blocked"
     elif reasons:
         status = "review_required"
@@ -234,6 +288,20 @@ def _build_content_quality(
         "failed_ratio": round(failed_ratio, 4),
         "speaker_failed_ratio": round(speaker_failed_ratio, 4),
         "intelligibility_failed_ratio": round(intelligibility_failed_ratio, 4),
+        "skipped_ratio": round(skipped_ratio, 4),
+        "speaker_similarity_lowband_ratio": round(speaker_similarity_lowband_ratio, 4),
+        "avg_speaker_similarity": avg_speaker_similarity,
+        "overflow_unfitted_count": overflow_unfitted_count,
+        "thresholds": {
+            "coverage_min": DEFAULT_QUALITY_GATE_COVERAGE_MIN,
+            "failed_max": DEFAULT_QUALITY_GATE_FAILED_MAX,
+            "speaker_failed_max": DEFAULT_QUALITY_GATE_SPEAKER_FAILED_MAX,
+            "intelligibility_failed_max": DEFAULT_QUALITY_GATE_INTELLIGIBILITY_FAILED_MAX,
+            "speaker_similarity_review_floor": lowband_floor,
+            "speaker_similarity_lowband_max": DEFAULT_QUALITY_GATE_SPEAKER_SIMILARITY_LOWBAND_MAX,
+            "avg_speaker_similarity_min": DEFAULT_QUALITY_GATE_AVG_SPEAKER_SIMILARITY_MIN,
+            "skipped_ratio_block": DEFAULT_QUALITY_GATE_SKIPPED_RATIO_BLOCK,
+        },
         "reasons": reasons,
     }
 

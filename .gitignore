@@ -16,3 +16,5 @@ tmp/
 work/
 test_video/
 .dev-runtime/
+.tmp/
+.superpowers/

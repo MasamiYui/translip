@@ -234,6 +234,8 @@ def test_cli_synthesize_speaker_parser() -> None:
             "qwen3tts",
             "--voice-bank",
             "voice_bank.en.json",
+            "--candidate-backend",
+            "moss-tts-nano-onnx",
             "--segment-id",
             "seg-0001",
             "--segment-id",
@@ -248,6 +250,7 @@ def test_cli_synthesize_speaker_parser() -> None:
     assert args.speaker_id == "spk_0000"
     assert args.backend == "qwen3tts"
     assert args.voice_bank == "voice_bank.en.json"
+    assert args.candidate_backends == ["moss-tts-nano-onnx"]
     assert args.segment_ids == ["seg-0001", "seg-0002"]
     assert args.max_segments == 2
 
@@ -380,6 +383,10 @@ def test_cli_run_pipeline_parser() -> None:
             "pipeline-output",
             "--target-lang",
             "en",
+            "--tts-backend",
+            "moss-tts-nano-onnx",
+            "--candidate-tts-backend",
+            "qwen3tts",
             "--resume",
             "--write-status",
         ]
@@ -388,6 +395,8 @@ def test_cli_run_pipeline_parser() -> None:
     assert args.input == "sample.mp4"
     assert args.output_root == "pipeline-output"
     assert args.target_lang == "en"
+    assert args.tts_backend == "moss-tts-nano-onnx"
+    assert args.candidate_tts_backends == ["qwen3tts"]
     assert args.resume is True
     assert args.write_status is True
 

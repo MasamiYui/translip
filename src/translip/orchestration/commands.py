@@ -260,6 +260,9 @@ def build_task_d_command(request: PipelineRequest, *, speaker_id: str, segment_i
         "--device",
         request.device,
     ]
+    for backend in request.tts_backends or [request.tts_backend]:
+        if backend != request.tts_backend:
+            command.extend(["--candidate-backend", backend])
     voice_bank_path = task_b_voice_bank_path(request)
     if voice_bank_path.exists():
         command.extend(["--voice-bank", str(voice_bank_path)])

@@ -76,6 +76,21 @@ def test_build_pipeline_request_defaults_to_moss_tts_nano_onnx() -> None:
     )
 
     assert request.tts_backend == "moss-tts-nano-onnx"
+    assert request.tts_backends == ["moss-tts-nano-onnx"]
+
+
+def test_build_pipeline_request_accepts_candidate_tts_backends() -> None:
+    request = build_pipeline_request(
+        {
+            "input": "sample.mp4",
+            "output_root": "out",
+            "tts_backend": "moss-tts-nano-onnx",
+            "candidate_tts_backends": ["qwen3tts"],
+        }
+    )
+
+    assert request.tts_backend == "moss-tts-nano-onnx"
+    assert request.tts_backends == ["moss-tts-nano-onnx", "qwen3tts"]
 
 
 def test_build_pipeline_request_keeps_translation_batch_size() -> None:

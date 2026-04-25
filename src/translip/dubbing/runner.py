@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 import time
 from pathlib import Path
@@ -10,10 +11,14 @@ from typing import Any
 import numpy as np
 import soundfile as sf
 
+from ..config import (
+    DEFAULT_TTS_GENERATED_DURATION_HARD_RATIO,
+    DEFAULT_TTS_GENERATED_DURATION_LOWER_RATIO,
+)
 from ..exceptions import TranslipError
 from ..types import DubbingArtifacts, DubbingRequest, DubbingResult
 from ..utils.files import ensure_directory, remove_tree, work_directory
-from .backend import ReferencePackage, SynthSegmentInput, SynthSegmentOutput
+from .backend import ReferencePackage, SynthSegmentInput, SynthSegmentOutput, TTSBackend
 from .export import build_dubbing_manifest, build_dubbing_report, now_iso, render_demo_audio, write_json
 from .metrics import evaluate_segment
 from .moss_tts_nano_backend import MossTtsNanoOnnxBackend
@@ -26,6 +31,14 @@ from .reference import (
 )
 
 logger = logging.getLogger(__name__)
+
+_UNIT_SPLIT_FRAME_SEC = 0.02
+_UNIT_SPLIT_HOP_SEC = 0.01
+_UNIT_SPLIT_MIN_PIECE_SEC = 0.08
+_UNIT_SPLIT_MIN_SILENCE_SEC = 0.05
+_UNIT_SPLIT_SEARCH_RADIUS_SEC = 0.25
+_UNIT_SPLIT_MAX_SEARCH_RADIUS_SEC = 0.35
+_UNIT_SPLIT_DURATION_GUARD_TOLERANCE = 0.18
 
 
 def synthesize_speaker(
@@ -53,7 +66,12 @@ def synthesize_speaker(
 
     try:
         segments = _filtered_segments(translation_payload, normalized_request)
-        backend = backend_override if backend_override is not None else _build_backend(normalized_request)
+        backends = (
+            _backend_pool_from_override(backend_override)
+            if backend_override is not None
+            else _build_backend_pool(normalized_request)
+        )
+        backend_summary = _backend_pool_summary(backends)
         reference_candidates = _select_reference_candidates(
             profiles_payload=profiles_payload,
             speaker_id=normalized_request.speaker_id,
@@ -74,7 +92,7 @@ def synthesize_speaker(
                 )
                 output_path = bundle_dir / "segments" / f"{segment.segment_id}.wav"
                 synth_output, selected_reference, evaluation, attempt_summary = _synthesize_with_quality_retry(
-                    backend=backend,
+                    backends=backends,
                     segment=segment,
                     output_path=output_path,
                     reference_candidates=reference_candidates[:3],
@@ -105,7 +123,7 @@ def synthesize_speaker(
                 )
                 unit_output_path = bundle_dir / "units" / f"{unit_segment.segment_id}.wav"
                 synth_output, selected_reference, evaluation, attempt_summary = _synthesize_with_quality_retry(
-                    backend=backend,
+                    backends=backends,
                     segment=unit_segment,
                     output_path=unit_output_path,
                     reference_candidates=reference_candidates[:3],
@@ -143,9 +161,9 @@ def synthesize_speaker(
             partial_report = build_dubbing_report(
                 request=normalized_request,
                 target_lang=target_lang,
-                backend_name=backend.backend_name,
-                resolved_model=backend.resolved_model,
-                resolved_device=backend.resolved_device,
+                backend_name=backend_summary["backend_name"],
+                resolved_model=backend_summary["resolved_model"],
+                resolved_device=backend_summary["resolved_device"],
                 reference={
                     "path": str(selected_reference.original_audio_path),
                     "selection_reason": selected_reference.selection_reason,
@@ -163,9 +181,9 @@ def synthesize_speaker(
         report = build_dubbing_report(
             request=normalized_request,
             target_lang=target_lang,
-            backend_name=backend.backend_name,
-            resolved_model=backend.resolved_model,
-            resolved_device=backend.resolved_device,
+            backend_name=backend_summary["backend_name"],
+            resolved_model=backend_summary["resolved_model"],
+            resolved_device=backend_summary["resolved_device"],
             reference={
                 "path": reference_used,
                 "selection_reason": reference_reason,
@@ -186,9 +204,10 @@ def synthesize_speaker(
             finished_at=now_iso(),
             elapsed_sec=time.monotonic() - started_monotonic,
             resolved={
-                "tts_backend": backend.backend_name,
-                "model": backend.resolved_model,
-                "device": backend.resolved_device,
+                "tts_backend": backend_summary["backend_name"],
+                "tts_backends": backend_summary["tts_backends"],
+                "model": backend_summary["resolved_model"],
+                "device": backend_summary["resolved_device"],
             },
             stats=stats,
         )
@@ -391,15 +410,15 @@ def _split_unit_audio(
         waveform = waveform.mean(axis=1)
     waveform = waveform.astype(np.float32)
     total_samples = int(waveform.size)
-    durations = [max(0.001, float(row.get("duration") or 0.0)) for row in segment_rows]
-    total_duration = sum(durations)
+    boundaries, split_method = _unit_split_boundaries(
+        waveform=waveform,
+        sample_rate=int(sample_rate),
+        segment_rows=segment_rows,
+    )
     outputs: list[SynthSegmentOutput] = []
     cursor = 0
-    for index, (row, duration) in enumerate(zip(segment_rows, durations, strict=True)):
-        if index == len(segment_rows) - 1:
-            end = total_samples
-        else:
-            end = min(total_samples, cursor + int(round(total_samples * (duration / max(total_duration, 0.001)))))
+    for index, row in enumerate(segment_rows):
+        end = total_samples if index == len(segment_rows) - 1 else boundaries[index]
         if end <= cursor:
             end = min(total_samples, cursor + 1)
         piece = waveform[cursor:end].astype(np.float32)
@@ -413,10 +432,221 @@ def _split_unit_audio(
                 audio_path=output_path,
                 sample_rate=int(sample_rate),
                 generated_duration_sec=float(piece.size / sample_rate) if sample_rate else 0.0,
-                backend_metadata={"unit_audio_path": str(unit_audio_path)},
+                backend_metadata={
+                    "unit_audio_path": str(unit_audio_path),
+                    "split_strategy": "vad_text_boundary",
+                    "split_method": split_method,
+                    "split_start_sec": round(float((cursor - piece.size) / sample_rate), 4) if sample_rate else 0.0,
+                    "split_end_sec": round(float(cursor / sample_rate), 4) if sample_rate else 0.0,
+                },
             )
         )
     return outputs
+
+
+def _unit_split_boundaries(
+    *,
+    waveform: np.ndarray,
+    sample_rate: int,
+    segment_rows: list[dict[str, Any]],
+) -> tuple[list[int], str]:
+    total_samples = int(waveform.size)
+    if total_samples <= 0 or len(segment_rows) <= 1:
+        return [], "single"
+    expected = _expected_unit_boundaries(
+        total_samples=total_samples,
+        segment_rows=segment_rows,
+    )
+    duration_boundaries = _duration_unit_boundaries(
+        total_samples=total_samples,
+        segment_rows=segment_rows,
+    )
+    silence_intervals = _silence_intervals(waveform=waveform, sample_rate=sample_rate)
+    boundaries: list[int] = []
+    methods: list[str] = []
+    min_piece = max(1, int(_UNIT_SPLIT_MIN_PIECE_SEC * sample_rate))
+    for index, target in enumerate(expected):
+        lower = (boundaries[-1] if boundaries else 0) + min_piece
+        upper = total_samples - ((len(expected) - index) * min_piece)
+        target = min(max(int(target), lower), max(lower, upper))
+        boundary, method = _nearest_boundary(
+            waveform=waveform,
+            sample_rate=sample_rate,
+            target=target,
+            lower=lower,
+            upper=max(lower, upper),
+            silence_intervals=silence_intervals,
+        )
+        boundaries.append(boundary)
+        methods.append(method)
+    if _split_duration_deviation(boundaries, total_samples, sample_rate, segment_rows) > (
+        _split_duration_deviation(duration_boundaries, total_samples, sample_rate, segment_rows)
+        + _UNIT_SPLIT_DURATION_GUARD_TOLERANCE
+    ):
+        return duration_boundaries, "duration_guard"
+    return boundaries, "+".join(_dedupe(methods))
+
+
+def _expected_unit_boundaries(
+    *,
+    total_samples: int,
+    segment_rows: list[dict[str, Any]],
+) -> list[int]:
+    duration_weights = [max(0.001, float(row.get("duration") or 0.0)) for row in segment_rows]
+    text_weights = [_text_boundary_weight(row) for row in segment_rows]
+    duration_total = max(sum(duration_weights), 0.001)
+    text_total = max(sum(text_weights), 0.001)
+    weights = [
+        (0.75 * (duration / duration_total)) + (0.25 * (text / text_total))
+        for duration, text in zip(duration_weights, text_weights, strict=True)
+    ]
+    return _boundaries_from_weights(total_samples=total_samples, weights=weights)
+
+
+def _duration_unit_boundaries(
+    *,
+    total_samples: int,
+    segment_rows: list[dict[str, Any]],
+) -> list[int]:
+    duration_weights = [max(0.001, float(row.get("duration") or 0.0)) for row in segment_rows]
+    total = max(sum(duration_weights), 0.001)
+    return _boundaries_from_weights(
+        total_samples=total_samples,
+        weights=[duration / total for duration in duration_weights],
+    )
+
+
+def _boundaries_from_weights(*, total_samples: int, weights: list[float]) -> list[int]:
+    cumulative = 0.0
+    boundaries: list[int] = []
+    for weight in weights[:-1]:
+        cumulative += weight
+        boundaries.append(int(round(total_samples * cumulative)))
+    return boundaries
+
+
+def _split_duration_deviation(
+    boundaries: list[int],
+    total_samples: int,
+    sample_rate: int,
+    segment_rows: list[dict[str, Any]],
+) -> float:
+    if sample_rate <= 0:
+        return 0.0
+    starts = [0, *boundaries]
+    ends = [*boundaries, total_samples]
+    deviations: list[float] = []
+    for start, end, row in zip(starts, ends, segment_rows, strict=True):
+        generated_sec = max(0.001, float(end - start) / sample_rate)
+        source_sec = max(0.001, float(row.get("duration") or 0.0))
+        deviations.append(abs(np.log(generated_sec / source_sec)))
+    return float(sum(deviations) / max(len(deviations), 1))
+
+
+def _text_boundary_weight(row: dict[str, Any]) -> float:
+    text = str(row.get("dubbing_text") or row.get("target_text") or "").strip()
+    words = re.findall(r"[A-Za-z0-9']+", text)
+    if words:
+        return max(1.0, sum(max(1, len(word)) for word in words) / 4.0)
+    cjk_chars = re.findall(r"[\u4e00-\u9fff]", text)
+    if cjk_chars:
+        return max(1.0, float(len(cjk_chars)))
+    return max(1.0, float(len(text)) / 4.0)
+
+
+def _silence_intervals(*, waveform: np.ndarray, sample_rate: int) -> list[tuple[int, int]]:
+    if waveform.size == 0 or sample_rate <= 0:
+        return []
+    frame = max(1, int(_UNIT_SPLIT_FRAME_SEC * sample_rate))
+    hop = max(1, int(_UNIT_SPLIT_HOP_SEC * sample_rate))
+    if waveform.size <= frame:
+        return []
+    rms_values: list[float] = []
+    starts: list[int] = []
+    for start in range(0, waveform.size - frame + 1, hop):
+        window = waveform[start : start + frame]
+        rms_values.append(float(np.sqrt(np.mean(np.square(window), dtype=np.float64))))
+        starts.append(start)
+    if not rms_values:
+        return []
+    rms = np.asarray(rms_values, dtype=np.float32)
+    max_rms = float(np.max(rms))
+    if max_rms <= 0.0:
+        return [(0, int(waveform.size))]
+    threshold = max(float(np.percentile(rms, 20)) * 1.6, max_rms * 0.035, 1e-5)
+    silent = rms <= threshold
+    min_silence = max(1, int(_UNIT_SPLIT_MIN_SILENCE_SEC * sample_rate))
+    intervals: list[tuple[int, int]] = []
+    run_start: int | None = None
+    run_end: int | None = None
+    for is_silent, start in zip(silent, starts, strict=True):
+        if is_silent:
+            if run_start is None:
+                run_start = start
+            run_end = start + frame
+        elif run_start is not None and run_end is not None:
+            if run_end - run_start >= min_silence:
+                intervals.append((run_start, min(run_end, int(waveform.size))))
+            run_start = None
+            run_end = None
+    if run_start is not None and run_end is not None and run_end - run_start >= min_silence:
+        intervals.append((run_start, min(run_end, int(waveform.size))))
+    return intervals
+
+
+def _nearest_boundary(
+    *,
+    waveform: np.ndarray,
+    sample_rate: int,
+    target: int,
+    lower: int,
+    upper: int,
+    silence_intervals: list[tuple[int, int]],
+) -> tuple[int, str]:
+    radius = min(
+        int(_UNIT_SPLIT_MAX_SEARCH_RADIUS_SEC * sample_rate),
+        max(int(_UNIT_SPLIT_SEARCH_RADIUS_SEC * sample_rate), int(waveform.size * 0.05)),
+    )
+    silence_centers = [
+        int(round((start + end) / 2))
+        for start, end in silence_intervals
+        if lower <= int(round((start + end) / 2)) <= upper and abs(int(round((start + end) / 2)) - target) <= radius
+    ]
+    if silence_centers:
+        return min(silence_centers, key=lambda item: abs(item - target)), "silence"
+    search_start = max(lower, target - radius)
+    search_end = min(upper, target + radius)
+    if search_end <= search_start:
+        return target, "text_weighted"
+    boundary = _lowest_energy_sample(
+        waveform=waveform,
+        sample_rate=sample_rate,
+        start=search_start,
+        end=search_end,
+    )
+    return boundary, "energy_min"
+
+
+def _lowest_energy_sample(
+    *,
+    waveform: np.ndarray,
+    sample_rate: int,
+    start: int,
+    end: int,
+) -> int:
+    frame = max(1, int(_UNIT_SPLIT_FRAME_SEC * sample_rate))
+    hop = max(1, int(_UNIT_SPLIT_HOP_SEC * sample_rate))
+    if end - start <= frame:
+        return int(round((start + end) / 2))
+    best_start = start
+    best_energy: float | None = None
+    for frame_start in range(start, end - frame + 1, hop):
+        window = waveform[frame_start : frame_start + frame]
+        energy = float(np.mean(np.square(window), dtype=np.float64))
+        if best_energy is None or energy < best_energy:
+            best_energy = energy
+            best_start = frame_start
+    return best_start + (frame // 2)
 
 
 def _segment_report_row(
@@ -473,8 +703,12 @@ def _segment_report_row(
         "qa_flags": segment.qa_flags,
         "reference_path": str(selected_reference.original_audio_path),
         "audio_path": str(synth_output.audio_path),
+        "tts_backend": attempt_summary.get("selected_backend"),
+        "resolved_model": attempt_summary.get("selected_model"),
+        "resolved_device": attempt_summary.get("selected_device"),
         "attempt_count": attempt_summary["attempt_count"],
         "selected_attempt_index": attempt_summary["selected_attempt_index"],
+        "selected_reference_attempt_index": attempt_summary.get("selected_reference_attempt_index"),
         "quality_retry_reasons": attempt_summary["quality_retry_reasons"],
         "attempts": attempt_summary["attempts"],
         "index": index,
@@ -485,6 +719,10 @@ def _segment_report_row(
         row["dubbing_unit_text"] = unit_segment.target_text
         row["dubbing_unit_segment_ids"] = list(unit_segment.metadata.get("segment_ids", []))
         row["dubbing_unit_audio_path"] = str(unit_audio_path) if unit_audio_path else None
+        row["split_strategy"] = synth_output.backend_metadata.get("split_strategy")
+        row["split_method"] = synth_output.backend_metadata.get("split_method")
+        row["split_start_sec"] = synth_output.backend_metadata.get("split_start_sec")
+        row["split_end_sec"] = synth_output.backend_metadata.get("split_end_sec")
     return row
 
 
@@ -558,7 +796,7 @@ def _select_reference_candidates(
 
 def _synthesize_with_quality_retry(
     *,
-    backend: object,
+    backends: list[TTSBackend],
     segment: SynthSegmentInput,
     output_path: Path,
     reference_candidates: list[object],
@@ -570,6 +808,7 @@ def _synthesize_with_quality_retry(
     attempts: list[dict[str, Any]] = []
     retry_reasons: list[str] = []
     synthesis_error: Exception | None = None
+    attempt_index = 0
 
     for candidate_index, candidate in enumerate(reference_candidates, start=1):
         prepared = prepared_references.get(candidate.path)
@@ -579,62 +818,86 @@ def _synthesize_with_quality_retry(
                 output_path=work_dir / "reference" / f"{candidate.path.stem}_prepared.wav",
             )
             prepared_references[candidate.path] = prepared
-        attempt_path = work_dir / "attempts" / segment.segment_id / f"ref-{candidate_index:02d}.wav"
-        try:
-            synth_output = backend.synthesize(reference=prepared, segment=segment, output_path=attempt_path)
-            evaluation = evaluate_segment(
-                reference_audio_path=prepared.original_audio_path,
-                generated_audio_path=synth_output.audio_path,
-                target_text=segment.target_text,
-                target_lang=target_lang,
-                source_duration_sec=segment.source_duration_sec,
-                requested_device=request.device,
-                backread_model_name=request.backread_model,
+        candidate_attempts: list[dict[str, Any]] = []
+        for backend_index, backend in enumerate(backends, start=1):
+            attempt_index += 1
+            attempt_path = (
+                work_dir
+                / "attempts"
+                / segment.segment_id
+                / f"{_safe_audio_id(backend.backend_name)}_ref-{candidate_index:02d}.wav"
             )
-        except Exception as exc:  # pragma: no cover - covered by real pipeline run
-            synthesis_error = exc
-            logger.warning(
-                "Task D synthesis failed for %s with reference %s: %s",
-                segment.segment_id,
-                candidate.path,
-                exc,
-            )
-            attempts.append(
-                {
-                    "attempt_index": candidate_index,
-                    "reference_path": str(candidate.path),
-                    "status": "failed",
-                    "error": str(exc),
-                }
-            )
-            continue
+            try:
+                synth_output = backend.synthesize(reference=prepared, segment=segment, output_path=attempt_path)
+                evaluation = evaluate_segment(
+                    reference_audio_path=prepared.original_audio_path,
+                    generated_audio_path=synth_output.audio_path,
+                    target_text=segment.target_text,
+                    target_lang=target_lang,
+                    source_duration_sec=segment.source_duration_sec,
+                    requested_device=request.device,
+                    backread_model_name=request.backread_model,
+                )
+            except Exception as exc:  # pragma: no cover - covered by real pipeline run
+                synthesis_error = exc
+                logger.warning(
+                    "Task D synthesis failed for %s with backend %s and reference %s: %s",
+                    segment.segment_id,
+                    backend.backend_name,
+                    candidate.path,
+                    exc,
+                )
+                attempts.append(
+                    {
+                        "attempt_index": attempt_index,
+                        "reference_attempt_index": candidate_index,
+                        "backend_index": backend_index,
+                        "backend": backend.backend_name,
+                        "resolved_model": backend.resolved_model,
+                        "resolved_device": backend.resolved_device,
+                        "reference_path": str(candidate.path),
+                        "status": "failed",
+                        "error": str(exc),
+                    }
+                )
+                continue
 
-        attempt = {
-            "attempt_index": candidate_index,
-            "reference_path": str(prepared.original_audio_path),
-            "status": "candidate",
-            "audio_path": str(synth_output.audio_path),
-            "sample_rate": synth_output.sample_rate,
-            "generated_duration_sec": round(float(synth_output.generated_duration_sec), 3),
-            "duration_ratio": round(float(evaluation.duration_ratio), 3),
-            "duration_status": evaluation.duration_status,
-            "speaker_similarity": (
-                round(float(evaluation.speaker_similarity), 4)
-                if evaluation.speaker_similarity is not None
-                else None
-            ),
-            "speaker_status": evaluation.speaker_status,
-            "text_similarity": round(float(evaluation.text_similarity), 4),
-            "intelligibility_status": evaluation.intelligibility_status,
-            "overall_status": evaluation.overall_status,
-            "_prepared": prepared,
-            "_synth_output": synth_output,
-            "_evaluation": evaluation,
-        }
-        attempts.append(attempt)
-        if candidate_index == 1:
-            retry_reasons = _quality_retry_reasons(evaluation)
-            if not retry_reasons:
+            attempt = {
+                "attempt_index": attempt_index,
+                "reference_attempt_index": candidate_index,
+                "backend_index": backend_index,
+                "backend": backend.backend_name,
+                "resolved_model": backend.resolved_model,
+                "resolved_device": backend.resolved_device,
+                "reference_path": str(prepared.original_audio_path),
+                "status": "candidate",
+                "audio_path": str(synth_output.audio_path),
+                "sample_rate": synth_output.sample_rate,
+                "generated_duration_sec": round(float(synth_output.generated_duration_sec), 3),
+                "duration_ratio": round(float(evaluation.duration_ratio), 3),
+                "duration_status": evaluation.duration_status,
+                "speaker_similarity": (
+                    round(float(evaluation.speaker_similarity), 4)
+                    if evaluation.speaker_similarity is not None
+                    else None
+                ),
+                "speaker_status": evaluation.speaker_status,
+                "text_similarity": round(float(evaluation.text_similarity), 4),
+                "intelligibility_status": evaluation.intelligibility_status,
+                "overall_status": evaluation.overall_status,
+                "_backend": backend,
+                "_prepared": prepared,
+                "_synth_output": synth_output,
+                "_evaluation": evaluation,
+            }
+            attempts.append(attempt)
+            candidate_attempts.append(attempt)
+        if candidate_attempts:
+            best_candidate = max(candidate_attempts, key=lambda attempt: _attempt_score(attempt["_evaluation"]))
+            candidate_retry_reasons = _quality_retry_reasons(best_candidate["_evaluation"])
+            if candidate_index == 1:
+                retry_reasons = candidate_retry_reasons
+            if not candidate_retry_reasons:
                 break
 
     successful_attempts = [attempt for attempt in attempts if attempt.get("status") == "candidate"]
@@ -646,6 +909,7 @@ def _synthesize_with_quality_retry(
     selected_output = selected["_synth_output"]
     selected_reference = selected["_prepared"]
     selected_evaluation = selected["_evaluation"]
+    selected_backend = selected["_backend"]
     output_path.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(selected_output.audio_path, output_path)
 
@@ -664,7 +928,10 @@ def _synthesize_with_quality_retry(
         audio_path=output_path,
         sample_rate=int(selected_output.sample_rate),
         generated_duration_sec=float(selected_output.generated_duration_sec),
-        backend_metadata=dict(getattr(selected_output, "backend_metadata", {}) or {}),
+        backend_metadata={
+            **dict(getattr(selected_output, "backend_metadata", {}) or {}),
+            "selected_backend": selected_backend.backend_name,
+        },
     )
     return (
         final_output,
@@ -673,6 +940,10 @@ def _synthesize_with_quality_retry(
         {
             "attempt_count": len(attempts),
             "selected_attempt_index": int(selected["attempt_index"]),
+            "selected_reference_attempt_index": int(selected["reference_attempt_index"]),
+            "selected_backend": selected_backend.backend_name,
+            "selected_model": selected_backend.resolved_model,
+            "selected_device": selected_backend.resolved_device,
             "quality_retry_reasons": retry_reasons,
             "attempts": report_attempts,
         },
@@ -683,7 +954,17 @@ def _quality_retry_reasons(evaluation: object) -> list[str]:
     reasons: list[str] = []
     duration_ratio = float(getattr(evaluation, "duration_ratio", 0.0) or 0.0)
     text_similarity = float(getattr(evaluation, "text_similarity", 0.0) or 0.0)
-    if getattr(evaluation, "duration_status", "") == "failed" and (
+    duration_status = str(getattr(evaluation, "duration_status", ""))
+    hard_upper = DEFAULT_TTS_GENERATED_DURATION_HARD_RATIO
+    hard_lower = DEFAULT_TTS_GENERATED_DURATION_LOWER_RATIO
+    # Historical threshold (2.0 / 0.45) triggered retry only when status was
+    # already "failed". Sprint 2 tightens this: if the generated audio is
+    # *obviously* out of band (e.g. 1.5x the source window) we retry even if
+    # downstream metric accepted it, because that kind of pathology leaks into
+    # the "mom mom mom..." loops observed in task-20260425-023015.
+    if duration_ratio >= hard_upper or (0.0 < duration_ratio <= hard_lower):
+        reasons.append("pathological_duration")
+    elif duration_status == "failed" and (
         duration_ratio >= 2.0 or 0.0 < duration_ratio <= 0.45
     ):
         reasons.append("pathological_duration")
@@ -713,9 +994,38 @@ def _status_score(status: str) -> float:
     return {"passed": 2.0, "review": 1.0, "failed": 0.0}.get(status, 0.0)
 
 
-def _build_backend(request: DubbingRequest) -> object:
-    if request.backend == "moss-tts-nano-onnx":
-        return MossTtsNanoOnnxBackend(requested_device=request.device)
-    if request.backend == "qwen3tts":
-        return QwenTTSBackend(requested_device=request.device)
-    raise TranslipError(f"Unsupported dubbing backend: {request.backend}")
+def _backend_pool_from_override(backend_override: object) -> list[TTSBackend]:
+    if isinstance(backend_override, (list, tuple)):
+        return list(backend_override)
+    return [backend_override]
+
+
+def _build_backend_pool(request: DubbingRequest) -> list[TTSBackend]:
+    backend_names = request.tts_backends or [request.backend]
+    return [_build_backend(backend_name, requested_device=request.device) for backend_name in backend_names]
+
+
+def _build_backend(
+    backend_name: str | DubbingRequest,
+    *,
+    requested_device: str | None = None,
+) -> TTSBackend:
+    if isinstance(backend_name, DubbingRequest):
+        request = backend_name.normalized()
+        backend_name = request.backend
+        requested_device = request.device
+    requested_device = requested_device or "auto"
+    if backend_name == "moss-tts-nano-onnx":
+        return MossTtsNanoOnnxBackend(requested_device=requested_device)
+    if backend_name == "qwen3tts":
+        return QwenTTSBackend(requested_device=requested_device)
+    raise TranslipError(f"Unsupported dubbing backend: {backend_name}")
+
+
+def _backend_pool_summary(backends: list[TTSBackend]) -> dict[str, Any]:
+    return {
+        "backend_name": "+".join(backend.backend_name for backend in backends),
+        "tts_backends": [backend.backend_name for backend in backends],
+        "resolved_model": "+".join(str(backend.resolved_model) for backend in backends),
+        "resolved_device": "+".join(str(backend.resolved_device) for backend in backends),
+    }
