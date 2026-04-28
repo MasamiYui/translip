@@ -5,9 +5,8 @@ from typing import Any
 import numpy as np
 
 from ..speaker_embedding import (
-    embedding_for_clip,
     extract_audio_clip,
-    load_speechbrain_classifier,
+    get_speaker_embedder,
     read_audio_mono,
     resolve_speaker_device,
 )
@@ -26,7 +25,7 @@ def enrich_reference_embeddings(
     requested_device: str,
 ) -> dict[str, Any]:
     device = resolve_speaker_device(requested_device)
-    classifier = load_speechbrain_classifier(device)
+    embedder = get_speaker_embedder(device)
     embedding_dim = 0
 
     for draft in drafts:
@@ -37,13 +36,13 @@ def enrich_reference_embeddings(
                 start=clip.start,
                 end=clip.end,
             )
-            embedding = embedding_for_clip(classifier, clip_waveform, sample_rate)
+            embedding = embedder.encode(clip_waveform, sample_rate)
             clip.embedding = embedding
             if embedding is not None:
                 embedding_dim = int(embedding.shape[0])
 
     return {
-        "speaker_backend": "speechbrain-ecapa",
+        "speaker_backend": embedder.name,
         "speaker_device": device,
         "embedding_dim": embedding_dim,
     }

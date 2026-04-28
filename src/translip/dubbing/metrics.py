@@ -9,8 +9,7 @@ from pathlib import Path
 from faster_whisper import WhisperModel
 
 from ..speaker_embedding import (
-    embedding_for_clip,
-    load_speechbrain_classifier,
+    get_speaker_embedder,
     read_audio_mono,
     resolve_speaker_device,
 )
@@ -89,9 +88,9 @@ def _speaker_similarity(
     requested_device: str,
 ) -> float | None:
     device = resolve_speaker_device(requested_device)
-    classifier = load_speechbrain_classifier(device)
+    embedder = get_speaker_embedder(device)
     ref_embedding = _reference_embedding(reference_audio_path, device)
-    gen_embedding = embedding_for_clip(classifier, generated_waveform, generated_sample_rate)
+    gen_embedding = embedder.encode(generated_waveform, generated_sample_rate)
     if ref_embedding is None or gen_embedding is None:
         return None
     return float(ref_embedding @ gen_embedding)
@@ -99,9 +98,9 @@ def _speaker_similarity(
 
 @lru_cache(maxsize=128)
 def _reference_embedding(reference_audio_path: Path, device: str) -> object:
-    classifier = load_speechbrain_classifier(device)
+    embedder = get_speaker_embedder(device)
     ref_waveform, ref_sample_rate = read_audio_mono(reference_audio_path)
-    return embedding_for_clip(classifier, ref_waveform, ref_sample_rate)
+    return embedder.encode(ref_waveform, ref_sample_rate)
 
 
 def _backread_text(
