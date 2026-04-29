@@ -17,7 +17,6 @@ from ..config import (
     DEFAULT_RENDER_DUCKING_MODE,
     DEFAULT_RENDER_FIT_BACKEND,
     DEFAULT_RENDER_FIT_POLICY,
-    DEFAULT_RENDER_MAX_COMPRESS_RATIO,
     DEFAULT_RENDER_MIX_PROFILE,
     DEFAULT_RENDER_OUTPUT_SAMPLE_RATE,
     DEFAULT_RENDER_PREVIEW_FORMAT,
@@ -52,11 +51,6 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
     merged_policy = merged.get("delivery_policy")
     delivery_policy = merged_policy if isinstance(merged_policy, dict) else {}
 
-    primary_tts_backend = merged.get("tts_backend", DEFAULT_DUBBING_BACKEND)
-    candidate_tts_backends = merged.get("tts_backends") or merged.get("candidate_tts_backends") or []
-    if isinstance(candidate_tts_backends, str):
-        candidate_tts_backends = [candidate_tts_backends]
-
     return PipelineRequest(
         input_path=merged["input"],
         output_root=merged.get("output_root", DEFAULT_PIPELINE_OUTPUT_ROOT),
@@ -72,8 +66,7 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
         target_lang=merged.get("target_lang", DEFAULT_TRANSLATION_TARGET_LANG),
         translation_backend=merged.get("translation_backend", DEFAULT_TRANSLATION_BACKEND),
         translation_batch_size=int(merged.get("translation_batch_size", DEFAULT_TRANSLATION_BATCH_SIZE)),
-        tts_backend=primary_tts_backend,
-        tts_backends=[primary_tts_backend, *candidate_tts_backends],
+        tts_backend=merged.get("tts_backend", DEFAULT_DUBBING_BACKEND),
         device=merged.get("device", DEFAULT_DEVICE),
         run_from_stage=merged.get("run_from_stage", DEFAULT_PIPELINE_RUN_FROM_STAGE),
         run_to_stage=merged.get("run_to_stage", DEFAULT_PIPELINE_RUN_TO_STAGE),
@@ -98,7 +91,7 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
         output_sample_rate=int(merged.get("output_sample_rate", DEFAULT_RENDER_OUTPUT_SAMPLE_RATE)),
         background_gain_db=float(merged.get("background_gain_db", DEFAULT_RENDER_BACKGROUND_GAIN_DB)),
         window_ducking_db=float(merged.get("window_ducking_db", DEFAULT_RENDER_WINDOW_DUCKING_DB)),
-        max_compress_ratio=float(merged.get("max_compress_ratio", DEFAULT_RENDER_MAX_COMPRESS_RATIO)),
+        max_compress_ratio=float(merged.get("max_compress_ratio", 1.45)),
         speaker_limit=int(merged.get("speaker_limit", 0)),
         segments_per_speaker=int(merged.get("segments_per_speaker", 0)),
         separation_mode=merged.get("separation_mode", "dialogue"),

@@ -118,7 +118,6 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
         "target_lang": request.target_lang,
         "translation_backend": request.translation_backend,
         "tts_backend": request.tts_backend,
-        "tts_backends": request.tts_backends or [request.tts_backend],
         "device": request.device,
         "delivery_policy": dict(request.delivery_policy),
     }

@@ -252,15 +252,6 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_DUBBING_BACKEND,
         choices=list(SUPPORTED_DUBBING_BACKENDS),
     )
-    synthesize_parser.add_argument(
-        "--candidate-backend",
-        "--tts-backend",
-        action="append",
-        dest="candidate_backends",
-        default=None,
-        choices=list(SUPPORTED_DUBBING_BACKENDS),
-        help="Additional TTS backend to audition; may be passed multiple times",
-    )
     synthesize_parser.add_argument("--device", default=DEFAULT_DEVICE, choices=["auto", "cpu", "cuda", "mps"])
     synthesize_parser.add_argument("--reference-clip", default=None, help="Optional reference clip override")
     synthesize_parser.add_argument("--voice-bank", default=None, help="Optional voice_bank.<lang>.json path for reference selection")
@@ -471,14 +462,6 @@ def build_parser() -> argparse.ArgumentParser:
         "--tts-backend",
         default=None,
         choices=list(SUPPORTED_DUBBING_BACKENDS),
-    )
-    pipeline_parser.add_argument(
-        "--candidate-tts-backend",
-        action="append",
-        dest="candidate_tts_backends",
-        default=None,
-        choices=list(SUPPORTED_DUBBING_BACKENDS),
-        help="Additional Task D TTS backend to audition; may be passed multiple times",
     )
     pipeline_parser.add_argument("--device", default=None, choices=["auto", "cpu", "cuda", "mps"])
     pipeline_parser.add_argument("--run-from-stage", default=None)
@@ -836,7 +819,6 @@ def main(argv: list[str] | None = None) -> int:
             output_dir=args.output_dir,
             speaker_id=args.speaker_id,
             backend=args.backend,
-            tts_backends=args.candidate_backends,
             device=args.device,
             reference_clip_path=args.reference_clip,
             voice_bank_path=args.voice_bank,

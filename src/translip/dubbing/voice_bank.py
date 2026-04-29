@@ -12,10 +12,6 @@ from typing import Any
 import numpy as np
 import soundfile as sf
 
-from ..config import (
-    DEFAULT_VOICE_BANK_MIN_REFERENCE_CLIPS,
-    DEFAULT_VOICE_BANK_MIN_REFERENCE_DURATION_SEC,
-)
 from ..pipeline.manifest import now_iso
 from ..utils.files import ensure_directory
 
@@ -102,7 +98,6 @@ def build_voice_bank(request: VoiceBankRequest) -> VoiceBankResult:
         "stats": _bank_stats(speakers=speakers, report_count=len(report_payloads)),
         "speakers": speakers,
     }
-    apply_cross_speaker_fallback(voice_bank)
     _write_json(voice_bank, voice_bank_path)
     report_text = _build_markdown_report(voice_bank)
     report_path.write_text(report_text, encoding="utf-8")
@@ -182,13 +177,7 @@ def _speaker_bank(
 
     references = references[:max_references]
     recommended = _recommended_reference(references)
-    usable_source_count = _count_usable_source_references(references)
-    bank_status = _bank_status(
-        profile=profile,
-        references=references,
-        recommended=recommended,
-        usable_source_count=usable_source_count,
-    )
+    bank_status = _bank_status(profile=profile, references=references, recommended=recommended)
     return {
         "speaker_id": speaker_id or None,
         "profile_id": profile_id,
@@ -198,9 +187,6 @@ def _speaker_bank(
         "segment_count": int(profile.get("segment_count") or 0),
         "total_speech_sec": _round_float(profile.get("total_speech_sec")),
         "reference_clip_count": int(profile.get("reference_clip_count") or len(profile.get("reference_clips", []))),
-        "usable_source_reference_count": usable_source_count,
-        "min_reference_clip_requirement": DEFAULT_VOICE_BANK_MIN_REFERENCE_CLIPS,
-        "cross_speaker_fallback": None,
         "recommended_reference_id": recommended.get("reference_id") if recommended else None,
         "recommended_reference_path": recommended.get("audio_path") if recommended else None,
         "references": references,
@@ -534,127 +520,16 @@ def _recommended_reference(references: list[dict[str, Any]]) -> dict[str, Any] |
     return max(usable, key=lambda ref: float(ref.get("quality_score") or 0.0))
 
 
-def _count_usable_source_references(references: list[dict[str, Any]]) -> int:
-    """Count clips that satisfy the min_reference_clips hygiene bar.
-
-    A "usable" clip must be:
-        * of type 'source_clip' (composites don't count),
-        * duration >= DEFAULT_VOICE_BANK_MIN_REFERENCE_DURATION_SEC, and
-        * free of hard-failure risk flags (too_short / low_rms / missing_file).
-    """
-
-    count = 0
-    min_duration = DEFAULT_VOICE_BANK_MIN_REFERENCE_DURATION_SEC
-    hard_flags = {
-        "too_short_for_auto_clone",
-        "too_long_for_auto_clone",
-        "low_rms",
-        "missing_file",
-    }
-    for ref in references:
-        if not isinstance(ref, dict):
-            continue
-        if str(ref.get("type")) != "source_clip":
-            continue
-        if float(ref.get("duration_sec") or 0.0) < min_duration:
-            continue
-        risk_flags = set(ref.get("risk_flags") or [])
-        if risk_flags & hard_flags:
-            continue
-        count += 1
-    return count
-
-
-def _bank_status(
-    *,
-    profile: dict[str, Any],
-    references: list[dict[str, Any]],
-    recommended: dict[str, Any] | None,
-    usable_source_count: int = 0,
-) -> str:
+def _bank_status(*, profile: dict[str, Any], references: list[dict[str, Any]], recommended: dict[str, Any] | None) -> str:
     if not profile.get("speaker_id"):
         return "needs_speaker_review"
     if not references:
         return "missing_reference"
     if recommended is None:
         return "needs_manual_reference"
-    # Sprint 2: below the 3-usable-clips floor, we flag the speaker so
-    # downstream dubbing can prefer a cross-speaker fallback reference
-    # instead of cloning on a thin pool.
-    if usable_source_count < DEFAULT_VOICE_BANK_MIN_REFERENCE_CLIPS:
-        return "needs_more_references"
     if any(flag in recommended.get("risk_flags", []) for flag in ["short_reference", "composite_text_alignment_approx"]):
         return "review"
     return "available"
-
-
-def apply_cross_speaker_fallback(voice_bank: dict[str, Any]) -> dict[str, Any]:
-    """Annotate speakers that fall below min-clips with a fallback speaker.
-
-    Runs *after* :func:`build_voice_bank` and mutates the nested speakers in
-    place. For every speaker whose ``bank_status`` is ``needs_more_references``
-    we pick the best ``available`` speaker as a fallback, and stamp its
-    ``recommended_reference_*`` into a new ``cross_speaker_fallback`` dict.
-
-    Rationale: in task-20260425-023015 spk_0002 had only 6 long segments and
-    virtually no usable clone reference. Instead of failing silently, we fall
-    back to another speaker's voice — imperfect but recoverable, and the UI
-    can surface the override to the reviewer.
-    """
-
-    speakers = [
-        speaker
-        for speaker in voice_bank.get("speakers", [])
-        if isinstance(speaker, dict)
-    ]
-    donors = [
-        speaker
-        for speaker in speakers
-        if speaker.get("bank_status") == "available"
-        and speaker.get("recommended_reference_path")
-    ]
-    if not donors:
-        return voice_bank
-
-    def _donor_score(donor: dict[str, Any]) -> tuple[int, float, float]:
-        refs = donor.get("references", [])
-        recommended_id = donor.get("recommended_reference_id")
-        recommended_score = 0.0
-        for ref in refs:
-            if isinstance(ref, dict) and ref.get("reference_id") == recommended_id:
-                recommended_score = float(ref.get("quality_score") or 0.0)
-                break
-        return (
-            int(donor.get("usable_source_reference_count") or 0),
-            float(donor.get("total_speech_sec") or 0.0),
-            recommended_score,
-        )
-
-    donors_sorted = sorted(donors, key=_donor_score, reverse=True)
-
-    for speaker in speakers:
-        status = speaker.get("bank_status")
-        if status not in ("needs_more_references", "missing_reference", "needs_manual_reference"):
-            continue
-        speaker_id = speaker.get("speaker_id") or speaker.get("profile_id")
-        # Avoid picking the same speaker as donor for itself.
-        candidates = [
-            donor
-            for donor in donors_sorted
-            if (donor.get("speaker_id") or donor.get("profile_id")) != speaker_id
-        ]
-        if not candidates:
-            continue
-        donor = candidates[0]
-        speaker["cross_speaker_fallback"] = {
-            "donor_speaker_id": donor.get("speaker_id"),
-            "donor_profile_id": donor.get("profile_id"),
-            "donor_display_name": donor.get("display_name"),
-            "reference_id": donor.get("recommended_reference_id"),
-            "reference_path": donor.get("recommended_reference_path"),
-            "reason": f"bank_status={status},donor_usable_clips={donor.get('usable_source_reference_count')}",
-        }
-    return voice_bank
 
 
 def _selection_reason(
@@ -810,6 +685,5 @@ __all__ = [
     "VoiceBankArtifacts",
     "VoiceBankRequest",
     "VoiceBankResult",
-    "apply_cross_speaker_fallback",
     "build_voice_bank",
 ]

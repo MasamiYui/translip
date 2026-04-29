@@ -4,8 +4,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, TypedDict, cast
 
-from .config import DEFAULT_RENDER_MAX_COMPRESS_RATIO
-
 Mode = Literal["music", "dialogue", "auto"]
 Route = Literal["music", "dialogue"]
 OutputFormat = Literal["wav", "mp3", "flac", "aac", "opus"]
@@ -355,7 +353,6 @@ class DubbingRequest:
     output_dir: Path | str = Path("output")
     speaker_id: str = ""
     backend: TtsBackendName = "moss-tts-nano-onnx"
-    tts_backends: list[TtsBackendName] | None = None
     device: Device = "auto"
     reference_clip_path: Path | str | None = None
     voice_bank_path: Path | str | None = None
@@ -365,14 +362,12 @@ class DubbingRequest:
     backread_model: str = "tiny"
 
     def normalized(self) -> "DubbingRequest":
-        tts_backends = _dedupe([self.backend, *(self.tts_backends or [])])
         return DubbingRequest(
             translation_path=Path(self.translation_path).expanduser().resolve(),
             profiles_path=Path(self.profiles_path).expanduser().resolve(),
             output_dir=Path(self.output_dir).expanduser().resolve(),
             speaker_id=self.speaker_id,
-            backend=tts_backends[0],
-            tts_backends=tts_backends,
+            backend=self.backend,
             device=self.device,
             reference_clip_path=(
                 Path(self.reference_clip_path).expanduser().resolve()
@@ -426,7 +421,7 @@ class RenderDubRequest:
     output_sample_rate: int = 24_000
     background_gain_db: float = -8.0
     window_ducking_db: float = -3.0
-    max_compress_ratio: float = DEFAULT_RENDER_MAX_COMPRESS_RATIO
+    max_compress_ratio: float = 1.45
     preview_format: PreviewFormat = "wav"
 
     def normalized(self) -> "RenderDubRequest":
@@ -500,7 +495,6 @@ class PipelineRequest:
     translation_backend: TranslationBackendName = "local-m2m100"
     translation_batch_size: int = 4
     tts_backend: TtsBackendName = "moss-tts-nano-onnx"
-    tts_backends: list[TtsBackendName] | None = None
     device: Device = "auto"
     run_from_stage: PipelineStageName = "stage1"
     run_to_stage: PipelineStageName = "task-g"
@@ -523,7 +517,7 @@ class PipelineRequest:
     output_sample_rate: int = 24_000
     background_gain_db: float = -8.0
     window_ducking_db: float = -3.0
-    max_compress_ratio: float = DEFAULT_RENDER_MAX_COMPRESS_RATIO
+    max_compress_ratio: float = 1.45
     speaker_limit: int = 0
     segments_per_speaker: int = 0
     separation_mode: Mode = "dialogue"
@@ -553,7 +547,6 @@ class PipelineRequest:
     )
 
     def normalized(self) -> "PipelineRequest":
-        tts_backends = _dedupe([self.tts_backend, *(self.tts_backends or [])])
         return PipelineRequest(
             input_path=Path(self.input_path).expanduser().resolve(),
             output_root=Path(self.output_root).expanduser().resolve(),
@@ -577,8 +570,7 @@ class PipelineRequest:
             target_lang=self.target_lang,
             translation_backend=self.translation_backend,
             translation_batch_size=int(self.translation_batch_size),
-            tts_backend=tts_backends[0],
-            tts_backends=tts_backends,
+            tts_backend=self.tts_backend,
             device=self.device,
             run_from_stage=self.run_from_stage,
             run_to_stage=self.run_to_stage,
@@ -628,14 +620,6 @@ class PipelineRequest:
             bilingual_export_strategy=self.bilingual_export_strategy,
             transcription_correction=cast(TranscriptionCorrectionConfig, dict(self.transcription_correction)),
         )
-
-
-def _dedupe(values: list[Any]) -> list[Any]:
-    result: list[Any] = []
-    for value in values:
-        if value not in result:
-            result.append(value)
-    return result
 
 
 @dataclass(slots=True)
