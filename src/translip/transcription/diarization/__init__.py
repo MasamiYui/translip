@@ -1,23 +1,16 @@
 from __future__ import annotations
 
 from .base import DiarizationBackend, DiarizationResult, DiarizedTurn
-from .factory import create_backend
-from .projection import (
-    assign_turns_to_segments,
-    refine_with_change_detection,
-    refine_with_min_turn,
-    refine_with_neighbor_merge,
-    refine_with_voice_voting,
-)
+from .factory import available_backends, create_backend, resolve_backend_name
+from .projection import assign_turns_to_segments, refine_with_change_detection
 
 __all__ = [
     "DiarizationBackend",
     "DiarizationResult",
     "DiarizedTurn",
     "assign_turns_to_segments",
+    "available_backends",
     "create_backend",
     "refine_with_change_detection",
-    "refine_with_min_turn",
-    "refine_with_neighbor_merge",
-    "refine_with_voice_voting",
+    "resolve_backend_name",
 ]

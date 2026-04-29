@@ -4,6 +4,7 @@ import logging
 import shutil
 import subprocess
 import tempfile
+from importlib import util as importlib_util
 from pathlib import Path
 
 from ..asr import AsrSegment
@@ -15,24 +16,53 @@ MODELSCOPE_PIPELINE_ID = "iic/speech_campplus_speaker-diarization_common"
 _TARGET_SAMPLE_RATE = 16000
 
 
+def _has_module(name: str) -> bool:
+    try:
+        return importlib_util.find_spec(name) is not None
+    except ValueError:  # pragma: no cover - defensive; malformed spec names
+        return False
+
+
 class ThreeDSpeakerBackend(DiarizationBackend):
-    """3D-Speaker / CAM++ based diarization via modelscope."""
+    """3D-Speaker / CAM++ based diarization via modelscope.
+
+    Preferred backend on Chinese content (see research report).  If the
+    modelscope/funasr stack is not installed or the pipeline fails to load,
+    :meth:`is_available` returns ``False`` so the factory can fall back to
+    the legacy backend without breaking the pipeline.
+    """
 
     name = "threed_speaker"
 
     def __init__(self, *, pipeline_id: str = MODELSCOPE_PIPELINE_ID) -> None:
         self.pipeline_id = pipeline_id
         self._pipeline = None
+        self._last_error: str | None = None
 
-    def _ensure_pipeline(self) -> None:
+    def is_available(self) -> bool:
         if self._pipeline is not None:
-            return
-        from modelscope.pipelines import pipeline as ms_pipeline
+            return True
+        if not _has_module("modelscope"):
+            self._last_error = "modelscope is not installed"
+            return False
+        try:
+            # Import lazily to avoid heavy dependencies at import time.
+            from modelscope.pipelines import pipeline as ms_pipeline  # type: ignore
 
-        self._pipeline = ms_pipeline(
-            task="speaker-diarization",
-            model=self.pipeline_id,
-        )
+            self._pipeline = ms_pipeline(
+                task="speaker-diarization",
+                model=self.pipeline_id,
+            )
+            return True
+        except Exception as exc:  # pragma: no cover - environment dependent
+            self._last_error = f"failed to load modelscope pipeline: {exc}"
+            logger.warning(
+                "ThreeDSpeakerBackend unavailable (pipeline_id=%s): %s",
+                self.pipeline_id,
+                exc,
+            )
+            self._pipeline = None
+            return False
 
     def diarize(
         self,
@@ -41,8 +71,11 @@ class ThreeDSpeakerBackend(DiarizationBackend):
         segments: list[AsrSegment],
         requested_device: str,
     ) -> DiarizationResult:
-        self._ensure_pipeline()
-        assert self._pipeline is not None
+        if not self.is_available() or self._pipeline is None:
+            raise RuntimeError(
+                "ThreeDSpeakerBackend is not available: "
+                f"{self._last_error or 'unknown reason'}"
+            )
 
         # Newer torchaudio releases removed ``sox_effects`` which the
         # modelscope CAM++ pipeline relies on for resampling.  We prepare a

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import importlib
-
 import numpy as np
 import pytest
 
@@ -11,9 +10,14 @@ from translip.transcription.diarization import (
     assign_turns_to_segments,
     create_backend,
     refine_with_change_detection,
-    refine_with_min_turn,
-    refine_with_neighbor_merge,
-    refine_with_voice_voting,
+    resolve_backend_name,
+)
+from translip.transcription.diarization.legacy_ecapa import (
+    _contiguous_turns,
+    _maybe_recluster,
+    _nearest_labelled,
+    _resolve_recluster_mode,
+    _stitch_noise,
 )
 from translip.transcription.diarization.threed_speaker import (
     ThreeDSpeakerBackend,
@@ -104,10 +108,43 @@ def test_refine_leaves_long_middle_segment_untouched() -> None:
     assert outcome.segment_speaker_ids == [0, 1, 0]
 
 
-def test_create_backend_returns_threed_speaker() -> None:
-    backend = create_backend()
-    assert isinstance(backend, ThreeDSpeakerBackend)
-    assert backend.name == "threed_speaker"
+def test_contiguous_turns_merges_consecutive_same_speaker() -> None:
+    segments = [
+        _segment("seg-0001", 0.0, 1.0),
+        _segment("seg-0002", 1.0, 2.0),
+        _segment("seg-0003", 2.0, 3.0),
+    ]
+    turns = _contiguous_turns(segments, [3, 3, 7])
+    assert len(turns) == 2
+    assert turns[0].speaker_id == 3
+    assert turns[1].speaker_id == 7
+    assert turns[-1].end == 3.0
+
+
+def test_resolve_backend_name_honours_aliases() -> None:
+    assert resolve_backend_name("ECAPA") == "legacy_ecapa"
+    assert resolve_backend_name("3d-speaker") == "threed_speaker"
+    assert resolve_backend_name(None) == "auto"
+    assert resolve_backend_name("unknown") == "auto"
+
+
+def test_create_backend_legacy_always_available() -> None:
+    backend = create_backend("legacy_ecapa")
+    assert backend.is_available()
+    assert backend.name == "legacy_ecapa"
+
+
+def test_create_backend_auto_falls_back_when_modelscope_missing(monkeypatch) -> None:
+    import translip.transcription.diarization.factory as factory_module
+    from translip.transcription.diarization import threed_speaker as ts_module
+
+    def fake_is_available(self: ts_module.ThreeDSpeakerBackend) -> bool:
+        self._last_error = "disabled in tests"
+        return False
+
+    monkeypatch.setattr(ts_module.ThreeDSpeakerBackend, "is_available", fake_is_available)
+    backend = factory_module.create_backend("auto")
+    assert backend.name == "legacy_ecapa"
 
 
 def test_threed_speaker_normalizers() -> None:
@@ -140,6 +177,19 @@ def test_threed_speaker_normalizers() -> None:
     ]
 
 
+def test_legacy_backend_reproduces_single_speaker_short_audio() -> None:
+    segments = [
+        _segment("seg-0001", 0.0, 1.0),
+        _segment("seg-0002", 1.0, 2.0),
+    ]
+    # We only validate that _contiguous_turns degenerates to a single turn for
+    # uniform clusters; the full backend is exercised via integration tests.
+    turns = _contiguous_turns(segments, [0, 0])
+    assert len(turns) == 1
+    assert turns[0].start == 0.0
+    assert turns[0].end == 2.0
+
+
 def test_projection_handles_no_turns_gracefully() -> None:
     segments = [_segment("seg-0001", 0.0, 1.0)]
     outcome = assign_turns_to_segments(segments, [])
@@ -166,12 +216,20 @@ def test_assign_speaker_labels_empty_segments() -> None:
 
     from translip.transcription.speaker import assign_speaker_labels
 
-    labels, meta = assign_speaker_labels(
-        Path("/tmp/does-not-matter.wav"), [], requested_device="cpu"
-    )
+    labels, meta = assign_speaker_labels(Path("/tmp/does-not-matter.wav"), [], requested_device="cpu")
     assert labels == []
     assert meta["speaker_count"] == 0
-    assert meta["diarization_backend"] == "threed_speaker"
+    assert meta["diarization_backend"] in {"auto", "legacy_ecapa", "threed_speaker"}
+
+
+def test_pairwise_similarities_upper_triangle() -> None:
+    # Regression guard for the legacy ECAPA helpers that other tests depend on.
+    from translip.transcription.speaker import _pairwise_similarities
+
+    matrix = np.eye(3, dtype=np.float32)
+    sims = _pairwise_similarities(matrix)
+    assert sims.shape == (3,)
+    assert np.allclose(sims, 0.0)
 
 
 def test_ensure_mono_16k_wav_returns_valid_wav(tmp_path) -> None:
@@ -208,160 +266,173 @@ def test_ensure_mono_16k_wav_handles_missing_ffmpeg(monkeypatch, tmp_path) -> No
     assert out == src  # falls back gracefully without raising
 
 
+def test_threed_speaker_is_available_reports_missing_modelscope(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "translip.transcription.diarization.threed_speaker._has_module",
+        lambda name: False,
+    )
+    backend = ThreeDSpeakerBackend()
+    assert backend.is_available() is False
+    assert backend._last_error and "modelscope" in backend._last_error.lower()
+
+
 @pytest.mark.skipif(
     importlib.util.find_spec("modelscope") is None,
     reason="modelscope not installed; skipping live CAM++ integration probe",
 )
 def test_threed_speaker_can_instantiate_pipeline() -> None:
-    """Integration guard: when modelscope is available, ``_ensure_pipeline``
-    must successfully load the CAM++ pipeline without raising.
+    """Integration guard: when modelscope is available, ``is_available`` must
+    successfully load the CAM++ pipeline without raising.
 
     This does not run diarization (no audio fixture ≥30 s in tests/), but it
     ensures the optional dependency + pipeline id combination stays healthy.
     """
 
     backend = ThreeDSpeakerBackend()
-    backend._ensure_pipeline()
+    assert backend.is_available() is True
     assert backend._pipeline is not None
 
 
-def test_refine_with_neighbor_merge_counts_adjacent_same_speaker() -> None:
-    segments = [
-        _segment("seg-0001", 0.0, 1.0),
-        _segment("seg-0002", 1.05, 2.0),
-        _segment("seg-0003", 2.1, 3.0),
-        _segment("seg-0004", 4.0, 5.0),
-    ]
-    turns = [
-        DiarizedTurn(start=0.0, end=3.0, speaker_id=0),
-        DiarizedTurn(start=4.0, end=5.0, speaker_id=1),
-    ]
-    outcome = assign_turns_to_segments(segments, turns)
-    outcome = refine_with_neighbor_merge(outcome, max_gap_sec=0.3)
-    assert outcome.stats["neighbor_merge_candidates"] == 2
-    assert outcome.stats["speaker_run_count"] == 2
-    assert outcome.stats["max_run_length"] == 3
-    assert outcome.segment_speaker_ids == [0, 0, 0, 1]
-
-
-def test_refine_with_min_turn_absorbs_short_sandwich() -> None:
-    segments = [
-        _segment("seg-0001", 0.0, 2.0),
-        _segment("seg-0002", 2.0, 2.4),
-        _segment("seg-0003", 2.4, 4.5),
-    ]
-    turns = [
-        DiarizedTurn(start=0.0, end=2.0, speaker_id=0),
-        DiarizedTurn(start=2.0, end=2.4, speaker_id=1),
-        DiarizedTurn(start=2.4, end=4.5, speaker_id=0),
-    ]
-    outcome = assign_turns_to_segments(segments, turns)
-    outcome = refine_with_min_turn(outcome, min_turn_sec=0.8)
-    assert outcome.segment_speaker_ids == [0, 0, 0]
-    assert outcome.stats["min_turn_absorbed"] == 1
-
-
-def test_refine_with_min_turn_folds_into_longer_neighbour() -> None:
-    segments = [
-        _segment("seg-0001", 0.0, 3.0),
-        _segment("seg-0002", 3.0, 3.3),
-        _segment("seg-0003", 3.3, 4.0),
-    ]
-    turns = [
-        DiarizedTurn(start=0.0, end=3.0, speaker_id=0),
-        DiarizedTurn(start=3.0, end=3.3, speaker_id=1),
-        DiarizedTurn(start=3.3, end=4.0, speaker_id=2),
-    ]
-    outcome = assign_turns_to_segments(segments, turns)
-    outcome = refine_with_min_turn(outcome, min_turn_sec=0.8)
-    # Middle 0.3s island should fold into the longer neighbour (speaker 0).
-    assert outcome.segment_speaker_ids == [0, 0, 2]
-    assert outcome.stats["min_turn_absorbed"] == 1
-
-
-def test_refine_with_voice_voting_reassigns_low_similarity(tmp_path) -> None:
-    import soundfile as sf
-
-    sample_rate = 16_000
-    duration_sec = 0.5
-    waveform = np.zeros(int(sample_rate * duration_sec * 5), dtype=np.float32)
-    audio_path = tmp_path / "voting.wav"
-    sf.write(audio_path, waveform, sample_rate, subtype="PCM_16")
-
-    segments = [
-        _segment("seg-0001", 0.0, 0.5),
-        _segment("seg-0002", 0.5, 1.0),
-        _segment("seg-0003", 1.0, 1.5),
-        _segment("seg-0004", 1.5, 2.0),
-        _segment("seg-0005", 2.0, 2.5),
-    ]
-    turns = [
-        DiarizedTurn(start=0.0, end=0.5, speaker_id=0),
-        DiarizedTurn(start=0.5, end=1.0, speaker_id=0),
-        DiarizedTurn(start=1.0, end=1.5, speaker_id=1),
-        DiarizedTurn(start=1.5, end=2.0, speaker_id=1),
-        DiarizedTurn(start=2.0, end=2.5, speaker_id=1),
-    ]
-    outcome = assign_turns_to_segments(segments, turns)
-
-    speaker_zero = np.array([1.0, 0.0], dtype=np.float32)
-    speaker_one = np.array([0.0, 1.0], dtype=np.float32)
-    # Seg-0003 is labelled as speaker 1 but actually resembles speaker 0.
-    ordered_embeddings = [
-        speaker_zero,
-        speaker_zero,
-        speaker_zero,
-        speaker_one,
-        speaker_one,
-    ]
-
-    class _StubEmbedder:
-        def __init__(self) -> None:
-            self._index = 0
-
-        def encode(self, clip: np.ndarray, sr: int) -> np.ndarray:
-            embedding = ordered_embeddings[self._index]
-            self._index += 1
-            return embedding.astype(np.float32)
-
-    outcome = refine_with_voice_voting(
-        outcome,
-        audio_path=audio_path,
-        embedder=_StubEmbedder(),
-        low_conf_threshold=0.5,
-        reassign_threshold=0.8,
+def test_resolve_speaker_embedder_name_prefers_auto(monkeypatch) -> None:
+    from translip.speaker_embedding import (
+        ECAPA_EMBEDDER_NAME,
+        ERES2NETV2_EMBEDDER_NAME,
+        resolve_speaker_embedder_name,
     )
-    assert outcome.stats["voice_voting_reassigned"] == 1
-    assert outcome.stats["voice_voting_low_conf"] >= 1
-    assert outcome.segment_speaker_ids == [0, 0, 0, 1, 1]
 
+    monkeypatch.delenv("TRANSLIP_SPEAKER_EMBEDDER", raising=False)
 
-def test_refine_with_voice_voting_keeps_labels_when_embedder_fails(tmp_path) -> None:
-    import soundfile as sf
-
-    waveform = np.zeros(16_000, dtype=np.float32)
-    audio_path = tmp_path / "silence.wav"
-    sf.write(audio_path, waveform, 16_000, subtype="PCM_16")
-
-    segments = [
-        _segment("seg-0001", 0.0, 0.5),
-        _segment("seg-0002", 0.5, 1.0),
-    ]
-    turns = [
-        DiarizedTurn(start=0.0, end=0.5, speaker_id=0),
-        DiarizedTurn(start=0.5, end=1.0, speaker_id=1),
-    ]
-    outcome = assign_turns_to_segments(segments, turns)
-
-    class _NullEmbedder:
-        def encode(self, clip: np.ndarray, sr: int) -> None:
-            return None
-
-    before = list(outcome.segment_speaker_ids)
-    outcome = refine_with_voice_voting(
-        outcome,
-        audio_path=audio_path,
-        embedder=_NullEmbedder(),
+    monkeypatch.setattr(
+        "translip.speaker_embedding._has_module",
+        lambda name: name in {"modelscope", "funasr"},
     )
-    assert outcome.segment_speaker_ids == before
-    assert outcome.stats["voice_voting_reassigned"] == 0
+    assert resolve_speaker_embedder_name() == ERES2NETV2_EMBEDDER_NAME
+
+    monkeypatch.setattr("translip.speaker_embedding._has_module", lambda _name: False)
+    assert resolve_speaker_embedder_name() == ECAPA_EMBEDDER_NAME
+
+
+def test_resolve_speaker_embedder_name_respects_explicit_choice(monkeypatch) -> None:
+    from translip.speaker_embedding import (
+        ECAPA_EMBEDDER_NAME,
+        ERES2NETV2_EMBEDDER_NAME,
+        resolve_speaker_embedder_name,
+    )
+
+    assert resolve_speaker_embedder_name("speechbrain-ecapa") == ECAPA_EMBEDDER_NAME
+    assert resolve_speaker_embedder_name("eres2netv2") == ERES2NETV2_EMBEDDER_NAME
+    assert resolve_speaker_embedder_name("eres2net") == ERES2NETV2_EMBEDDER_NAME
+    assert resolve_speaker_embedder_name("unknown") == ECAPA_EMBEDDER_NAME
+
+
+def test_get_speaker_embedder_falls_back_when_eres2net_fails(monkeypatch) -> None:
+    from translip import speaker_embedding as se
+
+    se._cached_embedder.cache_clear()
+
+    class _StubEcapa(se.SpeakerEmbedder):
+        name = se.ECAPA_EMBEDDER_NAME
+        embedding_dim = 192
+
+        def __init__(self, device: str) -> None:
+            self._device = device
+
+        def encode(self, clip, sample_rate):
+            return np.zeros(192, dtype=np.float32)
+
+    def _boom() -> None:
+        raise RuntimeError("modelscope unavailable")
+
+    monkeypatch.setattr(se, "_EcapaEmbedder", _StubEcapa)
+    monkeypatch.setattr(se, "_Eres2NetV2Embedder", lambda: _boom())
+
+    embedder = se.get_speaker_embedder("cpu", name="eres2netv2")
+    assert isinstance(embedder, _StubEcapa)
+    assert embedder.name == se.ECAPA_EMBEDDER_NAME
+
+    se._cached_embedder.cache_clear()
+
+
+def test_resolve_recluster_mode(monkeypatch) -> None:
+    monkeypatch.delenv("TRANSLIP_DIARIZATION_RECLUSTER", raising=False)
+    assert _resolve_recluster_mode() == "off"
+    assert _resolve_recluster_mode("hdbscan") == "hdbscan"
+    assert _resolve_recluster_mode("HDBSCAN") == "hdbscan"
+    assert _resolve_recluster_mode("off") == "off"
+    assert _resolve_recluster_mode("unknown") == "off"
+    if importlib.util.find_spec("hdbscan") is not None:
+        assert _resolve_recluster_mode("auto") == "hdbscan"
+    else:
+        assert _resolve_recluster_mode("auto") == "off"
+
+
+def test_maybe_recluster_off_returns_input() -> None:
+    matrix = np.eye(4, dtype=np.float32)
+    cluster_ids = np.array([0, 0, 1, 1], dtype=np.int32)
+    out, info = _maybe_recluster(matrix, cluster_ids, "off")
+    assert info["recluster"] == "off"
+    assert np.array_equal(out, cluster_ids)
+
+
+def test_maybe_recluster_handles_missing_hdbscan(monkeypatch) -> None:
+    matrix = np.random.default_rng(0).normal(size=(6, 16)).astype(np.float32)
+    cluster_ids = np.array([0, 0, 1, 1, 2, 2], dtype=np.int32)
+
+    import builtins
+
+    real_import = builtins.__import__
+
+    def _fake_import(name, *args, **kwargs):
+        if name == "hdbscan":
+            raise ImportError("mocked missing hdbscan")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", _fake_import)
+
+    out, info = _maybe_recluster(matrix, cluster_ids, "hdbscan")
+    assert info["recluster"] == "off"
+    assert info["recluster_error"] == "hdbscan-missing"
+    assert np.array_equal(out, cluster_ids)
+
+
+@pytest.mark.skipif(
+    importlib.util.find_spec("hdbscan") is None,
+    reason="hdbscan not installed; skipping reclustering integration probe",
+)
+def test_maybe_recluster_with_hdbscan_splits_well_separated_speakers() -> None:
+    """Two tight clusters of ECAPA-sized embeddings must survive reclustering."""
+
+    rng = np.random.default_rng(7)
+    cluster_a = rng.normal(loc=0.0, scale=0.05, size=(6, 32)).astype(np.float32)
+    cluster_b = rng.normal(loc=5.0, scale=0.05, size=(6, 32)).astype(np.float32)
+    matrix = np.concatenate([cluster_a, cluster_b], axis=0)
+    prior_ids = np.zeros(len(matrix), dtype=np.int32)
+    prior_ids[len(cluster_a):] = 1
+
+    refined, info = _maybe_recluster(matrix, prior_ids, "hdbscan")
+    assert info["recluster"] in {"hdbscan", "hdbscan-skipped"}
+    assert refined.shape == prior_ids.shape
+    assert int(info["recluster_clusters_refined"]) >= 2
+
+
+def test_stitch_noise_backfills_outliers() -> None:
+    refined = np.array([-1, 0, 0, -1, 1, -1], dtype=np.int32)
+    fallback = np.array([9, 9, 9, 9, 9, 9], dtype=np.int32)
+    out = _stitch_noise(refined, fallback)
+    assert -1 not in out.tolist()
+    # First slot has no left neighbour -> inherits right neighbour (0).
+    assert out[0] == 0
+    # All-noise fallback uses the Agglomerative label for the *first* slot;
+    # subsequent slots inherit through the already-filled left neighbour,
+    # which is the documented propagation behaviour.
+    all_noise = np.array([-1, -1], dtype=np.int32)
+    fb = np.array([3, 7], dtype=np.int32)
+    stitched = _stitch_noise(all_noise, fb)
+    assert stitched.tolist() == [3, 3]
+
+
+def test_nearest_labelled_boundaries() -> None:
+    arr = np.array([-1, -1, 4, -1, -1], dtype=np.int32)
+    assert _nearest_labelled(arr, 0, 1) == 4
+    assert _nearest_labelled(arr, 4, -1) == 4
+    assert _nearest_labelled(arr, 0, -1) is None

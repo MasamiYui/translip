@@ -1,14 +1,16 @@
 import json
 from pathlib import Path
 
+import numpy as np
+
 from translip.transcription.export import (
     build_transcription_manifest,
     segments_payload,
     write_segments_srt,
 )
-from translip.transcription.speaker import _stable_relabel
+from translip.transcription.speaker import _cluster_embeddings, _expanded_window, _stable_relabel
 from translip.types import MediaInfo, TranscriptionRequest, TranscriptionSegment
-from translip.transcription.asr import resolve_faster_whisper_model_path
+from translip.transcription.asr import AsrSegment, resolve_faster_whisper_model_path
 
 
 def test_stable_relabel_preserves_first_seen_order() -> None:
@@ -19,6 +21,33 @@ def test_stable_relabel_preserves_first_seen_order() -> None:
         "SPEAKER_00",
         "SPEAKER_02",
     ]
+
+
+def test_cluster_embeddings_merges_high_similarity_vectors() -> None:
+    embeddings = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [0.98, 0.05, 0.0],
+            [0.0, 1.0, 0.0],
+        ],
+        dtype=np.float32,
+    )
+    embeddings /= np.linalg.norm(embeddings, axis=1, keepdims=True)
+    labels = _cluster_embeddings(embeddings)
+    assert labels[0] == labels[1]
+    assert labels[0] != labels[2]
+
+
+def test_expanded_window_hits_min_duration() -> None:
+    segment = AsrSegment(
+        segment_id="seg-0001",
+        start=1.0,
+        end=1.3,
+        text="你好",
+        language="zh",
+    )
+    window = _expanded_window(segment, audio_duration=10.0)
+    assert round(window.end - window.start, 3) >= 1.6
 
 
 def test_segments_payload_and_manifest_shape(tmp_path: Path) -> None:

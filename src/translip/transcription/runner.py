@@ -73,6 +73,7 @@ def transcribe_file(
             working_audio,
             asr_segments,
             requested_device=normalized_request.device,
+            backend=normalized_request.diarization_backend,
         )
         metadata = {**asr_metadata, **speaker_metadata, "segment_count": len(asr_segments)}
 
