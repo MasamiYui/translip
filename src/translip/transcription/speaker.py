@@ -232,79 +232,66 @@ def assign_speaker_labels(
     segments: list[AsrSegment],
     *,
     requested_device: str,
-    backend: str | None = None,
 ) -> tuple[list[str], dict[str, int | float | str]]:
-    """Assign speaker labels by running diarization and projecting onto ASR segments.
-
-    The actual diarization is delegated to a pluggable backend
-    (:mod:`translip.transcription.diarization`).  Legacy callers can keep
-    the historic ECAPA+Agglomerative behaviour by setting
-    ``backend="legacy_ecapa"`` or via the ``TRANSLIP_DIARIZATION_BACKEND``
-    environment variable; ``"auto"`` prefers the Chinese-optimised
-    3D-Speaker pipeline and falls back to ``legacy_ecapa`` when the
-    optional modelscope dependency is unavailable.
-    """
-
-    from .diarization import (
-        assign_turns_to_segments,
-        create_backend,
-        refine_with_change_detection,
-        resolve_backend_name,
-    )
-
     if not segments:
-        return [], {
+        return [], {"speaker_backend": "speechbrain-ecapa", "speaker_count": 0}
+
+    waveform, sample_rate = read_audio_mono(audio_path)
+    audio_duration = len(waveform) / float(sample_rate)
+    device = resolve_speaker_device(requested_device)
+    classifier = load_speechbrain_classifier(device)
+
+    groups = _build_embedding_groups(segments)
+    embeddings: list[np.ndarray | None] = []
+    for group in groups:
+        window = _expanded_bounds(group.start, group.end, audio_duration=audio_duration, min_window_sec=2.0)
+        embeddings.append(_segment_embedding(classifier, waveform, sample_rate, window))
+
+    valid_indices = [index for index, value in enumerate(embeddings) if value is not None]
+    if not valid_indices:
+        labels = ["SPEAKER_00"] * len(segments)
+        return labels, {
             "speaker_backend": "speechbrain-ecapa",
-            "diarization_backend": resolve_backend_name(backend),
-            "speaker_count": 0,
+            "speaker_device": device,
+            "speaker_count": 1 if segments else 0,
+            "valid_embeddings": 0,
+            "group_count": len(groups),
         }
 
-    diarizer = create_backend(backend)
-    result = diarizer.diarize(
-        audio_path,
-        segments=segments,
-        requested_device=requested_device,
-    )
+    matrix = np.stack([embeddings[index] for index in valid_indices]).astype(np.float32)
+    valid_cluster_ids = _cluster_embeddings(matrix)
 
-    outcome = assign_turns_to_segments(segments, result.turns)
-    outcome = refine_with_change_detection(outcome)
+    group_cluster_ids: list[int | None] = [None] * len(groups)
+    for group_index, cluster_id in zip(valid_indices, valid_cluster_ids, strict=True):
+        group_cluster_ids[group_index] = int(cluster_id)
 
-    # task-a's public contract guarantees a one-to-one mapping with the
-    # original ASR segments; merge any turn-boundary splits back to the
-    # dominant label of the parent segment.
-    labels_by_index: dict[str, list[int]] = {}
-    for seg, speaker_id in zip(outcome.segments, outcome.segment_speaker_ids, strict=True):
-        parent_id = seg.segment_id.split("-")[0:2]
-        key = "-".join(parent_id)
-        labels_by_index.setdefault(key, []).append(speaker_id)
-
-    speaker_ids_per_segment: list[int] = []
-    for segment in segments:
-        votes = labels_by_index.get(segment.segment_id, [])
-        if not votes:
-            votes = [0]
-        speaker_ids_per_segment.append(_majority(votes))
-
-    labels = _stable_relabel(speaker_ids_per_segment)
-    metadata: dict[str, int | float | str] = {
-        "speaker_backend": str(result.metadata.get("speaker_backend", "speechbrain-ecapa")),
-        "diarization_backend": diarizer.name,
-        "speaker_count": len(set(labels)),
-    }
-    # Surface backend-specific telemetry without clobbering core fields.
-    for key, value in result.metadata.items():
-        if key in {"speaker_backend", "speaker_count"}:
+    fallback_cluster = int(valid_cluster_ids[0]) if len(valid_cluster_ids) else 0
+    for index, cluster_id in enumerate(group_cluster_ids):
+        if cluster_id is not None:
             continue
-        if isinstance(value, (int, float, str)):
-            metadata[f"diarization_{key}"] = value
-    metadata["diarization_turn_count"] = len(result.turns)
-    metadata["diarization_split_segments"] = int(outcome.stats.get("split_segment_count", 0))
-    metadata["diarization_fallback_segments"] = int(outcome.stats.get("fallback_segment_count", 0))
-    return labels, metadata
+        nearest_index = min(valid_indices, key=lambda other: abs(other - index))
+        group_cluster_ids[index] = (
+            group_cluster_ids[nearest_index]
+            if group_cluster_ids[nearest_index] is not None
+            else fallback_cluster
+        )
 
+    final_group_cluster_ids = [
+        int(cluster_id if cluster_id is not None else fallback_cluster)
+        for cluster_id in group_cluster_ids
+    ]
+    final_cluster_ids = [0] * len(segments)
+    for group, group_cluster_id in zip(groups, final_group_cluster_ids, strict=True):
+        for segment_index in group.segment_indices:
+            final_cluster_ids[segment_index] = group_cluster_id
 
-def _majority(values: list[int]) -> int:
-    counts: dict[int, int] = {}
-    for value in values:
-        counts[value] = counts.get(value, 0) + 1
-    return max(counts.items(), key=lambda item: (item[1], -item[0]))[0]
+    final_cluster_ids = _smooth_cluster_ids(final_cluster_ids, segments)
+    labels = _stable_relabel(final_cluster_ids)
+    speaker_count = len(set(labels))
+    return labels, {
+        "speaker_backend": "speechbrain-ecapa",
+        "speaker_device": device,
+        "speaker_count": speaker_count,
+        "valid_embeddings": len(valid_indices),
+        "group_count": len(groups),
+    }
