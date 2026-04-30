@@ -6,9 +6,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from ..characters.ledger import CharacterLedgerRequest, CharacterLedgerResult, build_character_ledger
 from ..dubbing.planning import pick_segment_ids_for_speaker, pick_task_d_speaker_ids
 from ..dubbing.voice_bank import VoiceBankRequest, build_voice_bank
 from ..exceptions import TranslipError
+from ..quality import DubBenchmarkRequest, DubBenchmarkResult, build_dub_benchmark
 from ..repair import RepairPlanRequest, RepairRunRequest, plan_dub_repair, run_dub_repair
 from ..types import PipelineRequest, PipelineResult, PipelineStageName
 from ..translation.backend import output_tag_for_language
@@ -401,9 +403,19 @@ def execute_stage(
     if stage == "task-e":
         task_d_manifest = _load_json(task_d_stage_manifest_path(request))
         task_d_reports = [Path(path) for path in task_d_manifest.get("reports", [])]
+        character_ledger_result = _build_character_ledger_for_task_e(
+            request=request,
+            task_d_reports=task_d_reports,
+            monitor=monitor,
+        )
         selected_segments_path = _run_dub_repair_for_task_e(
             request=request,
             task_d_reports=task_d_reports,
+            character_ledger_path=(
+                character_ledger_result.artifacts.ledger_path
+                if character_ledger_result is not None
+                else None
+            ),
             monitor=monitor,
         )
         monitor.update_stage_progress(stage, 5.0, "rendering dub timeline")
@@ -421,8 +433,24 @@ def execute_stage(
             str(task_e_timeline_path(request)),
             str(task_e_mix_report_path(request)),
         ]
+        if character_ledger_result is not None:
+            artifact_paths.extend([
+                str(character_ledger_result.artifacts.ledger_path),
+                str(character_ledger_result.artifacts.report_path),
+                str(character_ledger_result.artifacts.manifest_path),
+            ])
         if selected_segments_path is not None:
             artifact_paths.append(str(selected_segments_path))
+        benchmark_result = _build_dub_benchmark_for_task_e(
+            request=request,
+            monitor=monitor,
+        )
+        if benchmark_result is not None:
+            artifact_paths.extend([
+                str(benchmark_result.artifacts.benchmark_path),
+                str(benchmark_result.artifacts.report_path),
+                str(benchmark_result.artifacts.manifest_path),
+            ])
         return {
             "manifest_path": str(task_e_manifest_path(request)),
             "artifact_paths": artifact_paths,
@@ -432,10 +460,53 @@ def execute_stage(
     raise ValueError(f"Unsupported stage: {stage}")
 
 
+def _build_character_ledger_for_task_e(
+    *,
+    request: PipelineRequest,
+    task_d_reports: list[Path],
+    monitor: PipelineMonitor,
+) -> CharacterLedgerResult | None:
+    if not task_d_reports:
+        return None
+    try:
+        monitor.update_stage_progress("task-e", 0.5, "building character ledger")
+        return build_character_ledger(
+            CharacterLedgerRequest(
+                profiles_path=task_b_profiles_path(request),
+                task_d_report_paths=task_d_reports,
+                output_dir=request.output_root / "task-d" / "voice" / "character-ledger",
+                target_lang=request.target_lang,
+            )
+        )
+    except Exception as exc:  # pragma: no cover - diagnostics should not block baseline render
+        logger.exception("Character ledger generation failed before Task E: %s", exc)
+        return None
+
+
+def _build_dub_benchmark_for_task_e(
+    *,
+    request: PipelineRequest,
+    monitor: PipelineMonitor,
+) -> DubBenchmarkResult | None:
+    try:
+        monitor.update_stage_progress("task-e", 95.0, "building dub benchmark")
+        return build_dub_benchmark(
+            DubBenchmarkRequest(
+                pipeline_root=request.output_root,
+                output_dir=request.output_root / "benchmark" / "voice",
+                target_lang=request.target_lang,
+            )
+        )
+    except Exception as exc:  # pragma: no cover - diagnostics should not block baseline render
+        logger.exception("Dub benchmark generation failed after Task E: %s", exc)
+        return None
+
+
 def _run_dub_repair_for_task_e(
     *,
     request: PipelineRequest,
     task_d_reports: list[Path],
+    character_ledger_path: Path | None,
     monitor: PipelineMonitor,
 ) -> Path | None:
     if not request.dub_repair_enabled:
@@ -468,6 +539,7 @@ def _run_dub_repair_for_task_e(
                 repair_queue_path=plan_result.artifacts.repair_queue_path,
                 rewrite_plan_path=plan_result.artifacts.rewrite_plan_path,
                 reference_plan_path=plan_result.artifacts.reference_plan_path,
+                character_ledger_path=character_ledger_path,
                 output_dir=run_dir,
                 tts_backends=_repair_backends_for_request(request),
                 device=request.device,

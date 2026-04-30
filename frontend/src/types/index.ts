@@ -361,6 +361,29 @@ export interface DubbingReviewRepairItem {
   decision?: DubbingReviewDecision | null
 }
 
+export interface DubbingReviewCharacter {
+  character_id: string
+  display_name: string
+  speaker_ids: string[]
+  source_label?: string | null
+  profile_id?: string | null
+  reference_path?: string | null
+  pitch_class?: string | null
+  pitch_hz?: number | null
+  review_status: string
+  risk_flags: string[]
+  stats: Record<string, unknown>
+}
+
+export interface DubbingQualityBenchmark {
+  version?: string | null
+  status?: string | null
+  score?: number | null
+  reasons: string[]
+  metrics: Record<string, unknown>
+  gates: Array<Record<string, unknown>>
+}
+
 export interface DubbingReviewResponse {
   task_id: string
   target_lang: string
@@ -372,9 +395,14 @@ export interface DubbingReviewResponse {
     reference_decision_count: number
     merge_decision_count: number
     repair_decision_count: number
+    quality_status?: string | null
+    quality_score?: number | null
+    character_review_count?: number
   }
   stats: Record<string, unknown>
   artifact_paths: Record<string, string>
+  quality_benchmark?: DubbingQualityBenchmark | null
+  characters: DubbingReviewCharacter[]
   speakers: DubbingReviewSpeaker[]
   merge_candidates: DubbingReviewMergeCandidate[]
   repair_items: DubbingReviewRepairItem[]

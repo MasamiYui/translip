@@ -126,6 +126,79 @@ def test_task_e_command_passes_selected_repair_segments(tmp_path: Path) -> None:
     assert str(selected_path) in command
 
 
+def test_execute_task_e_writes_character_ledger_and_dub_benchmark(tmp_path: Path, monkeypatch) -> None:
+    from translip.orchestration.commands import task_d_stage_manifest_path
+    from translip.orchestration.monitor import PipelineMonitor
+    from translip.orchestration.runner import execute_stage
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(input_path=tmp_path / "sample.mp4", output_root=tmp_path / "out")
+    request.input_path.write_text("placeholder", encoding="utf-8")
+    profiles_path = request.output_root / "task-b" / "voice" / "speaker_profiles.json"
+    report_path = request.output_root / "task-d" / "voice" / "spk_0001" / "speaker_segments.en.json"
+    profiles_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    profiles_path.write_text(
+        json.dumps(
+            {
+                "profiles": [
+                    {
+                        "profile_id": "profile_0001",
+                        "speaker_id": "spk_0001",
+                        "source_label": "SPEAKER_01",
+                        "reference_clips": [{"path": str(tmp_path / "missing-reference.wav")}],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    report_path.write_text(json.dumps({"speaker_id": "spk_0001", "segments": []}), encoding="utf-8")
+    manifest_path = task_d_stage_manifest_path(request)
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    manifest_path.write_text(json.dumps({"reports": [str(report_path)]}), encoding="utf-8")
+
+    def fake_run_stage_command(_command, *, log_path):
+        mix_report_path = request.output_root / "task-e" / "voice" / "mix_report.en.json"
+        mix_report_path.parent.mkdir(parents=True, exist_ok=True)
+        mix_report_path.write_text(
+            json.dumps(
+                {
+                    "stats": {
+                        "placed_count": 1,
+                        "skipped_count": 0,
+                        "quality_summary": {
+                            "total_count": 1,
+                            "overall_status_counts": {"passed": 1},
+                            "speaker_status_counts": {"passed": 1},
+                            "intelligibility_status_counts": {"passed": 1},
+                        },
+                        "audible_coverage": {"failed_count": 0, "failed_segment_ids": []},
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        (request.output_root / "task-e" / "voice" / "dub_voice.en.wav").write_bytes(b"")
+        (request.output_root / "task-e" / "voice" / "preview_mix.en.wav").write_bytes(b"")
+        (request.output_root / "task-e" / "voice" / "timeline.en.json").write_text("{}", encoding="utf-8")
+        (request.output_root / "task-e" / "voice" / "task-e-manifest.json").write_text("{}", encoding="utf-8")
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("ok", encoding="utf-8")
+
+    monkeypatch.setattr("translip.orchestration.runner.run_stage_command", fake_run_stage_command)
+
+    monitor = PipelineMonitor(job_id="job-1", status_path=tmp_path / "status.json", write_status=False)
+    result = execute_stage("task-e", request, monitor=monitor)
+
+    ledger_path = request.output_root / "task-d" / "voice" / "character-ledger" / "character_ledger.en.json"
+    benchmark_path = request.output_root / "benchmark" / "voice" / "dub_benchmark.en.json"
+    assert ledger_path.exists()
+    assert benchmark_path.exists()
+    assert str(ledger_path) in result["artifact_paths"]
+    assert str(benchmark_path) in result["artifact_paths"]
+
+
 def test_stage_sequence_respects_from_and_to() -> None:
     stages = resolve_stage_sequence("task-b", "task-d")
     assert stages == ["task-b", "task-c", "task-d"]

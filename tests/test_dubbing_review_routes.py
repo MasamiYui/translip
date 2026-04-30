@@ -38,6 +38,11 @@ def test_dubbing_review_route_aggregates_repair_assets(tmp_path: Path) -> None:
     assert payload["summary"]["speaker_count"] == 1
     assert payload["summary"]["repair_item_count"] == 1
     assert payload["summary"]["merge_candidate_count"] == 1
+    assert payload["summary"]["quality_status"] == "review_required"
+    assert payload["summary"]["quality_score"] == 88.0
+    assert payload["summary"]["character_review_count"] == 1
+    assert payload["quality_benchmark"]["status"] == "review_required"
+    assert payload["characters"][0]["character_id"] == "char_0001"
     assert payload["speakers"][0]["speaker_id"] == "spk_0001"
     assert payload["speakers"][0]["candidates"][0]["artifact_path"] == "task-b/voice/reference_clips/profile_0001/clip_0001.wav"
     assert payload["repair_items"][0]["audio_artifact_path"] == "task-d/voice/spk_0001/segments/seg-0001.wav"
@@ -213,6 +218,49 @@ def _write_review_fixture(output_root: Path) -> None:
                         }
                     ],
                 }
+            ],
+        },
+    )
+    _write_json(
+        output_root / "task-d" / "voice" / "character-ledger" / "character_ledger.en.json",
+        {
+            "target_lang": "en",
+            "stats": {
+                "character_count": 1,
+                "review_count": 1,
+                "blocked_count": 0,
+                "voice_mismatch_count": 1,
+            },
+            "characters": [
+                {
+                    "character_id": "char_0001",
+                    "display_name": "SPEAKER_01",
+                    "speaker_ids": ["spk_0001"],
+                    "voice_signature": {"pitch_class": "low", "pitch_hz": 110.0},
+                    "stats": {"voice_mismatch_count": 1, "speaker_failed_ratio": 1.0},
+                    "risk_flags": ["pitch_class_drift"],
+                    "review_status": "review",
+                }
+            ],
+        },
+    )
+    _write_json(
+        output_root / "benchmark" / "voice" / "dub_benchmark.en.json",
+        {
+            "version": "dub-benchmark-v0",
+            "status": "review_required",
+            "score": 88.0,
+            "reasons": ["character_voice_review_required"],
+            "metrics": {
+                "coverage_ratio": 1.0,
+                "audible_failed_count": 0,
+                "character_review_count": 1,
+                "voice_mismatch_count": 1,
+                "repair_manual_required_count": 0,
+            },
+            "gates": [
+                {"id": "coverage", "status": "passed", "value": 1.0},
+                {"id": "character_voice", "status": "review", "value": {"review_count": 1}},
             ],
         },
     )

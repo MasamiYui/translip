@@ -41,6 +41,7 @@ from .orchestration.request import build_pipeline_request
 from .orchestration.runner import run_pipeline
 from .pipeline.ingest import probe_input
 from .pipeline.runner import separate_file
+from .quality import DubBenchmarkRequest, build_dub_benchmark
 from .rendering.runner import render_dub
 from .repair import RepairPlanRequest, RepairRunRequest, plan_dub_repair, run_dub_repair
 from .speakers.runner import build_speaker_registry
@@ -376,6 +377,7 @@ def build_parser() -> argparse.ArgumentParser:
     repair_run_parser.add_argument("--repair-queue", required=True, help="repair_queue.<lang>.json path")
     repair_run_parser.add_argument("--rewrite-plan", required=True, help="rewrite_plan.<lang>.json path")
     repair_run_parser.add_argument("--reference-plan", required=True, help="reference_plan.<lang>.json path")
+    repair_run_parser.add_argument("--character-ledger", default=None, help="Optional character_ledger.<lang>.json path")
     repair_run_parser.add_argument("--output-dir", default="output-repair-run", help="Repair run output directory")
     repair_run_parser.add_argument(
         "--tts-backend",
@@ -402,6 +404,18 @@ def build_parser() -> argparse.ArgumentParser:
     repair_run_parser.add_argument("--attempts-per-item", type=int, default=3, help="Maximum generated candidates per item")
     repair_run_parser.add_argument("--include-risk", action="store_true", help="Also attempt risk_only queue items")
     repair_run_parser.add_argument("--keep-intermediate", action="store_true")
+
+    dub_benchmark_parser = subparsers.add_parser(
+        "benchmark-dub",
+        help="Aggregate dubbing quality metrics into a benchmark report",
+    )
+    dub_benchmark_parser.add_argument("--pipeline-root", required=True, help="Pipeline output root")
+    dub_benchmark_parser.add_argument("--output-dir", default="benchmark/voice", help="Benchmark output directory")
+    dub_benchmark_parser.add_argument(
+        "--target-lang",
+        default=DEFAULT_TRANSLATION_TARGET_LANG,
+        help="Target language code, e.g. en",
+    )
 
     probe_parser = subparsers.add_parser("probe", help="Inspect a media file")
     probe_parser.add_argument("--input", required=True, help="Input media file path")
@@ -901,6 +915,7 @@ def main(argv: list[str] | None = None) -> int:
             repair_queue_path=args.repair_queue,
             rewrite_plan_path=args.rewrite_plan,
             reference_plan_path=args.reference_plan,
+            character_ledger_path=args.character_ledger,
             output_dir=args.output_dir,
             tts_backends=args.tts_backends or ["moss-tts-nano-onnx"],
             device=args.device,
@@ -919,6 +934,21 @@ def main(argv: list[str] | None = None) -> int:
         print(f"attempt_count={result.manifest['stats']['attempt_count']}")
         print(f"selected_count={result.manifest['stats']['selected_count']}")
         print(f"manual_required_count={result.manifest['stats']['manual_required_count']}")
+        return 0
+
+    if args.command == "benchmark-dub":
+        result = build_dub_benchmark(
+            DubBenchmarkRequest(
+                pipeline_root=args.pipeline_root,
+                output_dir=args.output_dir,
+                target_lang=args.target_lang,
+            )
+        )
+        print(f"benchmark={result.artifacts.benchmark_path}")
+        print(f"report={result.artifacts.report_path}")
+        print(f"manifest={result.artifacts.manifest_path}")
+        print(f"status={result.benchmark['status']}")
+        print(f"score={result.benchmark['score']}")
         return 0
 
     if args.command == "run-pipeline":

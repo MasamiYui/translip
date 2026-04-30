@@ -46,6 +46,8 @@ def get_dubbing_review(task_id: str, session: Session = Depends(get_session)) ->
     translation = _read_json(paths["translation"])
     repair_attempts = _read_json(paths["repair_attempts"])
     voice_bank = _read_json(paths["voice_bank"])
+    character_ledger = _read_json(paths["character_ledger"])
+    quality_benchmark = _read_json(paths["dub_benchmark"])
 
     decisions = {
         "reference": _read_json(paths["reference_decisions"]),
@@ -78,6 +80,7 @@ def get_dubbing_review(task_id: str, session: Session = Depends(get_session)) ->
         repair_queue=repair_queue,
         merge_decisions=latest_decisions["merge"],
     )
+    characters = _build_characters(character_ledger)
 
     artifact_paths = {
         key: _relative_path(path, root)
@@ -85,7 +88,10 @@ def get_dubbing_review(task_id: str, session: Session = Depends(get_session)) ->
         if path is not None and path.exists()
     }
     stats = dict(repair_queue.get("stats") or {}) if isinstance(repair_queue, dict) else {}
-    status = "available" if speakers or repair_items or merge_candidates else "missing"
+    quality_status = quality_benchmark.get("status") if isinstance(quality_benchmark, dict) else None
+    quality_score = quality_benchmark.get("score") if isinstance(quality_benchmark, dict) else None
+    character_stats = character_ledger.get("stats", {}) if isinstance(character_ledger.get("stats"), dict) else {}
+    status = "available" if speakers or repair_items or merge_candidates or characters or quality_benchmark else "missing"
 
     return {
         "task_id": task_id,
@@ -98,9 +104,14 @@ def get_dubbing_review(task_id: str, session: Session = Depends(get_session)) ->
             "reference_decision_count": len(latest_decisions["reference"]),
             "merge_decision_count": len(latest_decisions["merge"]),
             "repair_decision_count": len(latest_decisions["repair"]),
+            "quality_status": quality_status,
+            "quality_score": quality_score,
+            "character_review_count": int(character_stats.get("review_count") or 0),
         },
         "stats": stats,
         "artifact_paths": artifact_paths,
+        "quality_benchmark": _quality_benchmark_payload(quality_benchmark),
+        "characters": characters,
         "speakers": speakers,
         "merge_candidates": merge_candidates,
         "repair_items": repair_items,
@@ -204,6 +215,8 @@ def _review_paths(root: Path, target_lang: str) -> dict[str, Path | None]:
             repair_run_dir / f"selected_segments.{target_lang}.json",
             voice_dir / f"selected_segments.{target_lang}.json",
         ]),
+        "character_ledger": voice_dir / "character-ledger" / f"character_ledger.{target_lang}.json",
+        "dub_benchmark": root / "benchmark" / "voice" / f"dub_benchmark.{target_lang}.json",
         "voice_bank": _first_existing([
             task_b_voice / "voice_bank" / f"voice_bank.{target_lang}.json",
             task_b_voice / "voice_bank" / "voice_bank.json",
@@ -423,6 +436,42 @@ def _build_repair_items(
             "decision": repair_decisions.get(segment_id),
         })
     return sorted(items, key=_repair_sort_key)
+
+
+def _build_characters(character_ledger: dict[str, Any]) -> list[dict[str, Any]]:
+    characters: list[dict[str, Any]] = []
+    for raw in character_ledger.get("characters", []):
+        if not isinstance(raw, dict):
+            continue
+        voice_signature = raw.get("voice_signature") if isinstance(raw.get("voice_signature"), dict) else {}
+        stats = raw.get("stats") if isinstance(raw.get("stats"), dict) else {}
+        characters.append({
+            "character_id": str(raw.get("character_id") or ""),
+            "display_name": str(raw.get("display_name") or raw.get("character_id") or ""),
+            "speaker_ids": raw.get("speaker_ids") if isinstance(raw.get("speaker_ids"), list) else [],
+            "source_label": raw.get("source_label"),
+            "profile_id": raw.get("profile_id"),
+            "reference_path": raw.get("reference_path"),
+            "pitch_class": voice_signature.get("pitch_class"),
+            "pitch_hz": _round_float(voice_signature.get("pitch_hz")),
+            "review_status": raw.get("review_status") or "unknown",
+            "risk_flags": raw.get("risk_flags") if isinstance(raw.get("risk_flags"), list) else [],
+            "stats": stats,
+        })
+    return characters
+
+
+def _quality_benchmark_payload(payload: dict[str, Any]) -> dict[str, Any] | None:
+    if not payload:
+        return None
+    return {
+        "version": payload.get("version"),
+        "status": payload.get("status"),
+        "score": payload.get("score"),
+        "reasons": payload.get("reasons") if isinstance(payload.get("reasons"), list) else [],
+        "metrics": payload.get("metrics") if isinstance(payload.get("metrics"), dict) else {},
+        "gates": payload.get("gates") if isinstance(payload.get("gates"), list) else [],
+    }
 
 
 def _attempts_by_segment(repair_attempts: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:

@@ -345,6 +345,8 @@ def test_cli_run_dub_repair_parser() -> None:
             "rewrite_plan.en.json",
             "--reference-plan",
             "reference_plan.en.json",
+            "--character-ledger",
+            "character_ledger.en.json",
             "--tts-backend",
             "moss-tts-nano-onnx",
             "--tts-backend",
@@ -362,11 +364,31 @@ def test_cli_run_dub_repair_parser() -> None:
     assert args.repair_queue == "repair_queue.en.json"
     assert args.rewrite_plan == "rewrite_plan.en.json"
     assert args.reference_plan == "reference_plan.en.json"
+    assert args.character_ledger == "character_ledger.en.json"
     assert args.tts_backends == ["moss-tts-nano-onnx", "qwen3tts"]
     assert args.segment_ids == ["seg-0001"]
     assert args.max_items == 5
     assert args.attempts_per_item == 4
     assert args.include_risk is True
+
+
+def test_cli_benchmark_dub_parser() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "benchmark-dub",
+            "--pipeline-root",
+            "pipeline-output",
+            "--output-dir",
+            "benchmark/voice",
+            "--target-lang",
+            "en",
+        ]
+    )
+    assert args.command == "benchmark-dub"
+    assert args.pipeline_root == "pipeline-output"
+    assert args.output_dir == "benchmark/voice"
+    assert args.target_lang == "en"
 
 
 def test_cli_run_pipeline_parser() -> None:

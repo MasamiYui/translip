@@ -12,6 +12,7 @@ from ..dubbing.moss_tts_nano_backend import MossTtsNanoOnnxBackend
 from ..dubbing.qwen_tts_backend import QwenTTSBackend
 from ..dubbing.reference import ReferenceCandidate, prepare_reference_package
 from ..exceptions import TranslipError
+from ..quality.audio_signature import pitch_class_distance, voice_signature
 from .export import now_iso, write_json
 
 
@@ -23,6 +24,7 @@ class RepairRunRequest:
     repair_queue_path: Path | str
     rewrite_plan_path: Path | str
     reference_plan_path: Path | str
+    character_ledger_path: Path | str | None = None
     output_dir: Path | str = Path("output-repair-run")
     tts_backends: list[str] = field(default_factory=lambda: ["moss-tts-nano-onnx"])
     device: str = "auto"
@@ -38,6 +40,11 @@ class RepairRunRequest:
             repair_queue_path=Path(self.repair_queue_path).expanduser().resolve(),
             rewrite_plan_path=Path(self.rewrite_plan_path).expanduser().resolve(),
             reference_plan_path=Path(self.reference_plan_path).expanduser().resolve(),
+            character_ledger_path=(
+                Path(self.character_ledger_path).expanduser().resolve()
+                if self.character_ledger_path
+                else None
+            ),
             output_dir=Path(self.output_dir).expanduser().resolve(),
             tts_backends=[str(backend) for backend in self.tts_backends],
             device=self.device,
@@ -85,6 +92,7 @@ def run_dub_repair(
     repair_queue = _load_json(Path(normalized.repair_queue_path))
     rewrite_plan = _load_json(Path(normalized.rewrite_plan_path))
     reference_plan = _load_json(Path(normalized.reference_plan_path))
+    character_ledger = _load_json(Path(normalized.character_ledger_path)) if normalized.character_ledger_path else {}
     target_lang = str(repair_queue.get("target_lang") or target_lang)
     attempts_path = bundle_dir / f"repair_attempts.{target_lang}.json"
     selected_segments_path = bundle_dir / f"selected_segments.{target_lang}.json"
@@ -92,6 +100,7 @@ def run_dub_repair(
 
     rewrite_by_segment = _rewrite_by_segment(rewrite_plan)
     reference_by_speaker = _reference_by_speaker(reference_plan)
+    character_by_speaker = _character_by_speaker(character_ledger)
     items = _selected_repair_items(
         repair_queue,
         include_risk=normalized.include_risk,
@@ -114,6 +123,7 @@ def run_dub_repair(
             bundle_dir=bundle_dir,
             backend_cache=backend_cache,
             reference_cache=reference_cache,
+            character_by_speaker=character_by_speaker,
             backend_override=backend_override,
             evaluator=evaluator,
         )
@@ -130,6 +140,7 @@ def run_dub_repair(
             "repair_queue": str(normalized.repair_queue_path),
             "rewrite_plan": str(normalized.rewrite_plan_path),
             "reference_plan": str(normalized.reference_plan_path),
+            "character_ledger": str(normalized.character_ledger_path) if normalized.character_ledger_path else None,
         },
         "stats": _attempt_stats(item_results=item_results, input_count=len(items), manual_count=len(manual_items)),
         "items": item_results,
@@ -163,6 +174,7 @@ def run_dub_repair(
             "repair_attempts": str(attempts_path),
             "selected_segments": str(selected_segments_path),
             "manual_review": str(manual_review_path),
+            "character_ledger": str(normalized.character_ledger_path) if normalized.character_ledger_path else None,
         },
         "stats": attempts_payload["stats"],
         "timing": {
@@ -195,10 +207,13 @@ def _repair_item(
     bundle_dir: Path,
     backend_cache: dict[str, TTSBackend],
     reference_cache: dict[str, ReferencePackage],
+    character_by_speaker: dict[str, dict[str, Any]],
     backend_override: TTSBackend | None,
     evaluator: Evaluator,
 ) -> dict[str, Any]:
     segment_id = str(item.get("segment_id") or "")
+    speaker_id = str(item.get("speaker_id") or "")
+    character = character_by_speaker.get(speaker_id)
     attempt_specs = _attempt_specs(
         item=item,
         rewrite_candidates=rewrite_candidates,
@@ -220,6 +235,7 @@ def _repair_item(
             bundle_dir=bundle_dir,
             backend_cache=backend_cache,
             reference_cache=reference_cache,
+            character=character,
             backend_override=backend_override,
             evaluator=evaluator,
         )
@@ -234,7 +250,8 @@ def _repair_item(
 
     return {
         "segment_id": segment_id,
-        "speaker_id": str(item.get("speaker_id") or ""),
+        "speaker_id": speaker_id,
+        "character_id": character.get("character_id") if isinstance(character, dict) else None,
         "queue_class": str(item.get("queue_class") or ""),
         "strict_blocker": bool(item.get("strict_blocker")),
         "failure_reasons": list(item.get("failure_reasons", [])),
@@ -258,6 +275,7 @@ def _run_attempt(
     bundle_dir: Path,
     backend_cache: dict[str, TTSBackend],
     reference_cache: dict[str, ReferencePackage],
+    character: dict[str, Any] | None,
     backend_override: TTSBackend | None,
     evaluator: Evaluator,
 ) -> dict[str, Any]:
@@ -297,6 +315,12 @@ def _run_attempt(
             requested_device=request.device,
             backread_model_name=request.backread_model,
         )
+        voice_consistency = _voice_consistency_payload(
+            character=character,
+            generated_audio_path=Path(synth_output.audio_path),
+        )
+        metrics = _evaluation_payload(evaluation)
+        metrics.update(voice_consistency)
         payload = {
             "attempt_id": attempt_id,
             "segment_id": segment_id,
@@ -310,9 +334,12 @@ def _run_attempt(
             "reference_path": reference_path,
             "audio_path": str(synth_output.audio_path),
             "generated_duration_sec": round(float(synth_output.generated_duration_sec), 3),
-            "metrics": _evaluation_payload(evaluation),
-            "score": _attempt_score(evaluation),
-            "strict_accepted": evaluation.overall_status in {"passed", "review"},
+            "metrics": metrics,
+            "score": _attempt_score(evaluation, voice_consistency=voice_consistency),
+            "strict_accepted": (
+                evaluation.overall_status in {"passed", "review"}
+                and voice_consistency.get("voice_consistency_status") != "failed"
+            ),
             "error": None,
         }
         return payload
@@ -536,6 +563,11 @@ def _selected_segment_payload(*, item: dict[str, Any], attempt: dict[str, Any]) 
         "duration_status": metrics.get("duration_status"),
         "speaker_similarity": metrics.get("speaker_similarity"),
         "speaker_status": metrics.get("speaker_status"),
+        "character_id": metrics.get("character_id"),
+        "voice_consistency_status": metrics.get("voice_consistency_status"),
+        "expected_pitch_class": metrics.get("expected_pitch_class"),
+        "generated_pitch_class": metrics.get("generated_pitch_class"),
+        "generated_pitch_hz": metrics.get("generated_pitch_hz"),
         "backread_text": metrics.get("backread_text"),
         "text_similarity": metrics.get("text_similarity"),
         "intelligibility_status": metrics.get("intelligibility_status"),
@@ -584,12 +616,74 @@ def _evaluation_payload(evaluation: SegmentEvaluation) -> dict[str, Any]:
     }
 
 
-def _attempt_score(evaluation: SegmentEvaluation) -> float:
+def _voice_consistency_payload(*, character: dict[str, Any] | None, generated_audio_path: Path) -> dict[str, Any]:
+    if not isinstance(character, dict):
+        return {
+            "character_id": None,
+            "voice_consistency_status": "not_evaluated",
+            "expected_pitch_class": None,
+            "generated_pitch_class": None,
+            "generated_pitch_hz": None,
+            "voice_pitch_distance": None,
+        }
+
+    expected_signature = character.get("voice_signature") if isinstance(character.get("voice_signature"), dict) else {}
+    expected_pitch_class = str(expected_signature.get("pitch_class") or "unknown")
+    try:
+        generated_signature = voice_signature(generated_audio_path).to_payload()
+        generated_pitch_class = str(generated_signature.get("pitch_class") or "unknown")
+        generated_pitch_hz = generated_signature.get("pitch_hz")
+        distance = pitch_class_distance(expected_pitch_class, generated_pitch_class)
+        if distance is None:
+            status = "review"
+        elif distance >= 2:
+            status = "failed"
+        elif distance == 1:
+            status = "review"
+        else:
+            status = "passed"
+    except Exception as exc:  # pragma: no cover - corrupted real audio is surfaced as review
+        generated_pitch_class = "unknown"
+        generated_pitch_hz = None
+        distance = None
+        status = "review"
+        return {
+            "character_id": character.get("character_id"),
+            "voice_consistency_status": status,
+            "expected_pitch_class": expected_pitch_class,
+            "generated_pitch_class": generated_pitch_class,
+            "generated_pitch_hz": generated_pitch_hz,
+            "voice_pitch_distance": distance,
+            "voice_consistency_error": str(exc),
+        }
+
+    return {
+        "character_id": character.get("character_id"),
+        "voice_consistency_status": status,
+        "expected_pitch_class": expected_pitch_class,
+        "generated_pitch_class": generated_pitch_class,
+        "generated_pitch_hz": generated_pitch_hz,
+        "voice_pitch_distance": distance,
+    }
+
+
+def _voice_score(voice_consistency: dict[str, Any]) -> float:
+    status = str(voice_consistency.get("voice_consistency_status") or "not_evaluated")
+    return {
+        "passed": 1.0,
+        "review": 0.5,
+        "not_evaluated": 0.5,
+        "failed": 0.0,
+    }.get(status, 0.0)
+
+
+def _attempt_score(evaluation: SegmentEvaluation, *, voice_consistency: dict[str, Any] | None = None) -> float:
     status_weight = {"passed": 2.5, "review": 1.2, "failed": 0.0}.get(evaluation.overall_status, 0.0)
     duration_score = max(0.0, 1.0 - abs(1.0 - float(evaluation.duration_ratio)))
     speaker_score = max(0.0, float(evaluation.speaker_similarity or 0.0))
     text_score = max(0.0, float(evaluation.text_similarity or 0.0))
-    return round(status_weight + duration_score * 0.35 + speaker_score * 0.25 + text_score * 0.4, 4)
+    voice_score = _voice_score(voice_consistency or {})
+    return round(status_weight + duration_score * 0.3 + speaker_score * 0.25 + text_score * 0.35 + voice_score * 0.1, 4)
 
 
 def _attempt_stats(*, item_results: list[dict[str, Any]], input_count: int, manual_count: int) -> dict[str, Any]:
@@ -628,6 +722,18 @@ def _reference_by_speaker(reference_plan: dict[str, Any]) -> dict[str, dict[str,
         for item in reference_plan.get("speakers", [])
         if isinstance(item, dict) and item.get("speaker_id")
     }
+
+
+def _character_by_speaker(character_ledger: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    rows: dict[str, dict[str, Any]] = {}
+    for character in character_ledger.get("characters", []):
+        if not isinstance(character, dict):
+            continue
+        for speaker_id in character.get("speaker_ids", []):
+            key = str(speaker_id or "")
+            if key:
+                rows[key] = character
+    return rows
 
 
 def _find_reference_row(candidates: list[dict[str, Any]], path: str) -> dict[str, Any] | None:
@@ -669,6 +775,8 @@ def _validate_request(request: RepairRunRequest) -> RepairRunRequest:
     for path in [normalized.repair_queue_path, normalized.rewrite_plan_path, normalized.reference_plan_path]:
         if not Path(path).exists():
             raise TranslipError(f"Repair run input does not exist: {path}")
+    if normalized.character_ledger_path is not None and not Path(normalized.character_ledger_path).exists():
+        raise TranslipError(f"Character ledger input does not exist: {normalized.character_ledger_path}")
     if not normalized.tts_backends:
         raise TranslipError("At least one repair TTS backend is required")
     if normalized.max_items is not None and normalized.max_items <= 0:

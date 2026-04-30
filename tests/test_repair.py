@@ -14,6 +14,14 @@ def _write_audio(path: Path, duration_sec: float, *, sample_rate: int = 16_000) 
     sf.write(path, waveform, sample_rate)
 
 
+def _write_tone(path: Path, *, frequency: float, duration_sec: float = 1.4, sample_rate: int = 16_000) -> None:
+    sample_count = max(1, int(duration_sec * sample_rate))
+    time_axis = np.arange(sample_count, dtype=np.float32) / float(sample_rate)
+    waveform = (0.08 * np.sin(2 * np.pi * frequency * time_axis)).astype(np.float32)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sf.write(path, waveform, sample_rate)
+
+
 class FakeRepairBackend:
     backend_name = "fake-tts"
     resolved_model = "fake-model"
@@ -38,6 +46,26 @@ class FakeRepairBackend:
         )()
 
 
+class HighPitchRepairBackend:
+    backend_name = "fake-high-pitch-tts"
+    resolved_model = "fake-model"
+    resolved_device = "cpu"
+
+    def synthesize(self, *, reference, segment, output_path):
+        _write_tone(output_path, frequency=260.0, duration_sec=1.0)
+        return type(
+            "SynthOutput",
+            (),
+            {
+                "segment_id": segment.segment_id,
+                "audio_path": output_path,
+                "sample_rate": 16_000,
+                "generated_duration_sec": 1.0,
+                "backend_metadata": {},
+            },
+        )()
+
+
 def _fake_eval(**kwargs):
     target_text = str(kwargs["target_text"])
     passed = "Burj Khalifa" in target_text
@@ -53,6 +81,24 @@ def _fake_eval(**kwargs):
             "duration_ratio": 1.0 if passed else 2.4,
             "duration_status": "passed" if passed else "failed",
             "overall_status": "passed" if passed else "failed",
+        },
+    )()
+
+
+def _always_pass_eval(**kwargs):
+    target_text = str(kwargs["target_text"])
+    return type(
+        "Eval",
+        (),
+        {
+            "speaker_similarity": 0.82,
+            "speaker_status": "passed",
+            "backread_text": target_text,
+            "text_similarity": 0.99,
+            "intelligibility_status": "passed",
+            "duration_ratio": 1.0,
+            "duration_status": "passed",
+            "overall_status": "passed",
         },
     )()
 
@@ -453,3 +499,132 @@ def test_run_dub_repair_generates_attempts_and_selected_segments(tmp_path: Path)
     assert Path(selected["segments"][0]["selected_audio_path"]).exists()
     assert selected["segments"][0]["overall_status"] == "passed"
     assert manual["stats"]["manual_required_count"] == 0
+
+
+def test_run_dub_repair_blocks_pitch_class_drift_against_character_ledger(tmp_path: Path) -> None:
+    reference = tmp_path / "reference_low.wav"
+    _write_tone(reference, frequency=110.0, duration_sec=2.0)
+
+    repair_queue_path = tmp_path / "repair_queue.en.json"
+    rewrite_plan_path = tmp_path / "rewrite_plan.en.json"
+    reference_plan_path = tmp_path / "reference_plan.en.json"
+    ledger_path = tmp_path / "character_ledger.en.json"
+    repair_queue_path.write_text(
+        json.dumps(
+            {
+                "target_lang": "en",
+                "items": [
+                    {
+                        "segment_id": "seg-0001",
+                        "speaker_id": "spk_0001",
+                        "source_text": "走吧",
+                        "target_text": "Let's go.",
+                        "source_duration_sec": 1.0,
+                        "strict_blocker": True,
+                        "failure_reasons": ["speaker_failed"],
+                        "suggested_actions": ["switch_reference_audio"],
+                        "reference_path": str(reference),
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    rewrite_plan_path.write_text(
+        json.dumps(
+            {
+                "target_lang": "en",
+                "items": [
+                    {
+                        "segment_id": "seg-0001",
+                        "rewrite_candidates": [
+                            {
+                                "rewrite_id": "rewrite-0001",
+                                "variant": "current",
+                                "target_text": "Let's go.",
+                                "estimated_tts_duration_sec": 1.0,
+                            }
+                        ],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    reference_plan_path.write_text(
+        json.dumps(
+            {
+                "target_lang": "en",
+                "speakers": [
+                    {
+                        "speaker_id": "spk_0001",
+                        "current_reference_path": str(reference),
+                        "recommended_reference_path": str(reference),
+                        "candidates": [
+                            {
+                                "path": str(reference),
+                                "profile_id": "profile_0001",
+                                "speaker_id": "spk_0001",
+                                "duration_sec": 2.0,
+                                "text": "低音参考",
+                                "rms": 0.08,
+                                "quality_score": 0.9,
+                            }
+                        ],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    ledger_path.write_text(
+        json.dumps(
+            {
+                "target_lang": "en",
+                "characters": [
+                    {
+                        "character_id": "char_0001",
+                        "display_name": "Male Lead",
+                        "speaker_ids": ["spk_0001"],
+                        "voice_signature": {
+                            "path": str(reference),
+                            "pitch_hz": 110.0,
+                            "pitch_class": "low",
+                        },
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    run = run_dub_repair(
+        RepairRunRequest(
+            repair_queue_path=repair_queue_path,
+            rewrite_plan_path=rewrite_plan_path,
+            reference_plan_path=reference_plan_path,
+            character_ledger_path=ledger_path,
+            output_dir=tmp_path / "repair-run",
+            tts_backends=["moss-tts-nano-onnx"],
+            max_items=1,
+            attempts_per_item=1,
+        ),
+        backend_override=HighPitchRepairBackend(),
+        evaluator=_always_pass_eval,
+    )
+
+    attempts = json.loads(run.artifacts.attempts_path.read_text(encoding="utf-8"))
+    selected = json.loads(run.artifacts.selected_segments_path.read_text(encoding="utf-8"))
+    manual = json.loads(run.artifacts.manual_review_path.read_text(encoding="utf-8"))
+    attempt = attempts["items"][0]["attempts"][0]
+    assert attempt["metrics"]["voice_consistency_status"] == "failed"
+    assert attempt["metrics"]["expected_pitch_class"] == "low"
+    assert attempt["metrics"]["generated_pitch_class"] == "high"
+    assert attempt["strict_accepted"] is False
+    assert attempts["stats"]["selected_count"] == 0
+    assert selected["stats"]["selected_count"] == 0
+    assert manual["stats"]["manual_required_count"] == 1

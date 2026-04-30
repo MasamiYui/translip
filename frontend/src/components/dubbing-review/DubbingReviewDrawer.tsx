@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { tasksApi } from '../../api/tasks'
 import type {
+  DubbingReviewCharacter,
   DubbingReviewDecisionPayload,
   DubbingReviewMergeCandidate,
   DubbingReviewReferenceCandidate,
@@ -25,9 +26,10 @@ import type {
   DubbingReviewSpeaker,
 } from '../../types'
 
-type ReviewTab = 'reference' | 'merge' | 'repair'
+type ReviewTab = 'quality' | 'reference' | 'merge' | 'repair'
 
 const TAB_CONFIG: Array<{ id: ReviewTab; label: string; description: string }> = [
+  { id: 'quality', label: '质量总览', description: '查看 Benchmark 与角色风险' },
   { id: 'reference', label: '音色审查', description: '为每个说话人选择 reference' },
   { id: 'merge', label: '短句合并', description: '确认同说话人合并边界' },
   { id: 'repair', label: '候选审听', description: '选择可用返修候选' },
@@ -100,7 +102,8 @@ export function DubbingReviewDrawer({
         </div>
 
         <div className="border-b border-slate-100 px-6 py-4">
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-4">
+            <ReviewStat label="质量评分" value={visibleStats.quality} />
             <ReviewStat label="音色决策" value={visibleStats.reference} />
             <ReviewStat label="合并候选" value={visibleStats.merge} />
             <ReviewStat label="返修片段" value={visibleStats.repair} />
@@ -151,6 +154,7 @@ export function DubbingReviewDrawer({
 
           {review && review.status === 'available' && (
             <>
+              {activeTab === 'quality' && <QualityOverviewPanel review={review} />}
               {activeTab === 'reference' && (
                 <ReferenceReviewPanel
                   taskId={taskId}
@@ -180,6 +184,98 @@ export function DubbingReviewDrawer({
         </div>
       </aside>
     </>
+  )
+}
+
+function QualityOverviewPanel({ review }: { review: DubbingReviewResponse }) {
+  const benchmark = review.quality_benchmark
+  const characters = review.characters ?? []
+  if (!benchmark && characters.length === 0) {
+    return <EmptyState title="没有质量 Benchmark" description="需要完成 Task E 后才会生成配音质量 Benchmark 和角色台账。" />
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-xl border border-slate-200 bg-white">
+        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-3.5">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <ListChecks size={15} className="text-slate-400" />
+              <h3 className="text-sm font-semibold text-slate-900">Benchmark</h3>
+              {benchmark?.status && <StatusPill tone={qualityTone(benchmark.status)}>{benchmark.status}</StatusPill>}
+            </div>
+            <div className="mt-1 text-xs text-slate-500">
+              score {formatMetric(benchmark?.score)} · {benchmark?.reasons?.join(', ') || 'no blockers'}
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-3 px-4 py-3.5 md:grid-cols-4">
+          <ReviewStat label="覆盖率" value={formatMetric(benchmark?.metrics?.coverage_ratio)} />
+          <ReviewStat label="无声字幕" value={String(asNumber(benchmark?.metrics?.audible_failed_count) ?? 0)} />
+          <ReviewStat label="角色复核" value={String(asNumber(benchmark?.metrics?.character_review_count) ?? 0)} />
+          <ReviewStat label="人工返修" value={String(asNumber(benchmark?.metrics?.repair_manual_required_count) ?? 0)} />
+        </div>
+        {benchmark?.gates && benchmark.gates.length > 0 && (
+          <div className="divide-y divide-slate-100 border-t border-slate-100">
+            {benchmark.gates.map((gate, index) => (
+              <div key={String(gate['id'] ?? index)} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <div>
+                  <div className="text-sm font-medium text-slate-800">{String(gate['label'] ?? gate['id'] ?? 'gate')}</div>
+                  <div className="mt-0.5 text-xs text-slate-500">{String(gate['threshold'] ?? '')}</div>
+                </div>
+                <StatusPill tone={qualityTone(String(gate['status'] ?? 'unknown'))}>
+                  {String(gate['status'] ?? 'unknown')}
+                </StatusPill>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <CharacterRiskPanel characters={characters} />
+    </div>
+  )
+}
+
+function CharacterRiskPanel({ characters }: { characters: DubbingReviewCharacter[] }) {
+  if (characters.length === 0) {
+    return <EmptyState title="没有角色台账" description="当前任务没有 Character Ledger 产物。" />
+  }
+
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-100 px-4 py-3.5">
+        <div className="text-sm font-semibold text-slate-900">角色音色台账</div>
+      </div>
+      <div className="divide-y divide-slate-100">
+        {characters.map(character => (
+          <div key={character.character_id} className="grid gap-3 px-4 py-3.5 md:grid-cols-[minmax(0,1fr)_220px]">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <UserRound size={15} className="text-slate-400" />
+                <span className="text-sm font-semibold text-slate-900">{character.display_name || character.character_id}</span>
+                <StatusPill tone={qualityTone(character.review_status)}>{character.review_status}</StatusPill>
+                <StatusPill tone="slate">{character.pitch_class ?? 'unknown'}</StatusPill>
+              </div>
+              <div className="mt-1 text-xs text-slate-500">
+                {character.speaker_ids.join(', ') || 'unknown speaker'} · pitch {formatMetric(character.pitch_hz)}
+              </div>
+              {character.risk_flags.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {character.risk_flags.map(flag => <StatusPill key={flag} tone="amber">{flag}</StatusPill>)}
+                </div>
+              )}
+            </div>
+            <MetricGrid
+              metrics={[
+                ['声纹失败率', formatMetric(character.stats.speaker_failed_ratio)],
+                ['音色漂移', formatMetric(character.stats.voice_mismatch_count)],
+              ]}
+            />
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 
@@ -708,9 +804,12 @@ function EmptyState({ title, description }: { title: string; description: string
 
 function summarizeReview(review: DubbingReviewResponse | undefined) {
   if (!review) {
-    return { reference: '-', merge: '-', repair: '-' }
+    return { quality: '-', reference: '-', merge: '-', repair: '-' }
   }
   return {
+    quality: review.summary.quality_score === null || review.summary.quality_score === undefined
+      ? (review.summary.quality_status ?? '-')
+      : `${review.summary.quality_score}`,
     reference: `${review.summary.reference_decision_count}/${review.summary.speaker_count}`,
     merge: `${review.summary.merge_decision_count}/${review.summary.merge_candidate_count}`,
     repair: `${review.summary.repair_decision_count}/${review.summary.repair_item_count}`,
@@ -750,6 +849,20 @@ function asNumber(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null
   }
   return null
+}
+
+function qualityTone(value: string): 'slate' | 'blue' | 'emerald' | 'amber' | 'rose' {
+  const normalized = value.toLowerCase()
+  if (normalized.includes('blocked') || normalized === 'failed') {
+    return 'rose'
+  }
+  if (normalized.includes('review')) {
+    return 'amber'
+  }
+  if (normalized.includes('passed') || normalized.includes('deliverable')) {
+    return 'emerald'
+  }
+  return 'slate'
 }
 
 function decisionLabel(value: string): string {
