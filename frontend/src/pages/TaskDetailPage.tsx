@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -134,6 +134,7 @@ export function TaskDetailPage() {
   const [outlineWidth, setOutlineWidth] = useState(2)
   const [subtitleBold, setSubtitleBold] = useState(false)
   const [previewDurationSec, setPreviewDurationSec] = useState(10)
+  const initializedDeliveryTaskIdRef = useRef<string | null>(null)
 
   const { data: task, refetch } = useQuery({
     queryKey: ['task', id],
@@ -226,6 +227,11 @@ export function TaskDetailPage() {
     if (!task) {
       return
     }
+    const taskChanged = initializedDeliveryTaskIdRef.current !== task.id
+    if (!taskChanged && isExportDrawerOpen) {
+      return
+    }
+    initializedDeliveryTaskIdRef.current = task.id
     setExportProfile(resolveInitialProfile(task))
     setShowProfileOverrides(false)
     setSubtitleSource(resolveInitialSubtitleSource(task))
@@ -239,7 +245,7 @@ export function TaskDetailPage() {
     setOutlineWidth(task.delivery_config.subtitle_outline_width ?? 2)
     setSubtitleBold(Boolean(task.delivery_config.subtitle_bold))
     setPreviewDurationSec(task.delivery_config.subtitle_preview_duration_sec ?? 10)
-  }, [task])
+  }, [isExportDrawerOpen, task])
 
   const profileConfig = PROFILE_CONFIG[exportProfile]
   const subtitleOptions = useMemo(() => {

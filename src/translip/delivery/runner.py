@@ -126,6 +126,8 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
                 subtitle_path=subtitle_path,
                 chinese_subtitle_path=chinese_subtitle_path,
                 style=style,
+                video_width=width,
+                video_height=height,
             )
             outputs.append(_output_payload(kind="preview", output_path=preview_video_path))
 
@@ -145,6 +147,8 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
                 subtitle_path=subtitle_path,
                 chinese_subtitle_path=chinese_subtitle_path,
                 style=style,
+                video_width=width,
+                video_height=height,
             )
             outputs.append(_output_payload(kind="dub", output_path=dub_video_path))
 
@@ -374,6 +378,8 @@ def _export_video_variant(
     subtitle_path: Path | None,
     chinese_subtitle_path: Path | None,
     style: SubtitleStyle,
+    video_width: int,
+    video_height: int,
 ) -> None:
     if request.subtitle_mode in {"none", "chinese_only"}:
         mux_video_with_audio(
@@ -404,7 +410,7 @@ def _export_video_variant(
             margin_h=style.margin_h,
             alignment=8 if request.bilingual_english_position == "top" else 2,
         )
-        srt_to_ass(Path(subtitle_path), english_style, ass_path)
+        srt_to_ass(Path(subtitle_path), english_style, ass_path, play_res=(video_width, video_height))
     elif request.subtitle_mode == "bilingual":
         english_style = SubtitleStyle(
             font_family=style.font_family,
@@ -420,7 +426,7 @@ def _export_video_variant(
             alignment=8 if request.bilingual_english_position == "top" else 2,
         )
         if request.bilingual_export_strategy == "preserve_hard_subtitles_add_english":
-            srt_to_ass(Path(subtitle_path), english_style, ass_path)
+            srt_to_ass(Path(subtitle_path), english_style, ass_path, play_res=(video_width, video_height))
         else:
             chinese_style = SubtitleStyle(
                 font_family=DEFAULT_SUBTITLE_FONT_CJK,
@@ -435,7 +441,14 @@ def _export_video_variant(
                 margin_h=style.margin_h,
                 alignment=8 if request.bilingual_chinese_position == "top" else 2,
             )
-            merge_bilingual_ass(Path(chinese_subtitle_path), Path(subtitle_path), chinese_style, english_style, ass_path)
+            merge_bilingual_ass(
+                Path(chinese_subtitle_path),
+                Path(subtitle_path),
+                chinese_style,
+                english_style,
+                ass_path,
+                play_res=(video_width, video_height),
+            )
     else:
         raise TranslipError(f"Unsupported subtitle mode: {request.subtitle_mode}")
 

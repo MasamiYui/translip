@@ -7,6 +7,7 @@ import pytest
 
 from translip.types import ExportVideoRequest, MediaInfo
 from translip.types import PipelineRequest
+from translip.types import SubtitleStyle
 
 
 def _write_json(path: Path, payload: dict) -> None:
@@ -71,6 +72,54 @@ def _fake_media_info(path: Path) -> MediaInfo:
         sample_rate=48_000 if media_type == "video" else 24_000,
         channels=2,
     )
+
+
+def _subtitle_style() -> SubtitleStyle:
+    return SubtitleStyle(
+        font_family="Arial",
+        font_size=24,
+        primary_color="#FFFFFF",
+        outline_color="#000000",
+        outline_width=2.0,
+        shadow_depth=1.0,
+        bold=False,
+        position="bottom",
+        margin_v=20,
+        margin_h=20,
+        alignment=2,
+    )
+
+
+def test_srt_to_ass_strips_internal_speaker_labels_for_delivery(tmp_path: Path) -> None:
+    from translip.subtitles.burn import srt_to_ass
+
+    srt_path = tmp_path / "translation.en.srt"
+    ass_path = tmp_path / "translation.en.ass"
+    srt_path.write_text(
+        "\n".join(
+            [
+                "1",
+                "00:00:01,000 --> 00:00:02,000",
+                "[SPEAKER_00] Joy, where are you?",
+                "",
+                "2",
+                "00:00:02,000 --> 00:00:03,000",
+                "SPK_0001: I'm here.",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    srt_to_ass(srt_path, _subtitle_style(), ass_path, play_res=(960, 416))
+
+    ass_text = ass_path.read_text(encoding="utf-8-sig")
+    assert "PlayResX: 960" in ass_text
+    assert "PlayResY: 416" in ass_text
+    assert "[SPEAKER_00]" not in ass_text
+    assert "SPK_0001:" not in ass_text
+    assert "Joy, where are you?" in ass_text
+    assert "I'm here." in ass_text
 
 
 def test_export_video_infers_inputs_from_pipeline_root_and_writes_delivery_artifacts(
@@ -280,7 +329,7 @@ def test_bilingual_export_can_preserve_hard_subtitles_and_only_burn_english(
     merge_calls: list[tuple[Path, Path]] = []
     mux_calls: list[dict[str, Path]] = []
 
-    def fake_srt_to_ass(subtitle_path: Path, style, ass_path: Path) -> None:
+    def fake_srt_to_ass(subtitle_path: Path, style, ass_path: Path, **_: object) -> None:
         ass_path.parent.mkdir(parents=True, exist_ok=True)
         ass_path.write_text("english-only", encoding="utf-8")
         srt_calls.append(subtitle_path)
@@ -291,6 +340,7 @@ def test_bilingual_export_can_preserve_hard_subtitles_and_only_burn_english(
         chinese_style,
         english_style,
         ass_path: Path,
+        **_: object,
     ) -> None:
         merge_calls.append((chinese_subtitle_path, english_subtitle_path))
         ass_path.parent.mkdir(parents=True, exist_ok=True)

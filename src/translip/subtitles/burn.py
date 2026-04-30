@@ -8,6 +8,10 @@ from ..config import DEFAULT_SUBTITLE_FONT_CJK, DEFAULT_SUBTITLE_FONT_LATIN
 from ..types import SubtitleStyle
 from ..utils.ffmpeg import burn_subtitle_and_mux, burn_subtitle_preview
 
+_SPEAKER_LABEL_RE = re.compile(
+    r"(?im)^\s*(?:\[(?:speaker|spk)[_-][\w-]+\]|(?:speaker|spk)[_-][\w-]+:)\s*"
+)
+
 
 def recommend_style(
     video_width: int,
@@ -108,19 +112,27 @@ def _parse_srt_blocks(srt_path: Path) -> list[dict]:
     return events
 
 
+def _display_subtitle_text(text: str) -> str:
+    cleaned = _SPEAKER_LABEL_RE.sub("", text)
+    return "\n".join(line.strip() for line in cleaned.splitlines()).strip()
+
+
 def srt_to_ass(
     srt_path: Path,
     style: SubtitleStyle,
     output_path: Path,
     style_name: str = "Default",
+    play_res: tuple[int, int] | None = None,
 ) -> Path:
     events = _parse_srt_blocks(srt_path)
-    header = _build_ass_header([(style_name, style)])
+    header = _build_ass_header([(style_name, style)], play_res=play_res)
     dialogue_lines = []
     for event in events:
         start = _format_ass_time(event["start"])
         end = _format_ass_time(event["end"])
-        text = event["text"].replace("\n", "\\N")
+        text = _display_subtitle_text(event["text"]).replace("\n", "\\N")
+        if not text:
+            continue
         dialogue_lines.append(f"Dialogue: 0,{start},{end},{style_name},,0,0,0,,{text}")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -135,20 +147,25 @@ def merge_bilingual_ass(
     chinese_style: SubtitleStyle,
     english_style: SubtitleStyle,
     output_path: Path,
+    play_res: tuple[int, int] | None = None,
 ) -> Path:
     cn_events = _parse_srt_blocks(chinese_srt)
     en_events = _parse_srt_blocks(english_srt)
-    header = _build_ass_header([("Chinese", chinese_style), ("English", english_style)])
+    header = _build_ass_header([("Chinese", chinese_style), ("English", english_style)], play_res=play_res)
     dialogue_lines = []
     for event in cn_events:
         start = _format_ass_time(event["start"])
         end = _format_ass_time(event["end"])
-        text = event["text"].replace("\n", "\\N")
+        text = _display_subtitle_text(event["text"]).replace("\n", "\\N")
+        if not text:
+            continue
         dialogue_lines.append(f"Dialogue: 0,{start},{end},Chinese,,0,0,0,,{text}")
     for event in en_events:
         start = _format_ass_time(event["start"])
         end = _format_ass_time(event["end"])
-        text = event["text"].replace("\n", "\\N")
+        text = _display_subtitle_text(event["text"]).replace("\n", "\\N")
+        if not text:
+            continue
         dialogue_lines.append(f"Dialogue: 0,{start},{end},English,,0,0,0,,{text}")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -157,13 +174,20 @@ def merge_bilingual_ass(
     return output_path
 
 
-def _build_ass_header(styles: list[tuple[str, SubtitleStyle]]) -> str:
+def _build_ass_header(
+    styles: list[tuple[str, SubtitleStyle]],
+    *,
+    play_res: tuple[int, int] | None = None,
+) -> str:
+    play_res_x, play_res_y = play_res or (1920, 1080)
+    play_res_x = max(1, int(play_res_x))
+    play_res_y = max(1, int(play_res_y))
     style_lines = "\n".join(_build_ass_style(name, s) for name, s in styles)
     return (
         "[Script Info]\n"
         "ScriptType: v4.00+\n"
-        "PlayResX: 1920\n"
-        "PlayResY: 1080\n"
+        f"PlayResX: {play_res_x}\n"
+        f"PlayResY: {play_res_y}\n"
         "WrapStyle: 0\n"
         "ScaledBorderAndShadow: yes\n"
         "\n"

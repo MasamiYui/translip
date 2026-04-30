@@ -80,7 +80,7 @@ def preview_subtitle(request: SubtitlePreviewRequest) -> SubtitlePreviewResult:
     work_dir = output_path.parent / ".subtitle-preview-work"
     ensure_directory(work_dir)
     ass_path = work_dir / "preview.ass"
-    srt_to_ass(srt_path, style, ass_path)
+    srt_to_ass(srt_path, style, ass_path, play_res=(width, height))
 
     burn_subtitle_preview(
         input_video_path=video_path,

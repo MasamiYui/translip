@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import shutil
 import time
 from pathlib import Path
@@ -570,6 +571,7 @@ def _synthesize_with_quality_retry(
     attempts: list[dict[str, Any]] = []
     retry_reasons: list[str] = []
     synthesis_error: Exception | None = None
+    reference_tournament = os.environ.get("TRANSLIP_REFERENCE_TOURNAMENT", "").strip().lower() in {"1", "true", "yes"}
 
     for candidate_index, candidate in enumerate(reference_candidates, start=1):
         prepared = prepared_references.get(candidate.path)
@@ -634,7 +636,7 @@ def _synthesize_with_quality_retry(
         attempts.append(attempt)
         if candidate_index == 1:
             retry_reasons = _quality_retry_reasons(evaluation)
-            if not retry_reasons:
+            if not retry_reasons and not reference_tournament:
                 break
 
     successful_attempts = [attempt for attempt in attempts if attempt.get("status") == "candidate"]

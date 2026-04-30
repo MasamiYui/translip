@@ -627,6 +627,106 @@ describe('TaskDetailPage export workflow', () => {
     })
   })
 
+  it('keeps the selected subtitle source after generating a preview in the export drawer', async () => {
+    const task = {
+      id: 'task-preview-source',
+      name: 'Preview source task',
+      status: 'succeeded',
+      input_path: '/tmp/demo.mp4',
+      output_root: '/tmp/output',
+      source_lang: 'zh',
+      target_lang: 'en',
+      output_intent: 'bilingual_review',
+      quality_preset: 'standard',
+      config: { template: 'asr-dub+ocr-subs', video_source: 'original', audio_source: 'both', subtitle_source: 'both' },
+      delivery_config: {
+        subtitle_mode: 'bilingual',
+        subtitle_render_source: 'ocr',
+        bilingual_export_strategy: 'preserve_hard_subtitles_add_english',
+      },
+      hard_subtitle_status: 'confirmed',
+      asset_summary: {
+        video: {
+          original: { status: 'available', path: '/tmp/demo.mp4' },
+          clean: { status: 'missing', path: null },
+        },
+        audio: {
+          preview: { status: 'available', path: 'task-e/voice/preview_mix.en.wav' },
+          dub: { status: 'available', path: 'task-e/voice/dub_voice.en.wav' },
+        },
+        subtitles: {
+          ocr_translated: { status: 'available', path: 'ocr-translate/ocr_subtitles.en.srt' },
+          asr_translated: { status: 'available', path: 'task-c/voice/translation.en.srt' },
+        },
+        exports: {
+          subtitle_preview: { status: 'missing', path: null },
+          final_preview: { status: 'missing', path: null },
+          final_dub: { status: 'missing', path: null },
+        },
+      },
+      export_readiness: {
+        status: 'ready',
+        recommended_profile: 'bilingual_review',
+        summary: 'ready_for_export',
+        blockers: [],
+      },
+      last_export_summary: {
+        status: 'not_exported',
+        profile: null,
+        updated_at: null,
+        files: [],
+      },
+      overall_progress: 100,
+      current_stage: 'task-g',
+      created_at: '2026-04-16T00:00:00Z',
+      updated_at: '2026-04-16T00:00:00Z',
+      stages: [{ stage_name: 'task-g', status: 'succeeded', progress_percent: 100, cache_hit: false }],
+    }
+
+    vi.mocked(tasksApi.get).mockResolvedValue(task as never)
+    vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
+    vi.mocked(tasksApi.getGraph).mockResolvedValue({
+      workflow: { template_id: 'asr-dub+ocr-subs', status: 'succeeded' },
+      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      edges: [],
+    } as never)
+    vi.mocked(tasksApi.createSubtitlePreview).mockResolvedValue({} as never)
+    vi.mocked(tasksApi.composeDelivery).mockResolvedValue({} as never)
+
+    render(<TaskDetailPage />, { wrapper: createWrapper() })
+
+    fireEvent.click(await screen.findByRole('button', { name: '导出成品' }))
+    fireEvent.change(screen.getByRole('combobox', { name: /英文字幕来源/ }), { target: { value: 'asr' } })
+
+    const exportSection = screen.getByText('4. 预览并导出').closest('section')
+    expect(exportSection).not.toBeNull()
+    fireEvent.click(within(exportSection as HTMLElement).getByRole('button', { name: '生成字幕预览' }))
+
+    await waitFor(() => {
+      expect(tasksApi.createSubtitlePreview).toHaveBeenCalledWith(
+        'task-1',
+        expect.objectContaining({
+          subtitle_path: 'task-c/voice/translation.en.srt',
+        }),
+      )
+    })
+    await waitFor(() => {
+      expect(vi.mocked(tasksApi.get).mock.calls.length).toBeGreaterThan(1)
+    })
+
+    fireEvent.click(within(exportSection as HTMLElement).getByRole('button', { name: '导出成品' }))
+
+    await waitFor(() => {
+      expect(tasksApi.composeDelivery).toHaveBeenCalledWith(
+        'task-1',
+        expect.objectContaining({
+          subtitle_mode: 'bilingual',
+          subtitle_source: 'asr',
+        }),
+      )
+    })
+  })
+
   it('uses the same download button style in export results and asset items', async () => {
     vi.mocked(tasksApi.get).mockResolvedValue({
       id: 'task-4',

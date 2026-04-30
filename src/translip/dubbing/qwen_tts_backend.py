@@ -18,6 +18,9 @@ _LANGUAGE_NAMES = {
     "ja": "Japanese",
 }
 
+_DEFAULT_MODEL_NAME = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
+_DEFAULT_CLONE_MODE = "icl"
+_CLONE_MODES = {"icl", "xvec"}
 _QWEN_AUDIO_TOKENS_PER_SEC = 12
 _QWEN_TOKEN_HEADROOM_RATIO = 1.25
 _QWEN_MIN_NEW_TOKENS = 12
@@ -99,12 +102,17 @@ class QwenTTSBackend:
         self,
         *,
         requested_device: str,
-        model_name: str = "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+        model_name: str | None = None,
+        clone_mode: str | None = None,
     ) -> None:
         self.requested_device = requested_device
         self.resolved_device = resolve_tts_device(requested_device)
-        self.resolved_model = model_name
-        self._prompt_cache: dict[tuple[Path, str, str], object] = {}
+        self.resolved_model = model_name or os.environ.get("QWEN_TTS_MODEL") or _DEFAULT_MODEL_NAME
+        self.clone_mode = _normalize_clone_mode(clone_mode or os.environ.get("QWEN_TTS_CLONE_MODE"))
+        if self.clone_mode == "xvec" and self.resolved_device == "mps":
+            # The x-vector-only path can produce NaN sampling probabilities on MPS/float16.
+            self.resolved_device = "cpu"
+        self._prompt_cache: dict[tuple[Path, str, str, str], object] = {}
 
     @property
     def model(self):
@@ -154,7 +162,7 @@ class QwenTTSBackend:
             audio_path=output_path,
             sample_rate=int(sample_rate),
             generated_duration_sec=round(float(len(waveform) / sample_rate), 3),
-            backend_metadata={"reference_score": reference.score},
+            backend_metadata={"reference_score": reference.score, "clone_mode": self.clone_mode},
         )
 
     def _voice_clone_prompt(self, model, reference: ReferencePackage):
@@ -162,13 +170,23 @@ class QwenTTSBackend:
             reference.prepared_audio_path.resolve(),
             reference.text,
             self.resolved_model,
+            self.clone_mode,
         )
         prompt = self._prompt_cache.get(cache_key)
         if prompt is None:
             prompt = model.create_voice_clone_prompt(
                 ref_audio=str(reference.prepared_audio_path),
-                ref_text=reference.text,
-                x_vector_only_mode=False,
+                ref_text=None if self.clone_mode == "xvec" else reference.text,
+                x_vector_only_mode=self.clone_mode == "xvec",
             )
             self._prompt_cache[cache_key] = prompt
         return prompt
+
+
+def _normalize_clone_mode(value: str | None) -> str:
+    mode = (value or _DEFAULT_CLONE_MODE).strip().lower()
+    if mode in {"x-vector", "x_vector", "x-vector-only", "x_vector_only"}:
+        mode = "xvec"
+    if mode not in _CLONE_MODES:
+        raise ValueError(f"Unsupported Qwen3-TTS clone mode: {value}")
+    return mode

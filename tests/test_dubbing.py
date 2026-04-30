@@ -180,6 +180,60 @@ def test_qwen_backend_uses_reusable_voice_clone_prompt(tmp_path: Path, monkeypat
     assert fake_model.generate_calls[0]["max_new_tokens"] == _max_new_tokens_for(segment)
 
 
+def test_qwen_backend_supports_xvec_clone_mode(tmp_path: Path, monkeypatch) -> None:
+    from translip.dubbing.backend import ReferencePackage, SynthSegmentInput
+    from translip.dubbing.qwen_tts_backend import QwenTTSBackend
+
+    class FakeModel:
+        def __init__(self) -> None:
+            self.prompt_calls = []
+
+        def create_voice_clone_prompt(self, **kwargs):
+            self.prompt_calls.append(kwargs)
+            return {"prompt": "xvec"}
+
+        def generate_voice_clone(self, **_kwargs):
+            sample_rate = 24_000
+            waveform = np.ones(int(0.8 * sample_rate), dtype=np.float32) * 0.05
+            return [waveform], sample_rate
+
+    fake_model = FakeModel()
+    monkeypatch.setattr(
+        "translip.dubbing.qwen_tts_backend._load_qwen_model",
+        lambda *_args, **_kwargs: fake_model,
+    )
+
+    reference_path = tmp_path / "reference.wav"
+    _write_audio(reference_path, 8.0)
+    reference = ReferencePackage(
+        speaker_id="spk_0000",
+        profile_id="profile_0000",
+        original_audio_path=reference_path,
+        prepared_audio_path=reference_path,
+        text="这是参考文本",
+        duration_sec=8.0,
+        score=0.9,
+        selection_reason="test",
+    )
+    segment = SynthSegmentInput(
+        segment_id="seg-0001",
+        speaker_id="spk_0000",
+        target_lang="en",
+        target_text="Hello from Dubai.",
+        source_duration_sec=1.0,
+        duration_budget_sec=1.1,
+    )
+
+    backend = QwenTTSBackend(requested_device="cpu", clone_mode="xvec")
+    result = backend.synthesize(reference=reference, segment=segment, output_path=tmp_path / "out.wav")
+
+    assert result.audio_path.exists()
+    assert backend.clone_mode == "xvec"
+    assert result.backend_metadata["clone_mode"] == "xvec"
+    assert fake_model.prompt_calls[0]["ref_text"] is None
+    assert fake_model.prompt_calls[0]["x_vector_only_mode"] is True
+
+
 def test_qwen_max_new_tokens_is_calibrated_to_12hz_audio_budget() -> None:
     from translip.dubbing.backend import SynthSegmentInput
     from translip.dubbing.qwen_tts_backend import _max_new_tokens_for
