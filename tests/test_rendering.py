@@ -689,7 +689,99 @@ def test_render_dub_blocks_content_quality_when_subtitle_window_has_no_dub_audio
     assert "audible_coverage_failed" in mix_report["stats"]["content_quality"]["reasons"]
 
 
-def test_render_dub_counts_skipped_subtitle_window_as_uncovered(tmp_path: Path) -> None:
+def test_render_dub_shifts_nearby_subtitle_window_start_to_preserve_coverage(tmp_path: Path) -> None:
+    background_path = tmp_path / "background.wav"
+    _write_tone(background_path, duration_sec=3.0, frequency=100.0)
+
+    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.corrected.json"
+    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
+    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    segment_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    _write_tone(segment_audio, duration_sec=1.0, frequency=220.0)
+
+    _write_json(
+        segments_path,
+        {
+            "segments": [
+                {
+                    "id": "seg-0001",
+                    "start": 0.8,
+                    "end": 1.8,
+                    "duration": 1.0,
+                    "speaker_label": "SPEAKER_00",
+                    "text": "一句话",
+                    "timing": {
+                        "subtitle_window": {"start": 0.0, "end": 1.0, "duration": 1.0},
+                        "dubbing_window": {"start": 0.8, "end": 1.8, "duration": 1.0, "policy": "asr_anchor"},
+                    },
+                }
+            ]
+        },
+    )
+    _write_json(
+        translation_path,
+        {
+            "backend": {"target_lang": "en", "output_tag": "en"},
+            "segments": [
+                {
+                    "segment_id": "seg-0001",
+                    "speaker_id": "spk_0000",
+                    "speaker_label": "SPEAKER_00",
+                    "start": 0.8,
+                    "end": 1.8,
+                    "duration": 1.0,
+                    "target_text": "One line.",
+                    "qa_flags": [],
+                }
+            ],
+        },
+    )
+    _write_json(
+        report_path,
+        {
+            "backend": {"target_lang": "en"},
+            "segments": [
+                {
+                    "segment_id": "seg-0001",
+                    "speaker_id": "spk_0000",
+                    "target_text": "One line.",
+                    "source_duration_sec": 1.0,
+                    "generated_duration_sec": 1.0,
+                    "speaker_similarity": 0.72,
+                    "duration_status": "passed",
+                    "speaker_status": "passed",
+                    "text_similarity": 0.98,
+                    "intelligibility_status": "passed",
+                    "overall_status": "passed",
+                    "audio_path": str(segment_audio),
+                }
+            ],
+        },
+    )
+
+    result = render_dub(
+        RenderDubRequest(
+            background_path=background_path,
+            segments_path=segments_path,
+            translation_path=translation_path,
+            task_d_report_paths=[report_path],
+            output_dir=tmp_path / "output-task-e",
+            target_lang="en",
+            output_sample_rate=24_000,
+            preview_format="wav",
+        )
+    )
+
+    item = json.loads(result.artifacts.timeline_path.read_text(encoding="utf-8"))["items"][0]
+    mix_report = json.loads(result.artifacts.mix_report_path.read_text(encoding="utf-8"))
+
+    assert item["placement_start"] == 0.0
+    assert item["subtitle_coverage_ratio"] == 1.0
+    assert "placement_shifted_to_subtitle_start" in item["notes"]
+    assert mix_report["stats"]["audible_coverage"]["failed_count"] == 0
+
+
+def test_render_dub_layers_subtitle_window_overlap_instead_of_silencing(tmp_path: Path) -> None:
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=3.0, frequency=100.0)
 
@@ -816,11 +908,237 @@ def test_render_dub_counts_skipped_subtitle_window_as_uncovered(tmp_path: Path) 
         for item in json.loads(result.artifacts.timeline_path.read_text(encoding="utf-8"))["items"]
     }
 
-    assert item_by_id["seg-0002"]["mix_status"] == "skipped_overlap"
-    assert item_by_id["seg-0002"]["subtitle_coverage_ratio"] == 0.0
-    assert "subtitle_window_not_rendered" in item_by_id["seg-0002"]["notes"]
-    assert mix_report["stats"]["audible_coverage"]["failed_count"] == 1
-    assert mix_report["stats"]["audible_coverage"]["failed_segment_ids"] == ["seg-0002"]
+    assert mix_report["stats"]["skipped_count"] == 0
+    assert item_by_id["seg-0002"]["mix_status"] == "placed_overlap"
+    assert item_by_id["seg-0002"]["subtitle_coverage_ratio"] == 1.0
+    assert "overlap_layered_with:seg-0001" in item_by_id["seg-0002"]["notes"]
+    assert mix_report["stats"]["audible_coverage"]["failed_count"] == 0
+    assert mix_report["stats"]["audible_coverage"]["failed_segment_ids"] == []
+
+
+def test_render_dub_preserves_subtitle_window_owner_when_later_split_overlaps(tmp_path: Path) -> None:
+    background_path = tmp_path / "background.wav"
+    _write_tone(background_path, duration_sec=4.0, frequency=100.0)
+
+    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.corrected.json"
+    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
+    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    seg1_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    seg2_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0002.wav"
+    _write_tone(seg1_audio, duration_sec=2.0, frequency=220.0)
+    _write_tone(seg2_audio, duration_sec=0.8, frequency=260.0)
+
+    _write_json(
+        segments_path,
+        {
+            "segments": [
+                {
+                    "id": "seg-0001",
+                    "start": 0.0,
+                    "end": 2.0,
+                    "duration": 2.0,
+                    "speaker_label": "SPEAKER_00",
+                    "text": "第一句",
+                    "timing": {
+                        "subtitle_window": {"start": 0.0, "end": 2.0, "duration": 2.0},
+                        "dubbing_window": {"start": 0.0, "end": 2.0, "duration": 2.0, "policy": "ocr_extended_anchor"},
+                    },
+                },
+                {
+                    "id": "seg-0002",
+                    "start": 1.0,
+                    "end": 1.8,
+                    "duration": 0.8,
+                    "speaker_label": "SPEAKER_00",
+                    "text": "拆分短句",
+                },
+            ]
+        },
+    )
+    _write_json(
+        translation_path,
+        {
+            "backend": {"target_lang": "en", "output_tag": "en"},
+            "segments": [
+                {
+                    "segment_id": "seg-0001",
+                    "speaker_id": "spk_0000",
+                    "speaker_label": "SPEAKER_00",
+                    "start": 0.0,
+                    "end": 2.0,
+                    "duration": 2.0,
+                    "target_text": "Subtitle owner line.",
+                    "qa_flags": [],
+                },
+                {
+                    "segment_id": "seg-0002",
+                    "speaker_id": "spk_0000",
+                    "speaker_label": "SPEAKER_00",
+                    "start": 1.0,
+                    "end": 1.8,
+                    "duration": 0.8,
+                    "target_text": "Split line.",
+                    "qa_flags": [],
+                },
+            ],
+        },
+    )
+    _write_json(
+        report_path,
+        {
+            "backend": {"target_lang": "en"},
+            "segments": [
+                {
+                    "segment_id": "seg-0001",
+                    "speaker_id": "spk_0000",
+                    "target_text": "Subtitle owner line.",
+                    "source_duration_sec": 2.0,
+                    "generated_duration_sec": 2.0,
+                    "speaker_similarity": 0.31,
+                    "duration_status": "passed",
+                    "speaker_status": "review",
+                    "text_similarity": 0.95,
+                    "intelligibility_status": "passed",
+                    "overall_status": "failed",
+                    "audio_path": str(seg1_audio),
+                },
+                {
+                    "segment_id": "seg-0002",
+                    "speaker_id": "spk_0000",
+                    "target_text": "Split line.",
+                    "source_duration_sec": 0.8,
+                    "generated_duration_sec": 0.8,
+                    "speaker_similarity": 0.74,
+                    "duration_status": "passed",
+                    "speaker_status": "passed",
+                    "text_similarity": 0.98,
+                    "intelligibility_status": "passed",
+                    "overall_status": "passed",
+                    "audio_path": str(seg2_audio),
+                },
+            ],
+        },
+    )
+
+    result = render_dub(
+        RenderDubRequest(
+            background_path=background_path,
+            segments_path=segments_path,
+            translation_path=translation_path,
+            task_d_report_paths=[report_path],
+            output_dir=tmp_path / "output-task-e",
+            target_lang="en",
+            output_sample_rate=24_000,
+            preview_format="wav",
+        )
+    )
+
+    mix_report = json.loads(result.artifacts.mix_report_path.read_text(encoding="utf-8"))
+    item_by_id = {
+        item["segment_id"]: item
+        for item in json.loads(result.artifacts.timeline_path.read_text(encoding="utf-8"))["items"]
+    }
+
+    assert item_by_id["seg-0001"]["mix_status"] == "placed"
+    assert item_by_id["seg-0001"]["subtitle_coverage_ratio"] == 1.0
+    assert item_by_id["seg-0002"]["mix_status"] == "placed_overlap"
+    assert "overlap_layered_with:seg-0001" in item_by_id["seg-0002"]["notes"]
+    assert mix_report["stats"]["audible_coverage"]["failed_count"] == 0
+
+
+def test_render_dub_stretches_short_underflow_when_subtitle_window_would_be_partly_silent(tmp_path: Path) -> None:
+    background_path = tmp_path / "background.wav"
+    _write_tone(background_path, duration_sec=3.0, frequency=100.0)
+
+    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.corrected.json"
+    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
+    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    segment_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    _write_tone(segment_audio, duration_sec=0.64, frequency=220.0)
+
+    _write_json(
+        segments_path,
+        {
+            "segments": [
+                {
+                    "id": "seg-0001",
+                    "start": 0.0,
+                    "end": 1.4,
+                    "duration": 1.4,
+                    "speaker_label": "SPEAKER_00",
+                    "text": "一句话",
+                    "timing": {
+                        "subtitle_window": {"start": 0.3, "end": 1.4, "duration": 1.1},
+                        "dubbing_window": {"start": 0.0, "end": 1.4, "duration": 1.4, "policy": "asr_anchor"},
+                    },
+                }
+            ]
+        },
+    )
+    _write_json(
+        translation_path,
+        {
+            "backend": {"target_lang": "en", "output_tag": "en"},
+            "segments": [
+                {
+                    "segment_id": "seg-0001",
+                    "speaker_id": "spk_0000",
+                    "speaker_label": "SPEAKER_00",
+                    "start": 0.0,
+                    "end": 1.4,
+                    "duration": 1.4,
+                    "target_text": "Go well.",
+                    "qa_flags": [],
+                }
+            ],
+        },
+    )
+    _write_json(
+        report_path,
+        {
+            "backend": {"target_lang": "en"},
+            "segments": [
+                {
+                    "segment_id": "seg-0001",
+                    "speaker_id": "spk_0000",
+                    "target_text": "Go well.",
+                    "source_duration_sec": 1.4,
+                    "generated_duration_sec": 0.64,
+                    "speaker_similarity": 0.34,
+                    "duration_status": "failed",
+                    "speaker_status": "review",
+                    "text_similarity": 0.90,
+                    "intelligibility_status": "review",
+                    "overall_status": "failed",
+                    "audio_path": str(segment_audio),
+                }
+            ],
+        },
+    )
+
+    result = render_dub(
+        RenderDubRequest(
+            background_path=background_path,
+            segments_path=segments_path,
+            translation_path=translation_path,
+            task_d_report_paths=[report_path],
+            output_dir=tmp_path / "output-task-e",
+            target_lang="en",
+            fit_policy="conservative",
+            fit_backend="atempo",
+            output_sample_rate=24_000,
+            preview_format="wav",
+        )
+    )
+
+    mix_report = json.loads(result.artifacts.mix_report_path.read_text(encoding="utf-8"))
+    item = json.loads(result.artifacts.timeline_path.read_text(encoding="utf-8"))["items"][0]
+
+    assert item["fit_strategy"] == "stretch"
+    assert item["fitted_duration_sec"] >= 1.3
+    assert item["subtitle_coverage_ratio"] >= 0.9
+    assert "underflow_stretched" in item["notes"]
+    assert mix_report["stats"]["audible_coverage"]["failed_count"] == 0
 
 
 def test_render_dub_compresses_small_overruns_to_preserve_adjacent_segments(tmp_path: Path) -> None:

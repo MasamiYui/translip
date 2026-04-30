@@ -115,6 +115,11 @@ class TaskConfigInput(BaseModel):
     # Task D
     tts_backend: str = "moss-tts-nano-onnx"
     max_segments: Optional[int] = None
+    dub_repair_enabled: bool = False
+    dub_repair_backend: List[str] = []
+    dub_repair_max_items: int = 12
+    dub_repair_attempts_per_item: int = 3
+    dub_repair_include_risk: bool = False
     # Task E
     fit_policy: str = "conservative"
     fit_backend: str = "atempo"

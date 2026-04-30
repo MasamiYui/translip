@@ -90,6 +90,42 @@ def test_build_pipeline_request_keeps_translation_batch_size() -> None:
     assert request.translation_batch_size == 2
 
 
+def test_build_pipeline_request_maps_dub_repair_config() -> None:
+    request = build_pipeline_request(
+        {
+            "input": "sample.mp4",
+            "output_root": "out",
+            "dub_repair_enabled": True,
+            "dub_repair_max_items": 12,
+            "dub_repair_attempts_per_item": 5,
+            "dub_repair_include_risk": True,
+            "dub_repair_backend": ["moss-tts-nano-onnx", "qwen3tts"],
+        }
+    )
+
+    assert request.dub_repair_enabled is True
+    assert request.dub_repair_max_items == 12
+    assert request.dub_repair_attempts_per_item == 5
+    assert request.dub_repair_include_risk is True
+    assert request.dub_repair_backends == ["moss-tts-nano-onnx", "qwen3tts"]
+
+
+def test_task_e_command_passes_selected_repair_segments(tmp_path: Path) -> None:
+    from translip.orchestration.commands import build_task_e_command
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(input_path=tmp_path / "sample.mp4", output_root=tmp_path / "out")
+    selected_path = tmp_path / "out" / "task-d" / "voice" / "repair-run" / "selected_segments.en.json"
+    command = build_task_e_command(
+        request,
+        task_d_reports=[tmp_path / "out" / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"],
+        selected_segments_path=selected_path,
+    )
+
+    assert "--selected-segments" in command
+    assert str(selected_path) in command
+
+
 def test_stage_sequence_respects_from_and_to() -> None:
     stages = resolve_stage_sequence("task-b", "task-d")
     assert stages == ["task-b", "task-c", "task-d"]

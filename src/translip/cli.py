@@ -493,6 +493,17 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument("--background-gain-db", type=float, default=None)
     pipeline_parser.add_argument("--window-ducking-db", type=float, default=None)
     pipeline_parser.add_argument("--max-compress-ratio", type=float, default=None)
+    pipeline_parser.add_argument("--dub-repair-enabled", dest="dub_repair_enabled", action=argparse.BooleanOptionalAction, default=None)
+    pipeline_parser.add_argument(
+        "--dub-repair-backend",
+        action="append",
+        dest="dub_repair_backend",
+        choices=["moss-tts-nano-onnx", "qwen3tts"],
+        default=None,
+    )
+    pipeline_parser.add_argument("--dub-repair-max-items", type=int, default=None)
+    pipeline_parser.add_argument("--dub-repair-attempts-per-item", type=int, default=None)
+    pipeline_parser.add_argument("--dub-repair-include-risk", dest="dub_repair_include_risk", action=argparse.BooleanOptionalAction, default=None)
     pipeline_parser.add_argument("--speaker-limit", type=int, default=None)
     pipeline_parser.add_argument("--segments-per-speaker", type=int, default=None)
     pipeline_parser.add_argument(

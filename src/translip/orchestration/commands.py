@@ -269,7 +269,12 @@ def build_task_d_command(request: PipelineRequest, *, speaker_id: str, segment_i
     return command
 
 
-def build_task_e_command(request: PipelineRequest, *, task_d_reports: list[Path]) -> list[str]:
+def build_task_e_command(
+    request: PipelineRequest,
+    *,
+    task_d_reports: list[Path],
+    selected_segments_path: Path | None = None,
+) -> list[str]:
     command = [
         *_cli_prefix(),
         "render-dub",
@@ -304,6 +309,8 @@ def build_task_e_command(request: PipelineRequest, *, task_d_reports: list[Path]
     ]
     for report_path in task_d_reports:
         command.extend(["--task-d-report", str(report_path)])
+    if selected_segments_path is not None:
+        command.extend(["--selected-segments", str(selected_segments_path)])
     return command
 
 

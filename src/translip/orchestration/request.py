@@ -39,6 +39,15 @@ def _load_json_config(path: str | Path | None) -> dict[str, Any]:
     return payload
 
 
+def _list_config(value: Any) -> list[str] | None:
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)):
+        return [str(item) for item in value if str(item)]
+    text = str(value).strip()
+    return [text] if text else None
+
+
 def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
     config_payload = _load_json_config(raw.get("config"))
     merged = dict(config_payload)
@@ -92,6 +101,15 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
         background_gain_db=float(merged.get("background_gain_db", DEFAULT_RENDER_BACKGROUND_GAIN_DB)),
         window_ducking_db=float(merged.get("window_ducking_db", DEFAULT_RENDER_WINDOW_DUCKING_DB)),
         max_compress_ratio=float(merged.get("max_compress_ratio", 1.45)),
+        dub_repair_enabled=bool(merged.get("dub_repair_enabled", False)),
+        dub_repair_backends=_list_config(
+            merged.get("dub_repair_backends")
+            if merged.get("dub_repair_backends") is not None
+            else merged.get("dub_repair_backend")
+        ),
+        dub_repair_max_items=int(merged.get("dub_repair_max_items", 12)),
+        dub_repair_attempts_per_item=int(merged.get("dub_repair_attempts_per_item", 3)),
+        dub_repair_include_risk=bool(merged.get("dub_repair_include_risk", False)),
         speaker_limit=int(merged.get("speaker_limit", 0)),
         segments_per_speaker=int(merged.get("segments_per_speaker", 0)),
         separation_mode=merged.get("separation_mode", "dialogue"),

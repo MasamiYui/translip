@@ -197,6 +197,12 @@ export interface TaskConfig {
   condense_mode?: string
   tts_backend: string
   max_segments?: number
+  dub_repair_enabled?: boolean
+  dub_repair_backend?: string[]
+  dub_repair_backends?: string[]
+  dub_repair_max_items?: number
+  dub_repair_attempts_per_item?: number
+  dub_repair_include_risk?: boolean
   fit_policy: string
   fit_backend: string
   mix_profile: string

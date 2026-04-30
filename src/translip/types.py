@@ -518,6 +518,11 @@ class PipelineRequest:
     background_gain_db: float = -8.0
     window_ducking_db: float = -3.0
     max_compress_ratio: float = 1.45
+    dub_repair_enabled: bool = False
+    dub_repair_backends: list[str] | None = None
+    dub_repair_max_items: int = 12
+    dub_repair_attempts_per_item: int = 3
+    dub_repair_include_risk: bool = False
     speaker_limit: int = 0
     segments_per_speaker: int = 0
     separation_mode: Mode = "dialogue"
@@ -602,6 +607,11 @@ class PipelineRequest:
             background_gain_db=self.background_gain_db,
             window_ducking_db=self.window_ducking_db,
             max_compress_ratio=self.max_compress_ratio,
+            dub_repair_enabled=bool(self.dub_repair_enabled),
+            dub_repair_backends=list(self.dub_repair_backends) if self.dub_repair_backends else None,
+            dub_repair_max_items=int(self.dub_repair_max_items),
+            dub_repair_attempts_per_item=int(self.dub_repair_attempts_per_item),
+            dub_repair_include_risk=bool(self.dub_repair_include_risk),
             speaker_limit=self.speaker_limit,
             segments_per_speaker=self.segments_per_speaker,
             separation_mode=self.separation_mode,

@@ -9,6 +9,7 @@ from typing import Any
 from ..dubbing.planning import pick_segment_ids_for_speaker, pick_task_d_speaker_ids
 from ..dubbing.voice_bank import VoiceBankRequest, build_voice_bank
 from ..exceptions import TranslipError
+from ..repair import RepairPlanRequest, RepairRunRequest, plan_dub_repair, run_dub_repair
 from ..types import PipelineRequest, PipelineResult, PipelineStageName
 from ..translation.backend import output_tag_for_language
 from ..utils.files import ensure_directory
@@ -172,6 +173,11 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "ducking_mode": request.ducking_mode,
                 "preview_format": request.preview_format,
                 "max_compress_ratio": request.max_compress_ratio,
+                "dub_repair_enabled": request.dub_repair_enabled,
+                "dub_repair_backends": request.dub_repair_backends,
+                "dub_repair_max_items": request.dub_repair_max_items,
+                "dub_repair_attempts_per_item": request.dub_repair_attempts_per_item,
+                "dub_repair_include_risk": request.dub_repair_include_risk,
             }
         )
     return common
@@ -395,23 +401,105 @@ def execute_stage(
     if stage == "task-e":
         task_d_manifest = _load_json(task_d_stage_manifest_path(request))
         task_d_reports = [Path(path) for path in task_d_manifest.get("reports", [])]
+        selected_segments_path = _run_dub_repair_for_task_e(
+            request=request,
+            task_d_reports=task_d_reports,
+            monitor=monitor,
+        )
         monitor.update_stage_progress(stage, 5.0, "rendering dub timeline")
         run_stage_command(
-            build_task_e_command(request, task_d_reports=task_d_reports),
+            build_task_e_command(
+                request,
+                task_d_reports=task_d_reports,
+                selected_segments_path=selected_segments_path,
+            ),
             log_path=_stage_log_path(request, "task-e"),
         )
+        artifact_paths = [
+            str(task_e_dub_voice_path(request)),
+            str(task_e_preview_mix_path(request)),
+            str(task_e_timeline_path(request)),
+            str(task_e_mix_report_path(request)),
+        ]
+        if selected_segments_path is not None:
+            artifact_paths.append(str(selected_segments_path))
         return {
             "manifest_path": str(task_e_manifest_path(request)),
-            "artifact_paths": [
-                str(task_e_dub_voice_path(request)),
-                str(task_e_preview_mix_path(request)),
-                str(task_e_timeline_path(request)),
-                str(task_e_mix_report_path(request)),
-            ],
+            "artifact_paths": artifact_paths,
             "log_path": str(_stage_log_path(request, "task-e")),
         }
 
     raise ValueError(f"Unsupported stage: {stage}")
+
+
+def _run_dub_repair_for_task_e(
+    *,
+    request: PipelineRequest,
+    task_d_reports: list[Path],
+    monitor: PipelineMonitor,
+) -> Path | None:
+    if not request.dub_repair_enabled:
+        return None
+    if not task_d_reports:
+        return None
+
+    plan_dir = request.output_root / "task-d" / "voice" / "repair-plan"
+    run_dir = request.output_root / "task-d" / "voice" / "repair-run"
+    try:
+        monitor.update_stage_progress("task-e", 1.0, "planning dub repair")
+        plan_result = plan_dub_repair(
+            RepairPlanRequest(
+                translation_path=task_c_translation_path(request),
+                profiles_path=task_b_profiles_path(request),
+                task_d_report_paths=task_d_reports,
+                output_dir=plan_dir,
+                target_lang=request.target_lang,
+                glossary_path=request.glossary_path,
+                max_items=request.dub_repair_max_items,
+            )
+        )
+        repair_count = int(plan_result.manifest.get("stats", {}).get("repair_count") or 0)
+        if repair_count <= 0:
+            return None
+
+        monitor.update_stage_progress("task-e", 3.0, f"running dub repair ({repair_count} candidates)")
+        run_result = run_dub_repair(
+            RepairRunRequest(
+                repair_queue_path=plan_result.artifacts.repair_queue_path,
+                rewrite_plan_path=plan_result.artifacts.rewrite_plan_path,
+                reference_plan_path=plan_result.artifacts.reference_plan_path,
+                output_dir=run_dir,
+                tts_backends=_repair_backends_for_request(request),
+                device=request.device,
+                backread_model="tiny",
+                max_items=request.dub_repair_max_items,
+                attempts_per_item=request.dub_repair_attempts_per_item,
+                include_risk=request.dub_repair_include_risk,
+            )
+        )
+        return run_result.artifacts.selected_segments_path
+    except Exception as exc:  # pragma: no cover - real backend failures should not block baseline render
+        logger.exception("Dub repair failed before Task E; continuing with original Task D reports: %s", exc)
+        return None
+
+
+def _repair_backends_for_request(request: PipelineRequest) -> list[str]:
+    configured = [
+        str(backend)
+        for backend in (request.dub_repair_backends or [])
+        if str(backend) in {"moss-tts-nano-onnx", "qwen3tts"}
+    ]
+    if configured:
+        return _dedupe(configured)
+    return [str(request.tts_backend)]
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    result: list[str] = []
+    for value in values:
+        if value not in result:
+            result.append(value)
+    return result
 
 
 def execute_delivery_node(

@@ -75,7 +75,9 @@ def compress_audio(
     backend: str,
     output_sample_rate: int,
 ) -> Path:
-    if tempo <= 1.0:
+    if tempo <= 0.0:
+        raise DependencyError(f"Audio tempo must be positive, got {tempo}")
+    if abs(tempo - 1.0) <= 0.001:
         waveform = prepare_audio_for_mix(input_path, target_sample_rate=output_sample_rate)
         return write_wav(output_path, waveform, sample_rate=output_sample_rate)
 
@@ -142,7 +144,7 @@ def audio_duration_sec(audio_path: Path) -> float:
 
 def _tempo_filter(*, tempo: float, backend: str) -> str:
     if backend == "atempo":
-        return f"atempo={tempo:.6f}"
+        return ",".join(f"atempo={factor:.6f}" for factor in _atempo_factors(tempo))
     if backend == "rubberband":
         if not ffmpeg_supports_filter("rubberband"):
             raise DependencyError(
@@ -151,6 +153,21 @@ def _tempo_filter(*, tempo: float, backend: str) -> str:
             )
         return f"rubberband=tempo={tempo:.6f}"
     raise DependencyError(f"Unsupported fit backend: {backend}")
+
+
+def _atempo_factors(tempo: float) -> list[float]:
+    if tempo <= 0.0:
+        raise DependencyError(f"Audio tempo must be positive, got {tempo}")
+    factors: list[float] = []
+    remaining = float(tempo)
+    while remaining < 0.5:
+        factors.append(0.5)
+        remaining /= 0.5
+    while remaining > 2.0:
+        factors.append(2.0)
+        remaining /= 2.0
+    factors.append(remaining)
+    return factors
 
 
 @lru_cache(maxsize=1)

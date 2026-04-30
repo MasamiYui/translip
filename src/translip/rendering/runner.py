@@ -38,6 +38,15 @@ SHORT_SEGMENT_COMPRESS_MAX_SOURCE_SEC = 1.5
 SHORT_SEGMENT_COMPRESS_MAX_OVERFLOW_SEC = 0.75
 SHORT_SEGMENT_COMPRESS_MAX_RATIO = 1.75
 MIN_SUBTITLE_COVERAGE_RATIO = 0.50
+OVERLAP_LAYER_MAX_DURATION_SEC = 5.0
+OVERLAP_LAYER_MAX_ABSOLUTE_SEC = 2.5
+OVERLAP_LAYER_MAX_RELATIVE = 0.9
+OVERLAP_LAYER_FAILED_GAIN_DB = -5.0
+OVERLAP_LAYER_REVIEW_GAIN_DB = -3.0
+OVERLAP_LAYER_PASSED_GAIN_DB = -2.0
+MAX_SUBTITLE_START_SHIFT_SEC = 1.5
+UNDERFLOW_STRETCH_MIN_RATIO = 0.35
+UNDERFLOW_STRETCH_MAX_SOURCE_SEC = 2.5
 
 
 @dataclass(slots=True)
@@ -66,6 +75,7 @@ class TimelineItem:
     placement_end: float | None = None
     fitted_audio_path: Path | None = None
     fitted_duration_sec: float | None = None
+    mix_gain_db: float = 0.0
     mix_status: str = "pending"
     quality_score: float = 0.0
     notes: list[str] = field(default_factory=list)
@@ -97,6 +107,7 @@ class TimelineItem:
             "text_similarity": round(self.text_similarity, 4) if self.text_similarity is not None else None,
             "overall_status": self.overall_status,
             "mix_status": self.mix_status,
+            "mix_gain_db": round(self.mix_gain_db, 3),
             "audio_path": str(self.audio_path),
             "fitted_audio_path": str(self.fitted_audio_path) if self.fitted_audio_path else None,
             "task_d_report_path": str(self.task_d_report_path),
@@ -542,6 +553,16 @@ def _apply_fit_strategy(
                 item.notes.append("overflow_trimmed")
             else:
                 item.notes.append("overflow_compressed")
+        elif strategy == "stretch":
+            tempo = item.generated_duration_sec / max(item.source_duration_sec, 1e-6)
+            fitted_path = compress_audio(
+                input_path=item.audio_path,
+                output_path=fit_dir / f"{item.segment_id}.wav",
+                tempo=tempo,
+                backend=request.fit_backend,
+                output_sample_rate=request.output_sample_rate,
+            )
+            item.notes.append("underflow_stretched")
         else:
             fitted_path = compress_audio(
                 input_path=item.audio_path,
@@ -554,8 +575,8 @@ def _apply_fit_strategy(
             item.notes.append("fit_underflow_passthrough")
         item.fitted_audio_path = fitted_path
         item.fitted_duration_sec = audio_duration_sec(fitted_path)
-        item.placement_start = item.anchor_start
-        item.placement_end = item.anchor_start + float(item.fitted_duration_sec)
+        item.placement_start = _placement_start_for_item(item)
+        item.placement_end = item.placement_start + float(item.fitted_duration_sec)
         planned.append(item)
 
     return planned, skipped
@@ -583,7 +604,32 @@ def _fit_strategy_for_item(*, item: TimelineItem, request: RenderDubRequest) -> 
         return "pad"
     if ratio > request.max_compress_ratio:
         return "overflow_unfitted"
+    if _should_stretch_underflow(item=item, ratio=ratio):
+        return "stretch"
     return "underflow_unfitted"
+
+
+def _should_stretch_underflow(*, item: TimelineItem, ratio: float) -> bool:
+    if ratio < UNDERFLOW_STRETCH_MIN_RATIO:
+        return False
+    if item.source_duration_sec > UNDERFLOW_STRETCH_MAX_SOURCE_SEC:
+        return False
+    return item.subtitle_start is not None and item.subtitle_end is not None
+
+
+def _placement_start_for_item(item: TimelineItem) -> float:
+    placement_start = item.anchor_start
+    if item.subtitle_start is None:
+        return placement_start
+    if item.subtitle_start >= item.anchor_start:
+        return placement_start
+    shift_sec = item.anchor_start - item.subtitle_start
+    if shift_sec > MAX_SUBTITLE_START_SHIFT_SEC:
+        return placement_start
+    placement_start = max(0.0, item.subtitle_start)
+    if "placement_shifted_to_subtitle_start" not in item.notes:
+        item.notes.append("placement_shifted_to_subtitle_start")
+    return placement_start
 
 
 def _apply_subtitle_coverage(item: TimelineItem) -> None:
@@ -592,7 +638,7 @@ def _apply_subtitle_coverage(item: TimelineItem) -> None:
         return
 
     subtitle_duration = max(0.001, item.subtitle_end - item.subtitle_start)
-    if item.mix_status != "placed":
+    if not _is_rendered_mix_status(item.mix_status):
         coverage_ratio = 0.0
         if "subtitle_window_not_rendered" not in item.notes:
             item.notes.append("subtitle_window_not_rendered")
@@ -623,8 +669,31 @@ def _resolve_overlaps(items: list[TimelineItem]) -> tuple[list[TimelineItem], li
             item.mix_status = "placed"
             placed.append(item)
             continue
+        if _should_preserve_subtitle_owner(item, conflicts):
+            if _should_layer_overlap(item, conflicts):
+                item.mix_status = "placed_overlap"
+                item.mix_gain_db = _overlap_layer_gain_db(item)
+                item.notes.append(
+                    "overlap_layered_with:" + ",".join(conflict.segment_id for conflict in conflicts)
+                )
+                placed.append(item)
+            else:
+                item.mix_status = "skipped_overlap"
+                item.notes.append(
+                    "subtitle_owner_preserved:" + ",".join(conflict.segment_id for conflict in conflicts)
+                )
+                skipped.append(item)
+            continue
         if _try_trim_conflicts(item, conflicts):
             item.mix_status = "placed"
+            placed.append(item)
+            continue
+        if _should_layer_overlap(item, conflicts):
+            item.mix_status = "placed_overlap"
+            item.mix_gain_db = _overlap_layer_gain_db(item)
+            item.notes.append(
+                "overlap_layered_with:" + ",".join(conflict.segment_id for conflict in conflicts)
+            )
             placed.append(item)
             continue
         strongest = max(conflicts, key=lambda row: row.quality_score)
@@ -659,6 +728,8 @@ def _render_dub_voice(
             continue
         waveform = prepare_audio_for_mix(item.fitted_audio_path, target_sample_rate=output_sample_rate)
         waveform = apply_fade(waveform, sample_rate=output_sample_rate)
+        if item.mix_gain_db:
+            waveform = waveform * db_to_gain(item.mix_gain_db)
         start_idx = max(0, int(round(item.placement_start * output_sample_rate)))
         end_idx = min(total_samples, start_idx + waveform.size)
         if end_idx <= start_idx:
@@ -733,6 +804,57 @@ def _interval_overlap(start_a: float | None, end_a: float | None, start_b: float
         return False
     overlap_sec = min(end_a, end_b) - max(start_a, start_b)
     return overlap_sec > OVERLAP_TOLERANCE_SEC
+
+
+def _overlap_duration(
+    start_a: float | None,
+    end_a: float | None,
+    start_b: float | None,
+    end_b: float | None,
+) -> float:
+    if start_a is None or end_a is None or start_b is None or end_b is None:
+        return 0.0
+    return max(0.0, min(end_a, end_b) - max(start_a, start_b))
+
+
+def _is_rendered_mix_status(status: str) -> bool:
+    return status in {"placed", "placed_overlap"}
+
+
+def _has_subtitle_window(item: TimelineItem) -> bool:
+    return item.subtitle_start is not None and item.subtitle_end is not None
+
+
+def _should_preserve_subtitle_owner(item: TimelineItem, conflicts: list[TimelineItem]) -> bool:
+    return not _has_subtitle_window(item) and any(_has_subtitle_window(conflict) for conflict in conflicts)
+
+
+def _should_layer_overlap(item: TimelineItem, conflicts: list[TimelineItem]) -> bool:
+    if not _has_subtitle_window(item) and not any(_has_subtitle_window(conflict) for conflict in conflicts):
+        return False
+    if item.fitted_duration_sec is None or item.fitted_duration_sec <= 0:
+        return False
+    if item.fitted_duration_sec > OVERLAP_LAYER_MAX_DURATION_SEC:
+        return False
+    if len(conflicts) > 2:
+        return False
+    max_overlap = max(
+        _overlap_duration(item.placement_start, item.placement_end, conflict.placement_start, conflict.placement_end)
+        for conflict in conflicts
+    )
+    allowed_overlap = max(
+        OVERLAP_LAYER_MAX_ABSOLUTE_SEC,
+        min(item.fitted_duration_sec, item.source_duration_sec) * OVERLAP_LAYER_MAX_RELATIVE,
+    )
+    return max_overlap <= allowed_overlap
+
+
+def _overlap_layer_gain_db(item: TimelineItem) -> float:
+    if item.overall_status == "failed":
+        return OVERLAP_LAYER_FAILED_GAIN_DB
+    if item.overall_status == "review":
+        return OVERLAP_LAYER_REVIEW_GAIN_DB
+    return OVERLAP_LAYER_PASSED_GAIN_DB
 
 
 MAX_TRIM_FRACTION = 0.30
