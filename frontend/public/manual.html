@@ -278,14 +278,19 @@
 <!-- ═══════════════════════════ COVER ═══════════════════════════ -->
 <div class="cover">
   <div class="container">
+    <div style="margin-bottom:16px;">
+      <a href="javascript:history.back()" style="display:inline-flex;align-items:center;gap:6px;color:#93c5fd;font-size:13px;text-decoration:none;opacity:0.85;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0.85">
+        ← 返回配音编辑台
+      </a>
+    </div>
     <div class="cover-badge">Translip · 操作手册</div>
     <h1>专业配音编辑台</h1>
     <p class="sub">
       针对 AI 配音流水线输出结果的专业审核与精修工作台，支持多轨波形、问题队列、片段审核与局部预览。
     </p>
     <div class="cover-meta">
-      <div class="cover-meta-item">版本 <strong>v0.1.0</strong></div>
-      <div class="cover-meta-item">更新日期 <strong>2026-05-01</strong></div>
+      <div class="cover-meta-item">版本 <strong>v0.2.0</strong></div>
+      <div class="cover-meta-item">更新日期 <strong>2026-05-06</strong></div>
       <div class="cover-meta-item">适用人群 <strong>配音导演 · 后期编辑</strong></div>
     </div>
   </div>
@@ -307,7 +312,11 @@
       <li><a href="#s9">查看已处理问题（resolved）</a></li>
       <li><a href="#s10">Benchmark 质量评分说明</a></li>
       <li><a href="#s11">角色档案与风险标记</a></li>
-      <li><a href="#s12">导出最终成品</a></li>
+      <li><a href="#s12">撤销 / 重做操作</a></li>
+      <li><a href="#s13">导出 SRT 字幕</a></li>
+      <li><a href="#s14">片段质量评分详解</a></li>
+      <li><a href="#s15">声线预览与更换参考音频</a></li>
+      <li><a href="#s16">导出最终成品</a></li>
     </ol>
   </div>
 
@@ -631,7 +640,129 @@
 
 <!-- ═══════════════════════════ S12 ═══════════════════════════ -->
 <section id="s12">
-  <h2 class="section-title"><span class="section-number">12</span>导出最终成品</h2>
+  <h2 class="section-title"><span class="section-number">12</span>撤销 / 重做操作</h2>
+  <p class="section-desc">编辑台支持多步撤销与重做，任何审核状态或文本修改操作均可撤销。</p>
+
+  <table>
+    <thead>
+      <tr><th>操作</th><th>快捷键</th><th>顶栏按钮</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>撤销（Undo）</td><td><kbd>Ctrl + Z</kbd>（macOS: <kbd>⌘ + Z</kbd>）</td><td>顶栏左侧 ↩ 图标</td></tr>
+      <tr><td>重做（Redo）</td><td><kbd>Ctrl + Y</kbd>（macOS: <kbd>⌘ + Y</kbd>）</td><td>顶栏左侧 ↪ 图标</td></tr>
+    </tbody>
+  </table>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/12-undo-redo-buttons.png" alt="撤销/重做按钮" />
+    <div class="screenshot-caption">顶栏左侧的撤销（↩）和重做（↪）按钮 — 有操作历史时亮起，无历史时半透明禁用</div>
+  </div>
+
+  <div class="callout tip">
+    <span class="callout-icon"></span>
+    <div>撤销步骤由后端 <code>op_cursor</code> 控制，最多支持连续撤销所有已执行操作。刷新页面后撤销历史清空。</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ S13 ═══════════════════════════ -->
+<section id="s13">
+  <h2 class="section-title"><span class="section-number">13</span>导出 SRT 字幕</h2>
+  <p class="section-desc">顶栏的 <kbd>SRT</kbd> 按钮可将当前所有配音稿文本一键导出为标准 SRT 字幕文件。</p>
+
+  <h3 class="step-title"><span class="step-num">操作</span>点击顶栏「SRT」按钮</h3>
+  <p style="font-size:14px;margin-bottom:12px;">点击后浏览器自动下载文件名为 <code>&lt;任务ID&gt;_dubbed.srt</code> 的字幕文件，可直接用于视频播放器或字幕编辑软件。</p>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/13-srt-exported.png" alt="SRT导出" />
+    <div class="screenshot-caption">点击 SRT 按钮后，浏览器自动下载 .srt 文件，内容为所有配音单元的时间码与目标语言文本</div>
+  </div>
+
+  <div class="callout tip">
+    <span class="callout-icon"></span>
+    <div>SRT 导出使用当前编辑台中的配音稿文本（包含人工修改）。若修改了文本但尚未重新合成 TTS，SRT 内容将反映最新文本，而音频仍为旧版本。</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ S14 ═══════════════════════════ -->
+<section id="s14">
+  <h2 class="section-title"><span class="section-number">14</span>片段质量评分详解</h2>
+  <p class="section-desc">选中片段后，Inspector 右侧会显示三项细粒度质量评分，帮助判断配音质量。</p>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/16-quality-scores.png" alt="片段质量评分" />
+    <div class="screenshot-caption">Inspector 中的三项质量评分 — 声纹相似度、时长比例、可懂度，各用进度条直观展示</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>评分项</th><th>含义</th><th>正常范围</th><th>低分提示</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>声纹相似度<br/><small>Speaker Similarity</small></td>
+        <td>配音音色与目标角色声纹的余弦相似度（SpeechBrain ECAPA 模型）</td>
+        <td>≥ 0.75</td>
+        <td>音色偏差，考虑切换声线或更换参考音频</td>
+      </tr>
+      <tr>
+        <td>时长比例<br/><small>Duration Ratio</small></td>
+        <td>配音时长 / 原音时长。&gt;1.0 表示配音比原音长</td>
+        <td>0.85 – 1.15</td>
+        <td>配音过长会溢出时间轴，需压缩或精简译文</td>
+      </tr>
+      <tr>
+        <td>可懂度<br/><small>Intelligibility</small></td>
+        <td>TTS 输出语音的清晰度评分（ASR 回读匹配率）</td>
+        <td>≥ 0.80</td>
+        <td>发音不清晰，考虑修改文本减少复杂发音</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout tip">
+    <span class="callout-icon"></span>
+    <div>三项评分均低时，该片段会自动标记为 P0 或 P1 问题。处理优先级：声纹相似度 &gt; 可懂度 &gt; 时长比例。</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ S15 ═══════════════════════════ -->
+<section id="s15">
+  <h2 class="section-title"><span class="section-number">15</span>声线预览与更换参考音频</h2>
+  <p class="section-desc">Inspector 的 Character 区域支持试听当前角色绑定的声线参考音频，并可通过「更换」对话框指定新的参考音频文件路径。</p>
+
+  <h3 class="step-title"><span class="step-num">STEP 1</span>试听当前声线参考音频</h3>
+  <p style="font-size:14px;margin-bottom:12px;">在 Inspector 底部 Character 区域，展开「声音参考」面板，可看到浏览器原生音频播放器（时长约 5–15 秒）。点击播放按钮即可试听该角色当前绑定的参考音频。</p>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/17-voice-preview.png" alt="声线预览" />
+    <div class="screenshot-caption">Character 区域 — 「声音参考」播放器可试听绑定的参考音频；右侧「更换」按钮可切换参考音频文件</div>
+  </div>
+
+  <h3 class="step-title"><span class="step-num">STEP 2</span>点击「更换」修改声音参考路径</h3>
+  <p style="font-size:14px;margin-bottom:12px;">若当前参考音频效果不理想（如声纹相似度持续偏低），点击「更换」按钮，弹出「更换声音参考」对话框。在文本框中输入新的参考音频绝对路径，确认后该角色将使用新参考音频重新合成。</p>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/18-voice-swap-modal.png" alt="更换声音参考对话框" />
+    <div class="screenshot-caption">「更换声音参考」对话框 — 在输入框中填入新参考音频的绝对路径，点击「确认更换」后生效</div>
+  </div>
+
+  <div class="callout warning">
+    <span class="callout-icon"></span>
+    <div>更换声音参考后，该角色下所有片段将需要重新合成（点击「重新合成」或重跑 Task D）。更换操作本身仅更新角色配置，不立即触发合成。</div>
+  </div>
+
+  <h3 class="step-title"><span class="step-num">STEP 3</span>候选版本对比（有返修候选时）</h3>
+  <p style="font-size:14px;margin-bottom:12px;">若流水线对某片段生成了多个候选配音版本，Inspector 中会出现「候选版本」面板，可逐一试听并通过评分徽章对比质量。无候选时该面板不显示。</p>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/19-no-candidates.png" alt="无候选版本时的 Inspector" />
+    <div class="screenshot-caption">当片段无候选版本时，Inspector 直接显示到 RISK FLAGS 为止，不含候选版本区块；有候选时会在底部追加带播放按钮和评分徽章的列表</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ S16 ═══════════════════════════ -->
+<section id="s16">
+  <h2 class="section-title"><span class="section-number">16</span>导出最终成品</h2>
   <p class="section-desc">完成审核后，点击顶栏右上角的 <kbd>Export</kbd> 按钮，或返回任务详情页点击「导出成品」。</p>
 
   <div class="callout tip">
@@ -640,7 +771,9 @@
       <ol style="padding-left:18px;margin-top:8px;line-height:2">
         <li>过滤 P0 → 逐条审听（Render Range） → 修改配音稿 → 标记已修</li>
         <li>过滤 P1 → 重点审听声纹问题 → 处理或标记复核</li>
+        <li>遇到质量评分低的片段 → 查看 Speaker Similarity / Duration Ratio → 酌情切换声线或修改译文</li>
         <li>切换 resolved 标签确认审核覆盖率</li>
+        <li>（可选）点击 SRT 按钮导出字幕文件</li>
         <li>顶栏 Export → 下载 MP4 成品</li>
       </ol>
     </div>
@@ -671,7 +804,7 @@
 </div><!-- .container -->
 
 <div class="footer">
-  <div><strong>专业配音编辑台操作手册</strong> · Translip v0.1.0</div>
+  <div><strong>专业配音编辑台操作手册</strong> · Translip v0.2.0</div>
   <div>© 2026 · 内部文档 · 请勿外传</div>
 </div>
 

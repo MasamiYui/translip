@@ -5,12 +5,15 @@ import {
   AlertTriangle,
   ArrowLeft,
   AudioLines,
+  BookOpen,
   Check,
   CheckCheck,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Download,
   History,
+  HelpCircle,
   Keyboard,
   Loader2,
   Play,
@@ -307,6 +310,16 @@ function EditorTopBar({
             Render Range
           </button>
           <a
+            href="/manual.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="help-manual-btn"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+            title="使用手册 / 帮助文档"
+          >
+            <BookOpen size={13} />
+          </a>
+          <a
             href={`/api/tasks/${taskId}/artifacts/${project.artifact_paths?.final_dub ?? ''}`}
             target="_blank"
             rel="noopener noreferrer"
@@ -359,6 +372,7 @@ function IssueCard({
   return (
     <button
       type="button"
+      data-testid={`issue-item-${issue.issue_id}`}
       onClick={onClick}
       className={`w-full rounded-none border-b border-slate-100 px-4 py-3 text-left transition-colors ${
         isSelected
@@ -723,11 +737,11 @@ function TimelinePane({
   )
 
   return (
-    <div className="flex h-full flex-col bg-slate-950">
+    <div className="flex h-full flex-col bg-white">
       {/* Header: duration + zoom controls */}
       <div
         data-testid="timeline-header"
-        className="flex shrink-0 items-center justify-between border-b border-slate-800 px-3 py-1"
+        className="flex shrink-0 items-center justify-between border-b border-slate-200 px-3 py-1"
       >
         <span className="text-[10px] text-slate-500">
           {formatTimeSec(totalDuration)} · {units.length} segments
@@ -737,7 +751,7 @@ function TimelinePane({
             type="button"
             onClick={() => setZoomIdx(i => Math.max(0, i - 1))}
             disabled={zoomIdx === 0}
-            className="rounded p-0.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30"
+            className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
             title="Zoom out"
           >
             <ZoomOut size={12} />
@@ -747,7 +761,7 @@ function TimelinePane({
             type="button"
             onClick={() => setZoomIdx(i => Math.min(ZOOM_LEVELS.length - 1, i + 1))}
             disabled={zoomIdx === ZOOM_LEVELS.length - 1}
-            className="rounded p-0.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30"
+            className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
             title="Zoom in"
           >
             <ZoomIn size={12} />
@@ -772,22 +786,22 @@ function TimelinePane({
           )}
 
           {/* Original Dialogue track */}
-          <div className="flex shrink-0 items-center gap-0 border-b border-slate-800">
+          <div className="flex shrink-0 items-center gap-0 border-b border-slate-200">
             <span className="w-28 shrink-0 px-3 text-[10px] font-medium text-slate-400">Original</span>
             <div className="h-10 flex-1 overflow-hidden">
               <WaveformBar
                 peaks={originalWaveformQuery.data?.peaks ?? []}
                 pending={originalWaveformQuery.data?.available === false && originalWaveformQuery.data?.pending}
-                color="#475569"
+                color="#cbd5e1"
                 height={40}
               />
             </div>
           </div>
 
           {/* Generated Dub track (with all units overlay) */}
-          <div className="flex shrink-0 items-center border-b border-slate-800">
+          <div className="flex shrink-0 items-center border-b border-slate-200">
             <span className="w-28 shrink-0 px-3 text-[10px] font-medium text-slate-400">Generated Dub</span>
-            <div className="relative h-10 flex-1 overflow-hidden bg-slate-900">
+            <div className="relative h-10 flex-1 overflow-hidden bg-slate-50/50">
               <WaveformBar
                 peaks={dubWaveformQuery.data?.peaks ?? []}
                 pending={dubWaveformQuery.data?.available === false && dubWaveformQuery.data?.pending}
@@ -820,7 +834,7 @@ function TimelinePane({
           </div>
 
           {/* Background track (P1: new) */}
-          <div className="flex shrink-0 items-center border-b border-slate-800">
+          <div className="flex shrink-0 items-center border-b border-slate-200">
             <span className="w-28 shrink-0 px-3 text-[10px] font-medium text-slate-400">Background</span>
             <div className="h-8 flex-1 overflow-hidden">
               <WaveformBar
@@ -835,7 +849,7 @@ function TimelinePane({
           {/* Dialogue Units track */}
           <div className="flex flex-1 items-center">
             <span className="w-28 shrink-0 px-3 text-[10px] font-medium text-slate-400">Subtitles</span>
-            <div className="relative h-8 flex-1 overflow-hidden bg-slate-900/50">
+            <div className="relative h-8 flex-1 overflow-hidden bg-blue-50/30 border-t border-slate-100">
               {units.map(unit => {
                 const left = (unit.start / totalDuration) * totalWidth
                 const width = ((unit.end - unit.start) / totalDuration) * totalWidth
@@ -845,7 +859,7 @@ function TimelinePane({
                     type="button"
                     onClick={e => { e.stopPropagation(); onSelectUnit(unit) }}
                     style={{ left: `${left}px`, width: `${Math.max(2, width)}px` }}
-                    className="absolute inset-y-0 flex items-center overflow-hidden rounded-sm bg-blue-600/20 px-0.5 text-[8px] text-blue-300 hover:bg-blue-600/30"
+                    className="absolute inset-y-0 flex items-center overflow-hidden rounded-sm bg-blue-100 px-0.5 text-[8px] text-blue-700 font-medium hover:bg-blue-200"
                     title={unit.source_text}
                   >
                     <span className="truncate">{unit.unit_id}</span>
@@ -937,7 +951,7 @@ function CurrentLinePane({
       {/* 2-column body */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left: source / target texts */}
-        <div className="flex min-w-0 flex-1 flex-col gap-2 overflow-y-auto border-r border-slate-100 px-5 py-3">
+        <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto border-r border-slate-100 px-5 py-4">
           <div>
             <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">源文</div>
             <div className="rounded-md bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-800">
@@ -1966,9 +1980,9 @@ export function DubbingEditorPage() {
       )}
 
       {/* Main area: 3-column layout */}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1 overflow-hidden p-3 gap-3 bg-slate-50">
         {/* Left: Issue Queue */}
-        <div className="flex w-80 shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white">
+        <div className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <IssueQueue
             project={project}
             selectedIssueId={selectedIssueId}
@@ -1978,9 +1992,9 @@ export function DubbingEditorPage() {
         </div>
 
         {/* Center: Video Preview + Timeline */}
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden">
           {/* Current line */}
-          <div className="border-b border-slate-200 bg-white" style={{ height: '240px', minHeight: '200px' }}>
+          <div className="flex shrink-0 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden" style={{ height: '360px', minHeight: '360px' }}>
             <CurrentLinePane
               project={project}
               taskId={taskId}
