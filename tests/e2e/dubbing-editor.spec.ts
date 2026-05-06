@@ -471,3 +471,105 @@ test('back-translation ASR check section is available in inspector', async ({ pa
   await page.screenshot({ path: path.join(SCREENSHOTS_DIR, '21-backtranslate.png') })
 })
 
+// ---------------------------------------------------------------------------
+// 22. Mode toggle: Edit ↔ Preview buttons are visible in top bar
+// ---------------------------------------------------------------------------
+test('mode toggle buttons are visible in top bar', async ({ page }) => {
+  await gotoEditor(page)
+
+  const editBtn = page.locator('[data-testid="mode-edit-btn"]')
+  const previewBtn = page.locator('[data-testid="mode-preview-btn"]')
+
+  await expect(editBtn).toBeVisible()
+  await expect(previewBtn).toBeVisible()
+
+  await page.screenshot({ path: path.join(SCREENSHOTS_DIR, '22-mode-toggle-buttons.png') })
+})
+
+// ---------------------------------------------------------------------------
+// 23. Edit mode is active by default (3-column layout visible)
+// ---------------------------------------------------------------------------
+test('edit mode is active by default with 3-column layout', async ({ page }) => {
+  await gotoEditor(page)
+
+  // Edit mode: Issue Queue + Inspector should be visible
+  await expect(page.getByText('Issue Queue').first()).toBeVisible()
+  await expect(page.getByText('Inspector').first()).toBeVisible()
+  await expect(page.locator('[data-testid="timeline-header"]')).toBeVisible()
+
+  // Edit button should appear active (has bg-white class indicating selected)
+  const editBtn = page.locator('[data-testid="mode-edit-btn"]')
+  await expect(editBtn).toHaveClass(/bg-white/)
+
+  await page.screenshot({ path: path.join(SCREENSHOTS_DIR, '23-edit-mode-default.png') })
+})
+
+// ---------------------------------------------------------------------------
+// 24. Switching to preview mode hides edit panels and shows video player
+// ---------------------------------------------------------------------------
+test('switching to preview mode shows video player and hides side panels', async ({ page }) => {
+  await gotoEditor(page)
+
+  // Click preview button
+  const previewBtn = page.locator('[data-testid="mode-preview-btn"]')
+  await previewBtn.click()
+  await page.waitForTimeout(300)
+
+  // Issue Queue should be gone
+  await expect(page.getByText('Issue Queue').first()).not.toBeVisible()
+
+  // Inspector should be gone
+  await expect(page.getByText('Inspector').first()).not.toBeVisible()
+
+  // Preview mode shows a video element
+  await expect(page.locator('video')).toBeVisible()
+
+  // Timeline is still visible in preview mode (dark speaker lanes)
+  await expect(page.locator('[data-testid="timeline-header"]')).toBeVisible()
+
+  await page.screenshot({ path: path.join(SCREENSHOTS_DIR, '24-preview-mode.png') })
+})
+
+// ---------------------------------------------------------------------------
+// 25. Preview mode controls bar is visible with play button, timecode, track switch
+// ---------------------------------------------------------------------------
+test('preview mode control bar is visible with expected controls', async ({ page }) => {
+  await gotoEditor(page)
+
+  await page.locator('[data-testid="mode-preview-btn"]').click()
+  await page.waitForTimeout(300)
+
+  // Play button visible
+  const playButton = page.locator('button').filter({ hasText: '' }).first()
+  await expect(page.locator('video')).toBeVisible()
+
+  // Audio track switcher: "原声" and "配音" buttons
+  await expect(page.getByText('原声').first()).toBeVisible()
+  await expect(page.getByText('配音').first()).toBeVisible()
+
+  await page.screenshot({ path: path.join(SCREENSHOTS_DIR, '25-preview-controls.png') })
+})
+
+// ---------------------------------------------------------------------------
+// 26. Can switch back from preview to edit mode
+// ---------------------------------------------------------------------------
+test('can switch back from preview to edit mode', async ({ page }) => {
+  await gotoEditor(page)
+
+  // Go to preview
+  await page.locator('[data-testid="mode-preview-btn"]').click()
+  await page.waitForTimeout(300)
+  await expect(page.locator('video')).toBeVisible()
+
+  // Switch back to edit
+  await page.locator('[data-testid="mode-edit-btn"]').click()
+  await page.waitForTimeout(300)
+
+  // Edit layout should restore
+  await expect(page.getByText('Issue Queue').first()).toBeVisible()
+  await expect(page.getByText('Inspector').first()).toBeVisible()
+  await expect(page.locator('video')).not.toBeVisible()
+
+  await page.screenshot({ path: path.join(SCREENSHOTS_DIR, '26-back-to-edit.png') })
+})
+

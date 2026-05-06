@@ -1271,3 +1271,28 @@ def backtranslate(
         "match_score": match_score if heard_text else 1.0,
         "asr_available": bool(heard_text),
     }
+
+
+@router.get("/{task_id}/dubbing-editor/video-preview")
+def get_video_preview(
+    task_id: str,
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    """Stream the source video file for preview in the editor."""
+    task = _get_task(session, task_id)
+    if not task.input_path:
+        raise HTTPException(status_code=404, detail="No source video for this task")
+    video_path = Path(task.input_path)
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail="Source video file not found")
+    # Determine MIME type from suffix
+    suffix = video_path.suffix.lower()
+    media_type_map = {
+        ".mp4": "video/mp4",
+        ".mov": "video/quicktime",
+        ".mkv": "video/x-matroska",
+        ".webm": "video/webm",
+        ".avi": "video/x-msvideo",
+    }
+    media_type = media_type_map.get(suffix, "video/mp4")
+    return FileResponse(str(video_path), media_type=media_type)

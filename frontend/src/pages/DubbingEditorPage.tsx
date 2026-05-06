@@ -16,7 +16,11 @@ import {
   HelpCircle,
   Keyboard,
   Loader2,
+  Maximize2,
+  Minimize2,
+  Pause,
   Play,
+  PenLine,
   RefreshCw,
   RotateCcw,
   Settings2,
@@ -25,7 +29,9 @@ import {
   Undo2,
   Redo2,
   User,
+  Video,
   Volume2,
+  VolumeX,
   X,
   ZoomIn,
   ZoomOut,
@@ -149,6 +155,8 @@ function EditorTopBar({
   canRedo,
   isRefreshing,
   selectedUnit,
+  mode,
+  onModeToggle,
 }: {
   project: DubbingEditorProject
   taskId: string
@@ -160,6 +168,8 @@ function EditorTopBar({
   canRedo: boolean
   isRefreshing: boolean
   selectedUnit: DubbingEditorUnit | null
+  mode: 'edit' | 'preview'
+  onModeToggle: () => void
 }) {
   const { summary, quality_benchmark } = project
   const [showShortcuts, setShowShortcuts] = useState(false)
@@ -319,6 +329,37 @@ function EditorTopBar({
           >
             <BookOpen size={13} />
           </a>
+
+          {/* Mode toggle: Edit ↔ Preview */}
+          <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+            <button
+              type="button"
+              data-testid="mode-edit-btn"
+              onClick={() => mode !== 'edit' && onModeToggle()}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
+                mode === 'edit'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <PenLine size={11} />
+              编辑
+            </button>
+            <button
+              type="button"
+              data-testid="mode-preview-btn"
+              onClick={() => mode !== 'preview' && onModeToggle()}
+              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
+                mode === 'preview'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Video size={11} />
+              预览
+            </button>
+          </div>
+
           <a
             href={`/api/tasks/${taskId}/artifacts/${project.artifact_paths?.final_dub ?? ''}`}
             target="_blank"
@@ -656,6 +697,29 @@ function WaveformBar({
 }
 
 // ---------------------------------------------------------------------------
+// Character color palette — deterministic hash → 8 color slots
+// ---------------------------------------------------------------------------
+
+const CHAR_COLOR_SLOTS = [
+  { bg: 'bg-blue-100',   border: 'border-blue-400',   text: 'text-blue-700',   dot: '#3b82f6' },
+  { bg: 'bg-amber-100',  border: 'border-amber-400',  text: 'text-amber-700',  dot: '#f59e0b' },
+  { bg: 'bg-violet-100', border: 'border-violet-400', text: 'text-violet-700', dot: '#8b5cf6' },
+  { bg: 'bg-rose-100',   border: 'border-rose-400',   text: 'text-rose-700',   dot: '#f43f5e' },
+  { bg: 'bg-teal-100',   border: 'border-teal-400',   text: 'text-teal-700',   dot: '#14b8a6' },
+  { bg: 'bg-orange-100', border: 'border-orange-400', text: 'text-orange-700', dot: '#ea580c' },
+  { bg: 'bg-pink-100',   border: 'border-pink-400',   text: 'text-pink-700',   dot: '#ec4899' },
+  { bg: 'bg-lime-100',   border: 'border-lime-400',   text: 'text-lime-700',   dot: '#84cc16' },
+]
+
+function charColorSlot(characterId: string) {
+  let hash = 0
+  for (let i = 0; i < characterId.length; i++) {
+    hash = (hash * 31 + characterId.charCodeAt(i)) >>> 0
+  }
+  return CHAR_COLOR_SLOTS[hash % CHAR_COLOR_SLOTS.length]
+}
+
+// ---------------------------------------------------------------------------
 // Timeline Pane (P0: scrollable/zoomable, P1: background track, no unit limit)
 // ---------------------------------------------------------------------------
 
@@ -668,6 +732,7 @@ function TimelinePane({
   onSelectUnit,
   playheadSec,
   onSeek,
+  darkMode = false,
 }: {
   project: DubbingEditorProject
   taskId: string
@@ -675,18 +740,11 @@ function TimelinePane({
   onSelectUnit: (unit: DubbingEditorUnit) => void
   playheadSec: number
   onSeek: (sec: number) => void
+  darkMode?: boolean
 }) {
   const [zoomIdx, setZoomIdx] = useState(2) // 40px/s default
   const pixelsPerSec = ZOOM_LEVELS[zoomIdx]
   const scrollRef = useRef<HTMLDivElement>(null)
-
-  const dubWaveformQuery = useQuery({
-    queryKey: ['waveform', taskId, 'dub'],
-    queryFn: () => dubbingEditorApi.getWaveform(taskId, 'dub'),
-    staleTime: 1000 * 60 * 5,
-    refetchInterval: (query: { state: { data?: { available?: boolean; pending?: boolean } } }) =>
-      query.state.data?.available === false && query.state.data?.pending ? 2000 : false,
-  })
 
   const originalWaveformQuery = useQuery({
     queryKey: ['waveform', taskId, 'original'],
@@ -721,6 +779,15 @@ function TimelinePane({
   // Playhead position in px
   const playheadLeft = (playheadSec / totalDuration) * totalWidth
 
+  // Auto-scroll to follow playhead when in darkMode (preview) — keep playhead centred
+  useEffect(() => {
+    if (!darkMode || !scrollRef.current) return
+    const el = scrollRef.current
+    const trackLabelWidth = 112
+    const targetScrollLeft = playheadLeft + trackLabelWidth - el.clientWidth / 2
+    el.scrollTo({ left: Math.max(0, targetScrollLeft), behavior: 'smooth' })
+  }, [darkMode, playheadLeft])
+
   // Click on scrollable container to seek
   const handleTimelineClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
@@ -737,13 +804,13 @@ function TimelinePane({
   )
 
   return (
-    <div className="flex h-full flex-col bg-white">
+    <div className={`flex h-full flex-col ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
       {/* Header: duration + zoom controls */}
       <div
         data-testid="timeline-header"
-        className="flex shrink-0 items-center justify-between border-b border-slate-200 px-3 py-1"
+        className={`flex shrink-0 items-center justify-between border-b px-3 py-1 ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}
       >
-        <span className="text-[10px] text-slate-500">
+        <span className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-slate-500'}`}>
           {formatTimeSec(totalDuration)} · {units.length} segments
         </span>
         <div data-testid="zoom-controls" className="flex items-center gap-1">
@@ -751,17 +818,17 @@ function TimelinePane({
             type="button"
             onClick={() => setZoomIdx(i => Math.max(0, i - 1))}
             disabled={zoomIdx === 0}
-            className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+            className={`rounded p-0.5 disabled:opacity-30 ${darkMode ? 'text-slate-500 hover:bg-slate-700 hover:text-slate-300' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'}`}
             title="Zoom out"
           >
             <ZoomOut size={12} />
           </button>
-          <span className="w-14 text-center text-[10px] text-slate-500">{pixelsPerSec}px/s</span>
+          <span className={`w-14 text-center text-[10px] ${darkMode ? 'text-slate-500' : 'text-slate-500'}`}>{pixelsPerSec}px/s</span>
           <button
             type="button"
             onClick={() => setZoomIdx(i => Math.min(ZOOM_LEVELS.length - 1, i + 1))}
             disabled={zoomIdx === ZOOM_LEVELS.length - 1}
-            className="rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-30"
+            className={`rounded p-0.5 disabled:opacity-30 ${darkMode ? 'text-slate-500 hover:bg-slate-700 hover:text-slate-300' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'}`}
             title="Zoom in"
           >
             <ZoomIn size={12} />
@@ -776,97 +843,126 @@ function TimelinePane({
         onClick={handleTimelineClick}
       >
         <div style={{ width: `${totalWidth}px`, minWidth: '100%' }} className="relative flex h-full flex-col">
-          {/* Playhead (Phase 2) */}
+          {/* Playhead */}
           {playheadSec > 0 && (
             <div
               data-testid="playhead"
-              className="pointer-events-none absolute inset-y-0 z-20 w-px bg-blue-400"
+              className={`pointer-events-none absolute inset-y-0 z-20 w-px ${darkMode ? 'bg-blue-400' : 'bg-blue-400'}`}
               style={{ left: `${playheadLeft + 112}px` }}
             />
           )}
 
           {/* Original Dialogue track */}
-          <div className="flex shrink-0 items-center gap-0 border-b border-slate-200">
-            <span className="w-28 shrink-0 px-3 text-[10px] font-medium text-slate-400">Original</span>
+          <div className={`flex shrink-0 items-center gap-0 border-b ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
+            <span className={`w-28 shrink-0 px-3 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Original</span>
             <div className="h-10 flex-1 overflow-hidden">
               <WaveformBar
                 peaks={originalWaveformQuery.data?.peaks ?? []}
                 pending={originalWaveformQuery.data?.available === false && originalWaveformQuery.data?.pending}
-                color="#cbd5e1"
+                color={darkMode ? '#475569' : '#cbd5e1'}
                 height={40}
               />
             </div>
           </div>
 
-          {/* Generated Dub track (with all units overlay) */}
-          <div className="flex shrink-0 items-center border-b border-slate-200">
-            <span className="w-28 shrink-0 px-3 text-[10px] font-medium text-slate-400">Generated Dub</span>
-            <div className="relative h-10 flex-1 overflow-hidden bg-slate-50/50">
-              <WaveformBar
-                peaks={dubWaveformQuery.data?.peaks ?? []}
-                pending={dubWaveformQuery.data?.available === false && dubWaveformQuery.data?.pending}
-                color="#22c55e"
-                height={40}
-              />
-              {units.map(unit => {
-                const left = (unit.start / totalDuration) * totalWidth
-                const width = ((unit.end - unit.start) / totalDuration) * totalWidth
-                const hasIssue = unit.issue_ids.length > 0
-                const isSelected = selectedUnit?.unit_id === unit.unit_id
-                return (
-                  <button
-                    key={unit.unit_id}
-                    type="button"
-                    onClick={e => { e.stopPropagation(); onSelectUnit(unit) }}
-                    style={{ left: `${left}px`, width: `${Math.max(2, width)}px` }}
-                    className={`absolute inset-y-0 cursor-pointer rounded-sm border-t-2 transition-opacity ${
-                      isSelected
-                        ? 'border-blue-400 bg-blue-500/20'
-                        : hasIssue
-                          ? 'border-amber-400 bg-amber-500/10 hover:bg-amber-500/20'
-                          : 'border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20'
-                    }`}
-                    title={unit.source_text}
-                  />
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Background track (P1: new) */}
-          <div className="flex shrink-0 items-center border-b border-slate-200">
-            <span className="w-28 shrink-0 px-3 text-[10px] font-medium text-slate-400">Background</span>
+          {/* Background track */}
+          <div className={`flex shrink-0 items-center border-b ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
+            <span className={`w-28 shrink-0 px-3 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Background</span>
             <div className="h-8 flex-1 overflow-hidden">
               <WaveformBar
                 peaks={backgroundWaveformQuery.data?.peaks ?? []}
                 pending={backgroundWaveformQuery.data?.available === false && backgroundWaveformQuery.data?.pending}
-                color="#334155"
+                color={darkMode ? '#1e293b' : '#334155'}
                 height={32}
               />
             </div>
           </div>
 
-          {/* Dialogue Units track */}
-          <div className="flex flex-1 items-center">
-            <span className="w-28 shrink-0 px-3 text-[10px] font-medium text-slate-400">Subtitles</span>
-            <div className="relative h-8 flex-1 overflow-hidden bg-blue-50/30 border-t border-slate-100">
-              {units.map(unit => {
-                const left = (unit.start / totalDuration) * totalWidth
-                const width = ((unit.end - unit.start) / totalDuration) * totalWidth
+          {/* Speaker Lanes — one row per character */}
+          <div className={`flex flex-1 flex-col overflow-y-auto border-t ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
+            {project.characters.length === 0 ? (
+              // Fallback: no characters, show flat unit lane
+              <div className="flex shrink-0 items-center" style={{ height: '36px' }}>
+                <span className={`w-28 shrink-0 px-3 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Units</span>
+                <div className={`relative flex-1 h-full overflow-hidden border-l ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50/50 border-slate-100'}`}>
+                  {units.map(unit => {
+                    const left = (unit.start / totalDuration) * totalWidth
+                    const width = ((unit.end - unit.start) / totalDuration) * totalWidth
+                    const isSelected = selectedUnit?.unit_id === unit.unit_id
+                    const showText = pixelsPerSec >= 40 && width > 20
+                    return (
+                      <button
+                        key={unit.unit_id}
+                        type="button"
+                        onClick={e => { e.stopPropagation(); onSelectUnit(unit) }}
+                        style={{ left: `${left}px`, width: `${Math.max(2, width)}px` }}
+                        title={`${unit.source_text}\n→ ${unit.target_text}\n[${formatTimeSec(unit.start)} – ${formatTimeSec(unit.end)}]`}
+                        className={`absolute inset-y-1 cursor-pointer rounded border text-[9px] font-medium flex items-center overflow-hidden px-1 transition-opacity ${
+                          isSelected
+                            ? 'bg-blue-100 border-blue-400 ring-1 ring-blue-400 text-blue-700'
+                            : 'bg-slate-100 border-slate-300 text-slate-600 opacity-80 hover:opacity-100'
+                        }`}
+                      >
+                        {showText && <span className="truncate">{unit.target_text || unit.source_text}</span>}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              project.characters.map(char => {
+                const color = charColorSlot(char.character_id)
+                const charUnits = units.filter(u => u.character_id === char.character_id)
                 return (
-                  <button
-                    key={unit.unit_id}
-                    type="button"
-                    onClick={e => { e.stopPropagation(); onSelectUnit(unit) }}
-                    style={{ left: `${left}px`, width: `${Math.max(2, width)}px` }}
-                    className="absolute inset-y-0 flex items-center overflow-hidden rounded-sm bg-blue-100 px-0.5 text-[8px] text-blue-700 font-medium hover:bg-blue-200"
-                    title={unit.source_text}
+                  <div
+                    key={char.character_id}
+                    className={`flex shrink-0 items-center border-b last:border-b-0 ${darkMode ? 'border-slate-700/60' : 'border-slate-100'}`}
+                    style={{ height: '36px' }}
                   >
-                    <span className="truncate">{unit.unit_id}</span>
-                  </button>
+                    {/* Lane label */}
+                    <div className="w-28 shrink-0 flex items-center gap-1.5 px-2">
+                      <span
+                        className="inline-block h-2 w-2 rounded-full shrink-0"
+                        style={{ backgroundColor: color.dot }}
+                      />
+                      <span className={`truncate text-[10px] font-medium ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>{char.display_name}</span>
+                    </div>
+                    {/* Lane track */}
+                    <div className={`relative flex-1 h-full overflow-hidden border-l ${darkMode ? 'bg-slate-800/40 border-slate-700' : 'bg-slate-50/30 border-slate-100'}`}>
+                      {charUnits.map(unit => {
+                        const left = (unit.start / totalDuration) * totalWidth
+                        const width = ((unit.end - unit.start) / totalDuration) * totalWidth
+                        const hasIssue = unit.issue_ids.length > 0
+                        const isSelected = selectedUnit?.unit_id === unit.unit_id
+                        const showText = pixelsPerSec >= 40 && width > 20
+                        return (
+                          <button
+                            key={unit.unit_id}
+                            type="button"
+                            onClick={e => { e.stopPropagation(); onSelectUnit(unit) }}
+                            style={{ left: `${left}px`, width: `${Math.max(2, width)}px` }}
+                            title={`${unit.source_text}\n→ ${unit.target_text}\n[${formatTimeSec(unit.start)} – ${formatTimeSec(unit.end)}]`}
+                            className={`absolute inset-y-1 cursor-pointer rounded border transition-opacity flex items-center overflow-hidden px-1 ${
+                              isSelected
+                                ? `${color.bg} ${color.border} ring-1 ring-offset-0 ring-blue-400 ${color.text}`
+                                : hasIssue
+                                  ? 'bg-amber-100 border-amber-400 text-amber-700 hover:bg-amber-200'
+                                  : `${color.bg} ${color.border} ${color.text} opacity-80 hover:opacity-100`
+                            }`}
+                          >
+                            {showText && (
+                              <span className="truncate text-[9px] leading-tight font-medium">
+                                {unit.target_text || unit.source_text}
+                              </span>
+                            )}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
                 )
-              })}
-            </div>
+              })
+            )}
           </div>
         </div>
       </div>
@@ -1665,6 +1761,268 @@ function InspectorPanel({
 }
 
 // ---------------------------------------------------------------------------
+// Preview Pane — full-width video player + synced timeline
+// ---------------------------------------------------------------------------
+
+function PreviewPane({
+  project,
+  taskId,
+  playheadSec,
+  onPlayheadChange,
+  onSelectUnit,
+  selectedUnit,
+}: {
+  project: DubbingEditorProject
+  taskId: string
+  playheadSec: number
+  onPlayheadChange: (sec: number) => void
+  onSelectUnit: (unit: DubbingEditorUnit) => void
+  selectedUnit: DubbingEditorUnit | null
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
+  const [audioTrack, setAudioTrack] = useState<'original' | 'dub'>('dub')
+  const [duration, setDuration] = useState(0)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  // Video URL from project — served by backend streaming endpoint
+  const videoSrc = `/api/tasks/${taskId}/dubbing-editor/video-preview`
+
+  // Sync video currentTime → playhead
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    const onTimeUpdate = () => onPlayheadChange(video.currentTime)
+    const onDurationChange = () => setDuration(video.duration || 0)
+    const onPlay = () => setIsPlaying(true)
+    const onPause = () => setIsPlaying(false)
+    const onEnded = () => setIsPlaying(false)
+    video.addEventListener('timeupdate', onTimeUpdate)
+    video.addEventListener('durationchange', onDurationChange)
+    video.addEventListener('loadedmetadata', onDurationChange)
+    video.addEventListener('play', onPlay)
+    video.addEventListener('pause', onPause)
+    video.addEventListener('ended', onEnded)
+    return () => {
+      video.removeEventListener('timeupdate', onTimeUpdate)
+      video.removeEventListener('durationchange', onDurationChange)
+      video.removeEventListener('loadedmetadata', onDurationChange)
+      video.removeEventListener('play', onPlay)
+      video.removeEventListener('pause', onPause)
+      video.removeEventListener('ended', onEnded)
+    }
+  }, [onPlayheadChange])
+
+  // Seek video when unit clicked in speaker lane
+  useEffect(() => {
+    if (!selectedUnit || !videoRef.current) return
+    const video = videoRef.current
+    if (Math.abs(video.currentTime - selectedUnit.start) > 0.5) {
+      video.currentTime = selectedUnit.start
+    }
+  }, [selectedUnit])
+
+  const togglePlay = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+    if (video.paused) video.play()
+    else video.pause()
+  }, [])
+
+  const toggleMute = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+    video.muted = !video.muted
+    setIsMuted(video.muted)
+  }, [])
+
+  const toggleFullscreen = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+    if (!document.fullscreenElement) {
+      video.requestFullscreen()
+      setIsFullscreen(true)
+    } else {
+      document.exitFullscreen()
+      setIsFullscreen(false)
+    }
+  }, [])
+
+  // Click on progress bar to seek
+  const progressBarRef = useRef<HTMLDivElement>(null)
+  const handleProgressClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const el = progressBarRef.current
+      const video = videoRef.current
+      if (!el || !video || !duration) return
+      const rect = el.getBoundingClientRect()
+      const ratio = (e.clientX - rect.left) / rect.width
+      video.currentTime = Math.max(0, Math.min(duration, ratio * duration))
+    },
+    [duration],
+  )
+
+  const progressPct = duration > 0 ? (playheadSec / duration) * 100 : 0
+
+  // Current unit under playhead
+  const activeUnit = project.units.find(u => u.start <= playheadSec && u.end > playheadSec) ?? null
+
+  return (
+    <div className="flex h-full w-full flex-col bg-white">
+      {/* Video area */}
+      <div className="relative min-h-0 flex-1 flex items-center justify-center bg-gray-100">
+        <video
+          ref={videoRef}
+          src={videoSrc}
+          className="max-h-full max-w-full rounded shadow-sm"
+          preload="metadata"
+          playsInline
+        />
+
+        {/* Subtitle overlay */}
+        {activeUnit && (
+          <div className="pointer-events-none absolute bottom-8 left-1/2 -translate-x-1/2 text-center">
+            <div className="inline-block max-w-2xl rounded-md bg-black/60 px-4 py-1.5 text-sm font-medium leading-snug text-white backdrop-blur-sm">
+              {audioTrack === 'dub' ? activeUnit.target_text : activeUnit.source_text}
+            </div>
+          </div>
+        )}
+
+        {/* Center play overlay (shows when paused) */}
+        {!isPlaying && (
+          <button
+            type="button"
+            onClick={togglePlay}
+            className="absolute inset-0 flex items-center justify-center group"
+          >
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/10 backdrop-blur-sm transition-all group-hover:bg-black/20">
+              <Play size={28} className="text-slate-700 ml-1" />
+            </div>
+          </button>
+        )}
+      </div>
+
+      {/* Control bar */}
+      <div className="shrink-0 border-t border-slate-200 bg-white px-4 pt-2 pb-3">
+        {/* Progress bar */}
+        <div
+          ref={progressBarRef}
+          onClick={handleProgressClick}
+          className="relative mb-2 h-1.5 w-full cursor-pointer rounded-full bg-slate-200 group"
+        >
+          <div
+            className="h-full rounded-full bg-blue-500 transition-none"
+            style={{ width: `${progressPct}%` }}
+          />
+          {/* Unit markers on progress bar */}
+          {project.units.map(unit => {
+            if (!duration) return null
+            const left = (unit.start / duration) * 100
+            const hasIssue = unit.issue_ids.length > 0
+            return (
+              <div
+                key={unit.unit_id}
+                className={`absolute top-1/2 h-2.5 w-0.5 -translate-y-1/2 rounded-full ${
+                  hasIssue ? 'bg-amber-400' : 'bg-slate-300'
+                }`}
+                style={{ left: `${left}%` }}
+              />
+            )
+          })}
+          {/* Playhead thumb */}
+          <div
+            className="absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white border border-slate-300 shadow opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ left: `${progressPct}%` }}
+          />
+        </div>
+
+        {/* Controls row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {/* Play/Pause */}
+            <button
+              type="button"
+              onClick={togglePlay}
+              className="flex h-8 w-8 items-center justify-center rounded-full text-slate-700 hover:bg-slate-100 transition-colors"
+              title={isPlaying ? '暂停 (Space)' : '播放 (Space)'}
+            >
+              {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+            </button>
+
+            {/* Mute */}
+            <button
+              type="button"
+              onClick={toggleMute}
+              className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+              title={isMuted ? '取消静音' : '静音'}
+            >
+              {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            </button>
+
+            {/* Timecode */}
+            <span className="font-mono text-xs text-slate-500">
+              {formatTimeSec(playheadSec)}
+              <span className="mx-1 text-slate-300">/</span>
+              {formatTimeSec(duration)}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {/* Audio track toggle */}
+            <div className="flex items-center rounded-md border border-slate-200 bg-slate-50 p-0.5 text-[11px]">
+              <button
+                type="button"
+                onClick={() => setAudioTrack('original')}
+                className={`rounded px-2 py-0.5 font-medium transition-colors ${
+                  audioTrack === 'original' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                原声
+              </button>
+              <button
+                type="button"
+                onClick={() => setAudioTrack('dub')}
+                className={`rounded px-2 py-0.5 font-medium transition-colors ${
+                  audioTrack === 'dub' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                配音
+              </button>
+            </div>
+
+            {/* Fullscreen */}
+            <button
+              type="button"
+              onClick={toggleFullscreen}
+              className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+              title="全屏"
+            >
+              {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Speaker lanes timeline (reuse full TimelinePane in preview mode) */}
+      <div className="shrink-0 border-t border-slate-200" style={{ height: '220px' }}>
+        <TimelinePane
+          project={project}
+          taskId={taskId}
+          selectedUnit={selectedUnit}
+          onSelectUnit={onSelectUnit}
+          playheadSec={playheadSec}
+          onSeek={sec => {
+            onPlayheadChange(sec)
+            if (videoRef.current) videoRef.current.currentTime = sec
+          }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main Page
 // ---------------------------------------------------------------------------
 
@@ -1684,6 +2042,7 @@ export function DubbingEditorPage() {
   // Phase 2: undo/redo cursor (number of ops to replay)
   const [opCursor, setOpCursor] = useState<number | null>(null)
   const [playheadSec, setPlayheadSec] = useState(0)
+  const [editorMode, setEditorMode] = useState<'edit' | 'preview'>('edit')
 
   // P0: ref for Space-key audio playback (clips)
   const clipAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -1970,6 +2329,8 @@ export function DubbingEditorPage() {
         canRedo={canRedo}
         isRefreshing={projectQuery.isFetching}
         selectedUnit={selectedUnit}
+        mode={editorMode}
+        onModeToggle={() => setEditorMode(m => m === 'edit' ? 'preview' : 'edit')}
       />
 
       {/* Undo mode indicator */}
@@ -1979,59 +2340,73 @@ export function DubbingEditorPage() {
         </div>
       )}
 
-      {/* Main area: 3-column layout */}
-      <div className="flex min-h-0 flex-1 overflow-hidden p-3 gap-3 bg-slate-50">
-        {/* Left: Issue Queue */}
-        <div className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <IssueQueue
-            project={project}
-            selectedIssueId={selectedIssueId}
-            onSelectIssue={handleSelectIssue}
-            onBulkApprove={handleBulkApprove}
-          />
-        </div>
-
-        {/* Center: Video Preview + Timeline */}
-        <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden">
-          {/* Current line */}
-          <div className="flex shrink-0 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden" style={{ height: '360px', minHeight: '360px' }}>
-            <CurrentLinePane
+      {editorMode === 'edit' ? (
+        /* ── Edit Mode: 3-column layout ── */
+        <div className="flex min-h-0 flex-1 overflow-hidden p-3 gap-3 bg-slate-50">
+          {/* Left: Issue Queue */}
+          <div className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <IssueQueue
               project={project}
-              taskId={taskId}
-              selectedUnit={selectedUnit}
-              renderRangeResult={renderRangeResult}
-              clipAudioRef={clipAudioRef}
+              selectedIssueId={selectedIssueId}
+              onSelectIssue={handleSelectIssue}
+              onBulkApprove={handleBulkApprove}
             />
           </div>
 
-          {/* Timeline */}
-          <div className="min-h-0 flex-1 overflow-hidden">
-            <TimelinePane
+          {/* Center: Clip Preview + Timeline */}
+          <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden">
+            {/* Current line */}
+            <div className="flex shrink-0 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden" style={{ height: '360px', minHeight: '360px' }}>
+              <CurrentLinePane
+                project={project}
+                taskId={taskId}
+                selectedUnit={selectedUnit}
+                renderRangeResult={renderRangeResult}
+                clipAudioRef={clipAudioRef}
+              />
+            </div>
+
+            {/* Timeline */}
+            <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <TimelinePane
+                project={project}
+                taskId={taskId}
+                selectedUnit={selectedUnit}
+                onSelectUnit={handleSelectUnit}
+                playheadSec={playheadSec}
+                onSeek={setPlayheadSec}
+              />
+            </div>
+          </div>
+
+          {/* Right: Inspector */}
+          <div className="flex w-96 shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <InspectorPanel
               project={project}
               taskId={taskId}
               selectedUnit={selectedUnit}
-              onSelectUnit={handleSelectUnit}
-              playheadSec={playheadSec}
-              onSeek={setPlayheadSec}
+              onApprove={handleApprove}
+              onNeedsReview={handleNeedsReview}
+              onSaveText={handleSaveText}
+              onResynthesize={handleResynthesize}
+              onAssignVoice={handleAssignVoice}
+              isSynthesizing={isSynthesizing}
             />
           </div>
         </div>
-
-        {/* Right: Inspector */}
-        <div className="flex w-96 shrink-0 flex-col overflow-hidden border-l border-slate-200 bg-white">
-          <InspectorPanel
+      ) : (
+        /* ── Preview Mode: full-width video + synced timeline ── */
+        <div className="min-h-0 flex-1 overflow-hidden">
+          <PreviewPane
             project={project}
-            taskId={taskId}
+            taskId={taskId!}
+            playheadSec={playheadSec}
+            onPlayheadChange={setPlayheadSec}
+            onSelectUnit={handleSelectUnit}
             selectedUnit={selectedUnit}
-            onApprove={handleApprove}
-            onNeedsReview={handleNeedsReview}
-            onSaveText={handleSaveText}
-            onResynthesize={handleResynthesize}
-            onAssignVoice={handleAssignVoice}
-            isSynthesizing={isSynthesizing}
           />
         </div>
-      </div>
+      )}
     </div>
   )
 }
