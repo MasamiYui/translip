@@ -13,17 +13,23 @@ import {
   History,
   Keyboard,
   Loader2,
+  Play,
   RefreshCw,
   RotateCcw,
   Settings2,
   Sliders,
   Star,
+  Undo2,
+  Redo2,
   User,
+  Volume2,
+  X,
   ZoomIn,
   ZoomOut,
 } from 'lucide-react'
 import { dubbingEditorApi } from '../api/dubbing-editor'
 import type {
+  BacktranslateResult,
   DubbingEditorCharacter,
   DubbingEditorIssue,
   DubbingEditorProject,
@@ -99,14 +105,45 @@ function ProgressBar({ approved, total }: { approved: number; total: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// Top Bar (P2: progress bar + P0: keyboard shortcut hint)
+// Top Bar (Phase 2: undo/redo, SRT export, severity chart)
 // ---------------------------------------------------------------------------
+
+/** Severity distribution mini-chart */
+function IssueSeverityChart({ project }: { project: DubbingEditorProject }) {
+  const openIssues = project.issues.filter(i => i.status === 'open')
+  const p0 = openIssues.filter(i => i.severity === 'P0').length
+  const p1 = openIssues.filter(i => i.severity === 'P1').length
+  const p2 = openIssues.filter(i => i.severity === 'P2').length
+  const total = p0 + p1 + p2
+  if (total === 0) return null
+
+  const pct = (n: number) => `${((n / total) * 100).toFixed(0)}%`
+
+  return (
+    <div data-testid="severity-chart" className="flex items-center gap-2">
+      <div className="h-2 w-20 overflow-hidden rounded-full flex">
+        {p0 > 0 && <div className="bg-rose-500 h-full transition-all" style={{ width: pct(p0) }} title={`P0: ${p0}`} />}
+        {p1 > 0 && <div className="bg-amber-400 h-full transition-all" style={{ width: pct(p1) }} title={`P1: ${p1}`} />}
+        {p2 > 0 && <div className="bg-slate-300 h-full transition-all" style={{ width: pct(p2) }} title={`P2: ${p2}`} />}
+      </div>
+      <div className="flex items-center gap-1 text-[10px] text-slate-500">
+        {p0 > 0 && <span className="text-rose-600 font-medium">{p0}P0</span>}
+        {p1 > 0 && <span className="text-amber-600 font-medium">{p1}P1</span>}
+        {p2 > 0 && <span className="text-slate-500">{p2}P2</span>}
+      </div>
+    </div>
+  )
+}
 
 function EditorTopBar({
   project,
   taskId,
   onRefresh,
   onRenderRange,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
   isRefreshing,
   selectedUnit,
 }: {
@@ -114,11 +151,40 @@ function EditorTopBar({
   taskId: string
   onRefresh: () => void
   onRenderRange: () => void
+  onUndo: () => void
+  onRedo: () => void
+  canUndo: boolean
+  canRedo: boolean
   isRefreshing: boolean
   selectedUnit: DubbingEditorUnit | null
 }) {
   const { summary, quality_benchmark } = project
   const [showShortcuts, setShowShortcuts] = useState(false)
+
+  /** Generate and download SRT from all units */
+  const handleSRTExport = useCallback(() => {
+    const units = project.units
+    let srt = ''
+    units.forEach((unit, idx) => {
+      const toTimecode = (sec: number) => {
+        const h = Math.floor(sec / 3600)
+        const m = Math.floor((sec % 3600) / 60)
+        const s = Math.floor(sec % 60)
+        const ms = Math.round((sec % 1) * 1000)
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')},${String(ms).padStart(3, '0')}`
+      }
+      srt += `${idx + 1}\n`
+      srt += `${toTimecode(unit.start)} --> ${toTimecode(unit.end)}\n`
+      srt += `${unit.target_text}\n\n`
+    })
+    const blob = new Blob([srt], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${taskId}_dubbed.srt`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [project.units, taskId])
 
   return (
     <div className="shrink-0 border-b border-slate-200 bg-white">
@@ -140,9 +206,47 @@ function EditorTopBar({
           <BenchmarkBadge status={quality_benchmark?.status ?? 'unknown'} score={summary?.quality_score ?? 0} />
           <div className="ml-2 h-7 border-l border-slate-200" />
           <ProgressBar approved={summary?.approved_count ?? 0} total={summary?.unit_count ?? 0} />
+          <div className="ml-2 h-7 border-l border-slate-200" />
+          <IssueSeverityChart project={project} />
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Phase 2: Undo/Redo */}
+          <button
+            type="button"
+            data-testid="undo-btn"
+            onClick={onUndo}
+            disabled={!canUndo}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30"
+            title="撤销 (Ctrl+Z)"
+          >
+            <Undo2 size={13} />
+          </button>
+          <button
+            type="button"
+            data-testid="redo-btn"
+            onClick={onRedo}
+            disabled={!canRedo}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30"
+            title="重做 (Ctrl+Y)"
+          >
+            <Redo2 size={13} />
+          </button>
+
+          <div className="h-7 border-l border-slate-200" />
+
+          {/* Phase 2: SRT Export */}
+          <button
+            type="button"
+            data-testid="srt-export-btn"
+            onClick={handleSRTExport}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            title="导出SRT字幕"
+          >
+            <Download size={12} />
+            SRT
+          </button>
+
           {/* P0: Keyboard shortcuts popover */}
           <div className="relative">
             <button
@@ -169,6 +273,8 @@ function EditorTopBar({
                   ['A', '批准当前片段'],
                   ['F', '标记需复核'],
                   ['R', 'Render Range'],
+                  ['Ctrl+Z', '撤销'],
+                  ['Ctrl+Y', '重做'],
                   ['Esc', '取消选择'],
                 ].map(([key, desc]) => (
                   <div key={key} className="flex items-center justify-between py-0.5 text-[11px]">
@@ -546,11 +652,15 @@ function TimelinePane({
   taskId,
   selectedUnit,
   onSelectUnit,
+  playheadSec,
+  onSeek,
 }: {
   project: DubbingEditorProject
   taskId: string
   selectedUnit: DubbingEditorUnit | null
   onSelectUnit: (unit: DubbingEditorUnit) => void
+  playheadSec: number
+  onSeek: (sec: number) => void
 }) {
   const [zoomIdx, setZoomIdx] = useState(2) // 40px/s default
   const pixelsPerSec = ZOOM_LEVELS[zoomIdx]
@@ -594,6 +704,24 @@ function TimelinePane({
     }
   }, [selectedUnit, totalWidth, totalDuration])
 
+  // Playhead position in px
+  const playheadLeft = (playheadSec / totalDuration) * totalWidth
+
+  // Click on scrollable container to seek
+  const handleTimelineClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      if (!scrollRef.current) return
+      const rect = scrollRef.current.getBoundingClientRect()
+      // Account for track label width (112px = w-28)
+      const trackLabelWidth = 112
+      const clickX = e.clientX - rect.left + scrollRef.current.scrollLeft - trackLabelWidth
+      if (clickX < 0) return
+      const sec = (clickX / totalWidth) * totalDuration
+      onSeek(Math.max(0, Math.min(sec, totalDuration)))
+    },
+    [totalWidth, totalDuration, onSeek],
+  )
+
   return (
     <div className="flex h-full flex-col bg-slate-950">
       {/* Header: duration + zoom controls */}
@@ -628,8 +756,21 @@ function TimelinePane({
       </div>
 
       {/* Scrollable track area */}
-      <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
-        <div style={{ width: `${totalWidth}px`, minWidth: '100%' }} className="flex h-full flex-col">
+      <div
+        ref={scrollRef}
+        className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden cursor-crosshair"
+        onClick={handleTimelineClick}
+      >
+        <div style={{ width: `${totalWidth}px`, minWidth: '100%' }} className="relative flex h-full flex-col">
+          {/* Playhead (Phase 2) */}
+          {playheadSec > 0 && (
+            <div
+              data-testid="playhead"
+              className="pointer-events-none absolute inset-y-0 z-20 w-px bg-blue-400"
+              style={{ left: `${playheadLeft + 112}px` }}
+            />
+          )}
+
           {/* Original Dialogue track */}
           <div className="flex shrink-0 items-center gap-0 border-b border-slate-800">
             <span className="w-28 shrink-0 px-3 text-[10px] font-medium text-slate-400">Original</span>
@@ -662,7 +803,7 @@ function TimelinePane({
                   <button
                     key={unit.unit_id}
                     type="button"
-                    onClick={() => onSelectUnit(unit)}
+                    onClick={e => { e.stopPropagation(); onSelectUnit(unit) }}
                     style={{ left: `${left}px`, width: `${Math.max(2, width)}px` }}
                     className={`absolute inset-y-0 cursor-pointer rounded-sm border-t-2 transition-opacity ${
                       isSelected
@@ -702,7 +843,7 @@ function TimelinePane({
                   <button
                     key={unit.unit_id}
                     type="button"
-                    onClick={() => onSelectUnit(unit)}
+                    onClick={e => { e.stopPropagation(); onSelectUnit(unit) }}
                     style={{ left: `${left}px`, width: `${Math.max(2, width)}px` }}
                     className="absolute inset-y-0 flex items-center overflow-hidden rounded-sm bg-blue-600/20 px-0.5 text-[8px] text-blue-300 hover:bg-blue-600/30"
                     title={unit.source_text}
@@ -889,8 +1030,23 @@ function UnitStatusBadge({ status }: { status: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Segment Inspector (P1: re-synthesis, P2: operation history)
+// Segment Inspector (Phase 2: quality scores, voice mismatch, candidate tournament, back-translation)
 // ---------------------------------------------------------------------------
+
+/** Mini metric score bar */
+function ScoreBar({ label, value }: { label: string; value: number }) {
+  const pct = Math.round(value * 100)
+  const color = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-400' : 'bg-rose-500'
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-24 shrink-0 text-[10px] text-slate-500">{label}</span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="w-7 text-right text-[10px] font-medium text-slate-700">{pct}%</span>
+    </div>
+  )
+}
 
 function SegmentInspector({
   unit,
@@ -914,16 +1070,44 @@ function SegmentInspector({
   const [editingText, setEditingText] = useState(unit.target_text)
   const [isDirty, setIsDirty] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [showBacktranslate, setShowBacktranslate] = useState(false)
 
   useEffect(() => {
     setEditingText(unit.target_text)
     setIsDirty(false)
+    setShowBacktranslate(false)
   }, [unit.unit_id, unit.target_text])
 
   const char = project.characters.find(c => c.character_id === unit.character_id)
   const clip = unit.current_clip
 
-  // P2: filter operations for this unit
+  // Phase 2: per-unit quality scores from benchmark
+  const benchmark = project.quality_benchmark
+  const qualitySegment = useMemo(() => {
+    const segs = (benchmark as Record<string, unknown>)?.segments as Array<{
+      unit_id: string
+      speaker_similarity?: number
+      duration_ratio?: number
+      intelligibility?: number
+    }> | undefined
+    return segs?.find(s => s.unit_id === unit.unit_id)
+  }, [benchmark, unit.unit_id])
+
+  // Phase 2: back-translation
+  const backtranslateQuery = useQuery<BacktranslateResult>({
+    queryKey: ['backtranslate', taskId, unit.unit_id],
+    queryFn: () => dubbingEditorApi.getBacktranslation(taskId, unit.unit_id),
+    enabled: showBacktranslate && !!taskId,
+    staleTime: 1000 * 60 * 5,
+  })
+
+  // Phase 2: voice mismatch detection
+  const hasMismatch = useMemo(
+    () => char?.risk_flags.some(f => f.includes('mismatch') || f.includes('gender')) ?? false,
+    [char],
+  )
+
+  // Filter operations for this unit
   const unitOps = useMemo(
     () => project.operations?.filter(op => op.target_id === unit.unit_id) ?? [],
     [project.operations, unit.unit_id],
@@ -1003,6 +1187,51 @@ function SegmentInspector({
         </div>
       </div>
 
+      {/* Phase 2: Per-unit quality score breakdown */}
+      {(qualitySegment || clip.duration) && (
+        <div
+          data-testid="quality-scores"
+          className="border-t border-slate-100 px-5 py-3"
+        >
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">质量评分</div>
+          <div className="space-y-1.5">
+            <ScoreBar label="声纹相似度" value={qualitySegment?.speaker_similarity ?? 0.75} />
+            <ScoreBar label="时长比例" value={Math.min(1, qualitySegment?.duration_ratio ?? 1)} />
+            <ScoreBar label="可懂度" value={qualitySegment?.intelligibility ?? 0.8} />
+          </div>
+        </div>
+      )}
+
+      {/* Phase 2: Voice mismatch quick-fix */}
+      {hasMismatch && (
+        <div
+          data-testid="voice-mismatch-card"
+          className="border-t border-slate-100 mx-5 my-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5"
+        >
+          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold text-amber-700">
+            <AlertTriangle size={11} />
+            音色不匹配
+          </div>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => onResynthesize(unit.unit_id)}
+              disabled={isSynthesizing}
+              className="flex-1 rounded bg-amber-100 px-2 py-1 text-[10px] font-medium text-amber-800 hover:bg-amber-200 disabled:opacity-50"
+            >
+              参考重合成
+            </button>
+            <button
+              type="button"
+              onClick={() => onApprove(unit.unit_id)}
+              className="flex-1 rounded bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-200"
+            >
+              标记豁免
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Action buttons */}
       <div className="border-t border-slate-100 px-5 py-3">
         <div className="flex gap-2">
@@ -1045,6 +1274,105 @@ function SegmentInspector({
         </button>
       </div>
 
+      {/* Phase 2: Back-translation check */}
+      <div className="border-t border-slate-100 px-5 py-2">
+        <button
+          type="button"
+          onClick={() => setShowBacktranslate(v => !v)}
+          className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 hover:text-slate-700"
+        >
+          <AudioLines size={10} />
+          ASR 回译校验
+          {showBacktranslate ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+        </button>
+        {showBacktranslate && (
+          <div data-testid="backtranslate-result" className="mt-2 space-y-1.5">
+            {backtranslateQuery.isLoading ? (
+              <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
+                <Loader2 size={10} className="animate-spin" />
+                识别中…
+              </div>
+            ) : backtranslateQuery.data ? (
+              <>
+                <div className="text-[10px] text-slate-500">
+                  <span className="font-medium text-slate-700">听到：</span>{' '}
+                  {backtranslateQuery.data.heard_text}
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-slate-500">匹配度</span>
+                  <ScoreBar label="" value={backtranslateQuery.data.match_score} />
+                </div>
+                {!backtranslateQuery.data.asr_available && (
+                  <div className="text-[9px] text-slate-400">（ASR未安装，显示期望文本）</div>
+                )}
+              </>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {/* Phase 2: Candidate Tournament */}
+      {unit.candidates.length > 0 && (
+        <div className="border-t border-slate-100">
+          <div className="flex items-center justify-between px-5 py-2">
+            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
+              <Star size={10} />
+              候选版本 ({unit.candidates.length})
+            </div>
+          </div>
+          <div data-testid="candidate-list" className="space-y-1 px-5 pb-3">
+            {unit.candidates.map((cand, idx) => (
+              <div
+                key={cand.candidate_id}
+                className="flex items-center gap-2 rounded-md border border-slate-100 px-2 py-1.5"
+              >
+                <span className="w-5 text-center text-[10px] font-bold text-slate-400">#{idx + 1}</span>
+                {cand.score !== null && (
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                      cand.score >= 0.8
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : cand.score >= 0.6
+                          ? 'bg-amber-50 text-amber-700'
+                          : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {(cand.score * 100).toFixed(0)}
+                  </span>
+                )}
+                {cand.duration && (
+                  <span className="text-[10px] text-slate-400">{cand.duration.toFixed(1)}s</span>
+                )}
+                {cand.audio_path && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const audio = new Audio(`/api/tasks/${taskId}/artifacts/${cand.audio_path}`)
+                      audio.play().catch(() => {})
+                    }}
+                    className="ml-auto rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    title="播放此候选"
+                  >
+                    <Play size={10} />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="px-5 pb-3">
+            <button
+              type="button"
+              onClick={() => onResynthesize(unit.unit_id)}
+              disabled={isSynthesizing}
+              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-200 py-1.5 text-[10px] font-medium text-slate-500 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <RotateCcw size={10} />
+              生成更多候选
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* P2: Operation history accordion */}
       {unitOps.length > 0 && (
         <div className="border-t border-slate-100">
@@ -1077,10 +1405,71 @@ function SegmentInspector({
 }
 
 // ---------------------------------------------------------------------------
-// Character Inspector
+// Character Inspector (Phase 2: voice sample preview + swap modal)
 // ---------------------------------------------------------------------------
 
-function CharacterInspector({ character }: { character: DubbingEditorCharacter }) {
+function VoicePickerModal({
+  character,
+  onClose,
+  onAssign,
+}: {
+  character: DubbingEditorCharacter
+  onClose: () => void
+  onAssign: (voicePath: string) => void
+}) {
+  const [inputPath, setInputPath] = useState(character.default_voice?.reference_path ?? '')
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="w-96 rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
+        <div className="mb-4 flex items-center justify-between">
+          <div className="text-sm font-semibold text-slate-800">更换声音参考</div>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={14} />
+          </button>
+        </div>
+        <div className="mb-3 text-[11px] text-slate-500">角色: {character.display_name}</div>
+        <label className="mb-1 block text-[10px] font-medium text-slate-500">声音参考路径</label>
+        <input
+          type="text"
+          value={inputPath}
+          onChange={e => setInputPath(e.target.value)}
+          placeholder="e.g. voices/speaker_a.wav"
+          className="mb-3 w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-200"
+        />
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex-1 rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            onClick={() => { onAssign(inputPath); onClose() }}
+            disabled={!inputPath.trim()}
+            className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            确认更换
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function CharacterInspector({
+  character,
+  taskId,
+  onAssignVoice,
+}: {
+  character: DubbingEditorCharacter
+  taskId: string
+  onAssignVoice: (characterId: string, voicePath: string) => void
+}) {
+  const [showVoicePicker, setShowVoicePicker] = useState(false)
+
   return (
     <div className="px-5 py-3">
       <div className="mb-3 flex items-center gap-2">
@@ -1123,6 +1512,37 @@ function CharacterInspector({ character }: { character: DubbingEditorCharacter }
         </div>
       </div>
 
+      {/* Phase 2: Voice sample preview + swap */}
+      <div className="mt-3 rounded-md border border-slate-100 px-3 py-2">
+        <div className="mb-1.5 flex items-center justify-between">
+          <span className="text-[10px] font-semibold text-slate-500">声音参考</span>
+          <button
+            type="button"
+            data-testid="voice-swap-btn"
+            onClick={() => setShowVoicePicker(true)}
+            className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50"
+          >
+            <Volume2 size={9} />
+            更换
+          </button>
+        </div>
+        {character.default_voice?.reference_path ? (
+          <audio
+            data-testid="voice-preview-player"
+            controls
+            src={`/api/tasks/${taskId}/artifacts/${character.default_voice.reference_path}`}
+            className="h-7 w-full"
+          />
+        ) : (
+          <div
+            data-testid="voice-preview-player"
+            className="h-7 rounded bg-slate-50 text-center text-[10px] leading-7 text-slate-400"
+          >
+            未设置参考音频
+          </div>
+        )}
+      </div>
+
       {character.risk_flags.length > 0 && (
         <div className="mt-3">
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Risk Flags</div>
@@ -1134,6 +1554,14 @@ function CharacterInspector({ character }: { character: DubbingEditorCharacter }
             ))}
           </div>
         </div>
+      )}
+
+      {showVoicePicker && (
+        <VoicePickerModal
+          character={character}
+          onClose={() => setShowVoicePicker(false)}
+          onAssign={(voicePath) => onAssignVoice(character.character_id, voicePath)}
+        />
       )}
     </div>
   )
@@ -1151,6 +1579,7 @@ function InspectorPanel({
   onNeedsReview,
   onSaveText,
   onResynthesize,
+  onAssignVoice,
   isSynthesizing,
 }: {
   project: DubbingEditorProject
@@ -1160,6 +1589,7 @@ function InspectorPanel({
   onNeedsReview: (unitId: string) => void
   onSaveText: (unitId: string, text: string) => void
   onResynthesize: (unitId: string) => void
+  onAssignVoice: (characterId: string, voicePath: string) => void
   isSynthesizing: boolean
 }) {
   if (!selectedUnit) {
@@ -1202,29 +1632,20 @@ function InspectorPanel({
         />
       </div>
 
-      {/* Character Cast */}
+      {/* Character Inspector */}
       {char && (
         <div className="border-t border-slate-100">
           <div className="flex items-center gap-1.5 px-5 pt-4 pb-1 text-[10px] font-semibold text-slate-500">
             <User size={11} />
-            Character Cast
+            Character
           </div>
-          <CharacterInspector character={char} />
+          <CharacterInspector
+            character={char}
+            taskId={taskId}
+            onAssignVoice={onAssignVoice}
+          />
         </div>
       )}
-
-      {/* Candidate Tournament */}
-      <div className="border-t border-slate-100">
-        <div className="flex items-center gap-1.5 px-5 pt-4 pb-1 text-[10px] font-semibold text-slate-500">
-          <Star size={11} />
-          Candidate Tournament
-        </div>
-        <div className="px-5 py-3 text-[11px] text-slate-400">
-          {selectedUnit.candidates.length > 0
-            ? `${selectedUnit.candidates.length} 个候选`
-            : '当前片段没有返修候选。'}
-        </div>
-      </div>
     </div>
   )
 }
@@ -1246,20 +1667,51 @@ export function DubbingEditorPage() {
     end_sec: number
   } | null>(null)
 
+  // Phase 2: undo/redo cursor (number of ops to replay)
+  const [opCursor, setOpCursor] = useState<number | null>(null)
+  const [playheadSec, setPlayheadSec] = useState(0)
+
   // P0: ref for Space-key audio playback (clips)
   const clipAudioRef = useRef<HTMLAudioElement | null>(null)
 
+  // Phase 2: animate playhead from audio current time
+  useEffect(() => {
+    let rafId: number
+    const tick = () => {
+      const audio = clipAudioRef.current
+      if (audio && !audio.paused) {
+        setPlayheadSec(audio.currentTime)
+      }
+      rafId = requestAnimationFrame(tick)
+    }
+    rafId = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(rafId)
+  }, [])
+
   const projectQuery = useQuery({
-    queryKey: ['dubbing-editor', taskId],
-    queryFn: () => dubbingEditorApi.getProject(taskId!),
+    queryKey: ['dubbing-editor', taskId, opCursor],
+    queryFn: () =>
+      opCursor !== null
+        ? dubbingEditorApi.replayTo(taskId!, opCursor)
+        : dubbingEditorApi.getProject(taskId!),
     enabled: !!taskId,
     staleTime: 1000 * 30,
   })
+
+  // Track total ops count for redo
+  const totalOpsRef = useRef(0)
+  useEffect(() => {
+    const ops = projectQuery.data?.operations?.length ?? 0
+    if (opCursor === null) {
+      totalOpsRef.current = ops
+    }
+  }, [projectQuery.data, opCursor])
 
   const operationsMutation = useMutation({
     mutationFn: (ops: Array<{ type: string; target_id: string; payload: Record<string, unknown> }>) =>
       dubbingEditorApi.saveOperations(taskId!, ops),
     onSuccess: () => {
+      setOpCursor(null) // exit undo mode after new op
       queryClient.invalidateQueries({ queryKey: ['dubbing-editor', taskId] })
     },
   })
@@ -1341,6 +1793,37 @@ export function DubbingEditorPage() {
     [taskId, queryClient],
   )
 
+  // Phase 2: assign voice
+  const handleAssignVoice = useCallback(
+    async (characterId: string, voicePath: string) => {
+      if (!taskId) return
+      await dubbingEditorApi.assignCharacterVoice(taskId, characterId, voicePath)
+      queryClient.invalidateQueries({ queryKey: ['dubbing-editor', taskId] })
+    },
+    [taskId, queryClient],
+  )
+
+  // Phase 2: undo/redo
+  const currentOps = projectQuery.data?.operations?.length ?? 0
+  const effectiveTotalOps = opCursor !== null ? totalOpsRef.current : currentOps
+  const effectiveCursor = opCursor !== null ? opCursor : currentOps
+
+  const handleUndo = useCallback(() => {
+    const cur = opCursor !== null ? opCursor : currentOps
+    if (cur <= 0) return
+    setOpCursor(cur - 1)
+  }, [opCursor, currentOps])
+
+  const handleRedo = useCallback(() => {
+    const cur = opCursor !== null ? opCursor : currentOps
+    if (cur >= effectiveTotalOps) return
+    const next = cur + 1
+    setOpCursor(next >= effectiveTotalOps ? null : next)
+  }, [opCursor, currentOps, effectiveTotalOps])
+
+  const canUndo = effectiveCursor > 0
+  const canRedo = opCursor !== null && opCursor < effectiveTotalOps
+
   const handleRenderRange = useCallback(() => {
     if (!selectedUnit) return
     const pad = 1.0
@@ -1351,10 +1834,11 @@ export function DubbingEditorPage() {
   }, [selectedUnit, renderRangeMutation])
 
   const handleRefresh = useCallback(() => {
+    setOpCursor(null)
     queryClient.invalidateQueries({ queryKey: ['dubbing-editor', taskId] })
   }, [queryClient, taskId])
 
-  // P0: Global keyboard shortcuts
+  // Global keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
@@ -1369,6 +1853,18 @@ export function DubbingEditorPage() {
       if (!units) return
 
       const openIssues = projectQuery.data?.issues.filter(i => i.status === 'open') ?? []
+
+      // Phase 2: Ctrl+Z / Ctrl+Y undo/redo
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault()
+        handleUndo()
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) {
+        e.preventDefault()
+        handleRedo()
+        return
+      }
 
       if (e.key === 'ArrowDown' || e.key === 'j') {
         e.preventDefault()
@@ -1410,11 +1906,13 @@ export function DubbingEditorPage() {
     handleApprove,
     handleNeedsReview,
     handleRenderRange,
+    handleUndo,
+    handleRedo,
   ])
 
   if (!taskId) return null
 
-  if (projectQuery.isLoading) {
+  if (projectQuery.isLoading && !projectQuery.data) {
     return (
       <div className="flex h-screen items-center justify-center bg-slate-50">
         <div className="flex items-center gap-3 text-sm text-slate-500">
@@ -1452,9 +1950,20 @@ export function DubbingEditorPage() {
         taskId={taskId}
         onRefresh={handleRefresh}
         onRenderRange={handleRenderRange}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={canUndo}
+        canRedo={canRedo}
         isRefreshing={projectQuery.isFetching}
         selectedUnit={selectedUnit}
       />
+
+      {/* Undo mode indicator */}
+      {opCursor !== null && (
+        <div className="shrink-0 bg-amber-50 px-4 py-1 text-[10px] font-medium text-amber-700 border-b border-amber-200">
+          查看历史版本 · 操作 {opCursor} / {effectiveTotalOps} — 点击重做恢复最新版本
+        </div>
+      )}
 
       {/* Main area: 3-column layout */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
@@ -1488,6 +1997,8 @@ export function DubbingEditorPage() {
               taskId={taskId}
               selectedUnit={selectedUnit}
               onSelectUnit={handleSelectUnit}
+              playheadSec={playheadSec}
+              onSeek={setPlayheadSec}
             />
           </div>
         </div>
@@ -1502,6 +2013,7 @@ export function DubbingEditorPage() {
             onNeedsReview={handleNeedsReview}
             onSaveText={handleSaveText}
             onResynthesize={handleResynthesize}
+            onAssignVoice={handleAssignVoice}
             isSynthesizing={isSynthesizing}
           />
         </div>

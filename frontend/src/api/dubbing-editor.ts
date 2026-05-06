@@ -149,9 +149,26 @@ export interface OperationResult {
   summary: DubbingEditorSummary
 }
 
+export interface AssignVoiceResult {
+  ok: boolean
+  character_id: string
+  voice_path: string
+}
+
+export interface BacktranslateResult {
+  unit_id: string
+  expected_text: string
+  heard_text: string
+  match_score: number
+  asr_available: boolean
+}
+
 export const dubbingEditorApi = {
   getProject: (taskId: string): Promise<DubbingEditorProject> =>
     apiClient.get(`/api/tasks/${taskId}/dubbing-editor`).then(r => r.data),
+
+  replayTo: (taskId: string, replayTo: number): Promise<DubbingEditorProject> =>
+    apiClient.get(`/api/tasks/${taskId}/dubbing-editor`, { params: { replay_to: replayTo } }).then(r => r.data),
 
   importProject: (taskId: string): Promise<DubbingEditorProject> =>
     apiClient.post(`/api/tasks/${taskId}/dubbing-editor/import`).then(r => r.data),
@@ -185,5 +202,18 @@ export const dubbingEditorApi = {
   synthesizeUnit: (taskId: string, unitId: string): Promise<SynthesizeUnitResult> =>
     apiClient
       .post(`/api/tasks/${taskId}/dubbing-editor/synthesize-unit`, { unit_id: unitId })
+      .then(r => r.data),
+
+  assignCharacterVoice: (taskId: string, characterId: string, voicePath: string): Promise<AssignVoiceResult> =>
+    apiClient
+      .post(`/api/tasks/${taskId}/dubbing-editor/assign-character-voice`, {
+        character_id: characterId,
+        voice_path: voicePath,
+      })
+      .then(r => r.data),
+
+  getBacktranslation: (taskId: string, unitId: string): Promise<BacktranslateResult> =>
+    apiClient
+      .get(`/api/tasks/${taskId}/dubbing-editor/backtranslate`, { params: { unit_id: unitId } })
       .then(r => r.data),
 }

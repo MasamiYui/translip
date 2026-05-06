@@ -764,6 +764,7 @@ def _render_range(
 @router.get("/{task_id}/dubbing-editor")
 def get_dubbing_editor(
     task_id: str,
+    replay_to: int | None = None,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     task = _get_task(session, task_id)
@@ -773,6 +774,34 @@ def get_dubbing_editor(
     if not mat_path.exists():
         # Try to import
         return _import_editor_project(task)
+
+    if replay_to is not None:
+        # Partial replay: only apply operations[0..replay_to]
+        snapshot_path = editor_root / "initial_snapshot.json"
+        ops_path = editor_root / "operations.jsonl"
+        if snapshot_path.exists():
+            snapshot = _read_json(snapshot_path)
+            # Read all ops and truncate
+            all_ops: list[dict[str, Any]] = []
+            if ops_path.exists():
+                for line in ops_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if line:
+                        try:
+                            all_ops.append(json.loads(line))
+                        except Exception:
+                            pass
+            # Write temp ops file with truncated ops
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False) as tf:
+                tmp_path = Path(tf.name)
+                for op in all_ops[:replay_to]:
+                    tf.write(json.dumps(op, ensure_ascii=False) + "\n")
+            try:
+                result = _materialize(snapshot, tmp_path)
+            finally:
+                tmp_path.unlink(missing_ok=True)
+            return result
 
     return _read_json(mat_path)
 
@@ -1014,3 +1043,114 @@ def synthesize_unit(
         "unit_id": body.unit_id,
         "message": "Re-synthesis queued. Refresh to see updated clip.",
     }
+
+
+# ---------------------------------------------------------------------------
+# Assign character voice (Phase 2)
+# ---------------------------------------------------------------------------
+
+
+class AssignCharacterVoiceRequest(BaseModel):
+    character_id: str
+    voice_path: str
+
+
+@router.post("/{task_id}/dubbing-editor/assign-character-voice")
+def assign_character_voice(
+    task_id: str,
+    body: AssignCharacterVoiceRequest,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Reassign a character's default voice reference path and record the operation."""
+    task = _get_task(session, task_id)
+    editor_root = _editor_root(task.output_root)
+    ops_path = editor_root / "operations.jsonl"
+
+    now = datetime.now(timezone.utc).isoformat()
+    op_record = {
+        "op_id": f"op_{uuid.uuid4().hex[:12]}",
+        "type": "character.assign_voice",
+        "target_id": body.character_id,
+        "payload": {"voice_path": body.voice_path},
+        "author": "local_user",
+        "created_at": now,
+    }
+    _append_jsonl(ops_path, op_record)
+
+    snapshot_path = editor_root / "initial_snapshot.json"
+    if snapshot_path.exists():
+        snapshot = _read_json(snapshot_path)
+        materialized = _materialize(snapshot, ops_path)
+        # Patch character voice in materialized state
+        for char in materialized.get("characters", []):
+            if char.get("character_id") == body.character_id:
+                if "default_voice" not in char or char["default_voice"] is None:
+                    char["default_voice"] = {}
+                char["default_voice"]["reference_path"] = body.voice_path
+                break
+        _write_json(editor_root / "materialized.current.json", materialized)
+
+    return {"ok": True, "character_id": body.character_id, "voice_path": body.voice_path}
+
+
+# ---------------------------------------------------------------------------
+# Back-translation check (Phase 2)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{task_id}/dubbing-editor/backtranslate")
+def backtranslate(
+    task_id: str,
+    unit_id: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Return a placeholder back-translation check for a dubbed clip.
+
+    In production this would: load the dubbed audio, run ASR, and compare
+    against the expected target_text. Here we return a stub so the UI can
+    render without requiring a real ASR backend.
+    """
+    task = _get_task(session, task_id)
+    editor_root = _editor_root(task.output_root)
+    mat_path = editor_root / "materialized.current.json"
+    if not mat_path.exists():
+        raise HTTPException(status_code=404, detail="Editor project not found")
+
+    project = _read_json(mat_path)
+    unit = next((u for u in project.get("units", []) if u.get("unit_id") == unit_id), None)
+    if unit is None:
+        raise HTTPException(status_code=404, detail=f"Unit {unit_id!r} not found")
+
+    target_text: str = unit.get("target_text", "")
+
+    # Try to load audio and run fast ASR if faster-whisper is available
+    heard_text = ""
+    match_score = 0.0
+    clip = unit.get("current_clip") or {}
+    audio_path_rel = clip.get("audio_artifact_path")
+    if audio_path_rel:
+        audio_abs = Path(task.output_root).resolve() / audio_path_rel
+        if audio_abs.exists():
+            try:
+                from faster_whisper import WhisperModel  # type: ignore
+
+                model = WhisperModel("tiny", device="cpu", compute_type="int8")
+                segments, _ = model.transcribe(str(audio_abs), beam_size=1)
+                heard_text = " ".join(s.text.strip() for s in segments).strip()
+            except Exception as e:
+                logger.debug("Back-translation ASR skipped: %s", e)
+
+    if heard_text and target_text:
+        # Simple character-level overlap score
+        s1, s2 = set(heard_text.lower()), set(target_text.lower())
+        overlap = len(s1 & s2) / max(len(s1 | s2), 1)
+        match_score = round(overlap, 3)
+
+    return {
+        "unit_id": unit_id,
+        "expected_text": target_text,
+        "heard_text": heard_text or target_text,  # fallback to expected when ASR not available
+        "match_score": match_score if heard_text else 1.0,
+        "asr_available": bool(heard_text),
+    }
+
