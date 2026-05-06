@@ -3,7 +3,11 @@ import { Monitor, CheckCircle, AlertCircle } from 'lucide-react'
 import { systemApi } from '../../api/config'
 import { useI18n } from '../../i18n/useI18n'
 
-export function Header() {
+interface HeaderProps {
+  workbench?: boolean
+}
+
+export function Header({ workbench = false }: HeaderProps) {
   const { locale, setLocale, t } = useI18n()
   const { data: sysInfo } = useQuery({
     queryKey: ['system-info'],
@@ -12,8 +16,13 @@ export function Header() {
     retry: 1,
   })
 
+  const heightClass = workbench ? 'h-12' : 'h-16'
+  const pillPad = workbench ? 'px-2 py-0.5' : 'px-2.5 py-1'
+
   return (
-    <header className="fixed top-0 right-0 left-[220px] h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 z-30">
+    <header
+      className={`fixed top-0 right-0 left-[220px] ${heightClass} bg-white border-b border-slate-200 flex items-center justify-between px-6 z-30`}
+    >
       <div />
       <div className="flex items-center gap-4">
         <div
@@ -24,7 +33,7 @@ export function Header() {
           <button
             type="button"
             onClick={() => setLocale('zh-CN')}
-            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+            className={`rounded-lg ${pillPad} text-xs font-medium transition-colors ${
               locale === 'zh-CN'
                 ? 'bg-white text-slate-900 shadow-sm'
                 : 'text-slate-500 hover:text-slate-700'
@@ -35,7 +44,7 @@ export function Header() {
           <button
             type="button"
             onClick={() => setLocale('en-US')}
-            className={`rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+            className={`rounded-lg ${pillPad} text-xs font-medium transition-colors ${
               locale === 'en-US'
                 ? 'bg-white text-slate-900 shadow-sm'
                 : 'text-slate-500 hover:text-slate-700'

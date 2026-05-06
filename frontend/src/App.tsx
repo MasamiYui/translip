@@ -56,12 +56,11 @@ export default function App() {
                 <Route path="tasks" element={<TaskListPage />} />
                 <Route path="tasks/new" element={<NewTaskPage />} />
                 <Route path="tasks/:id" element={<TaskDetailPage />} />
+                <Route path="tasks/:id/dubbing-editor" element={<DubbingEditorPage />} />
                 <Route path="tools" element={<ToolListPage />} />
                 <Route path="tools/:toolId" element={<ToolPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
-              {/* Dubbing editor is a full-screen route outside MainLayout */}
-              <Route path="/tasks/:id/dubbing-editor" element={<DubbingEditorPage />} />
             </Routes>
           </Suspense>
         </BrowserRouter>

@@ -36,6 +36,7 @@ import {
   ZoomOut,
 } from 'lucide-react'
 import { dubbingEditorApi } from '../api/dubbing-editor'
+import { tasksApi } from '../api/tasks'
 import type {
   BacktranslateResult,
   DubbingEditorCharacter,
@@ -228,25 +229,36 @@ function EditorTopBar({
     URL.revokeObjectURL(url)
   }, [project.units, taskId])
 
+  // Task name — shown in the identity block next to the back link.
+  const taskQuery = useQuery({
+    queryKey: ['task', taskId],
+    queryFn: () => tasksApi.get(taskId),
+    enabled: !!taskId,
+    staleTime: 1000 * 60,
+  })
+  const taskName = taskQuery.data?.name
+
   return (
     <div className="shrink-0 border-b border-slate-200 bg-white">
-      {/* Row 1 — identity & primary actions */}
-      <div className="flex h-14 items-center justify-between gap-4 px-4">
+      {/* Row 1 — back link + identity & primary actions */}
+      <div className="flex h-12 items-center justify-between gap-4 px-4">
         <div className="flex min-w-0 items-center gap-3">
           <Link
             to={`/tasks/${taskId}`}
-            className={TOPBAR_ICON_BTN}
-            title="返回任务详情"
+            className="flex shrink-0 items-center gap-1.5 text-sm text-slate-400 transition-colors hover:text-slate-600"
           >
-            <ArrowLeft size={16} />
+            <ArrowLeft size={14} />
+            返回任务详情
           </Link>
-          <div className="min-w-0">
-            <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-              Dubbing Workbench
-            </div>
-            <div className="truncate text-sm font-semibold leading-tight text-slate-900">
-              专业配音编辑台
-            </div>
+          <span className="h-4 w-px shrink-0 bg-slate-200" aria-hidden="true" />
+          <div className="flex min-w-0 items-baseline gap-2">
+            <span
+              className="truncate text-sm font-semibold text-slate-900"
+              title={taskName ?? taskId}
+            >
+              {taskName ?? taskId}
+            </span>
+            <span className="shrink-0 text-xs text-slate-400">配音编辑台</span>
           </div>
         </div>
 
@@ -293,7 +305,7 @@ function EditorTopBar({
             href={`/api/tasks/${taskId}/artifacts/${project.artifact_paths?.final_dub ?? ''}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-slate-900 px-4 text-xs font-medium text-white transition-colors hover:bg-slate-800"
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-xs font-medium text-white shadow-[0_8px_20px_-12px_rgba(37,99,235,0.7)] transition-colors hover:bg-blue-700"
           >
             <Download size={14} />
             Export
@@ -302,7 +314,7 @@ function EditorTopBar({
       </div>
 
       {/* Row 2 — status & secondary tools */}
-      <div className="flex h-9 items-center justify-between gap-4 border-t border-slate-100 bg-slate-50/40 px-4">
+      <div className="flex h-9 items-center justify-between gap-4 border-t border-slate-100 px-4">
         <div className="flex min-w-0 items-center gap-4">
           <BenchmarkBadge
             status={quality_benchmark?.status ?? 'unknown'}
@@ -2363,7 +2375,7 @@ export function DubbingEditorPage() {
 
   if (projectQuery.isLoading && !projectQuery.data) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-50">
+      <div className="flex h-full items-center justify-center bg-[#F5F7FB]">
         <div className="flex items-center gap-3 text-sm text-slate-500">
           <Loader2 size={16} className="animate-spin" />
           正在加载配音编辑台…
@@ -2374,7 +2386,7 @@ export function DubbingEditorPage() {
 
   if (projectQuery.isError || !projectQuery.data) {
     return (
-      <div className="flex h-screen items-center justify-center bg-slate-50">
+      <div className="flex h-full items-center justify-center bg-[#F5F7FB]">
         <div className="text-center">
           <div className="text-sm text-slate-500">加载失败，请重试</div>
           <button
@@ -2392,7 +2404,7 @@ export function DubbingEditorPage() {
   const project = projectQuery.data
 
   return (
-    <div data-testid="dubbing-editor" className="flex h-screen flex-col overflow-hidden bg-slate-50">
+    <div data-testid="dubbing-editor" className="flex h-full flex-col overflow-hidden bg-[#F5F7FB]">
       {/* Top bar */}
       <EditorTopBar
         project={project}
@@ -2418,7 +2430,7 @@ export function DubbingEditorPage() {
 
       {editorMode === 'edit' ? (
         /* ── Edit Mode: 3-column layout ── */
-        <div className="flex min-h-0 flex-1 overflow-hidden p-3 gap-3 bg-slate-50">
+        <div className="flex min-h-0 flex-1 overflow-hidden p-4 gap-4 bg-[#F5F7FB]">
           {/* Left: Issue Queue */}
           <div className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <IssueQueue
