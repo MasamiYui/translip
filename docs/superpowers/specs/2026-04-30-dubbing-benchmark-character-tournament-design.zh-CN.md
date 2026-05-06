@@ -71,14 +71,6 @@ flowchart TD
 - `review_required`：角色音色/声纹/候选存在风险，但最终可试听。
 - `deliverable_candidate`：覆盖通过，角色风险低，候选质量稳定。
 
-### 3.4 Dashboard
-
-先复用现有 `DubbingReviewDrawer`：
-
-- 顶部显示 QA 状态、分数、覆盖失败数、角色风险数。
-- 新增一个“质量总览”tab，展示 benchmark summary、角色风险、candidate 统计。
-- 后续再独立拆出更完整的 benchmark 页面。
-
 ## 4. Character Ledger v1
 
 ### 4.1 设计目标

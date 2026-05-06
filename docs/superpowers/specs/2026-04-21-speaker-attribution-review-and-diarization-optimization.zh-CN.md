@@ -120,7 +120,7 @@ src/translip/transcription/speaker.py
 
 1. 自动输出 speaker 诊断报告。
 2. 识别高风险 speaker、segment、speaker run。
-3. 在现有配音返修 UI 中增加“说话人审查”。
+3. 在任务详情页提供“说话人审查”入口。
 4. 支持人工修改 segment/run 的 speaker。
 5. 支持合并错误 speaker。
 6. 支持标记“不参与音色克隆”。
@@ -499,19 +499,12 @@ speaker_boundary_risk
 
 ### 8.1 入口
 
-沿用当前任务详情页的配音返修入口，在右侧抽屉里增加第一个 Tab：
-
-```text
-说话人审查
-音色审查
-短句合并
-候选审听
-```
+在任务详情页底部操作栏新增“说话人审查”按钮，打开右侧抽屉。
 
 原因：
 
 - speaker 纠错是音色审查和短句合并的前置条件。
-- UI 风格可以复用现有配音返修抽屉。
+- UI 风格沿用任务详情页现有抽屉（WorkflowNodeDrawer 等）。
 - 用户审查路径从“先分人，再选音色，再修配音”自然推进。
 
 ### 8.2 UI 视觉约束
@@ -1148,13 +1141,13 @@ word_alignment = true
 
 ### Phase UI-1: 说话人审查 Tab
 
-加入现有配音返修抽屉：
+实现 `SpeakerReviewDrawer`，Tab 结构如下：
 
 ```text
-说话人审查
-音色审查
-短句合并
-候选审听
+说话人总览
+高风险 speaker
+speaker run
+segment 详情
 ```
 
 功能：
@@ -1307,34 +1300,9 @@ require_review_before_task_b = false
 
 如果不想重跑 Task C，可在 Task C 加“只更新 speaker_id 映射”的快速路径。
 
-## 19. 对现有配音返修 UI 的影响
+## 19. 风险与防护
 
-当前已经有：
-
-```text
-音色审查
-短句合并
-候选审听
-```
-
-新增 `说话人审查` 后，推荐顺序变成：
-
-```text
-1. 说话人审查
-2. 音色审查
-3. 短句合并
-4. 候选审听
-```
-
-原因：
-
-- speaker 不准时，音色审查没有意义。
-- speaker 不准时，短句合并可能跨角色误合并。
-- speaker 不准时，候选音频选择也会选错音色。
-
-## 20. 风险与防护
-
-### 20.1 人工误改 speaker
+### 19.1 人工误改 speaker
 
 防护：
 
@@ -1343,7 +1311,7 @@ require_review_before_task_b = false
 - 保存决策历史。
 - 支持重新生成 corrected 文件。
 
-### 20.2 自动合并 speaker 过度
+### 19.2 自动合并 speaker 过度
 
 防护：
 
@@ -1351,7 +1319,7 @@ require_review_before_task_b = false
 - 自动建议和人工决策分开。
 - 只有短孤岛且前后 speaker 一致时才允许自动合并。
 
-### 20.3 speaker-corrected 影响缓存
+### 19.3 speaker-corrected 影响缓存
 
 防护：
 
@@ -1359,7 +1327,7 @@ require_review_before_task_b = false
 - Task B/C/D cache key 纳入 speaker-corrected segments hash。
 - 如果 speaker decisions 变化，Task B 以后必须失效。
 
-### 20.4 reference clip 被污染
+### 19.4 reference clip 被污染
 
 防护：
 
@@ -1367,7 +1335,7 @@ require_review_before_task_b = false
 - non_cloneable speaker 不构建 Voice Bank。
 - reference plan 显示风险来源。
 
-### 20.5 diarization-first 依赖复杂
+### 19.5 diarization-first 依赖复杂
 
 防护：
 
@@ -1375,16 +1343,16 @@ require_review_before_task_b = false
 - 先做 benchmark。
 - 明确模型授权和 token 需求。
 
-## 21. 验收标准
+## 20. 验收标准
 
-### 21.1 Speaker diagnostics
+### 20.1 Speaker diagnostics
 
 - 能对 `task-20260421-075513` 输出 speaker 级、run 级、segment 级风险。
 - `SPEAKER_02` 被标记为高风险。
 - `SPEAKER_04/06/07` 被标记为样本不足或 non-cloneable 候选。
 - 长异常 segment 被标记为 `bad_reference_candidate`。
 
-### 21.2 Speaker Review UI
+### 20.2 Speaker Review UI
 
 - 能展示 speaker 总览。
 - 能展示高风险 speaker。
@@ -1393,21 +1361,21 @@ require_review_before_task_b = false
 - UI 风格与任务详情页一致。
 - 不出现不同 speaker 被默认合成同一角色的误导操作。
 
-### 21.3 Apply decisions
+### 20.3 Apply decisions
 
 - 能输出 `segments.zh.speaker-corrected.json`。
 - 每个被改动的 segment 保留 `original_speaker_label`。
 - SRT 中 speaker label 同步更新。
 - manifest 记录 changed segment 数和决策来源。
 
-### 21.4 Pipeline 接入
+### 20.4 Pipeline 接入
 
 - Task B 优先消费 `segments.zh.speaker-corrected.json`。
 - non_cloneable speaker 不进入自动音色克隆。
 - reference clip 不包含 bad_reference_candidate。
 - 从 Task B 重跑后，speaker profile 数和 reference 质量有明显改善。
 
-### 21.5 质量收益
+### 20.5 质量收益
 
 对 `task-20260421-075513` 的首轮目标：
 
@@ -1419,12 +1387,12 @@ Task D speaker_failed 明显下降
 人工审查从 175 段压缩到约 10-30 个高价值决策点
 ```
 
-## 22. 技术成熟度评估
+## 21. 技术成熟度评估
 
 | 能力 | 成熟度 | 评价 |
 | --- | --- | --- |
 | speaker diagnostics | 高 | 基于现有 JSON 和简单规则即可实现 |
-| speaker run review UI | 高 | 与当前配音返修抽屉一致，工程风险低 |
+| speaker run review UI | 高 | 沿用任务详情页右侧抽屉视觉语言，工程风险低 |
 | manual speaker decisions | 高 | 纯 JSON 决策文件，可追溯 |
 | apply speaker decisions | 高 | 本质是重写 segment speaker_label |
 | Task B 消费 speaker-corrected | 高 | 路径优先级改造小 |
@@ -1434,7 +1402,7 @@ Task D speaker_failed 明显下降
 | diarization-first | 中 | 能力成熟，但依赖和授权成本更高 |
 | 全自动影视级 speaker attribution | 中低 | 快速对话和混音场景仍需要人工审查兜底 |
 
-## 23. 推荐实施顺序
+## 22. 推荐实施顺序
 
 ### Phase 1: 诊断和人工闭环
 
@@ -1500,7 +1468,7 @@ speaker attribution benchmark report
 - 面向影视配音质量上限。
 - 对快节奏多人对话有根本改善。
 
-## 24. 针对 task-20260421-075513 的执行建议
+## 23. 针对 task-20260421-075513 的执行建议
 
 第一轮人工只需要处理：
 
@@ -1535,7 +1503,7 @@ Task B -> Task D -> Task E -> Task G
 
 短期不要继续基于当前 speaker profile 做 Voice Bank 优化，因为当前 profile 已经包含错误样本风险。
 
-## 25. 结论
+## 24. 结论
 
 这块应作为配音质量优化的前置项目处理。
 

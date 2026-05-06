@@ -9,7 +9,6 @@ import {
   Eraser,
   Film,
   Headphones,
-  ListChecks,
   Loader2,
   Mic,
   Mic2,
@@ -26,7 +25,6 @@ import {
 import { tasksApi } from '../api/tasks'
 import { subscribeToProgress } from '../api/progress'
 import { PageContainer } from '../components/layout/PageContainer'
-import { DubbingReviewDrawer } from '../components/dubbing-review/DubbingReviewDrawer'
 import { SpeakerReviewDrawer } from '../components/speaker-review/SpeakerReviewDrawer'
 import { PipelineGraph } from '../components/pipeline/PipelineGraph'
 import { ProgressBar } from '../components/shared/ProgressBar'
@@ -119,7 +117,6 @@ export function TaskDetailPage() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null | undefined>(undefined)
   const [rerunStage, setRerunStage] = useState<string | undefined>(undefined)
   const [isExportDrawerOpen, setExportDrawerOpen] = useState(false)
-  const [isDubbingReviewOpen, setDubbingReviewOpen] = useState(false)
   const [isSpeakerReviewOpen, setSpeakerReviewOpen] = useState(false)
   const [showProfileOverrides, setShowProfileOverrides] = useState(false)
   const [exportProfile, setExportProfile] = useState<TaskExportProfile>('dub_no_subtitles')
@@ -579,14 +576,6 @@ export function TaskDetailPage() {
                     <Mic2 size={14} />
                     说话人审查
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setDubbingReviewOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                  >
-                    <ListChecks size={14} />
-                    配音返修审查
-                  </button>
                   <Link
                     to={`/tasks/${task.id}/dubbing-editor`}
                     className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
@@ -716,12 +705,6 @@ export function TaskDetailPage() {
         artifacts={selectedArtifacts}
         taskId={task.id}
         onClose={() => setSelectedNodeId(null)}
-      />
-
-      <DubbingReviewDrawer
-        taskId={task.id}
-        isOpen={isDubbingReviewOpen}
-        onClose={() => setDubbingReviewOpen(false)}
       />
 
       <SpeakerReviewDrawer

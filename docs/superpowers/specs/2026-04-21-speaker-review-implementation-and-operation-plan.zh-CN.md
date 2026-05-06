@@ -313,7 +313,7 @@ uv run python -m translip apply-speaker-decisions \
 UI 保持当前产品风格：
 
 - 右侧 drawer。
-- 与“配音返修审查”一致的布局节奏。
+- 与任务详情页其他审查抽屉一致的布局节奏。
 - 顶部 summary 统计。
 - Tab 分为三类：
   - 说话人总览

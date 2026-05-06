@@ -1,8 +1,6 @@
 import api from './client'
 import type {
   CreateTaskRequest,
-  DubbingReviewDecisionPayload,
-  DubbingReviewResponse,
   SpeakerReviewApplyResponse,
   SpeakerReviewDecisionPayload,
   SpeakerReviewResponse,
@@ -87,12 +85,6 @@ export const tasksApi = {
 
   getDelivery: (id: string) =>
     api.get(`/api/tasks/${id}/delivery`).then(r => r.data),
-
-  getDubbingReview: (id: string) =>
-    api.get<DubbingReviewResponse>(`/api/tasks/${id}/dubbing-review`).then(r => r.data),
-
-  saveDubbingReviewDecision: (id: string, payload: DubbingReviewDecisionPayload) =>
-    api.post(`/api/tasks/${id}/dubbing-review/decisions`, payload).then(r => r.data),
 
   getSpeakerReview: (id: string) =>
     api.get<SpeakerReviewResponse>(`/api/tasks/${id}/speaker-review`).then(r => r.data),
