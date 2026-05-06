@@ -587,6 +587,13 @@ export function TaskDetailPage() {
                     <ListChecks size={14} />
                     配音返修审查
                   </button>
+                  <Link
+                    to={`/tasks/${task.id}/dubbing-editor`}
+                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                  >
+                    <Wand2 size={14} />
+                    专业配音编辑台
+                  </Link>
                 </div>
               </div>
             </div>

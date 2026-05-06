@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>专业配音编辑台 · 操作手册</title>
+<style>
+  :root {
+    --blue: #2563eb;
+    --blue-light: #eff6ff;
+    --slate-900: #0f172a;
+    --slate-700: #334155;
+    --slate-500: #64748b;
+    --slate-300: #cbd5e1;
+    --slate-100: #f1f5f9;
+    --amber: #d97706;
+    --amber-light: #fffbeb;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --green: #16a34a;
+    --green-light: #f0fdf4;
+    --border: #e2e8f0;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+                 'Hiragino Sans GB', sans-serif;
+    color: var(--slate-700);
+    background: #fff;
+    line-height: 1.6;
+  }
+
+  /* ── Cover ── */
+  .cover {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #1e40af 100%);
+    color: #fff;
+    padding: 64px 48px 56px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  }
+  .cover-badge {
+    display: inline-block;
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 20px;
+    padding: 4px 14px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #93c5fd;
+    margin-bottom: 20px;
+  }
+  .cover h1 { font-size: 42px; font-weight: 700; line-height: 1.15; margin-bottom: 12px; }
+  .cover .sub { font-size: 16px; color: #94a3b8; max-width: 560px; }
+  .cover-meta { margin-top: 36px; display: flex; gap: 32px; flex-wrap: wrap; }
+  .cover-meta-item { font-size: 12px; color: #64748b; }
+  .cover-meta-item strong { display: block; color: #cbd5e1; font-size: 14px; margin-top: 2px; }
+
+  /* ── Layout ── */
+  .container { max-width: 900px; margin: 0 auto; padding: 0 40px; }
+
+  /* ── TOC ── */
+  .toc {
+    background: var(--slate-100);
+    border-left: 3px solid var(--blue);
+    padding: 28px 32px;
+    margin: 48px 0 0;
+    border-radius: 0 8px 8px 0;
+  }
+  .toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--blue); margin-bottom: 14px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin: 5px 0; }
+  .toc a { color: var(--slate-700); text-decoration: none; font-size: 14px; }
+  .toc a:hover { color: var(--blue); }
+
+  /* ── Sections ── */
+  section { padding: 56px 0 0; }
+  section:last-child { padding-bottom: 80px; }
+
+  .section-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px; height: 28px;
+    background: var(--blue);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 12px;
+    font-weight: 700;
+    margin-right: 10px;
+    flex-shrink: 0;
+  }
+  h2.section-title {
+    display: flex;
+    align-items: center;
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--slate-900);
+    margin-bottom: 6px;
+    padding-bottom: 16px;
+    border-bottom: 2px solid var(--border);
+  }
+  .section-desc { font-size: 14px; color: var(--slate-500); margin-bottom: 28px; margin-top: 8px; }
+
+  h3.step-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--slate-900);
+    margin: 28px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h3.step-title .step-num {
+    background: var(--blue-light);
+    color: var(--blue);
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  /* ── Screenshot frame ── */
+  .screenshot-wrap {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 16px 0 12px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+  }
+  .screenshot-wrap img { width: 100%; display: block; }
+  .screenshot-caption {
+    background: var(--slate-100);
+    border-top: 1px solid var(--border);
+    padding: 8px 14px;
+    font-size: 12px;
+    color: var(--slate-500);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .screenshot-caption::before {
+    content: '📸';
+    font-size: 13px;
+  }
+
+  /* ── Callouts ── */
+  .callout {
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin: 14px 0;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-size: 13.5px;
+  }
+  .callout-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+  .callout.tip { background: var(--blue-light); border-left: 3px solid var(--blue); }
+  .callout.tip .callout-icon::before { content: '💡'; }
+  .callout.warning { background: var(--amber-light); border-left: 3px solid var(--amber); }
+  .callout.warning .callout-icon::before { content: '⚠️'; }
+  .callout.danger { background: var(--red-light); border-left: 3px solid var(--red); }
+  .callout.danger .callout-icon::before { content: '🔴'; }
+  .callout.success { background: var(--green-light); border-left: 3px solid var(--green); }
+  .callout.success .callout-icon::before { content: '✅'; }
+
+  /* ── UI element labels ── */
+  kbd {
+    display: inline-block;
+    background: var(--slate-100);
+    border: 1px solid var(--slate-300);
+    border-radius: 4px;
+    padding: 1px 7px;
+    font-size: 12px;
+    font-family: monospace;
+    color: var(--slate-700);
+    box-shadow: 0 1px 0 var(--slate-300);
+  }
+  .badge {
+    display: inline-block;
+    border-radius: 4px;
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    vertical-align: middle;
+  }
+  .badge-p0 { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+  .badge-p1 { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+  .badge-p2 { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+  .badge-approved { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+  .badge-review { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+  .badge-unreviewed { background: #f8fafc; color: #64748b; border: 1px solid #e2e8f0; }
+
+  /* ── Panel layout diagram ── */
+  .layout-diagram {
+    display: grid;
+    grid-template-columns: 260px 1fr 280px;
+    gap: 0;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 20px 0;
+    font-size: 12px;
+  }
+  .panel {
+    padding: 14px 16px;
+    background: var(--slate-100);
+    border-right: 1px solid var(--border);
+    min-height: 100px;
+  }
+  .panel:last-child { border-right: none; }
+  .panel .panel-label {
+    font-weight: 700;
+    color: var(--slate-900);
+    margin-bottom: 6px;
+    font-size: 13px;
+  }
+  .panel ul { padding-left: 16px; color: var(--slate-500); line-height: 1.8; }
+
+  /* ── Table ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    margin: 16px 0;
+  }
+  th {
+    background: var(--slate-100);
+    padding: 9px 14px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--slate-500);
+    border-bottom: 2px solid var(--border);
+  }
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--slate-700);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+
+  /* ── Divider ── */
+  hr { border: none; border-top: 1px solid var(--border); margin: 40px 0; }
+
+  /* ── Footer ── */
+  .footer {
+    background: var(--slate-100);
+    border-top: 1px solid var(--border);
+    padding: 28px 40px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: var(--slate-500);
+  }
+  .footer strong { color: var(--slate-700); }
+
+  @media print {
+    .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    section { page-break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ COVER ═══════════════════════════ -->
+<div class="cover">
+  <div class="container">
+    <div class="cover-badge">Translip · 操作手册</div>
+    <h1>专业配音编辑台</h1>
+    <p class="sub">
+      针对 AI 配音流水线输出结果的专业审核与精修工作台，支持多轨波形、问题队列、片段审核与局部预览。
+    </p>
+    <div class="cover-meta">
+      <div class="cover-meta-item">版本 <strong>v0.1.0</strong></div>
+      <div class="cover-meta-item">更新日期 <strong>2026-05-01</strong></div>
+      <div class="cover-meta-item">适用人群 <strong>配音导演 · 后期编辑</strong></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════ TOC ═══════════════════════════ -->
+<div class="container">
+  <div class="toc">
+    <h2>目录</h2>
+    <ol>
+      <li><a href="#s1">界面总览：三栏布局</a></li>
+      <li><a href="#s2">从任务详情页进入编辑台</a></li>
+      <li><a href="#s3">问题队列：过滤与浏览</a></li>
+      <li><a href="#s4">片段审核：选中问题查看详情</a></li>
+      <li><a href="#s5">局部预览：Render Range</a></li>
+      <li><a href="#s6">修改配音稿文本</a></li>
+      <li><a href="#s7">批准或标记复核</a></li>
+      <li><a href="#s8">从时间轴直接选择片段</a></li>
+      <li><a href="#s9">查看已处理问题（resolved）</a></li>
+      <li><a href="#s10">Benchmark 质量评分说明</a></li>
+      <li><a href="#s11">角色档案与风险标记</a></li>
+      <li><a href="#s12">导出最终成品</a></li>
+    </ol>
+  </div>
+
+<!-- ═══════════════════════════ S1 ═══════════════════════════ -->
+<section id="s1">
+  <h2 class="section-title"><span class="section-number">1</span>界面总览：三栏布局</h2>
+  <p class="section-desc">编辑台采用全屏三栏式布局，从左到右依次为问题队列、当前行/时间轴、Inspector 面板。</p>
+
+  <div class="layout-diagram">
+    <div class="panel">
+      <div class="panel-label">① 左栏：Issue Queue</div>
+      <ul>
+        <li>问题统计（P0 / P1 / P2）</li>
+        <li>过滤标签</li>
+        <li>问题条目列表</li>
+        <li>Character Cast 角色列表</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <div class="panel-label">② 中栏：Current Line + Timeline</div>
+      <ul>
+        <li>源文 / 配音稿 双栏展示</li>
+        <li>局部预览播放器</li>
+        <li>Original Dialogue 波形</li>
+        <li>Generated Dub 波形</li>
+        <li>字幕单元时间轴</li>
+      </ul>
+    </div>
+    <div class="panel">
+      <div class="panel-label">③ 右栏：Inspector</div>
+      <ul>
+        <li>Segment Inspector</li>
+        <li>配音稿编辑框</li>
+        <li>CLIP 信息（状态/时长/策略）</li>
+        <li>批准 / 复核 操作按钮</li>
+        <li>Character Cast（角色信息）</li>
+        <li>Candidate Tournament</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/02-workbench-overview.png" alt="编辑台主界面" />
+    <div class="screenshot-caption">编辑台主界面 — 左侧 Issue Queue 显示 112 open，中央为三轨时间轴，右侧 Inspector 等待选择片段</div>
+  </div>
+
+  <div class="callout tip">
+    <span class="callout-icon"></span>
+    <div>顶部状态栏显示 <strong>Benchmark 分数</strong>（本例 69.6）和质量状态（<strong>Review Required</strong>）。
+    分数低于 75 或存在 P0 问题时，状态为 <em>Review Required</em>（橙色）；高于 85 且无 P0 时为 <em>Good</em>（绿色）。</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ S2 ═══════════════════════════ -->
+<section id="s2">
+  <h2 class="section-title"><span class="section-number">2</span>从任务详情页进入编辑台</h2>
+  <p class="section-desc">每个已完成的流水线任务都有对应的专业配音编辑台入口。</p>
+
+  <h3 class="step-title"><span class="step-num">STEP 1</span>打开任务详情页</h3>
+  <p style="font-size:14px;margin-bottom:8px;">在侧边栏点击 <kbd>任务列表</kbd>，找到对应任务，进入任务详情。</p>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/01-task-detail-entry.png" alt="任务详情页" />
+    <div class="screenshot-caption">任务详情页 — 底部操作栏包含「导出成品」「说话人审查」「配音返修审查」和「专业配音编辑台」四个入口按钮</div>
+  </div>
+
+  <h3 class="step-title"><span class="step-num">STEP 2</span>点击「专业配音编辑台」</h3>
+  <p style="font-size:14px;">点击蓝色的 <kbd>专业配音编辑台</kbd> 按钮，即可跳转至全屏编辑台页面（路径：<code style="font-size:12px;background:#f1f5f9;padding:2px 6px;border-radius:4px;">/tasks/&lt;id&gt;/dubbing-editor</code>）。</p>
+
+  <div class="callout tip">
+    <span class="callout-icon"></span>
+    <div>编辑台会自动从流水线输出目录中加载所有数据（字幕单元、配音稿、角色、CLIP 等），无需手动导入。</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ S3 ═══════════════════════════ -->
+<section id="s3">
+  <h2 class="section-title"><span class="section-number">3</span>问题队列：过滤与浏览</h2>
+  <p class="section-desc">左侧 Issue Queue 展示所有自动检测到的配音问题，支持按严重等级过滤。</p>
+
+  <table>
+    <thead>
+      <tr><th>优先级</th><th>含义</th><th>典型类型</th><th>处理建议</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="badge badge-p0">P0</span></td>
+        <td>严重缺陷，必须处理</td>
+        <td>角色音色冲突（pitch_class_drift）</td>
+        <td>立即修改配音稿或重新合成</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-p1">P1</span></td>
+        <td>较严重，建议处理</td>
+        <td>声纹一致性失败（speaker_similarity_failed）</td>
+        <td>审听原始音频后决定是否修改</td>
+      </tr>
+      <tr>
+        <td><span class="badge badge-p2">P2</span></td>
+        <td>轻微，可选处理</td>
+        <td>时间轴溢出（overflow_unfitted）</td>
+        <td>若不影响观感可忽略</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3 class="step-title"><span class="step-num">操作</span>点击过滤标签</h3>
+  <p style="font-size:14px;margin-bottom:8px;">点击 <kbd>all</kbd> <kbd>open</kbd> <kbd>P0</kbd> <kbd>P1</kbd> <kbd>P2</kbd> <kbd>resolved</kbd> 可快速过滤问题列表。</p>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/03-issue-queue-p0-filter.png" alt="P0过滤视图" />
+    <div class="screenshot-caption">选中 P0 过滤标签后，列表仅显示 39 条「角色音色冲突」问题，统计卡片高亮红色</div>
+  </div>
+
+  <div class="callout warning">
+    <span class="callout-icon"></span>
+    <div><strong>建议工作流：</strong>优先处理 P0 问题（红色），再依次处理 P1、P2。处理后切换至 <kbd>resolved</kbd> 标签确认已完成数量。</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ S4 ═══════════════════════════ -->
+<section id="s4">
+  <h2 class="section-title"><span class="section-number">4</span>片段审核：选中问题查看详情</h2>
+  <p class="section-desc">点击任意问题条目后，中栏 Current Line 展示对应片段的源文和配音稿，右栏 Inspector 显示完整详情。</p>
+
+  <h3 class="step-title"><span class="step-num">操作</span>点击问题条目</h3>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/04-inspector-p0-issue.png" alt="Inspector面板展开" />
+    <div class="screenshot-caption">
+      选中 P0「角色音色冲突」后 — 中栏展示源文「那得最高规格接待啊」、配音稿「This is the highest reception.」、状态 <span class="badge badge-review">needs_review</span>；
+      右栏 Inspector 显示 seg-0040、CLIP 时长 2.01s、Fit 策略 compress，及 Character Cast（SPEAKER_04，Pitch: low · 131.2Hz）
+    </div>
+  </div>
+
+  <h3 class="step-title"><span class="step-num">说明</span>Inspector 各字段含义</h3>
+
+  <table>
+    <thead>
+      <tr><th>字段</th><th>含义</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>seg-xxxx</td><td>片段 ID，与 task-c 翻译结果一一对应</td></tr>
+      <tr><td>CLIP 状态</td><td>placed = 已安置；overflow_unfitted = 溢出未完全压缩</td></tr>
+      <tr><td>Fit 策略</td><td>compress = 压缩速率以适配时间；overflow_unfitted = 合成后仍超时</td></tr>
+      <tr><td>Pitch</td><td>角色音高等级（low / mid / high）及具体 Hz 值</td></tr>
+      <tr><td>Voice lock</td><td>Unlocked = 允许自动匹配声线；Locked = 锁定指定声线</td></tr>
+      <tr><td>Speaker failed</td><td>该角色下声纹匹配失败的片段数及占比</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════ S5 ═══════════════════════════ -->
+<section id="s5">
+  <h2 class="section-title"><span class="section-number">5</span>局部预览：Render Range</h2>
+  <p class="section-desc">选中片段后，可一键生成该片段前后 1 秒范围的混音预览，直接在浏览器中试听效果。</p>
+
+  <h3 class="step-title"><span class="step-num">STEP 1</span>选中一个片段（点击问题条目或时间轴）</h3>
+  <h3 class="step-title"><span class="step-num">STEP 2</span>点击顶栏「Render Range」按钮</h3>
+
+  <div class="callout tip">
+    <span class="callout-icon"></span>
+    <div>未选中片段时按钮呈灰色禁用状态；选中片段后按钮变为深色可点击。渲染过程约 1–3 秒。</div>
+  </div>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/05-render-range-audio-player.png" alt="局部预览音频播放器" />
+    <div class="screenshot-caption">
+      Render Range 完成后，中栏右侧出现蓝色「局部预览」音频播放器，时间范围 02:06.46–02:10.46，时长 4 秒，可直接点击播放
+    </div>
+  </div>
+
+  <div class="callout warning">
+    <span class="callout-icon"></span>
+    <div>预览音频包含原始背景音乐 + 当前配音片段的混合结果，可快速判断配音效果是否自然。若效果不理想，修改配音稿后可再次 Render Range 对比。</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ S6 ═══════════════════════════ -->
+<section id="s6">
+  <h2 class="section-title"><span class="section-number">6</span>修改配音稿文本</h2>
+  <p class="section-desc">右栏 Inspector 的「配音稿」文本框可直接编辑，修改后点击「保存」或进行审核操作即自动保存。</p>
+
+  <h3 class="step-title"><span class="step-num">操作</span>在 Inspector 配音稿框中直接编辑</h3>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/06-edit-text-in-inspector.png" alt="编辑配音稿文本" />
+    <div class="screenshot-caption">
+      将配音稿从「This is the highest reception.」修改为「This is the highest reception standard!」—— 文本框呈蓝色边框激活状态
+    </div>
+  </div>
+
+  <div class="callout tip">
+    <span class="callout-icon"></span>
+    <div>修改文本后点击 <kbd>标记已修</kbd> 或 <kbd>仍需复核</kbd> 按钮，系统会同时保存文本修改和审核状态，无需单独保存。</div>
+  </div>
+
+  <div class="callout warning">
+    <span class="callout-icon"></span>
+    <div>文本修改仅更新编辑台数据库中的稿件记录，不会自动重新触发 TTS 合成。如需重新合成，需在流水线中重跑 Task D。</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ S7 ═══════════════════════════ -->
+<section id="s7">
+  <h2 class="section-title"><span class="section-number">7</span>批准或标记复核</h2>
+  <p class="section-desc">每个片段可设置为「已修」或「仍需复核」两种审核状态。</p>
+
+  <table>
+    <thead>
+      <tr><th>按钮</th><th>操作后状态</th><th>何时使用</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><kbd>✓ 标记已修</kbd>（绿色）</td>
+        <td><span class="badge badge-approved">approved</span></td>
+        <td>配音效果满意，问题已解决</td>
+      </tr>
+      <tr>
+        <td><kbd>⚠ 仍需复核</kbd>（黄色）</td>
+        <td><span class="badge badge-review">needs_review</span></td>
+        <td>配音有问题但暂时无法处理，标记留待后续跟进</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/07-approved-state.png" alt="批准后状态变更" />
+    <div class="screenshot-caption">
+      点击「标记已修」后 — Inspector 显示 <span class="badge badge-approved">approved</span> 状态，中栏状态徽章同步更新，
+      左侧问题计数从「2 approved」变为「3 approved」，P0 未解决数从 39 变为 38
+    </div>
+  </div>
+
+  <div class="callout success">
+    <span class="callout-icon"></span>
+    <div>批准操作即时写入数据库（JSONL append-only 日志），刷新页面后状态保持不变。</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ S8 ═══════════════════════════ -->
+<section id="s8">
+  <h2 class="section-title"><span class="section-number">8</span>从时间轴直接选择片段</h2>
+  <p class="section-desc">中央底部时间轴的「Subtitles / Dialogue Units」轨道上，每个片段均可点击，不必通过问题队列。</p>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/08-timeline-click-unit.png" alt="时间轴点击片段" />
+    <div class="screenshot-caption">
+      点击时间轴上的 seg-0001 — Current Line 更新为「娜娜 你在哪儿啊」→「Nana, where are you?」，
+      Inspector 显示 SPEAKER_00、2.13s、Fit 策略 overflow_unfitted（配音略长）
+    </div>
+  </div>
+
+  <div class="callout tip">
+    <span class="callout-icon"></span>
+    <div>时间轴片段的颜色会反映问题严重程度：橙色/红色表示有 issue，蓝色表示已批准，灰色表示未审核。</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ S9 ═══════════════════════════ -->
+<section id="s9">
+  <h2 class="section-title"><span class="section-number">9</span>查看已处理问题（resolved）</h2>
+  <p class="section-desc">点击过滤标签 <kbd>resolved</kbd> 可查看所有已批准的问题，确认审核进度。</p>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/10-resolved-issues-tab.png" alt="已解决问题列表" />
+    <div class="screenshot-caption">
+      resolved 视图 — 显示「3 open · 3 approved」，已完成 3 条问题，划线标注表示该问题已解决
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ S10 ═══════════════════════════ -->
+<section id="s10">
+  <h2 class="section-title"><span class="section-number">10</span>Benchmark 质量评分说明</h2>
+  <p class="section-desc">顶栏右侧显示当前任务的综合质量评分。</p>
+
+  <table>
+    <thead>
+      <tr><th>评分范围</th><th>状态标签</th><th>颜色</th><th>建议</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>≥ 85 且无 P0</td><td>Good</td><td style="color:#16a34a">● 绿色</td><td>可直接导出</td></tr>
+      <tr><td>75–84 或有少量 P0</td><td>Review Required</td><td style="color:#d97706">● 橙色</td><td>建议处理后再导出</td></tr>
+      <tr><td>&lt; 75 或大量 P0</td><td>Needs Work</td><td style="color:#dc2626">● 红色</td><td>必须处理后导出</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout tip">
+    <span class="callout-icon"></span>
+    <div>Benchmark 分数综合考量：声纹一致性（MOS 评估）、时间轴适配率（no overflow）、字符速率合理性。分数实时反映当前任务状态，不随审核操作自动刷新 — 重新跑 benchmark 需通过流水线触发。</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════ S11 ═══════════════════════════ -->
+<section id="s11">
+  <h2 class="section-title"><span class="section-number">11</span>角色档案与风险标记</h2>
+  <p class="section-desc">Inspector 底部 Character Cast 区域展示当前片段所属角色的档案信息。</p>
+
+  <div class="screenshot-wrap">
+    <img src="/playwright/09-inspector-scrolled-risk-flags.png" alt="角色档案" />
+    <div class="screenshot-caption">
+      SPEAKER_00 角色档案 — Pitch mid · 213.3Hz，Voice lock Unlocked，33 条片段中 6 条声纹失败（18%），
+      底部 Candidate Tournament 显示「当前片段没有返修候选」
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>字段</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Pitch</td><td>角色音调分类（low/mid/high）及基频 Hz</td></tr>
+      <tr><td>Voice lock</td><td>Locked = 锁定特定声线模型；Unlocked = 自动匹配</td></tr>
+      <tr><td>Segments</td><td>该角色的总片段数</td></tr>
+      <tr><td>Speaker failed</td><td>声纹验证未通过的片段数及百分比（橙色预警）</td></tr>
+      <tr><td>Candidate Tournament</td><td>多候选配音片段的对比列表（如有返修候选则显示）</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ═══════════════════════════ S12 ═══════════════════════════ -->
+<section id="s12">
+  <h2 class="section-title"><span class="section-number">12</span>导出最终成品</h2>
+  <p class="section-desc">完成审核后，点击顶栏右上角的 <kbd>Export</kbd> 按钮，或返回任务详情页点击「导出成品」。</p>
+
+  <div class="callout tip">
+    <span class="callout-icon"></span>
+    <div><strong>推荐工作流总结：</strong>
+      <ol style="padding-left:18px;margin-top:8px;line-height:2">
+        <li>过滤 P0 → 逐条审听（Render Range） → 修改配音稿 → 标记已修</li>
+        <li>过滤 P1 → 重点审听声纹问题 → 处理或标记复核</li>
+        <li>切换 resolved 标签确认审核覆盖率</li>
+        <li>顶栏 Export → 下载 MP4 成品</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="callout danger">
+    <span class="callout-icon"></span>
+    <div>导出操作会直接使用流水线已生成的 task-e 混音结果。若修改了配音稿文本，需重跑 Task D（语音合成）和 Task E（混音）后再导出，否则导出内容不含文本修改。</div>
+  </div>
+
+  <hr />
+  <h3 class="step-title"><span class="step-num">常见问题</span>FAQ</h3>
+
+  <table>
+    <thead>
+      <tr><th>问题</th><th>解决方法</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>页面显示「加载失败，请重试」</td><td>后端服务可能未启动，运行 <code>uv run uvicorn translip.server.app:app --port 8765</code></td></tr>
+      <tr><td>Render Range 点击无反应</td><td>确认已选中一个片段（顶部 Current Line 有内容）</td></tr>
+      <tr><td>Original Dialogue 波形不显示</td><td>检查 stage1 目录下是否有 voice.mp3 或 voice.wav 文件</td></tr>
+      <tr><td>批准后刷新状态丢失</td><td>操作日志写入本地 JSONL 文件，刷新后需等待数据重载（约 1s）</td></tr>
+      <tr><td>Speaker failed 百分比很高</td><td>该角色声线质量较低，建议在 task-b 中更换参考音频后重跑流水线</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</div><!-- .container -->
+
+<div class="footer">
+  <div><strong>专业配音编辑台操作手册</strong> · Translip v0.1.0</div>
+  <div>© 2026 · 内部文档 · 请勿外传</div>
+</div>
+
+</body>
+</html>

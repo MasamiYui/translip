@@ -19,6 +19,9 @@ const TaskDetailPage = lazy(() =>
 const SettingsPage = lazy(() =>
   import('./pages/SettingsPage').then(module => ({ default: module.SettingsPage })),
 )
+const DubbingEditorPage = lazy(() =>
+  import('./pages/DubbingEditorPage').then(module => ({ default: module.DubbingEditorPage })),
+)
 const ToolListPage = lazy(() =>
   import('./pages/ToolListPage').then(module => ({ default: module.ToolListPage })),
 )
@@ -57,6 +60,8 @@ export default function App() {
                 <Route path="tools/:toolId" element={<ToolPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
+              {/* Dubbing editor is a full-screen route outside MainLayout */}
+              <Route path="/tasks/:id/dubbing-editor" element={<DubbingEditorPage />} />
             </Routes>
           </Suspense>
         </BrowserRouter>
