@@ -10,14 +10,13 @@ import {
   CheckCheck,
   ChevronDown,
   ChevronRight,
-  ChevronLeft,
   Download,
   History,
-  HelpCircle,
   Keyboard,
   Loader2,
   Maximize2,
   Minimize2,
+  MoreHorizontal,
   Pause,
   Play,
   PenLine,
@@ -64,30 +63,31 @@ function formatScore(score: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Benchmark Badge
+// Benchmark Badge (compact status pill used in the status bar)
 // ---------------------------------------------------------------------------
 
 function BenchmarkBadge({ status, score }: { status: string; score: number }) {
   const config: Record<string, { label: string; cls: string }> = {
-    approved: { label: 'Approved', cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200' },
+    approved: { label: 'Approved', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     deliverable_candidate: {
       label: 'Deliverable',
-      cls: 'bg-blue-50 text-blue-700 border border-blue-200',
+      cls: 'bg-blue-50 text-blue-700 border-blue-200',
     },
     review_required: {
       label: 'Review Required',
-      cls: 'bg-amber-50 text-amber-700 border border-amber-200',
+      cls: 'bg-amber-50 text-amber-700 border-amber-200',
     },
-    blocked: { label: 'Blocked', cls: 'bg-rose-50 text-rose-700 border border-rose-200' },
-    unknown: { label: 'Unknown', cls: 'bg-slate-50 text-slate-500 border border-slate-200' },
+    blocked: { label: 'Blocked', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+    unknown: { label: 'Unknown', cls: 'bg-slate-50 text-slate-500 border-slate-200' },
   }
   const cfg = config[status] ?? config['unknown']
   return (
-    <div className="flex items-center gap-2">
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Benchmark</div>
-      <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${cfg.cls}`}>{cfg.label}</span>
-      <span className="text-sm font-semibold text-slate-700">{formatScore(score)}</span>
-    </div>
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${cfg.cls}`}
+    >
+      <span>{cfg.label}</span>
+      <span className="tabular-nums font-semibold">{formatScore(score)}</span>
+    </span>
   )
 }
 
@@ -99,14 +99,18 @@ function ProgressBar({ approved, total }: { approved: number; total: number }) {
   const pct = total > 0 ? (approved / total) * 100 : 0
   const colorCls = pct >= 80 ? 'bg-emerald-500' : pct >= 40 ? 'bg-blue-500' : 'bg-amber-500'
   return (
-    <div className="flex items-center gap-2" data-testid="progress-bar">
-      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-200">
+    <div
+      className="flex items-center gap-2"
+      data-testid="progress-bar"
+      title={`已批准 ${approved} / ${total}`}
+    >
+      <div className="h-1.5 w-28 overflow-hidden rounded-full bg-slate-200">
         <div
           className={`h-full rounded-full transition-all duration-500 ${colorCls}`}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="text-[10px] text-slate-400">
+      <span className="text-[11px] tabular-nums text-slate-500">
         {approved}/{total}
       </span>
     </div>
@@ -114,7 +118,9 @@ function ProgressBar({ approved, total }: { approved: number; total: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// Top Bar (Phase 2: undo/redo, SRT export, severity chart)
+// Top Bar — two-row layout
+//   Row 1 (h-14): identity ← + title    │ mode toggle · Export
+//   Row 2 (h-9):  status (benchmark · progress · severity)    │ tools
 // ---------------------------------------------------------------------------
 
 /** Severity distribution mini-chart */
@@ -129,20 +135,26 @@ function IssueSeverityChart({ project }: { project: DubbingEditorProject }) {
   const pct = (n: number) => `${((n / total) * 100).toFixed(0)}%`
 
   return (
-    <div data-testid="severity-chart" className="flex items-center gap-2">
-      <div className="h-2 w-20 overflow-hidden rounded-full flex">
-        {p0 > 0 && <div className="bg-rose-500 h-full transition-all" style={{ width: pct(p0) }} title={`P0: ${p0}`} />}
-        {p1 > 0 && <div className="bg-amber-400 h-full transition-all" style={{ width: pct(p1) }} title={`P1: ${p1}`} />}
-        {p2 > 0 && <div className="bg-slate-300 h-full transition-all" style={{ width: pct(p2) }} title={`P2: ${p2}`} />}
+    <div data-testid="severity-chart" className="flex items-center gap-2" title={`P0 ${p0} · P1 ${p1} · P2 ${p2}`}>
+      <div className="flex h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
+        {p0 > 0 && <div className="h-full bg-rose-500 transition-all" style={{ width: pct(p0) }} />}
+        {p1 > 0 && <div className="h-full bg-amber-400 transition-all" style={{ width: pct(p1) }} />}
+        {p2 > 0 && <div className="h-full bg-slate-300 transition-all" style={{ width: pct(p2) }} />}
       </div>
-      <div className="flex items-center gap-1 text-[10px] text-slate-500">
-        {p0 > 0 && <span className="text-rose-600 font-medium">{p0}P0</span>}
-        {p1 > 0 && <span className="text-amber-600 font-medium">{p1}P1</span>}
-        {p2 > 0 && <span className="text-slate-500">{p2}P2</span>}
+      <div className="flex items-center gap-2 text-[11px] tabular-nums">
+        {p0 > 0 && <span className="font-medium text-rose-600">{p0} P0</span>}
+        {p1 > 0 && <span className="font-medium text-amber-600">{p1} P1</span>}
+        {p2 > 0 && <span className="text-slate-500">{p2} P2</span>}
       </div>
     </div>
   )
 }
+
+const TOPBAR_ICON_BTN =
+  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent'
+
+const TOPBAR_TEXT_BTN =
+  'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50'
 
 function EditorTopBar({
   project,
@@ -173,6 +185,23 @@ function EditorTopBar({
 }) {
   const { summary, quality_benchmark } = project
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showMore, setShowMore] = useState(false)
+  const moreMenuRef = useRef<HTMLDivElement>(null)
+  const shortcutsRef = useRef<HTMLDivElement>(null)
+
+  // Close popovers on outside click
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setShowMore(false)
+      }
+      if (shortcutsRef.current && !shortcutsRef.current.contains(e.target as Node)) {
+        setShowShortcuts(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [])
 
   /** Generate and download SRT from all units */
   const handleSRTExport = useCallback(() => {
@@ -201,80 +230,167 @@ function EditorTopBar({
 
   return (
     <div className="shrink-0 border-b border-slate-200 bg-white">
-      <div className="flex h-[52px] items-center justify-between px-4">
-        <div className="flex items-center gap-3">
+      {/* Row 1 — identity & primary actions */}
+      <div className="flex h-14 items-center justify-between gap-4 px-4">
+        <div className="flex min-w-0 items-center gap-3">
           <Link
             to={`/tasks/${taskId}`}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+            className={TOPBAR_ICON_BTN}
+            title="返回任务详情"
           >
-            <ArrowLeft size={15} />
+            <ArrowLeft size={16} />
           </Link>
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+          <div className="min-w-0">
+            <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
               Dubbing Workbench
             </div>
-            <div className="text-sm font-semibold leading-none text-slate-900">专业配音编辑台</div>
+            <div className="truncate text-sm font-semibold leading-tight text-slate-900">
+              专业配音编辑台
+            </div>
           </div>
-          <div className="ml-2 h-7 border-l border-slate-200" />
-          <BenchmarkBadge status={quality_benchmark?.status ?? 'unknown'} score={summary?.quality_score ?? 0} />
-          <div className="ml-2 h-7 border-l border-slate-200" />
-          <ProgressBar approved={summary?.approved_count ?? 0} total={summary?.unit_count ?? 0} />
-          <div className="ml-2 h-7 border-l border-slate-200" />
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {/* Mode toggle: Edit ↔ Preview */}
+          <div
+            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1"
+            role="tablist"
+            aria-label="编辑器模式"
+          >
+            <button
+              type="button"
+              data-testid="mode-edit-btn"
+              onClick={() => mode !== 'edit' && onModeToggle()}
+              role="tab"
+              aria-selected={mode === 'edit'}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
+                mode === 'edit'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <PenLine size={12} />
+              编辑
+            </button>
+            <button
+              type="button"
+              data-testid="mode-preview-btn"
+              onClick={() => mode !== 'preview' && onModeToggle()}
+              role="tab"
+              aria-selected={mode === 'preview'}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
+                mode === 'preview'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Video size={12} />
+              预览
+            </button>
+          </div>
+
+          <a
+            href={`/api/tasks/${taskId}/artifacts/${project.artifact_paths?.final_dub ?? ''}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-slate-900 px-4 text-xs font-medium text-white transition-colors hover:bg-slate-800"
+          >
+            <Download size={14} />
+            Export
+          </a>
+        </div>
+      </div>
+
+      {/* Row 2 — status & secondary tools */}
+      <div className="flex h-9 items-center justify-between gap-4 border-t border-slate-100 bg-slate-50/40 px-4">
+        <div className="flex min-w-0 items-center gap-4">
+          <BenchmarkBadge
+            status={quality_benchmark?.status ?? 'unknown'}
+            score={summary?.quality_score ?? 0}
+          />
+          <ProgressBar
+            approved={summary?.approved_count ?? 0}
+            total={summary?.unit_count ?? 0}
+          />
           <IssueSeverityChart project={project} />
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Phase 2: Undo/Redo */}
+        <div className="flex shrink-0 items-center gap-1">
+          {/* Undo / Redo group */}
           <button
             type="button"
             data-testid="undo-btn"
             onClick={onUndo}
             disabled={!canUndo}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30"
+            className={TOPBAR_ICON_BTN}
             title="撤销 (Ctrl+Z)"
           >
-            <Undo2 size={13} />
+            <Undo2 size={14} />
           </button>
           <button
             type="button"
             data-testid="redo-btn"
             onClick={onRedo}
             disabled={!canRedo}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30"
+            className={TOPBAR_ICON_BTN}
             title="重做 (Ctrl+Y)"
           >
-            <Redo2 size={13} />
+            <Redo2 size={14} />
           </button>
 
-          <div className="h-7 border-l border-slate-200" />
+          <span className="mx-1 h-4 w-px bg-slate-200" aria-hidden="true" />
 
-          {/* Phase 2: SRT Export */}
+          {/* Primary tool actions kept visible */}
           <button
             type="button"
             data-testid="srt-export-btn"
             onClick={handleSRTExport}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+            className={TOPBAR_TEXT_BTN}
             title="导出SRT字幕"
           >
-            <Download size={12} />
+            <Download size={13} />
             SRT
           </button>
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className={TOPBAR_TEXT_BTN}
+            title="刷新数据"
+          >
+            <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
+            刷新
+          </button>
+          <button
+            type="button"
+            onClick={onRenderRange}
+            disabled={!selectedUnit}
+            className={TOPBAR_TEXT_BTN}
+            title="渲染选中片段附近的一段预览"
+          >
+            <Sliders size={13} />
+            Render Range
+          </button>
 
-          {/* P0: Keyboard shortcuts popover */}
-          <div className="relative">
+          <span className="mx-1 h-4 w-px bg-slate-200" aria-hidden="true" />
+
+          {/* Keyboard shortcuts (kept as discrete button so e2e/popover stay stable) */}
+          <div className="relative" ref={shortcutsRef}>
             <button
               type="button"
               data-testid="keyboard-shortcuts-btn"
               onClick={() => setShowShortcuts(v => !v)}
-              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              className={TOPBAR_ICON_BTN}
               title="键盘快捷键"
+              aria-haspopup="true"
+              aria-expanded={showShortcuts}
             >
-              <Keyboard size={13} />
+              <Keyboard size={14} />
             </button>
             {showShortcuts && (
               <div
                 data-testid="shortcuts-popover"
-                className="absolute right-0 top-8 z-50 w-56 rounded-lg border border-slate-200 bg-white p-3 shadow-lg"
+                className="absolute right-0 top-9 z-50 w-60 rounded-xl border border-slate-200 bg-white p-3 shadow-lg"
               >
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
                   键盘快捷键
@@ -301,74 +417,34 @@ function EditorTopBar({
             )}
           </div>
 
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
-            <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} />
-            刷新
-          </button>
-          <button
-            type="button"
-            onClick={onRenderRange}
-            disabled={!selectedUnit}
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
-            <Sliders size={12} />
-            Render Range
-          </button>
-          <a
-            href="/manual.html"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="help-manual-btn"
-            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-            title="使用手册 / 帮助文档"
-          >
-            <BookOpen size={13} />
-          </a>
-
-          {/* Mode toggle: Edit ↔ Preview */}
-          <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+          {/* "More" menu — collects rarely used items */}
+          <div className="relative" ref={moreMenuRef}>
             <button
               type="button"
-              data-testid="mode-edit-btn"
-              onClick={() => mode !== 'edit' && onModeToggle()}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
-                mode === 'edit'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
+              onClick={() => setShowMore(v => !v)}
+              className={TOPBAR_ICON_BTN}
+              title="更多"
+              aria-haspopup="true"
+              aria-expanded={showMore}
             >
-              <PenLine size={11} />
-              编辑
+              <MoreHorizontal size={14} />
             </button>
-            <button
-              type="button"
-              data-testid="mode-preview-btn"
-              onClick={() => mode !== 'preview' && onModeToggle()}
-              className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-all ${
-                mode === 'preview'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <Video size={11} />
-              预览
-            </button>
+            {showMore && (
+              <div className="absolute right-0 top-9 z-50 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                <a
+                  href="/manual.html"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="help-manual-btn"
+                  onClick={() => setShowMore(false)}
+                  className="flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50"
+                >
+                  <BookOpen size={13} className="text-slate-400" />
+                  使用手册 / 帮助文档
+                </a>
+              </div>
+            )}
           </div>
-
-          <a
-            href={`/api/tasks/${taskId}/artifacts/${project.artifact_paths?.final_dub ?? ''}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
-          >
-            <Download size={12} />
-            Export
-          </a>
         </div>
       </div>
     </div>
