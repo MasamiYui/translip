@@ -111,6 +111,7 @@ def _import_editor_project(task: Task) -> dict[str, Any]:
     translation = _read_json(output_root / artifact_paths["translation"])
     character_ledger = _read_json(output_root / artifact_paths["character_ledger"])
     benchmark = _read_json(output_root / artifact_paths["benchmark"])
+    mix_report = _read_json(output_root / artifact_paths["mix_report"])
     speaker_profiles = _read_json(output_root / artifact_paths["speaker_profiles"])
     timeline = _read_json(output_root / artifact_paths["timeline"])
 
@@ -118,10 +119,10 @@ def _import_editor_project(task: Task) -> dict[str, Any]:
     characters = _build_characters(character_ledger, speaker_profiles, benchmark)
 
     # Build dialogue units from translation + timeline
-    units = _build_units(translation, timeline, character_ledger, output_root, target_lang)
+    units = _build_units(translation, timeline, character_ledger, output_root, target_lang, mix_report)
 
-    # Build issues from benchmark
-    issues = _build_issues(benchmark, units)
+    # Build issues from per-segment quality rows plus benchmark aggregates
+    issues = _build_issues(benchmark, units, timeline, mix_report)
 
     now = datetime.now(timezone.utc).isoformat()
 
@@ -292,32 +293,41 @@ def _build_characters(
         if not char_id:
             continue
 
-        risk_flags = []
+        risk_flags = list(entry.get("risk_flags", []) or [])
         if char_id in review_chars:
             risk_flags.append("character_voice_review_required")
         if char_id in blocked_chars:
             risk_flags.append("blocked")
         if char_id in mismatch_chars:
             risk_flags.append("voice_mismatch")
+        risk_flags = list(dict.fromkeys(risk_flags))
 
-        stats = char_stats.get(char_id, {})
+        stats = entry.get("stats") if isinstance(entry.get("stats"), dict) else char_stats.get(char_id, {})
         seg_count = stats.get("segment_count", 0)
         spk_failed = stats.get("speaker_failed_count", 0)
         spk_ratio = spk_failed / seg_count if seg_count > 0 else 0.0
 
-        if spk_ratio > 0.15:
+        if spk_ratio > 0.15 and "speaker_similarity_failed" not in risk_flags:
             risk_flags.append("speaker_similarity_failed")
 
         # Determine review status
-        if char_id in blocked_chars:
+        raw_review_status = entry.get("review_status") or entry.get("status")
+        if raw_review_status:
+            review_status = _normalize_review_status(raw_review_status)
+        elif char_id in blocked_chars:
             review_status = "blocked"
         elif char_id in review_chars or risk_flags:
             review_status = "needs_review"
         else:
             review_status = "passed"
 
-        pitch_hz = entry.get("pitch_hz") or entry.get("f0_median_hz")
-        pitch_class = _classify_pitch(pitch_hz) if pitch_hz else "mid"
+        voice_signature = entry.get("voice_signature") if isinstance(entry.get("voice_signature"), dict) else {}
+        pitch_hz = entry.get("pitch_hz") or entry.get("f0_median_hz") or voice_signature.get("pitch_hz")
+        pitch_class = (
+            entry.get("pitch_class")
+            or voice_signature.get("pitch_class")
+            or (_classify_pitch(pitch_hz) if pitch_hz else "mid")
+        )
 
         characters.append({
             "character_id": char_id,
@@ -341,6 +351,14 @@ def _build_characters(
     return characters
 
 
+def _normalize_review_status(status: str) -> str:
+    if status == "blocked":
+        return "blocked"
+    if status in {"review", "needs_review"}:
+        return "needs_review"
+    return "passed"
+
+
 def _classify_pitch(hz: float) -> str:
     if hz < 130:
         return "low"
@@ -359,6 +377,7 @@ def _build_units(
     character_ledger: dict,
     output_root: Path,
     target_lang: str,
+    mix_report: dict | None = None,
 ) -> list[dict]:
     units = []
 
@@ -371,12 +390,8 @@ def _build_units(
             seg_to_char[spk] = char_id
             seg_to_speaker[spk] = spk
 
-    # Build clip path mapping from timeline
-    clip_paths: dict[str, dict] = {}
-    for slot in timeline.get("slots", []):
-        seg_id = slot.get("segment_id") or slot.get("id")
-        if seg_id:
-            clip_paths[seg_id] = slot
+    # Build clip / quality mapping from current timeline schema, with mix report fallback.
+    clip_paths = _segment_rows_by_id(timeline, mix_report or {})
 
     # Process translation segments
     segments = translation.get("segments", [])
@@ -389,7 +404,7 @@ def _build_units(
         char_id = seg.get("character_id") or seg_to_char.get(speaker_id, f"char_unknown")
 
         slot = clip_paths.get(seg_id, {})
-        audio_path = slot.get("audio_path") or slot.get("clip_path")
+        audio_path = slot.get("fitted_audio_path") or slot.get("audio_path") or slot.get("clip_path")
 
         unit = {
             "unit_id": seg_id,
@@ -401,13 +416,18 @@ def _build_units(
             "duration": seg.get("duration") or (seg.get("end", 0) - seg.get("start", 0)),
             "source_text": seg.get("source_text") or seg.get("text", ""),
             "target_text": seg.get("target_text") or seg.get("translation", ""),
-            "status": "unreviewed",
+            "status": _unit_status_from_quality(slot),
             "issue_ids": [],
             "current_clip": {
                 "clip_id": f"clip_{seg_id}",
                 "audio_path": audio_path,
                 "audio_artifact_path": _to_relative(audio_path, output_root) if audio_path else None,
-                "duration": slot.get("fitted_duration") or slot.get("duration"),
+                "duration": (
+                    slot.get("fitted_duration_sec")
+                    or slot.get("fitted_duration")
+                    or slot.get("duration")
+                    or slot.get("generated_duration_sec")
+                ),
                 "backend": slot.get("backend", ""),
                 "mix_status": slot.get("mix_status") or ("placed" if audio_path else "missing"),
                 "fit_strategy": slot.get("fit_strategy", ""),
@@ -419,6 +439,19 @@ def _build_units(
     return units
 
 
+def _unit_status_from_quality(row: dict[str, Any]) -> str:
+    statuses = [
+        row.get("overall_status"),
+        row.get("task_d_status"),
+        row.get("duration_status"),
+        row.get("speaker_status"),
+        row.get("intelligibility_status"),
+    ]
+    if any(status == "failed" for status in statuses):
+        return "needs_review"
+    return "unreviewed"
+
+
 def _to_relative(path: str, root: Path) -> str | None:
     if not path:
         return None
@@ -428,74 +461,138 @@ def _to_relative(path: str, root: Path) -> str | None:
         return path
 
 
-def _build_issues(benchmark: dict, units: list[dict]) -> list[dict]:
+def _build_issues(
+    benchmark: dict,
+    units: list[dict],
+    timeline: dict | None = None,
+    mix_report: dict | None = None,
+) -> list[dict]:
     issues = []
     unit_map = {u["unit_id"]: u for u in units}
 
     # Map unit times
     unit_times = {u["unit_id"]: u.get("start", 0) for u in units}
+    metric_rows = _segment_rows_by_id(timeline or {}, mix_report or {}, benchmark)
+    audible_failed_ids = set((benchmark.get("metrics", {}) or {}).get("audible_failed_segment_ids", []) or [])
+    seen_issue_ids: set[str] = set()
 
-    for seg in benchmark.get("segments", []):
-        seg_id = seg.get("segment_id") or seg.get("id")
-        char_id = seg.get("character_id") or seg.get("speaker_id")
+    def add_issue(
+        issue_id: str,
+        issue_type: str,
+        severity: str,
+        seg_id: str,
+        title: str,
+        description: str,
+    ) -> None:
+        if issue_id in seen_issue_ids or seg_id not in unit_map:
+            return
+        seen_issue_ids.add(issue_id)
+        unit = unit_map[seg_id]
         time_sec = unit_times.get(seg_id, 0)
+        issues.append({
+            "issue_id": issue_id,
+            "type": issue_type,
+            "severity": severity,
+            "unit_id": seg_id,
+            "character_id": unit.get("character_id"),
+            "title": title,
+            "description": description,
+            "status": "open",
+            "time_sec": time_sec,
+        })
+
+    for seg_id, seg in metric_rows.items():
+        if seg_id not in unit_map:
+            continue
 
         # Speaker similarity
-        if seg.get("speaker_similarity_status") == "failed":
-            issues.append({
-                "issue_id": f"speaker_similarity_failed:{seg_id}",
-                "type": "speaker_similarity_failed",
-                "severity": "P1",
-                "unit_id": seg_id,
-                "character_id": char_id,
-                "title": "声纹一致性失败",
-                "description": "speaker_similarity_failed",
-                "status": "open",
-                "time_sec": time_sec,
-            })
+        if seg.get("speaker_similarity_status") == "failed" or seg.get("speaker_status") == "failed":
+            add_issue(
+                f"speaker_similarity_failed:{seg_id}",
+                "speaker_similarity_failed",
+                "P1",
+                seg_id,
+                "声纹一致性失败",
+                "speaker_similarity_failed",
+            )
+
+        if seg.get("duration_status") == "failed":
+            add_issue(
+                f"duration_fit_failed:{seg_id}",
+                "duration_overrun",
+                "P1",
+                seg_id,
+                "时长适配失败",
+                seg.get("fit_strategy") or "duration_failed",
+            )
 
         # Voice gender mismatch
         if seg.get("voice_mismatch") or seg.get("pitch_class_drift"):
             reason = "pitch_class_drift" if seg.get("pitch_class_drift") else "voice_gender_mismatch"
-            issues.append({
-                "issue_id": f"voice_gender_mismatch:{seg_id}",
-                "type": "voice_gender_mismatch",
-                "severity": "P0",
-                "unit_id": seg_id,
-                "character_id": char_id,
-                "title": "角色音色冲突",
-                "description": reason,
-                "status": "open",
-                "time_sec": time_sec,
-            })
+            add_issue(
+                f"voice_gender_mismatch:{seg_id}",
+                "voice_gender_mismatch",
+                "P0",
+                seg_id,
+                "角色音色冲突",
+                reason,
+            )
 
         # Silent / audible
-        if seg.get("audible_status") == "failed" or seg.get("silent"):
-            issues.append({
-                "issue_id": f"silent_with_subtitle:{seg_id}",
-                "type": "silent_with_subtitle",
-                "severity": "P0",
-                "unit_id": seg_id,
-                "character_id": char_id,
-                "title": "字幕有声但无音频",
-                "description": "silent_with_subtitle",
-                "status": "open",
-                "time_sec": time_sec,
-            })
+        if seg_id in audible_failed_ids or seg.get("audible_status") == "failed" or seg.get("silent"):
+            add_issue(
+                f"silent_with_subtitle:{seg_id}",
+                "silent_with_subtitle",
+                "P0",
+                seg_id,
+                "字幕有声但无音频",
+                "silent_with_subtitle",
+            )
+
+        mix_status = str(seg.get("mix_status") or "")
+        notes = seg.get("notes") if isinstance(seg.get("notes"), list) else []
+        if mix_status.startswith("skipped") or "subtitle_window_not_rendered" in notes:
+            add_issue(
+                f"render_skipped:{seg_id}",
+                "overlap_conflict",
+                "P0",
+                seg_id,
+                "配音片段未渲染",
+                mix_status or "subtitle_window_not_rendered",
+            )
 
         # Intelligibility / backread
         if seg.get("intelligibility_status") == "failed":
-            issues.append({
-                "issue_id": f"translation_untrusted:{seg_id}",
-                "type": "translation_untrusted",
-                "severity": "P2",
-                "unit_id": seg_id,
-                "character_id": char_id,
-                "title": "文本可信度低",
-                "description": "intelligibility_failed",
-                "status": "open",
-                "time_sec": time_sec,
-            })
+            add_issue(
+                f"translation_untrusted:{seg_id}",
+                "translation_untrusted",
+                "P2",
+                seg_id,
+                "文本可信度低",
+                "intelligibility_failed",
+            )
+
+        if seg.get("overall_status") == "failed":
+            row_issue_ids = [issue["issue_id"] for issue in issues if issue["unit_id"] == seg_id]
+            if not row_issue_ids:
+                add_issue(
+                    f"quality_gate_failed:{seg_id}",
+                    "translation_untrusted",
+                    "P2",
+                    seg_id,
+                    "质量门禁失败",
+                    "overall_status_failed",
+                )
+
+    for seg_id in audible_failed_ids:
+        add_issue(
+            f"silent_with_subtitle:{seg_id}",
+            "silent_with_subtitle",
+            "P0",
+            seg_id,
+            "字幕有声但无音频",
+            "silent_with_subtitle",
+        )
 
     # Update unit issue_ids
     issue_map: dict[str, list[str]] = {}
@@ -506,6 +603,27 @@ def _build_issues(benchmark: dict, units: list[dict]) -> list[dict]:
         unit["issue_ids"] = issue_map.get(unit["unit_id"], [])
 
     return issues
+
+
+def _segment_rows_by_id(*payloads: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    rows: dict[str, dict[str, Any]] = {}
+    for payload in payloads:
+        for row in _iter_segment_rows(payload):
+            seg_id = row.get("segment_id") or row.get("unit_id") or row.get("id")
+            if not seg_id:
+                continue
+            existing = rows.setdefault(seg_id, {})
+            existing.update(row)
+    return rows
+
+
+def _iter_segment_rows(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for key in ("segments", "segment_results", "items", "slots", "placed_segments", "skipped_segments"):
+        value = payload.get(key)
+        if isinstance(value, list):
+            rows.extend(row for row in value if isinstance(row, dict))
+    return rows
 
 
 def _materialize(snapshot: dict, ops_path: Path) -> dict:
@@ -1153,4 +1271,3 @@ def backtranslate(
         "match_score": match_score if heard_text else 1.0,
         "asr_available": bool(heard_text),
     }
-
