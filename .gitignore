@@ -1,7 +1,9 @@
 .DS_Store
+.idea/
 .pytest_cache/
 .ruff_cache/
 .venv/
+.tmp/
 __pycache__/
 *.pyc
 node_modules/
@@ -9,6 +11,7 @@ node_modules/
 .codex-runtime/
 .playwright-cli/
 .playwright-mcp/
+.superpowers/brainstorm/
 output/
 output-task-a/
 output-task-b/
@@ -16,3 +19,8 @@ tmp/
 work/
 test_video/
 .dev-runtime/
+test-results/
+playwright-report/
+frontend/test-results/
+frontend/playwright-report/
+frontend/public/help/
