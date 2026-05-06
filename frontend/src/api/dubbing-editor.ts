@@ -102,7 +102,14 @@ export interface DubbingEditorProject {
   characters: DubbingEditorCharacter[]
   units: DubbingEditorUnit[]
   issues: DubbingEditorIssue[]
-  operations: unknown[]
+  operations: Array<{
+    op_id: string
+    type: string
+    target_id: string
+    payload: Record<string, unknown>
+    author: string
+    created_at: string
+  }>
   summary: DubbingEditorSummary
 }
 
@@ -111,6 +118,7 @@ export interface WaveformData {
   peaks: number[]
   duration_sec: number
   available: boolean
+  pending?: boolean
 }
 
 export interface RenderRangeResult {
@@ -120,6 +128,19 @@ export interface RenderRangeResult {
   end_sec: number
   duration_sec: number
   url: string
+}
+
+export interface ClipPreviewResult {
+  url: string
+  start_sec: number
+  end_sec: number
+  duration_sec: number
+}
+
+export interface SynthesizeUnitResult {
+  status: string
+  unit_id: string
+  message: string
 }
 
 export interface OperationResult {
@@ -148,4 +169,21 @@ export const dubbingEditorApi = {
 
   getWaveform: (taskId: string, track: string): Promise<WaveformData> =>
     apiClient.get(`/api/tasks/${taskId}/dubbing-editor/waveforms/${track}`).then(r => r.data),
+
+  getClipPreview: (
+    taskId: string,
+    startSec: number,
+    endSec: number,
+    track: string = 'original',
+  ): Promise<ClipPreviewResult> =>
+    apiClient
+      .get(`/api/tasks/${taskId}/dubbing-editor/clip-preview`, {
+        params: { start_sec: startSec, end_sec: endSec, track },
+      })
+      .then(r => r.data),
+
+  synthesizeUnit: (taskId: string, unitId: string): Promise<SynthesizeUnitResult> =>
+    apiClient
+      .post(`/api/tasks/${taskId}/dubbing-editor/synthesize-unit`, { unit_id: unitId })
+      .then(r => r.data),
 }

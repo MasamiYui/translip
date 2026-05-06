@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -6,27 +6,21 @@ import {
   ArrowLeft,
   AudioLines,
   Check,
+  CheckCheck,
   ChevronDown,
   ChevronRight,
-  Clock,
   Download,
-  Filter,
-  Headphones,
+  History,
+  Keyboard,
   Loader2,
-  Mic2,
-  Play,
   RefreshCw,
+  RotateCcw,
   Settings2,
-  Shield,
-  ShieldAlert,
-  ShieldCheck,
   Sliders,
   Star,
   User,
-  Volume2,
-  Wand2,
-  X,
-  Zap,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react'
 import { dubbingEditorApi } from '../api/dubbing-editor'
 import type {
@@ -83,7 +77,29 @@ function BenchmarkBadge({ status, score }: { status: string; score: number }) {
 }
 
 // ---------------------------------------------------------------------------
-// Top Bar
+// P2: Progress Bar
+// ---------------------------------------------------------------------------
+
+function ProgressBar({ approved, total }: { approved: number; total: number }) {
+  const pct = total > 0 ? (approved / total) * 100 : 0
+  const colorCls = pct >= 80 ? 'bg-emerald-500' : pct >= 40 ? 'bg-blue-500' : 'bg-amber-500'
+  return (
+    <div className="flex items-center gap-2" data-testid="progress-bar">
+      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-slate-200">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${colorCls}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="text-[10px] text-slate-400">
+        {approved}/{total}
+      </span>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Top Bar (P2: progress bar + P0: keyboard shortcut hint)
 // ---------------------------------------------------------------------------
 
 function EditorTopBar({
@@ -102,54 +118,98 @@ function EditorTopBar({
   selectedUnit: DubbingEditorUnit | null
 }) {
   const { summary, quality_benchmark } = project
+  const [showShortcuts, setShowShortcuts] = useState(false)
 
   return (
-    <div className="flex h-[52px] items-center justify-between border-b border-slate-200 bg-white px-4">
-      <div className="flex items-center gap-3">
-        <Link
-          to={`/tasks/${taskId}`}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-        >
-          <ArrowLeft size={15} />
-        </Link>
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-            Dubbing Workbench
+    <div className="shrink-0 border-b border-slate-200 bg-white">
+      <div className="flex h-[52px] items-center justify-between px-4">
+        <div className="flex items-center gap-3">
+          <Link
+            to={`/tasks/${taskId}`}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+          >
+            <ArrowLeft size={15} />
+          </Link>
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+              Dubbing Workbench
+            </div>
+            <div className="text-sm font-semibold leading-none text-slate-900">专业配音编辑台</div>
           </div>
-          <div className="text-sm font-semibold leading-none text-slate-900">专业配音编辑台</div>
+          <div className="ml-2 h-7 border-l border-slate-200" />
+          <BenchmarkBadge status={quality_benchmark?.status ?? 'unknown'} score={summary?.quality_score ?? 0} />
+          <div className="ml-2 h-7 border-l border-slate-200" />
+          <ProgressBar approved={summary?.approved_count ?? 0} total={summary?.unit_count ?? 0} />
         </div>
-        <div className="ml-2 h-7 border-l border-slate-200" />
-        <BenchmarkBadge status={quality_benchmark?.status ?? 'unknown'} score={summary?.quality_score ?? 0} />
-      </div>
 
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={isRefreshing}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-        >
-          <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} />
-          刷新
-        </button>
-        <button
-          type="button"
-          onClick={onRenderRange}
-          disabled={!selectedUnit}
-          className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-        >
-          <Sliders size={12} />
-          Render Range
-        </button>
-        <a
-          href={`/api/tasks/${taskId}/artifacts/${project.artifact_paths?.final_dub ?? ''}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
-        >
-          <Download size={12} />
-          Export
-        </a>
+        <div className="flex items-center gap-2">
+          {/* P0: Keyboard shortcuts popover */}
+          <div className="relative">
+            <button
+              type="button"
+              data-testid="keyboard-shortcuts-btn"
+              onClick={() => setShowShortcuts(v => !v)}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              title="键盘快捷键"
+            >
+              <Keyboard size={13} />
+            </button>
+            {showShortcuts && (
+              <div
+                data-testid="shortcuts-popover"
+                className="absolute right-0 top-8 z-50 w-56 rounded-lg border border-slate-200 bg-white p-3 shadow-lg"
+              >
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                  键盘快捷键
+                </div>
+                {[
+                  ['↓ / J', '下一条问题'],
+                  ['↑ / K', '上一条问题'],
+                  ['Space', '播放/暂停配音片段'],
+                  ['A', '批准当前片段'],
+                  ['F', '标记需复核'],
+                  ['R', 'Render Range'],
+                  ['Esc', '取消选择'],
+                ].map(([key, desc]) => (
+                  <div key={key} className="flex items-center justify-between py-0.5 text-[11px]">
+                    <kbd className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
+                      {key}
+                    </kbd>
+                    <span className="text-slate-500">{desc}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <RefreshCw size={12} className={isRefreshing ? 'animate-spin' : ''} />
+            刷新
+          </button>
+          <button
+            type="button"
+            onClick={onRenderRange}
+            disabled={!selectedUnit}
+            className="flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            <Sliders size={12} />
+            Render Range
+          </button>
+          <a
+            href={`/api/tasks/${taskId}/artifacts/${project.artifact_paths?.final_dub ?? ''}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+          >
+            <Download size={12} />
+            Export
+          </a>
+        </div>
       </div>
     </div>
   )
@@ -221,13 +281,13 @@ type IssueFilter = 'all' | 'P0' | 'P1' | 'P2' | 'open' | 'resolved'
 function IssueQueue({
   project,
   selectedIssueId,
-  selectedUnit,
   onSelectIssue,
+  onBulkApprove,
 }: {
   project: DubbingEditorProject
   selectedIssueId: string | null
-  selectedUnit: DubbingEditorUnit | null
   onSelectIssue: (issue: DubbingEditorIssue) => void
+  onBulkApprove: (unitIds: string[]) => void
 }) {
   const [filter, setFilter] = useState<IssueFilter>('open')
   const [charFilter, setCharFilter] = useState<string>('all')
@@ -249,6 +309,20 @@ function IssueQueue({
   const p0Count = issues.filter(i => i.severity === 'P0' && i.status === 'open').length
   const charReview = summary?.char_review_count ?? 0
   const candidateCount = summary?.candidate_count ?? 0
+
+  // P2: units that only have P2 issues open (safe to bulk-approve)
+  const bulkApprovableP2Units = useMemo(() => {
+    const unitSeverities: Record<string, Set<string>> = {}
+    for (const issue of issues) {
+      if (issue.status !== 'open') continue
+      const s = unitSeverities[issue.unit_id] ?? new Set<string>()
+      s.add(issue.severity)
+      unitSeverities[issue.unit_id] = s
+    }
+    return Object.entries(unitSeverities)
+      .filter(([, severities]) => !severities.has('P0') && !severities.has('P1') && severities.has('P2'))
+      .map(([uid]) => uid)
+  }, [issues])
 
   return (
     <div className="flex h-full flex-col border-r border-slate-200 bg-white">
@@ -287,26 +361,39 @@ function IssueQueue({
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-1 border-b border-slate-100 px-3 py-2">
-        {(['all', 'open', 'P0', 'P1', 'P2', 'resolved'] as IssueFilter[]).map(f => (
+      {/* Filters + P2 bulk approve */}
+      <div className="border-b border-slate-100 px-3 py-2">
+        <div className="flex flex-wrap gap-1">
+          {(['all', 'open', 'P0', 'P1', 'P2', 'resolved'] as IssueFilter[]).map(f => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                filter === f
+                  ? 'bg-slate-900 text-white'
+                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+        {bulkApprovableP2Units.length > 0 && (
           <button
-            key={f}
             type="button"
-            onClick={() => setFilter(f)}
-            className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
-              filter === f
-                ? 'bg-slate-900 text-white'
-                : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-            }`}
+            data-testid="bulk-approve-btn"
+            onClick={() => onBulkApprove(bulkApprovableP2Units)}
+            className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-emerald-600 hover:text-emerald-800"
           >
-            {f}
+            <CheckCheck size={11} />
+            批量批准 {bulkApprovableP2Units.length} 条仅P2问题
           </button>
-        ))}
+        )}
       </div>
 
       {/* Issues list */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto" data-testid="issue-list">
         {filteredIssues.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-slate-400">
             {filter === 'open' ? '暂无未处理问题' : '无匹配问题'}
@@ -402,14 +489,24 @@ function CharacterCastSection({ characters }: { characters: DubbingEditorCharact
 // Waveform renderer (SVG-based)
 // ---------------------------------------------------------------------------
 
-function WaveformBar({ peaks, color = '#64748b', height = 60 }: { peaks: number[]; color?: string; height?: number }) {
-  if (!peaks || peaks.length === 0) {
+function WaveformBar({
+  peaks,
+  color = '#64748b',
+  height = 60,
+  pending = false,
+}: {
+  peaks: number[]
+  color?: string
+  height?: number
+  pending?: boolean
+}) {
+  if (pending || !peaks || peaks.length === 0) {
     return (
       <div
         className="flex items-center justify-center rounded bg-slate-900/80 text-[10px] text-slate-500"
         style={{ height }}
       >
-        loading…
+        {pending ? '生成中…' : 'loading…'}
       </div>
     )
   }
@@ -439,8 +536,10 @@ function WaveformBar({ peaks, color = '#64748b', height = 60 }: { peaks: number[
 }
 
 // ---------------------------------------------------------------------------
-// Timeline Pane
+// Timeline Pane (P0: scrollable/zoomable, P1: background track, no unit limit)
 // ---------------------------------------------------------------------------
+
+const ZOOM_LEVELS = [10, 20, 40, 80, 160, 320] // pixels per second
 
 function TimelinePane({
   project,
@@ -453,97 +552,167 @@ function TimelinePane({
   selectedUnit: DubbingEditorUnit | null
   onSelectUnit: (unit: DubbingEditorUnit) => void
 }) {
+  const [zoomIdx, setZoomIdx] = useState(2) // 40px/s default
+  const pixelsPerSec = ZOOM_LEVELS[zoomIdx]
+  const scrollRef = useRef<HTMLDivElement>(null)
+
   const dubWaveformQuery = useQuery({
     queryKey: ['waveform', taskId, 'dub'],
     queryFn: () => dubbingEditorApi.getWaveform(taskId, 'dub'),
     staleTime: 1000 * 60 * 5,
+    refetchInterval: (query: { state: { data?: { available?: boolean; pending?: boolean } } }) =>
+      query.state.data?.available === false && query.state.data?.pending ? 2000 : false,
   })
 
   const originalWaveformQuery = useQuery({
     queryKey: ['waveform', taskId, 'original'],
     queryFn: () => dubbingEditorApi.getWaveform(taskId, 'original'),
     staleTime: 1000 * 60 * 5,
+    refetchInterval: (query: { state: { data?: { available?: boolean; pending?: boolean } } }) =>
+      query.state.data?.available === false && query.state.data?.pending ? 2000 : false,
+  })
+
+  const backgroundWaveformQuery = useQuery({
+    queryKey: ['waveform', taskId, 'background'],
+    queryFn: () => dubbingEditorApi.getWaveform(taskId, 'background'),
+    staleTime: 1000 * 60 * 5,
+    refetchInterval: (query: { state: { data?: { available?: boolean; pending?: boolean } } }) =>
+      query.state.data?.available === false && query.state.data?.pending ? 2000 : false,
   })
 
   const { units } = project
   const totalDuration = units.reduce((m, u) => Math.max(m, u.end), 0) || 1
+  const totalWidth = Math.max(totalDuration * pixelsPerSec, 800)
 
-  // Visible units (first 60 for performance)
-  const visibleUnits = units.slice(0, 60)
+  // Auto-scroll selected unit into view
+  useEffect(() => {
+    if (!selectedUnit || !scrollRef.current) return
+    const left = (selectedUnit.start / totalDuration) * totalWidth
+    const el = scrollRef.current
+    if (left < el.scrollLeft || left > el.scrollLeft + el.clientWidth - 100) {
+      el.scrollTo({ left: Math.max(0, left - 100), behavior: 'smooth' })
+    }
+  }, [selectedUnit, totalWidth, totalDuration])
 
   return (
     <div className="flex h-full flex-col bg-slate-950">
-      {/* Original Dialogue track */}
-      <div className="border-b border-slate-800">
-        <div className="flex items-center gap-2 px-3 py-1.5">
-          <span className="w-28 shrink-0 text-[10px] font-medium text-slate-400">Original Dialogue</span>
-          <div className="h-10 min-w-0 flex-1 overflow-hidden rounded-sm">
-            <WaveformBar
-              peaks={originalWaveformQuery.data?.peaks ?? []}
-              color="#475569"
-              height={40}
-            />
-          </div>
+      {/* Header: duration + zoom controls */}
+      <div
+        data-testid="timeline-header"
+        className="flex shrink-0 items-center justify-between border-b border-slate-800 px-3 py-1"
+      >
+        <span className="text-[10px] text-slate-500">
+          {formatTimeSec(totalDuration)} · {units.length} segments
+        </span>
+        <div data-testid="zoom-controls" className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setZoomIdx(i => Math.max(0, i - 1))}
+            disabled={zoomIdx === 0}
+            className="rounded p-0.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30"
+            title="Zoom out"
+          >
+            <ZoomOut size={12} />
+          </button>
+          <span className="w-14 text-center text-[10px] text-slate-500">{pixelsPerSec}px/s</span>
+          <button
+            type="button"
+            onClick={() => setZoomIdx(i => Math.min(ZOOM_LEVELS.length - 1, i + 1))}
+            disabled={zoomIdx === ZOOM_LEVELS.length - 1}
+            className="rounded p-0.5 text-slate-400 hover:bg-slate-800 hover:text-slate-200 disabled:opacity-30"
+            title="Zoom in"
+          >
+            <ZoomIn size={12} />
+          </button>
         </div>
       </div>
 
-      {/* Generated Dub track */}
-      <div className="border-b border-slate-800">
-        <div className="flex items-center gap-2 px-3 py-1.5">
-          <span className="w-28 shrink-0 text-[10px] font-medium text-slate-400">Generated Dub</span>
-          <div className="relative h-10 min-w-0 flex-1 overflow-hidden rounded-sm bg-slate-900">
-            <WaveformBar
-              peaks={dubWaveformQuery.data?.peaks ?? []}
-              color="#22c55e"
-              height={40}
-            />
-            {/* Segment clips overlay */}
-            {visibleUnits.map(unit => {
-              const left = (unit.start / totalDuration) * 100
-              const width = ((unit.end - unit.start) / totalDuration) * 100
-              const hasIssue = unit.issue_ids.length > 0
-              const isSelected = selectedUnit?.unit_id === unit.unit_id
-              return (
-                <button
-                  key={unit.unit_id}
-                  type="button"
-                  onClick={() => onSelectUnit(unit)}
-                  style={{ left: `${left}%`, width: `${Math.max(0.3, width)}%` }}
-                  className={`absolute inset-y-0 cursor-pointer rounded-sm border-t-2 transition-opacity ${
-                    isSelected
-                      ? 'border-blue-400 bg-blue-500/20'
-                      : hasIssue
-                        ? 'border-amber-400 bg-amber-500/10 hover:bg-amber-500/20'
-                        : 'border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20'
-                  }`}
-                  title={unit.source_text}
-                />
-              )
-            })}
+      {/* Scrollable track area */}
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-x-auto overflow-y-hidden">
+        <div style={{ width: `${totalWidth}px`, minWidth: '100%' }} className="flex h-full flex-col">
+          {/* Original Dialogue track */}
+          <div className="flex shrink-0 items-center gap-0 border-b border-slate-800">
+            <span className="w-28 shrink-0 px-3 text-[10px] font-medium text-slate-400">Original</span>
+            <div className="h-10 flex-1 overflow-hidden">
+              <WaveformBar
+                peaks={originalWaveformQuery.data?.peaks ?? []}
+                pending={originalWaveformQuery.data?.available === false && originalWaveformQuery.data?.pending}
+                color="#475569"
+                height={40}
+              />
+            </div>
           </div>
-        </div>
-      </div>
 
-      {/* Subtitles / Dialogue Units */}
-      <div className="flex items-center gap-2 px-3 py-1.5">
-        <span className="w-28 shrink-0 text-[10px] font-medium text-slate-400">Subtitles / Dialogue Units</span>
-        <div className="relative h-8 min-w-0 flex-1 overflow-hidden rounded-sm bg-slate-900/50">
-          {visibleUnits.map(unit => {
-            const left = (unit.start / totalDuration) * 100
-            const width = ((unit.end - unit.start) / totalDuration) * 100
-            return (
-              <button
-                key={unit.unit_id}
-                type="button"
-                onClick={() => onSelectUnit(unit)}
-                style={{ left: `${left}%`, width: `${Math.max(0.3, width)}%` }}
-                className="absolute inset-y-0 flex items-center overflow-hidden rounded-sm bg-blue-600/20 px-0.5 text-[8px] text-blue-300 hover:bg-blue-600/30"
-                title={unit.source_text}
-              >
-                <span className="truncate">{unit.unit_id}</span>
-              </button>
-            )
-          })}
+          {/* Generated Dub track (with all units overlay) */}
+          <div className="flex shrink-0 items-center border-b border-slate-800">
+            <span className="w-28 shrink-0 px-3 text-[10px] font-medium text-slate-400">Generated Dub</span>
+            <div className="relative h-10 flex-1 overflow-hidden bg-slate-900">
+              <WaveformBar
+                peaks={dubWaveformQuery.data?.peaks ?? []}
+                pending={dubWaveformQuery.data?.available === false && dubWaveformQuery.data?.pending}
+                color="#22c55e"
+                height={40}
+              />
+              {units.map(unit => {
+                const left = (unit.start / totalDuration) * totalWidth
+                const width = ((unit.end - unit.start) / totalDuration) * totalWidth
+                const hasIssue = unit.issue_ids.length > 0
+                const isSelected = selectedUnit?.unit_id === unit.unit_id
+                return (
+                  <button
+                    key={unit.unit_id}
+                    type="button"
+                    onClick={() => onSelectUnit(unit)}
+                    style={{ left: `${left}px`, width: `${Math.max(2, width)}px` }}
+                    className={`absolute inset-y-0 cursor-pointer rounded-sm border-t-2 transition-opacity ${
+                      isSelected
+                        ? 'border-blue-400 bg-blue-500/20'
+                        : hasIssue
+                          ? 'border-amber-400 bg-amber-500/10 hover:bg-amber-500/20'
+                          : 'border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20'
+                    }`}
+                    title={unit.source_text}
+                  />
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Background track (P1: new) */}
+          <div className="flex shrink-0 items-center border-b border-slate-800">
+            <span className="w-28 shrink-0 px-3 text-[10px] font-medium text-slate-400">Background</span>
+            <div className="h-8 flex-1 overflow-hidden">
+              <WaveformBar
+                peaks={backgroundWaveformQuery.data?.peaks ?? []}
+                pending={backgroundWaveformQuery.data?.available === false && backgroundWaveformQuery.data?.pending}
+                color="#334155"
+                height={32}
+              />
+            </div>
+          </div>
+
+          {/* Dialogue Units track */}
+          <div className="flex flex-1 items-center">
+            <span className="w-28 shrink-0 px-3 text-[10px] font-medium text-slate-400">Subtitles</span>
+            <div className="relative h-8 flex-1 overflow-hidden bg-slate-900/50">
+              {units.map(unit => {
+                const left = (unit.start / totalDuration) * totalWidth
+                const width = ((unit.end - unit.start) / totalDuration) * totalWidth
+                return (
+                  <button
+                    key={unit.unit_id}
+                    type="button"
+                    onClick={() => onSelectUnit(unit)}
+                    style={{ left: `${left}px`, width: `${Math.max(2, width)}px` }}
+                    className="absolute inset-y-0 flex items-center overflow-hidden rounded-sm bg-blue-600/20 px-0.5 text-[8px] text-blue-300 hover:bg-blue-600/30"
+                    title={unit.source_text}
+                  >
+                    <span className="truncate">{unit.unit_id}</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -551,7 +720,7 @@ function TimelinePane({
 }
 
 // ---------------------------------------------------------------------------
-// Current Line / Video Preview Pane
+// Current Line / Video Preview Pane (P1: A/B comparison, P0: clip audio ref)
 // ---------------------------------------------------------------------------
 
 function CurrentLinePane({
@@ -559,17 +728,40 @@ function CurrentLinePane({
   taskId,
   selectedUnit,
   renderRangeResult,
+  clipAudioRef,
 }: {
   project: DubbingEditorProject
   taskId: string
   selectedUnit: DubbingEditorUnit | null
   renderRangeResult: { url: string; start_sec: number; end_sec: number } | null
+  clipAudioRef: React.RefObject<HTMLAudioElement | null>
 }) {
-  const audioRef = useRef<HTMLAudioElement>(null)
+  const rangeAudioRef = useRef<HTMLAudioElement>(null)
+
+  // P1: load clip preview via API for A/B comparison
+  const clipPreviewQuery = useQuery({
+    queryKey: ['clip-preview', taskId, selectedUnit?.unit_id],
+    queryFn: () =>
+      selectedUnit
+        ? dubbingEditorApi.getClipPreview(taskId, Math.max(0, selectedUnit.start - 0.2), selectedUnit.end + 0.2)
+        : null,
+    enabled: !!selectedUnit && !!taskId,
+    staleTime: 1000 * 60,
+  })
+
+  // Sync clip URL into the ref used by keyboard Space shortcut
+  useEffect(() => {
+    if (!clipAudioRef.current) return
+    const url = clipPreviewQuery.data?.url
+    if (url) {
+      clipAudioRef.current.src = url
+      clipAudioRef.current.load()
+    }
+  }, [clipPreviewQuery.data?.url, clipAudioRef])
 
   useEffect(() => {
-    if (renderRangeResult && audioRef.current) {
-      audioRef.current.load()
+    if (renderRangeResult && rangeAudioRef.current) {
+      rangeAudioRef.current.load()
     }
   }, [renderRangeResult])
 
@@ -591,6 +783,9 @@ function CurrentLinePane({
 
   return (
     <div className="flex h-full flex-col">
+      {/* Hidden audio element for Space key playback */}
+      <audio ref={clipAudioRef} preload="none" className="hidden" />
+
       <div className="border-b border-slate-100 px-5 py-3">
         <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Current Line</div>
         <div className="mt-1 text-xs text-slate-500">
@@ -598,7 +793,7 @@ function CurrentLinePane({
         </div>
       </div>
 
-      {/* 2-column body: text left, audio right */}
+      {/* 2-column body */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* Left: source / target texts */}
         <div className="flex min-w-0 flex-1 flex-col gap-2 overflow-y-auto border-r border-slate-100 px-5 py-3">
@@ -614,7 +809,6 @@ function CurrentLinePane({
               {selectedUnit.target_text}
             </div>
           </div>
-          {/* Status badges */}
           <div className="flex flex-wrap items-center gap-1.5">
             <UnitStatusBadge status={selectedUnit.status} />
             {char && <span className="text-xs text-slate-500">{char.display_name}</span>}
@@ -626,10 +820,38 @@ function CurrentLinePane({
           </div>
         </div>
 
-        {/* Right: playback / render result */}
-        <div className="flex w-64 shrink-0 flex-col gap-2 px-4 py-3">
-          {/* Range render audio player */}
-          {renderRangeResult ? (
+        {/* Right: A/B players + render result */}
+        <div className="flex w-72 shrink-0 flex-col gap-2 overflow-y-auto px-4 py-3">
+          {/* P1: A/B clip comparison */}
+          <div className="rounded-md border border-slate-200 px-3 py-2.5">
+            <div className="mb-2 text-[10px] font-semibold text-slate-500">A/B 对比</div>
+            <div className="mb-1 text-[9px] font-medium uppercase tracking-widest text-slate-400">原声(A)</div>
+            {clipPreviewQuery.data?.url ? (
+              <audio
+                controls
+                src={clipPreviewQuery.data.url}
+                className="mb-2 h-7 w-full"
+              />
+            ) : (
+              <div className="mb-2 h-7 rounded bg-slate-100 text-center text-[10px] leading-7 text-slate-400">
+                {clipPreviewQuery.isLoading ? '加载中…' : '—'}
+              </div>
+            )}
+            <div className="text-[9px] font-medium uppercase tracking-widest text-slate-400">配音(B)</div>
+            {selectedUnit.current_clip?.audio_artifact_path ? (
+              <audio
+                data-testid="clip-audio"
+                controls
+                src={`/api/tasks/${taskId}/artifacts/${selectedUnit.current_clip.audio_artifact_path}`}
+                className="mt-0.5 h-7 w-full"
+              />
+            ) : (
+              <div className="mt-0.5 h-7 rounded bg-slate-100 text-center text-[10px] leading-7 text-slate-400">—</div>
+            )}
+          </div>
+
+          {/* Range render player */}
+          {renderRangeResult && (
             <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5">
               <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-semibold text-blue-700">
                 <AudioLines size={10} />
@@ -638,34 +860,7 @@ function CurrentLinePane({
               <div className="mb-1.5 text-[10px] text-blue-500">
                 {formatTimeSec(renderRangeResult.start_sec)} – {formatTimeSec(renderRangeResult.end_sec)}
               </div>
-              <audio
-                ref={audioRef}
-                controls
-                src={renderRangeResult.url}
-                className="h-8 w-full"
-              />
-            </div>
-          ) : (
-            <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-slate-200 px-3 py-4 text-center">
-              <AudioLines size={18} className="mb-1.5 text-slate-300" />
-              <div className="text-[10px] text-slate-400">点击顶栏 Render Range</div>
-              <div className="text-[10px] text-slate-400">生成局部预览</div>
-            </div>
-          )}
-
-          {/* Ref audio link */}
-          {selectedUnit.current_clip?.audio_artifact_path && (
-            <div className="rounded-md border border-slate-100 px-3 py-2">
-              <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">配音片段</div>
-              <a
-                href={`/api/tasks/${taskId}/artifacts/${selectedUnit.current_clip.audio_artifact_path}`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center gap-1.5 text-[11px] text-blue-600 hover:text-blue-800"
-              >
-                <AudioLines size={10} />
-                {selectedUnit.current_clip.audio_artifact_path.split('/').pop()}
-              </a>
+              <audio ref={rangeAudioRef} controls src={renderRangeResult.url} className="h-8 w-full" />
             </div>
           )}
         </div>
@@ -694,7 +889,7 @@ function UnitStatusBadge({ status }: { status: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Segment Inspector
+// Segment Inspector (P1: re-synthesis, P2: operation history)
 // ---------------------------------------------------------------------------
 
 function SegmentInspector({
@@ -704,6 +899,8 @@ function SegmentInspector({
   onApprove,
   onNeedsReview,
   onSaveText,
+  onResynthesize,
+  isSynthesizing,
 }: {
   unit: DubbingEditorUnit
   project: DubbingEditorProject
@@ -711,9 +908,12 @@ function SegmentInspector({
   onApprove: (unitId: string) => void
   onNeedsReview: (unitId: string) => void
   onSaveText: (unitId: string, targetText: string) => void
+  onResynthesize: (unitId: string) => void
+  isSynthesizing: boolean
 }) {
   const [editingText, setEditingText] = useState(unit.target_text)
   const [isDirty, setIsDirty] = useState(false)
+  const [showHistory, setShowHistory] = useState(false)
 
   useEffect(() => {
     setEditingText(unit.target_text)
@@ -722,6 +922,12 @@ function SegmentInspector({
 
   const char = project.characters.find(c => c.character_id === unit.character_id)
   const clip = unit.current_clip
+
+  // P2: filter operations for this unit
+  const unitOps = useMemo(
+    () => project.operations?.filter(op => op.target_id === unit.unit_id) ?? [],
+    [project.operations, unit.unit_id],
+  )
 
   return (
     <div className="space-y-0">
@@ -768,9 +974,7 @@ function SegmentInspector({
         <div className="space-y-1 text-[10px] text-slate-500">
           <div className="flex justify-between">
             <span>状态</span>
-            <span
-              className={`font-medium ${clip.mix_status === 'placed' ? 'text-emerald-600' : 'text-amber-600'}`}
-            >
+            <span className={`font-medium ${clip.mix_status === 'placed' ? 'text-emerald-600' : 'text-amber-600'}`}>
               {clip.mix_status || 'unknown'}
             </span>
           </div>
@@ -810,6 +1014,7 @@ function SegmentInspector({
           >
             <Check size={12} />
             标记已修
+            <kbd className="ml-1 rounded bg-emerald-700/60 px-1 text-[9px]">A</kbd>
           </button>
           <button
             type="button"
@@ -819,9 +1024,54 @@ function SegmentInspector({
           >
             <AlertTriangle size={12} />
             仍需复核
+            <kbd className="ml-1 rounded bg-amber-200/60 px-1 text-[9px]">F</kbd>
           </button>
         </div>
+
+        {/* P1: Re-synthesis button */}
+        <button
+          type="button"
+          data-testid="resynthesize-btn"
+          onClick={() => onResynthesize(unit.unit_id)}
+          disabled={isSynthesizing}
+          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+        >
+          {isSynthesizing ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <RotateCcw size={12} />
+          )}
+          重新合成
+        </button>
       </div>
+
+      {/* P2: Operation history accordion */}
+      {unitOps.length > 0 && (
+        <div className="border-t border-slate-100">
+          <button
+            type="button"
+            data-testid="op-history-btn"
+            onClick={() => setShowHistory(v => !v)}
+            className="flex w-full items-center justify-between px-5 py-2 text-[10px] font-semibold text-slate-500 hover:bg-slate-50"
+          >
+            <div className="flex items-center gap-1.5">
+              <History size={10} />
+              操作历史 ({unitOps.length})
+            </div>
+            {showHistory ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+          </button>
+          {showHistory && (
+            <div className="space-y-0.5 px-5 pb-3">
+              {unitOps.map(op => (
+                <div key={op.op_id} className="flex items-center justify-between text-[10px] text-slate-500">
+                  <span className="font-medium text-slate-700">{op.type}</span>
+                  <span>{new Date(op.created_at).toLocaleTimeString()}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -900,6 +1150,8 @@ function InspectorPanel({
   onApprove,
   onNeedsReview,
   onSaveText,
+  onResynthesize,
+  isSynthesizing,
 }: {
   project: DubbingEditorProject
   taskId: string
@@ -907,6 +1159,8 @@ function InspectorPanel({
   onApprove: (unitId: string) => void
   onNeedsReview: (unitId: string) => void
   onSaveText: (unitId: string, text: string) => void
+  onResynthesize: (unitId: string) => void
+  isSynthesizing: boolean
 }) {
   if (!selectedUnit) {
     return (
@@ -943,6 +1197,8 @@ function InspectorPanel({
           onApprove={onApprove}
           onNeedsReview={onNeedsReview}
           onSaveText={onSaveText}
+          onResynthesize={onResynthesize}
+          isSynthesizing={isSynthesizing}
         />
       </div>
 
@@ -983,11 +1239,15 @@ export function DubbingEditorPage() {
 
   const [selectedUnit, setSelectedUnit] = useState<DubbingEditorUnit | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
+  const [isSynthesizing, setIsSynthesizing] = useState(false)
   const [renderRangeResult, setRenderRangeResult] = useState<{
     url: string
     start_sec: number
     end_sec: number
   } | null>(null)
+
+  // P0: ref for Space-key audio playback (clips)
+  const clipAudioRef = useRef<HTMLAudioElement | null>(null)
 
   const projectQuery = useQuery({
     queryKey: ['dubbing-editor', taskId],
@@ -1008,11 +1268,7 @@ export function DubbingEditorPage() {
     mutationFn: ({ start, end }: { start: number; end: number }) =>
       dubbingEditorApi.renderRange(taskId!, start, end),
     onSuccess: result => {
-      setRenderRangeResult({
-        url: result.url,
-        start_sec: result.start_sec,
-        end_sec: result.end_sec,
-      })
+      setRenderRangeResult({ url: result.url, start_sec: result.start_sec, end_sec: result.end_sec })
     },
   })
 
@@ -1033,7 +1289,6 @@ export function DubbingEditorPage() {
   const handleApprove = useCallback(
     (unitId: string) => {
       operationsMutation.mutate([{ type: 'review.set_status', target_id: unitId, payload: { status: 'approved' } }])
-      // Optimistic update
       setSelectedUnit(prev => (prev?.unit_id === unitId ? { ...prev, status: 'approved' } : prev))
     },
     [operationsMutation],
@@ -1058,6 +1313,34 @@ export function DubbingEditorPage() {
     [operationsMutation],
   )
 
+  // P2: bulk approve units that only have P2 issues
+  const handleBulkApprove = useCallback(
+    (unitIds: string[]) => {
+      const ops = unitIds.map(uid => ({
+        type: 'review.set_status',
+        target_id: uid,
+        payload: { status: 'approved' },
+      }))
+      operationsMutation.mutate(ops)
+    },
+    [operationsMutation],
+  )
+
+  // P1: re-synthesis
+  const handleResynthesize = useCallback(
+    async (unitId: string) => {
+      if (!taskId) return
+      setIsSynthesizing(true)
+      try {
+        await dubbingEditorApi.synthesizeUnit(taskId, unitId)
+        queryClient.invalidateQueries({ queryKey: ['dubbing-editor', taskId] })
+      } finally {
+        setIsSynthesizing(false)
+      }
+    },
+    [taskId, queryClient],
+  )
+
   const handleRenderRange = useCallback(() => {
     if (!selectedUnit) return
     const pad = 1.0
@@ -1070,6 +1353,64 @@ export function DubbingEditorPage() {
   const handleRefresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['dubbing-editor', taskId] })
   }, [queryClient, taskId])
+
+  // P0: Global keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLInputElement ||
+        target.isContentEditable
+      )
+        return
+
+      const units = projectQuery.data?.units
+      if (!units) return
+
+      const openIssues = projectQuery.data?.issues.filter(i => i.status === 'open') ?? []
+
+      if (e.key === 'ArrowDown' || e.key === 'j') {
+        e.preventDefault()
+        if (openIssues.length === 0) return
+        const idx = openIssues.findIndex(i => i.issue_id === selectedIssueId)
+        const next = openIssues[(idx + 1) % openIssues.length]
+        handleSelectIssue(next)
+      } else if (e.key === 'ArrowUp' || e.key === 'k') {
+        e.preventDefault()
+        if (openIssues.length === 0) return
+        const idx = openIssues.findIndex(i => i.issue_id === selectedIssueId)
+        const prev = openIssues[(idx - 1 + openIssues.length) % openIssues.length]
+        handleSelectIssue(prev)
+      } else if (e.key === ' ') {
+        e.preventDefault()
+        const audio = clipAudioRef.current
+        if (audio) {
+          if (audio.paused) audio.play().catch(() => {})
+          else audio.pause()
+        }
+      } else if (e.key === 'a' || e.key === 'A') {
+        if (selectedUnit) handleApprove(selectedUnit.unit_id)
+      } else if (e.key === 'f' || e.key === 'F') {
+        if (selectedUnit) handleNeedsReview(selectedUnit.unit_id)
+      } else if (e.key === 'r' || e.key === 'R') {
+        handleRenderRange()
+      } else if (e.key === 'Escape') {
+        setSelectedUnit(null)
+        setSelectedIssueId(null)
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [
+    projectQuery.data,
+    selectedUnit,
+    selectedIssueId,
+    handleSelectIssue,
+    handleApprove,
+    handleNeedsReview,
+    handleRenderRange,
+  ])
 
   if (!taskId) return null
 
@@ -1104,7 +1445,7 @@ export function DubbingEditorPage() {
   const project = projectQuery.data
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden bg-slate-50">
+    <div data-testid="dubbing-editor" className="flex h-screen flex-col overflow-hidden bg-slate-50">
       {/* Top bar */}
       <EditorTopBar
         project={project}
@@ -1122,20 +1463,21 @@ export function DubbingEditorPage() {
           <IssueQueue
             project={project}
             selectedIssueId={selectedIssueId}
-            selectedUnit={selectedUnit}
             onSelectIssue={handleSelectIssue}
+            onBulkApprove={handleBulkApprove}
           />
         </div>
 
         {/* Center: Video Preview + Timeline */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          {/* Current line (video preview area) */}
+          {/* Current line */}
           <div className="border-b border-slate-200 bg-white" style={{ height: '240px', minHeight: '200px' }}>
             <CurrentLinePane
               project={project}
               taskId={taskId}
               selectedUnit={selectedUnit}
               renderRangeResult={renderRangeResult}
+              clipAudioRef={clipAudioRef}
             />
           </div>
 
@@ -1159,6 +1501,8 @@ export function DubbingEditorPage() {
             onApprove={handleApprove}
             onNeedsReview={handleNeedsReview}
             onSaveText={handleSaveText}
+            onResynthesize={handleResynthesize}
+            isSynthesizing={isSynthesizing}
           />
         </div>
       </div>

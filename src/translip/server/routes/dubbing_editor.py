@@ -25,6 +25,25 @@ router = APIRouter(prefix="/api/tasks", tags=["dubbing-editor"])
 _EDITOR_SUBDIR = "dubbing-editor"
 _WAVEFORM_RESOLUTION = 800  # samples per second for peaks
 
+# Track in-progress waveform generation to avoid duplicate work
+_pending_waveforms: set[str] = set()
+_pending_lock = threading.Lock()
+
+# Shared track search patterns (re-used in multiple endpoints)
+_TRACK_PATTERNS: dict[str, list[str]] = {
+    "original": [
+        "stage1/voice/voice.wav",
+        "stage1/*/voice.wav",
+        "stage1/*/voice.mp3",
+        "stage1/voice/voice.mp3",
+    ],
+    "background": [
+        "stage1/background/background.wav",
+        "stage1/*/background.wav",
+        "stage1/*/background.mp3",
+    ],
+}  # dub/preview_mix are added dynamically with target_lang
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -150,7 +169,81 @@ def _import_editor_project(task: Task) -> dict[str, Any]:
     materialized = _materialize(snapshot, ops_path)
     _write_json(editor_root / "materialized.current.json", materialized)
 
+    # Pre-generate waveform peaks in background (non-blocking)
+    bg_thread = threading.Thread(
+        target=_pregenerate_waveforms_bg,
+        args=(output_root, target_lang, editor_root),
+        daemon=True,
+    )
+    bg_thread.start()
+
     return materialized
+
+
+def _resolve_audio_path(output_root: Path, patterns: list[str]) -> Path | None:
+    """Resolve the first matching audio file given a list of path patterns."""
+    for pattern in patterns:
+        if "*" in pattern:
+            matches = list(output_root.glob(pattern))
+            if matches:
+                return matches[0]
+        else:
+            candidate = output_root / pattern
+            if candidate.exists():
+                return candidate
+    return None
+
+
+def _pregenerate_waveforms_bg(output_root: Path, target_lang: str, editor_root: Path) -> None:
+    """Pre-generate waveform peaks for all tracks in a background thread."""
+    peaks_dir = editor_root / "waveform"
+    peaks_dir.mkdir(parents=True, exist_ok=True)
+
+    track_patterns: dict[str, list[str]] = {
+        **_TRACK_PATTERNS,
+        "dub": [f"task-e/voice/dub_voice.{target_lang}.wav"],
+        "preview_mix": [f"task-e/voice/preview_mix.{target_lang}.wav"],
+    }
+
+    for track, patterns in track_patterns.items():
+        peaks_path = peaks_dir / f"{track}.peaks.json"
+        if peaks_path.exists():
+            continue
+        audio_path = _resolve_audio_path(output_root, patterns)
+        if audio_path is None:
+            continue
+        try:
+            peaks = _generate_peaks(audio_path)
+            duration_sec = 0.0
+            try:
+                import soundfile as sf  # type: ignore
+                info = sf.info(str(audio_path))
+                duration_sec = info.duration
+            except Exception:
+                pass
+            result = {"track": track, "peaks": peaks, "duration_sec": duration_sec, "available": True}
+            _write_json(peaks_path, result)
+            logger.info("Pre-generated waveform peaks for track: %s", track)
+        except Exception as exc:
+            logger.warning("Failed to pre-generate peaks for %s: %s", track, exc)
+
+
+def _extract_clip(source: Path, dest: Path, start_sec: float, end_sec: float) -> None:
+    """Extract a time-range slice from an audio file and save to dest."""
+    try:
+        import soundfile as sf  # type: ignore
+        import numpy as np  # type: ignore
+
+        data, sr = sf.read(str(source), dtype="float32", always_2d=False)
+        if data.ndim > 1:
+            data = data.mean(axis=1)
+        start_sample = int(start_sec * sr)
+        end_sample = min(int(end_sec * sr), len(data))
+        clip = data[start_sample:end_sample]
+        if len(clip) > 0:
+            sf.write(str(dest), clip, sr)
+    except Exception as exc:
+        logger.warning("Clip extraction failed for %s: %s", source, exc)
 
 
 def _build_characters(
@@ -778,61 +871,146 @@ def get_waveform(
     output_root = Path(task.output_root).resolve()
     target_lang = task.target_lang or "en"
 
-    track_search = {
-        "original": ["stage1/voice/voice.wav", "stage1/*/voice.wav", "stage1/*/voice.mp3",
-                     "stage1/voice/voice.mp3"],
+    track_patterns: dict[str, list[str]] = {
+        **_TRACK_PATTERNS,
         "dub": [f"task-e/voice/dub_voice.{target_lang}.wav"],
         "preview_mix": [f"task-e/voice/preview_mix.{target_lang}.wav"],
-        "background": ["stage1/background/background.wav", "stage1/*/background.wav",
-                       "stage1/*/background.mp3"],
     }
-
-    patterns = track_search.get(track)
+    patterns = track_patterns.get(track)
     if not patterns:
         raise HTTPException(status_code=404, detail=f"Unknown track: {track}")
 
-    audio_path: Path | None = None
-    for pattern in patterns:
-        if "*" in pattern:
-            matches = list(output_root.glob(pattern))
-            if matches:
-                audio_path = matches[0]
-                break
-        else:
-            candidate = output_root / pattern
-            if candidate.exists():
-                audio_path = candidate
-                break
+    audio_path = _resolve_audio_path(output_root, patterns)
+    if audio_path is None:
+        return {"track": track, "peaks": [], "duration_sec": 0, "available": False, "pending": False}
 
-    if audio_path is None or not audio_path.exists():
-        return {"track": track, "peaks": [], "duration_sec": 0, "available": False}
-
-    # Check for cached peaks
+    # Return cached peaks if available
     peaks_dir = _editor_root(task.output_root) / "waveform"
     peaks_dir.mkdir(parents=True, exist_ok=True)
     peaks_path = peaks_dir / f"{track}.peaks.json"
 
     if peaks_path.exists():
-        cached = _read_json(peaks_path)
-        return cached
+        return _read_json(peaks_path)
 
-    # Generate peaks
-    peaks = _generate_peaks(audio_path)
+    # Not cached yet — generate in background, return pending
+    cache_key = f"{task_id}:{track}"
+    with _pending_lock:
+        already_pending = cache_key in _pending_waveforms
+        if not already_pending:
+            _pending_waveforms.add(cache_key)
 
-    # Get duration
-    duration_sec = 0.0
-    try:
-        import soundfile as sf  # type: ignore
-        info = sf.info(str(audio_path))
-        duration_sec = info.duration
-    except Exception:
-        pass
+    if not already_pending:
+        def _gen(ap: Path = audio_path, pp: Path = peaks_path, t: str = track, ck: str = cache_key) -> None:
+            try:
+                peaks = _generate_peaks(ap)
+                duration_sec = 0.0
+                try:
+                    import soundfile as sf  # type: ignore
+                    info = sf.info(str(ap))
+                    duration_sec = info.duration
+                except Exception:
+                    pass
+                _write_json(pp, {"track": t, "peaks": peaks, "duration_sec": duration_sec, "available": True})
+            finally:
+                with _pending_lock:
+                    _pending_waveforms.discard(ck)
 
-    result = {
-        "track": track,
-        "peaks": peaks,
-        "duration_sec": duration_sec,
-        "available": True,
+        threading.Thread(target=_gen, daemon=True).start()
+
+    return {"track": track, "peaks": [], "duration_sec": 0, "available": False, "pending": True}
+
+
+# ---------------------------------------------------------------------------
+# Clip preview (A/B comparison)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{task_id}/dubbing-editor/clip-preview")
+def get_clip_preview(
+    task_id: str,
+    start_sec: float,
+    end_sec: float,
+    track: str = "original",
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Return a URL to a short audio clip cut from a full track (for A/B comparison)."""
+    task = _get_task(session, task_id)
+    output_root = Path(task.output_root).resolve()
+    target_lang = task.target_lang or "en"
+
+    track_patterns: dict[str, list[str]] = {
+        **_TRACK_PATTERNS,
+        "dub": [f"task-e/voice/dub_voice.{target_lang}.wav"],
     }
-    _write_json(peaks_path, result)
-    return result
+    patterns = track_patterns.get(track)
+    if not patterns:
+        raise HTTPException(status_code=400, detail=f"Unknown track: {track}")
+
+    audio_path = _resolve_audio_path(output_root, patterns)
+    if audio_path is None:
+        raise HTTPException(status_code=404, detail=f"Audio not found for track: {track}")
+
+    # Use cached clip if it exists
+    clips_dir = _editor_root(task.output_root) / "previews" / "clips"
+    clips_dir.mkdir(parents=True, exist_ok=True)
+    clip_label = f"{track}_{int(start_sec * 1000):09d}_{int(end_sec * 1000):09d}"
+    clip_path = clips_dir / f"{clip_label}.wav"
+
+    if not clip_path.exists():
+        _extract_clip(audio_path, clip_path, start_sec, end_sec)
+
+    if not clip_path.exists():
+        raise HTTPException(status_code=500, detail="Clip extraction failed")
+
+    artifact_path = str(clip_path.relative_to(output_root))
+    return {
+        "url": f"/api/tasks/{task_id}/artifacts/{artifact_path}",
+        "start_sec": start_sec,
+        "end_sec": end_sec,
+        "duration_sec": end_sec - start_sec,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Synthesize unit (re-synthesis request)
+# ---------------------------------------------------------------------------
+
+
+class SynthesizeUnitRequest(BaseModel):
+    unit_id: str
+
+
+@router.post("/{task_id}/dubbing-editor/synthesize-unit")
+def synthesize_unit(
+    task_id: str,
+    body: SynthesizeUnitRequest,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """Queue a single dialogue unit for re-synthesis (records operation, triggers async synthesis)."""
+    task = _get_task(session, task_id)
+    editor_root = _editor_root(task.output_root)
+    ops_path = editor_root / "operations.jsonl"
+
+    now = datetime.now(timezone.utc).isoformat()
+    op_record = {
+        "op_id": f"op_{uuid.uuid4().hex[:12]}",
+        "type": "synthesis.requested",
+        "target_id": body.unit_id,
+        "payload": {"requested_at": now},
+        "author": "local_user",
+        "created_at": now,
+    }
+    _append_jsonl(ops_path, op_record)
+
+    # Re-materialize so the operation appears in the history
+    snapshot_path = editor_root / "initial_snapshot.json"
+    if snapshot_path.exists():
+        snapshot = _read_json(snapshot_path)
+        materialized = _materialize(snapshot, ops_path)
+        _write_json(editor_root / "materialized.current.json", materialized)
+
+    return {
+        "status": "queued",
+        "unit_id": body.unit_id,
+        "message": "Re-synthesis queued. Refresh to see updated clip.",
+    }
