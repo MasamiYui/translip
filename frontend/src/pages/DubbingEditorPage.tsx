@@ -11,10 +11,12 @@ import {
   ChevronDown,
   ChevronRight,
   Download,
+  ExternalLink,
   History,
   Keyboard,
   Loader2,
   Maximize2,
+  Mic2,
   Minimize2,
   MoreHorizontal,
   PanelLeftClose,
@@ -1810,6 +1812,28 @@ function CharacterInspector({
                 {flag}
               </span>
             ))}
+          </div>
+        </div>
+      )}
+
+      {(character.stats.speaker_failed_ratio > 0.15 || character.risk_flags.includes('wrong_character')) && (
+        <div data-testid="speaker-attribution-callout" className="mt-3 rounded-md border border-rose-200 bg-rose-50/70 p-2.5">
+          <div className="flex items-start gap-1.5">
+            <AlertTriangle size={11} className="mt-0.5 shrink-0 text-rose-600" />
+            <div className="min-w-0 text-[10.5px] leading-4 text-rose-700">
+              <div className="font-semibold">声纹相似度异常</div>
+              <div className="mt-0.5 text-rose-600/90">
+                可能是上游说话人归属错了。回到说话人核对修正后从 Task B 重跑，效果更彻底。
+              </div>
+              <Link
+                to={`/tasks/${taskId}?speakerReview=1`}
+                className="mt-1.5 inline-flex items-center gap-1 rounded bg-white px-1.5 py-0.5 text-[10px] font-medium text-rose-700 ring-1 ring-rose-200 transition-colors hover:bg-rose-100"
+              >
+                <Mic2 size={10} />
+                打开说话人核对
+                <ExternalLink size={9} />
+              </Link>
+            </div>
           </div>
         </div>
       )}

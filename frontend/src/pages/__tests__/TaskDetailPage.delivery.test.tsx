@@ -163,9 +163,9 @@ describe('TaskDetailPage export workflow', () => {
 
     render(<TaskDetailPage />, { wrapper: createWrapper() })
 
-    fireEvent.click(await screen.findByRole('button', { name: '说话人审查' }))
+    fireEvent.click(await screen.findByTestId('flow-step-speaker-review'))
 
-    expect(await screen.findByText('说话人识别审查')).toBeInTheDocument()
+    expect(await screen.findByText('说话人核对', { selector: 'h2' })).toBeInTheDocument()
     expect((await screen.findAllByText('SPEAKER_01')).length).toBeGreaterThan(0)
     expect(screen.getByText('单段 speaker')).toBeInTheDocument()
 
@@ -271,7 +271,7 @@ describe('TaskDetailPage export workflow', () => {
     expect(screen.getByText('OCR 漏配 1 条')).toBeInTheDocument()
     expect((container.querySelector('.overflow-hidden.rounded-xl.border.border-slate-200.bg-white') as HTMLElement).className).not.toContain('shadow')
 
-    fireEvent.click(screen.getByRole('button', { name: '导出成品' }))
+    fireEvent.click(screen.getByTestId('flow-step-export'))
 
     expect(await screen.findByText('1. 默认导出')).toBeInTheDocument()
     expect(screen.getByText('将导出为')).toBeInTheDocument()
@@ -515,7 +515,7 @@ describe('TaskDetailPage export workflow', () => {
 
     render(<TaskDetailPage />, { wrapper: createWrapper() })
 
-    fireEvent.click(await screen.findByRole('button', { name: '导出成品' }))
+    fireEvent.click(await screen.findByTestId('flow-step-export'))
 
     expect(await screen.findByText('检测到原片已有中文字幕')).toBeInTheDocument()
     expect(screen.getByText('推荐：保留原字 + 补英文')).toBeInTheDocument()
@@ -605,7 +605,7 @@ describe('TaskDetailPage export workflow', () => {
 
     render(<TaskDetailPage />, { wrapper: createWrapper() })
 
-    fireEvent.click(await screen.findByRole('button', { name: '导出成品' }))
+    fireEvent.click(await screen.findByTestId('flow-step-export'))
 
     fireEvent.click(screen.getByText('清理原字 + 重做双语'))
 
@@ -693,7 +693,7 @@ describe('TaskDetailPage export workflow', () => {
 
     render(<TaskDetailPage />, { wrapper: createWrapper() })
 
-    fireEvent.click(await screen.findByRole('button', { name: '导出成品' }))
+    fireEvent.click(await screen.findByTestId('flow-step-export'))
     fireEvent.change(screen.getByRole('combobox', { name: /英文字幕来源/ }), { target: { value: 'asr' } })
 
     const exportSection = screen.getByText('4. 预览并导出').closest('section')

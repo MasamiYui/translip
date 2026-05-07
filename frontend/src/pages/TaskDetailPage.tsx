@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   ArrowLeft,
   Captions,
+  Check,
+  CheckCircle2,
   Download,
   Eraser,
   Film,
@@ -38,6 +40,7 @@ import { resolveActiveStageId, resolveRerunStage } from './taskDetailSelection'
 import type {
   Artifact,
   BilingualExportStrategy,
+  SpeakerReviewResponse,
   Task,
   TaskAssetEntry,
   TaskConfig,
@@ -117,7 +120,6 @@ export function TaskDetailPage() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null | undefined>(undefined)
   const [rerunStage, setRerunStage] = useState<string | undefined>(undefined)
   const [isExportDrawerOpen, setExportDrawerOpen] = useState(false)
-  const [isSpeakerReviewOpen, setSpeakerReviewOpen] = useState(false)
   const [showProfileOverrides, setShowProfileOverrides] = useState(false)
   const [exportProfile, setExportProfile] = useState<TaskExportProfile>('dub_no_subtitles')
   const [subtitleSource, setSubtitleSource] = useState<'ocr' | 'asr'>('ocr')
@@ -153,6 +155,33 @@ export function TaskDetailPage() {
     enabled: Boolean(id),
     refetchInterval: task?.status === 'running' ? 4000 : false,
   })
+
+  const { data: speakerReview } = useQuery({
+    queryKey: ['speaker-review', id],
+    queryFn: () => tasksApi.getSpeakerReview(id!),
+    enabled: Boolean(id),
+    refetchInterval: task?.status === 'running' ? 8000 : false,
+  })
+
+  const location = useLocation()
+  const speakerReviewAutoOpen = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    return params.get('speakerReview') === '1'
+  }, [location.search])
+
+  const [speakerReviewUserOpen, setSpeakerReviewUserOpen] = useState(false)
+  const [speakerReviewUserClosed, setSpeakerReviewUserClosed] = useState(false)
+  const isSpeakerReviewOpen = speakerReviewUserClosed
+    ? false
+    : speakerReviewUserOpen || speakerReviewAutoOpen
+  const openSpeakerReview = () => {
+    setSpeakerReviewUserClosed(false)
+    setSpeakerReviewUserOpen(true)
+  }
+  const closeSpeakerReview = () => {
+    setSpeakerReviewUserOpen(false)
+    setSpeakerReviewUserClosed(true)
+  }
 
   useEffect(() => {
     if (!id || !task || task.status !== 'running') {
@@ -289,6 +318,7 @@ export function TaskDetailPage() {
   const correctionSummary = task.transcription_correction_summary
   const canPreview = profileConfig.subtitleMode !== 'none' && Boolean(selectedSubtitleOption)
   const previewVideoPath = resolvePreviewVideoPath(task, exportProfile, effectiveBilingualExportStrategy)
+  const speakerReviewStatus = resolveSpeakerReviewStatus(speakerReview)
 
   function handlePreview() {
     if (!selectedSubtitleOption) {
@@ -511,107 +541,93 @@ export function TaskDetailPage() {
         )}
 
         <div className="border-b border-slate-100 px-7 py-6">
-          <div className="mb-5 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-            <Wand2 size={12} />
-            导出区
+          <div className="mb-5 flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <Wand2 size={14} className="text-slate-400" />
+              交付进度
+            </div>
             <ReadinessPill status={task.export_readiness.status} />
           </div>
 
-          {/* 主行动区：导出状态 + 成品下载并列 */}
-          <div className="grid gap-0 lg:grid-cols-[1fr_1fr]">
-            {/* 左：导出状态 + 操作 */}
-            <div className="border-b border-slate-100 pb-5 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-8">
-              <div className="text-sm leading-6 text-slate-500">{readinessMessage}</div>
+          {/* 三步流程 */}
+          <DeliveryFlowStrip
+            taskId={task.id}
+            status={speakerReviewStatus}
+            canOpenExportDrawer={canOpenExportDrawer}
+            onOpenSpeakerReview={openSpeakerReview}
+            onOpenExport={() => setExportDrawerOpen(true)}
+            onRerunFromTaskB={speakerReviewStatus.state === 'applied' ? () => rerunMutation.mutate('task-b') : undefined}
+            isRerunPending={rerunMutation.isPending}
+          />
 
-              <div className="mt-3 flex flex-wrap gap-2 text-xs text-slate-500">
-                <span>默认导出：<span className="font-medium text-slate-700">{getExportProfileLabel(task.export_readiness.recommended_profile, locale)}</span></span>
-                <span className="text-slate-300">·</span>
-                <span>成品目标：<span className="font-medium text-slate-700">{getOutputIntentLabel(task.output_intent, locale)}</span></span>
-                {task.last_export_summary.status === 'exported' && (
-                  <>
-                    <span className="text-slate-300">·</span>
-                    <span>上次导出：<span className="font-medium text-slate-700">{task.last_export_summary.updated_at ? formatRelativeTime(task.last_export_summary.updated_at) : '刚刚'}</span></span>
-                  </>
-                )}
-              </div>
+          {/* 状态 + 最近导出 */}
+          <div className="mt-6 space-y-4">
+            {/* 状态说明 */}
+            <p className="text-sm leading-relaxed text-slate-500">{readinessMessage}</p>
 
-              {task.export_readiness.blockers.length > 0 && (
-                <div className="mt-4 space-y-2.5">
-                  {task.export_readiness.blockers.map(blocker => (
-                    <div key={blocker.code} className="flex items-start gap-2.5 rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
-                      <AlertTriangle size={15} className="mt-0.5 shrink-0" />
-                      <div className="min-w-0 flex-1">
-                        <div>{blocker.message}</div>
-                        <button
-                          type="button"
-                          onClick={() => handleBlockerAction(blocker)}
-                          disabled={rerunMutation.isPending}
-                          className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 underline-offset-2 hover:underline disabled:opacity-60"
-                        >
-                          {rerunMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
-                          {blocker.action_label}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            {/* 元信息标签行 */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-slate-500">
+              <span className="rounded-md bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                默认导出：<span className="text-slate-800">{getExportProfileLabel(task.export_readiness.recommended_profile, locale)}</span>
+              </span>
+              <span className="rounded-md bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                成品目标：<span className="text-slate-800">{getOutputIntentLabel(task.output_intent, locale)}</span>
+              </span>
+              {task.last_export_summary.status === 'exported' && (
+                <span className="rounded-md bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                  上次导出：<span className="text-slate-800">{task.last_export_summary.updated_at ? formatRelativeTime(task.last_export_summary.updated_at) : '刚刚'}</span>
+                </span>
               )}
-
-              <div className="mt-5">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setExportDrawerOpen(true)}
-                    disabled={!canOpenExportDrawer}
-                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Wand2 size={14} />
-                    导出成品
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSpeakerReviewOpen(true)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                  >
-                    <Mic2 size={14} />
-                    说话人审查
-                  </button>
-                  <Link
-                    to={`/tasks/${task.id}/dubbing-editor`}
-                    className="inline-flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100"
-                  >
-                    <Wand2 size={14} />
-                    专业配音编辑台
-                  </Link>
-                </div>
-              </div>
             </div>
 
-            {/* 右：最近导出结果 */}
-            <div className="pt-5 lg:pl-8 lg:pt-0">
-              <div className="text-sm font-semibold text-slate-900">最近导出结果</div>
-              {exportFiles.length === 0 ? (
-                <div className="mt-2 text-sm text-slate-400">当前还没有导出的成品文件。</div>
-              ) : (
-                <div className="mt-3 space-y-2">
-                  {lastExportStrategyLabel && (
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                      导出策略：<span className="font-medium text-slate-800">{lastExportStrategyLabel}</span>
+            {/* 阻断项 */}
+            {task.export_readiness.blockers.length > 0 && (
+              <div className="space-y-2">
+                {task.export_readiness.blockers.map(blocker => (
+                  <div key={blocker.code} className="flex items-start gap-2.5 rounded-lg border-l-2 border-amber-400 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+                    <AlertTriangle size={15} className="mt-0.5 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <div>{blocker.message}</div>
+                      <button
+                        type="button"
+                        onClick={() => handleBlockerAction(blocker)}
+                        disabled={rerunMutation.isPending}
+                        className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 underline-offset-2 hover:underline disabled:opacity-60"
+                      >
+                        {rerunMutation.isPending ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                        {blocker.action_label}
+                      </button>
                     </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* 最近导出结果 */}
+            {exportFiles.length === 0 ? (
+              <p className="text-sm text-slate-400">当前还没有导出的成品文件。</p>
+            ) : (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="mb-2.5 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-700">最近导出结果</span>
+                  {lastExportStrategyLabel && (
+                    <span className="text-xs text-slate-400">— {lastExportStrategyLabel}</span>
                   )}
+                </div>
+                <div className="space-y-0.5">
                   {exportFiles.map(file => (
                     <a
                       key={file.path}
                       href={getArtifactHref(task.id, file.path)}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center justify-between gap-4 py-2 text-sm text-slate-700 transition-colors hover:text-slate-900"
+                      className="group flex items-center justify-between gap-3 rounded px-1 py-1.5 transition-colors hover:bg-white"
                       aria-label={`下载${file.label}`}
                       title={`下载${file.label}`}
                     >
                       <div className="min-w-0">
-                        <div className="font-medium">{file.label}</div>
-                        <div className="mt-0.5 truncate text-xs text-slate-400">{file.path}</div>
+                        <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{file.label}</span>
+                        <span className="ml-2 truncate text-xs text-slate-400">{file.path}</span>
                       </div>
                       <span aria-hidden="true" className={DOWNLOAD_ICON_BUTTON_CLASS}>
                         <Download size={12} />
@@ -619,8 +635,8 @@ export function TaskDetailPage() {
                     </a>
                   ))}
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* 成品素材清单：紧凑 checklist */}
@@ -710,7 +726,11 @@ export function TaskDetailPage() {
       <SpeakerReviewDrawer
         taskId={task.id}
         isOpen={isSpeakerReviewOpen}
-        onClose={() => setSpeakerReviewOpen(false)}
+        onClose={closeSpeakerReview}
+        onRerunFromTaskB={() => {
+          closeSpeakerReview()
+          rerunMutation.mutate('task-b')
+        }}
       />
 
       {isExportDrawerOpen && (
@@ -1332,4 +1352,346 @@ function SourceSummaryCard({
       <div className="mt-2 text-xs text-slate-500">{entry.path ?? '当前还没有对应素材'}</div>
     </div>
   )
+}
+
+type SpeakerReviewGateState = 'unavailable' | 'pending' | 'attention' | 'in_progress' | 'applied' | 'passed'
+
+interface SpeakerReviewStatus {
+  state: SpeakerReviewGateState
+  highRiskSpeakers: number
+  highRiskRuns: number
+  reviewSegments: number
+  decisionCount: number
+  correctedExists: boolean
+}
+
+function resolveSpeakerReviewStatus(review: SpeakerReviewResponse | undefined): SpeakerReviewStatus {
+  if (!review || review.status !== 'available') {
+    return {
+      state: 'unavailable',
+      highRiskSpeakers: 0,
+      highRiskRuns: 0,
+      reviewSegments: 0,
+      decisionCount: 0,
+      correctedExists: false,
+    }
+  }
+  const summary = review.summary
+  const highRiskSpeakers = summary.high_risk_speaker_count ?? 0
+  const highRiskRuns = summary.review_run_count ?? summary.high_risk_run_count ?? 0
+  const reviewSegments = summary.review_segment_count ?? 0
+  const decisionCount = summary.decision_count ?? 0
+  const correctedExists = Boolean(summary.corrected_exists)
+  const totalRisks = highRiskSpeakers + highRiskRuns + reviewSegments
+
+  let state: SpeakerReviewGateState
+  if (correctedExists) {
+    state = 'applied'
+  } else if (decisionCount > 0) {
+    state = 'in_progress'
+  } else if (totalRisks > 0) {
+    state = highRiskSpeakers > 0 ? 'attention' : 'pending'
+  } else {
+    state = 'passed'
+  }
+
+  return {
+    state,
+    highRiskSpeakers,
+    highRiskRuns,
+    reviewSegments,
+    decisionCount,
+    correctedExists,
+  }
+}
+
+function DeliveryFlowStrip({
+  taskId,
+  status,
+  canOpenExportDrawer,
+  onOpenSpeakerReview,
+  onOpenExport,
+  onRerunFromTaskB,
+  isRerunPending,
+}: {
+  taskId: string
+  status: SpeakerReviewStatus
+  canOpenExportDrawer: boolean
+  onOpenSpeakerReview: () => void
+  onOpenExport: () => void
+  onRerunFromTaskB?: () => void
+  isRerunPending?: boolean
+}) {
+  const stepOne = resolveStepOne(status, onOpenSpeakerReview, onRerunFromTaskB, isRerunPending ?? false)
+  const stepTwo = resolveStepTwo(taskId, status)
+  const stepThree = resolveStepThree(canOpenExportDrawer, onOpenExport)
+  const steps = [stepOne, stepTwo, stepThree]
+  const currentIndex = resolveCurrentStepIndex(steps)
+
+  return (
+    <div data-testid="delivery-flow-strip">
+      {/* 节点轨道 + 文字一体化网格：每列三行（节点 / 标题 / 副标题）严格对齐 */}
+      <div className="grid grid-cols-3 gap-x-3">
+        {steps.map((step, idx) => {
+          const phase = resolveStepPhase(idx, currentIndex)
+          const isFirst = idx === 0
+          const isLast = idx === steps.length - 1
+          return (
+            <div key={step.testId} className="grid grid-rows-[40px_auto_auto] items-start">
+              {/* Row 1: 圆点 + 左右连接线，严格水平居中、严格同高 */}
+              <div className="relative flex h-10 items-center justify-center">
+                {!isFirst && (
+                  <span
+                    aria-hidden
+                    className={`absolute left-0 right-1/2 top-1/2 -mr-5 h-px ${getConnectorClass(phase, 'left')}`}
+                  />
+                )}
+                {!isLast && (
+                  <span
+                    aria-hidden
+                    className={`absolute left-1/2 right-0 top-1/2 -ml-5 h-px ${getConnectorClass(phase, 'right')}`}
+                  />
+                )}
+                <FlowNodeButton step={step} index={idx + 1} phase={phase} />
+              </div>
+              {/* Row 2: 标题 */}
+              <div className="mt-3 px-1 text-center text-sm font-semibold leading-tight text-slate-900">
+                {step.label}
+              </div>
+              {/* Row 3: 副标题 + 可选操作按钮 */}
+              <div className="mt-1.5 px-1 text-center text-[12px] leading-[1.55] text-slate-500">
+                {step.sub}
+                {step.actionLabel && step.onAction && (
+                  <div className="mt-2 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={step.onAction}
+                      disabled={step.actionPending}
+                      className="inline-flex items-center gap-1 rounded-md bg-amber-100 px-2.5 py-1 text-[11px] font-medium text-amber-800 transition-colors hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {step.actionPending
+                        ? <Loader2 size={10} className="animate-spin" />
+                        : <RotateCcw size={10} />}
+                      {step.actionLabel}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function resolveCurrentStepIndex(steps: FlowStepModel[]): number {
+  const firstNotDone = steps.findIndex(step => !isStepDone(step))
+  return firstNotDone === -1 ? steps.length - 1 : firstNotDone
+}
+
+function isStepDone(step: FlowStepModel): boolean {
+  if (step.testId === 'flow-step-speaker-review') {
+    // 'applied' is amber (pending rerun) — not yet "done"
+    return step.tone === 'success' && step.actionLabel === undefined
+  }
+  return false
+}
+
+type StepPhase = 'done' | 'current' | 'todo'
+
+function resolveStepPhase(idx: number, currentIndex: number): StepPhase {
+  if (idx < currentIndex) return 'done'
+  if (idx === currentIndex) return 'current'
+  return 'todo'
+}
+
+function getConnectorClass(phase: StepPhase, side: 'left' | 'right'): string {
+  if (phase === 'done') return 'bg-emerald-300'
+  if (phase === 'current' && side === 'left') return 'bg-emerald-300'
+  return 'bg-slate-200'
+}
+
+type FlowStepTone = 'info' | 'success' | 'warning' | 'danger' | 'muted'
+
+interface FlowStepModel {
+  testId: string
+  tone: FlowStepTone
+  label: string
+  sub: string
+  statusText: string
+  statusIcon: LucideIcon
+  onClick?: () => void
+  to?: string
+  disabled?: boolean
+  actionLabel?: string
+  onAction?: () => void
+  actionPending?: boolean
+}
+
+function resolveStepOne(
+  status: SpeakerReviewStatus,
+  onOpen: () => void,
+  onRerun: (() => void) | undefined,
+  isRerunPending: boolean,
+): FlowStepModel {
+  const testId = 'flow-step-speaker-review'
+  const label = '说话人核对'
+
+  if (status.state === 'unavailable') {
+    return {
+      testId,
+      tone: 'muted',
+      label,
+      sub: '完成 Task A 后会出现可审查的说话人产物',
+      statusText: '等待 Task A',
+      statusIcon: Mic2,
+      onClick: onOpen,
+    }
+  }
+  if (status.state === 'passed') {
+    return {
+      testId,
+      tone: 'success',
+      label,
+      sub: '未发现异常，可直接进入下一步',
+      statusText: '已通过',
+      statusIcon: CheckCircle2,
+      onClick: onOpen,
+    }
+  }
+  if (status.state === 'applied') {
+    return {
+      testId,
+      tone: 'warning',
+      label,
+      sub: '修正已写入，需从 Task B 重跑才能生效',
+      statusText: '待重跑',
+      statusIcon: RotateCcw,
+      onClick: onOpen,
+      actionLabel: '重跑 Task B',
+      onAction: onRerun,
+      actionPending: isRerunPending,
+    }
+  }
+  if (status.state === 'in_progress') {
+    return {
+      testId,
+      tone: 'warning',
+      label,
+      sub: `已保存 ${status.decisionCount} 条决策，记得回到审查台点应用`,
+      statusText: '待应用',
+      statusIcon: AlertTriangle,
+      onClick: onOpen,
+    }
+  }
+  if (status.state === 'attention') {
+    return {
+      testId,
+      tone: 'danger',
+      label,
+      sub: `检测到 ${status.highRiskSpeakers} 位高风险说话人，建议先处理再进入编辑台`,
+      statusText: '需关注',
+      statusIcon: AlertTriangle,
+      onClick: onOpen,
+    }
+  }
+  return {
+    testId,
+    tone: 'info',
+    label,
+    sub: '确认每段话是谁说的，避免后续音色克隆出错',
+    statusText: '建议核对',
+    statusIcon: Mic2,
+    onClick: onOpen,
+  }
+}
+
+function resolveStepTwo(taskId: string, status: SpeakerReviewStatus): FlowStepModel {
+  const blocked = status.state === 'attention' || status.state === 'in_progress'
+  return {
+    testId: 'flow-step-dubbing-editor',
+    tone: blocked ? 'warning' : 'info',
+    label: '专业配音编辑台',
+    sub: blocked
+      ? '上游有未处理的高风险说话人，仍可强行进入'
+      : '在合成结果上做精修、问题处理与试听',
+    statusText: '打开编辑台',
+    statusIcon: Wand2,
+    to: `/tasks/${taskId}/dubbing-editor`,
+  }
+}
+
+function resolveStepThree(canOpen: boolean, onOpen: () => void): FlowStepModel {
+  return {
+    testId: 'flow-step-export',
+    tone: canOpen ? 'success' : 'muted',
+    label: '导出成品',
+    sub: canOpen ? '所有素材已就绪，可生成可交付版本' : '编辑台确认无问题且素材就绪后再导出',
+    statusText: canOpen ? '导出' : '暂不可用',
+    statusIcon: Download,
+    onClick: canOpen ? onOpen : undefined,
+    disabled: !canOpen,
+  }
+}
+
+function FlowNodeButton({
+  step,
+  index,
+  phase,
+}: {
+  step: FlowStepModel
+  index: number
+  phase: StepPhase
+}) {
+  const interactive = !step.disabled
+  const visual = resolveNodeVisual(step, phase)
+  const baseClass = `group relative z-10 inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all duration-150 ${visual.shape}`
+  const interactiveClass = interactive
+    ? 'cursor-pointer hover:-translate-y-0.5 hover:shadow-md'
+    : 'cursor-not-allowed opacity-60'
+  const className = `${baseClass} ${interactiveClass}`
+  const content =
+    phase === 'done' ? <Check size={16} strokeWidth={3} aria-hidden /> : <span>{index}</span>
+
+  if (step.to && interactive) {
+    return (
+      <Link
+        to={step.to}
+        data-testid={step.testId}
+        className={className}
+        aria-label={step.label}
+      >
+        {content}
+      </Link>
+    )
+  }
+  return (
+    <button
+      type="button"
+      data-testid={step.testId}
+      onClick={interactive ? step.onClick : undefined}
+      disabled={!interactive}
+      className={className}
+      aria-label={step.label}
+    >
+      {content}
+    </button>
+  )
+}
+
+function resolveNodeVisual(step: FlowStepModel, phase: StepPhase): { shape: string } {
+  if (phase === 'done') {
+    return { shape: 'bg-emerald-500 text-white shadow-sm ring-4 ring-emerald-50' }
+  }
+  if (phase === 'current') {
+    if (step.tone === 'danger') {
+      return { shape: 'bg-rose-500 text-white shadow-sm ring-4 ring-rose-50' }
+    }
+    if (step.tone === 'warning') {
+      return { shape: 'bg-amber-500 text-white shadow-sm ring-4 ring-amber-50' }
+    }
+    return { shape: 'bg-blue-500 text-white shadow-sm ring-4 ring-blue-50' }
+  }
+  return { shape: 'border border-slate-200 bg-white text-slate-400' }
 }

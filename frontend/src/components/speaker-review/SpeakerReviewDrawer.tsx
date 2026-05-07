@@ -7,6 +7,7 @@ import {
   GitMerge,
   Loader2,
   Mic2,
+  RotateCcw,
   Route,
   SlidersHorizontal,
   UserRound,
@@ -35,10 +36,12 @@ export function SpeakerReviewDrawer({
   taskId,
   isOpen,
   onClose,
+  onRerunFromTaskB,
 }: {
   taskId: string
   isOpen: boolean
   onClose: () => void
+  onRerunFromTaskB?: () => void
 }) {
   const [activeTab, setActiveTab] = useState<ReviewTab>('speakers')
   const queryClient = useQueryClient()
@@ -93,12 +96,13 @@ export function SpeakerReviewDrawer({
           <div className="min-w-0">
             <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
               <Mic2 size={13} />
-              Speaker Review
+              Step 1 · Speaker Review
             </div>
-            <h2 className="mt-2 text-xl font-semibold text-slate-900">说话人识别审查</h2>
+            <h2 className="mt-2 text-xl font-semibold text-slate-900">说话人核对</h2>
             <div className="mt-1 text-sm text-slate-500">
-              先修正 speaker attribution，再从 Task B 重跑，避免错误说话人污染音色克隆。
+              确认每一段话是谁说的。归属错误会污染后续音色克隆，审查通过后请从 Task B 重跑。
             </div>
+            <FlowProgress />
           </div>
           <button
             type="button"
@@ -166,9 +170,26 @@ export function SpeakerReviewDrawer({
           )}
 
           {applyMutation.isSuccess && (
-            <Notice icon={Check} tone="emerald">
-              已输出 `segments.zh.speaker-corrected.json`，后续请从 Task B 重跑。
-            </Notice>
+            <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3.5">
+              <Check size={16} className="mt-0.5 shrink-0 text-emerald-600" />
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-emerald-800">修正已应用</div>
+                <div className="mt-0.5 text-sm text-emerald-700">
+                  已输出 <code className="rounded bg-emerald-100 px-1 py-0.5 font-mono text-xs">segments.zh.speaker-corrected.json</code>，
+                  建议立即从 Task B 重跑以使变更生效。
+                </div>
+                {onRerunFromTaskB && (
+                  <button
+                    type="button"
+                    onClick={onRerunFromTaskB}
+                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
+                  >
+                    <RotateCcw size={13} />
+                    立即从 Task B 重跑
+                  </button>
+                )}
+              </div>
+            </div>
           )}
 
           {applyMutation.isError && (
@@ -785,4 +806,37 @@ function decisionLabel(value: string): string {
     default:
       return value
   }
+}
+
+function FlowProgress() {
+  const steps: Array<{ label: string; state: 'done' | 'current' | 'todo' }> = [
+    { label: 'Task A', state: 'done' },
+    { label: '说话人核对', state: 'current' },
+    { label: 'Task B/C/D', state: 'todo' },
+    { label: '专业配音编辑台', state: 'todo' },
+    { label: '导出成品', state: 'todo' },
+  ]
+  return (
+    <div data-testid="speaker-review-flow-progress" className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
+      {steps.map((step, idx) => (
+        <span key={step.label} className="flex items-center gap-1.5">
+          <span
+            className={
+              'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium ' +
+              (step.state === 'done'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : step.state === 'current'
+                ? 'border-blue-200 bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                : 'border-slate-200 bg-slate-50 text-slate-400')
+            }
+          >
+            {step.state === 'done' && <Check size={10} />}
+            {step.state === 'current' && <span className="text-[10px]">●</span>}
+            {step.label}
+          </span>
+          {idx < steps.length - 1 && <span className="text-slate-300">›</span>}
+        </span>
+      ))}
+    </div>
+  )
 }
