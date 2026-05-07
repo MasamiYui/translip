@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react'
+import react from '@vitejs/plugin-react-swc'
 import tailwindcss from '@tailwindcss/vite'
 
 // https://vite.dev/config/
@@ -16,6 +16,11 @@ export default defineConfig({
         target: 'http://127.0.0.1:8765',
         changeOrigin: true,
       },
+    },
+  },
+  optimizeDeps: {
+    esbuildOptions: {
+      sourcemap: 'linked',
     },
   },
 })
