@@ -39,6 +39,23 @@ vi.mock('../../api/config', () => ({
     ),
     probe: vi.fn(),
   },
+  cacheApi: {
+    getBreakdown: vi.fn(() =>
+      Promise.resolve({
+        cache_dir: '/tmp/cache',
+        huggingface_hub_dir: '/tmp/hf',
+        total_bytes: 0,
+        items: [],
+      }),
+    ),
+    setDir: vi.fn(),
+    resetDefault: vi.fn(),
+    removeItem: vi.fn(),
+    cleanup: vi.fn(),
+    startMigrate: vi.fn(),
+    pollMigrate: vi.fn(),
+    cancelMigrate: vi.fn(),
+  },
 }))
 
 vi.mock('../../api/atomic-tools', () => ({

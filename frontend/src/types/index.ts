@@ -243,6 +243,60 @@ export interface SystemInfo {
   models: Array<{ name: string; status: 'available' | 'missing' }>
 }
 
+export type CacheGroupKind = 'model' | 'hub' | 'pipeline' | 'temp'
+
+export interface CacheBreakdownItem {
+  key: string
+  label: string
+  group: CacheGroupKind
+  bytes: number
+  paths: string[]
+  removable: boolean
+  present: boolean
+}
+
+export interface CacheBreakdown {
+  cache_dir: string
+  huggingface_hub_dir: string
+  total_bytes: number
+  items: CacheBreakdownItem[]
+}
+
+export type CacheMigrateState = 'pending' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+
+export interface CacheMigrateProgress {
+  total_bytes: number
+  copied_bytes: number
+  current_file: string | null
+  speed_bps: number
+}
+
+export interface CacheMigrateTask {
+  task_id: string
+  status: CacheMigrateState
+  state: CacheMigrateState
+  src: string
+  dst: string
+  mode: 'move' | 'copy'
+  switch_after: boolean
+  progress: CacheMigrateProgress
+  error: string | null
+  started_at: number | null
+  finished_at: number | null
+}
+
+export interface CacheCleanupDetail {
+  key: string
+  freed_bytes: number
+  error?: string
+}
+
+export interface CacheCleanupResult {
+  ok: boolean
+  freed_bytes: number
+  details: CacheCleanupDetail[]
+}
+
 export interface Artifact {
   path: string
   size_bytes: number

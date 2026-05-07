@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { systemApi } from '../api/config'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
+import { CacheSection } from '../components/settings/CacheSection'
 import { formatBytes } from '../lib/utils'
 import { CheckCircle, XCircle } from 'lucide-react'
 import { useI18n } from '../i18n/useI18n'
@@ -61,6 +62,9 @@ export function SettingsPage() {
             </div>
           </div>
         )}
+
+        {/* Cache management */}
+        <CacheSection />
 
         {/* About */}
         <div className="px-6 py-5">
