@@ -5,9 +5,10 @@ import { useI18n } from '../../i18n/useI18n'
 
 interface HeaderProps {
   workbench?: boolean
+  sidebarOffset?: number
 }
 
-export function Header({ workbench = false }: HeaderProps) {
+export function Header({ workbench = false, sidebarOffset = 220 }: HeaderProps) {
   const { locale, setLocale, t } = useI18n()
   const { data: sysInfo } = useQuery({
     queryKey: ['system-info'],
@@ -21,7 +22,8 @@ export function Header({ workbench = false }: HeaderProps) {
 
   return (
     <header
-      className={`fixed top-0 right-0 left-[220px] ${heightClass} bg-white border-b border-slate-200 flex items-center justify-between px-6 z-30`}
+      style={{ left: sidebarOffset }}
+      className={`fixed top-0 right-0 ${heightClass} bg-white border-b border-slate-200 flex items-center justify-between px-6 z-30 transition-[left] duration-200 ease-out`}
     >
       <div />
       <div className="flex items-center gap-4">

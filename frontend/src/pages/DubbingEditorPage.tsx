@@ -17,6 +17,8 @@ import {
   Maximize2,
   Minimize2,
   MoreHorizontal,
+  PanelLeftClose,
+  PanelLeftOpen,
   Pause,
   Play,
   PenLine,
@@ -158,9 +160,6 @@ function IssueSeverityChart({ project }: { project: DubbingEditorProject }) {
 const TOPBAR_ICON_BTN =
   'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent'
 
-const TOPBAR_TEXT_BTN =
-  'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50'
-
 function EditorTopBar({
   project,
   taskId,
@@ -245,82 +244,29 @@ function EditorTopBar({
 
   return (
     <div className="shrink-0 border-b border-slate-200 bg-white">
-      {/* Row 1 — back link + identity & primary actions */}
-      <div className="flex h-12 items-center justify-between gap-4 px-4">
-        <div className="flex min-w-0 items-center gap-3">
+      {/* Single-row top bar: identity · status · tools · mode/export */}
+      <div className="flex h-12 items-center gap-2 px-3">
+        {/* Identity block */}
+        <div className="flex min-w-0 shrink items-center gap-1.5">
           <Link
             to={`/tasks/${taskId}`}
-            className="flex shrink-0 items-center gap-1.5 text-sm text-slate-400 transition-colors hover:text-slate-600"
+            className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
+            title={t.dubbingEditor.backToTask}
           >
             <ArrowLeft size={14} />
-            {t.dubbingEditor.backToTask}
           </Link>
-          <span className="h-4 w-px shrink-0 bg-slate-200" aria-hidden="true" />
-          <div className="flex min-w-0 items-baseline gap-2">
-            <span
-              className="truncate text-sm font-semibold text-slate-900"
-              title={taskName ?? taskId}
-            >
-              {taskName ?? taskId}
-            </span>
-            <span className="shrink-0 text-xs text-slate-400">{t.dubbingEditor.pageTitle}</span>
-          </div>
+          <span
+            className="min-w-0 flex-1 truncate text-sm font-semibold text-slate-900"
+            title={taskName ?? taskId}
+          >
+            {taskName ?? taskId}
+          </span>
         </div>
 
+        <span className="h-4 w-px shrink-0 bg-slate-200" aria-hidden="true" />
+
+        {/* Status cluster — compact */}
         <div className="flex shrink-0 items-center gap-2">
-          {/* Mode toggle: Edit ↔ Preview */}
-          <div
-            className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1"
-            role="tablist"
-            aria-label={t.dubbingEditor.modeGroupLabel}
-          >
-            <button
-              type="button"
-              data-testid="mode-edit-btn"
-              onClick={() => mode !== 'edit' && onModeToggle()}
-              role="tab"
-              aria-selected={mode === 'edit'}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
-                mode === 'edit'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <PenLine size={12} />
-              {t.dubbingEditor.modeEdit}
-            </button>
-            <button
-              type="button"
-              data-testid="mode-preview-btn"
-              onClick={() => mode !== 'preview' && onModeToggle()}
-              role="tab"
-              aria-selected={mode === 'preview'}
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-medium transition-colors ${
-                mode === 'preview'
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              <Video size={12} />
-              {t.dubbingEditor.modePreview}
-            </button>
-          </div>
-
-          <a
-            href={`/api/tasks/${taskId}/artifacts/${project.artifact_paths?.final_dub ?? ''}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-xs font-medium text-white shadow-[0_8px_20px_-12px_rgba(37,99,235,0.7)] transition-colors hover:bg-blue-700"
-          >
-            <Download size={14} />
-            {t.dubbingEditor.export}
-          </a>
-        </div>
-      </div>
-
-      {/* Row 2 — status & secondary tools */}
-      <div className="flex h-9 items-center justify-between gap-4 border-t border-slate-100 px-4">
-        <div className="flex min-w-0 items-center gap-4">
           <BenchmarkBadge
             status={quality_benchmark?.status ?? 'unknown'}
             score={summary?.quality_score ?? 0}
@@ -332,7 +278,11 @@ function EditorTopBar({
           <IssueSeverityChart project={project} />
         </div>
 
-        <div className="flex shrink-0 items-center gap-1">
+        {/* Spacer */}
+        <div className="flex-1" />
+
+        {/* Tools — icon-only DAW-style toolbar */}
+        <div className="flex shrink-0 items-center gap-0.5">
           {/* Undo / Redo group */}
           <button
             type="button"
@@ -357,41 +307,31 @@ function EditorTopBar({
 
           <span className="mx-1 h-4 w-px bg-slate-200" aria-hidden="true" />
 
-          {/* Primary tool actions kept visible */}
-          <button
-            type="button"
-            data-testid="srt-export-btn"
-            onClick={handleSRTExport}
-            className={TOPBAR_TEXT_BTN}
-            title={t.dubbingEditor.srtExportTooltip}
-          >
-            <Download size={13} />
-            {t.dubbingEditor.srtExport}
-          </button>
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            className={TOPBAR_TEXT_BTN}
-            title={t.dubbingEditor.refreshTooltip}
-          >
-            <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
-            {t.dubbingEditor.refresh}
-          </button>
+          {/* Render-range as primary action (only enabled when a unit is picked) */}
           <button
             type="button"
             onClick={onRenderRange}
             disabled={!selectedUnit}
-            className={TOPBAR_TEXT_BTN}
-            title={t.dubbingEditor.renderRangeTooltip}
+            className={TOPBAR_ICON_BTN}
+            title={`${t.dubbingEditor.renderRange} — ${t.dubbingEditor.renderRangeTooltip}`}
+            aria-label={t.dubbingEditor.renderRange}
           >
-            <Sliders size={13} />
-            {t.dubbingEditor.renderRange}
+            <Sliders size={14} />
           </button>
 
-          <span className="mx-1 h-4 w-px bg-slate-200" aria-hidden="true" />
+          {/* Refresh as icon-only */}
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className={TOPBAR_ICON_BTN}
+            title={t.dubbingEditor.refreshTooltip}
+            aria-label={t.dubbingEditor.refresh}
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+          </button>
 
-          {/* Keyboard shortcuts (kept as discrete button so e2e/popover stay stable) */}
+          {/* Keyboard shortcuts popover */}
           <div className="relative" ref={shortcutsRef}>
             <button
               type="button"
@@ -434,7 +374,7 @@ function EditorTopBar({
             )}
           </div>
 
-          {/* "More" menu — collects rarely used items */}
+          {/* "More" menu — collects SRT export + help/manual */}
           <div className="relative" ref={moreMenuRef}>
             <button
               type="button"
@@ -448,6 +388,16 @@ function EditorTopBar({
             </button>
             {showMore && (
               <div className="absolute right-0 top-9 z-50 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                <button
+                  type="button"
+                  data-testid="srt-export-btn"
+                  onClick={() => { setShowMore(false); handleSRTExport() }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50"
+                  title={t.dubbingEditor.srtExportTooltip}
+                >
+                  <Download size={13} className="text-slate-400" />
+                  {t.dubbingEditor.srtExport}
+                </button>
                 <a
                   href="/manual.html"
                   target="_blank"
@@ -462,6 +412,56 @@ function EditorTopBar({
               </div>
             )}
           </div>
+
+          <span className="mx-1 h-4 w-px bg-slate-200" aria-hidden="true" />
+
+          {/* Mode toggle: Edit ↔ Preview */}
+          <div
+            className="inline-flex items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 p-0.5"
+            role="tablist"
+            aria-label={t.dubbingEditor.modeGroupLabel}
+          >
+            <button
+              type="button"
+              data-testid="mode-edit-btn"
+              onClick={() => mode !== 'edit' && onModeToggle()}
+              role="tab"
+              aria-selected={mode === 'edit'}
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                mode === 'edit'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <PenLine size={11} />
+              {t.dubbingEditor.modeEdit}
+            </button>
+            <button
+              type="button"
+              data-testid="mode-preview-btn"
+              onClick={() => mode !== 'preview' && onModeToggle()}
+              role="tab"
+              aria-selected={mode === 'preview'}
+              className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                mode === 'preview'
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Video size={11} />
+              {t.dubbingEditor.modePreview}
+            </button>
+          </div>
+
+          <a
+            href={`/api/tasks/${taskId}/artifacts/${project.artifact_paths?.final_dub ?? ''}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-1 inline-flex h-7 shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-medium text-white shadow-[0_6px_14px_-8px_rgba(37,99,235,0.6)] transition-colors hover:bg-blue-700"
+          >
+            <Download size={13} />
+            {t.dubbingEditor.export}
+          </a>
         </div>
       </div>
     </div>
@@ -511,7 +511,7 @@ function IssueCard({
       type="button"
       data-testid={`issue-item-${issue.issue_id}`}
       onClick={onClick}
-      className={`w-full rounded-none border-b border-slate-100 px-4 py-3 text-left transition-colors ${
+      className={`w-full rounded-none border-b border-slate-100 px-3 py-2 text-left transition-colors ${
         isSelected
           ? 'bg-blue-50'
           : resolved
@@ -521,12 +521,12 @@ function IssueCard({
     >
       <div className="flex items-start justify-between gap-2">
         <SeverityBadge severity={issue.severity} />
-        <span className="text-[10px] text-slate-400">{formatTimeSec(issue.time_sec)}</span>
+        <span className="text-[10px] tabular-nums text-slate-400">{formatTimeSec(issue.time_sec)}</span>
       </div>
-      <div className="mt-1.5 text-xs font-medium text-slate-900">
+      <div className="mt-1 line-clamp-1 text-xs font-medium text-slate-900">
         {resolved ? <s className="text-slate-400">{issue.title}</s> : issue.title}
       </div>
-      <div className="mt-0.5 text-[10px] text-slate-400">
+      <div className="mt-0.5 line-clamp-1 text-[10px] text-slate-400">
         {typeLabel} · {issue.description}
       </div>
     </button>
@@ -583,71 +583,71 @@ function IssueQueue({
   }, [issues])
 
   return (
-    <div className="flex h-full flex-col border-r border-slate-200 bg-white">
-      {/* Header */}
-      <div className="border-b border-slate-100 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <AlertTriangle size={13} className="text-slate-400" />
-            <span className="text-xs font-semibold text-slate-700">{t.dubbingEditor.issueQueue.title}</span>
-          </div>
-          <span className="text-xs text-slate-400">
-            {t.dubbingEditor.issueQueue.summary(filteredIssues.length, summary?.approved_count ?? 0)}
-          </span>
-        </div>
-
-        {/* Stats row */}
-        <div className="mt-2.5 grid grid-cols-3 gap-2">
-          <div
-            className={`cursor-pointer rounded-md border py-2 text-center transition-colors ${filter === 'P0' ? 'border-rose-300 bg-rose-50' : 'border-slate-200 hover:border-slate-300'}`}
+    <div className="flex h-full flex-col bg-white">
+      {/* Summary + quick-stats inline row */}
+      <div className="flex items-center justify-between border-b border-slate-100 px-3 py-1.5">
+        <span className="truncate text-[10px] text-slate-400">
+          {t.dubbingEditor.issueQueue.summary(filteredIssues.length, summary?.approved_count ?? 0)}
+        </span>
+        <div className="flex shrink-0 items-center gap-2 text-[10px] tabular-nums">
+          <button
+            type="button"
             onClick={() => setFilter(filter === 'P0' ? 'open' : 'P0')}
+            className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors ${filter === 'P0' ? 'bg-rose-50 text-rose-600' : 'text-slate-500 hover:bg-slate-100'}`}
+            title={`P0 ${p0Count}`}
           >
-            <div className="text-sm font-bold text-rose-600">{p0Count}</div>
-            <div className="text-[10px] text-slate-400">P0</div>
-          </div>
-          <div
-            className={`cursor-pointer rounded-md border py-2 text-center transition-colors ${charFilter !== 'all' ? 'border-blue-300 bg-blue-50' : 'border-slate-200 hover:border-slate-300'}`}
+            <span className="font-bold">{p0Count}</span>
+            <span className="text-slate-400">P0</span>
+          </button>
+          <button
+            type="button"
             onClick={() => setCharFilter(charFilter === 'all' ? '' : 'all')}
+            className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 transition-colors ${charFilter !== 'all' ? 'bg-blue-50 text-blue-600' : 'text-slate-500 hover:bg-slate-100'}`}
+            title={`${t.dubbingEditor.issueQueue.character} ${charReview}`}
           >
-            <div className="text-sm font-bold text-slate-700">{charReview}</div>
-            <div className="text-[10px] text-slate-400">{t.dubbingEditor.issueQueue.character}</div>
-          </div>
-          <div className="rounded-md border border-slate-200 py-2 text-center">
-            <div className="text-sm font-bold text-slate-700">{candidateCount}</div>
-            <div className="text-[10px] text-slate-400">{t.dubbingEditor.issueQueue.candidate}</div>
-          </div>
+            <span className="font-bold">{charReview}</span>
+            <span className="text-slate-400">{t.dubbingEditor.issueQueue.character}</span>
+          </button>
+          <span className="inline-flex items-center gap-1 text-slate-500">
+            <span className="font-bold">{candidateCount}</span>
+            <span className="text-slate-400">{t.dubbingEditor.issueQueue.candidate}</span>
+          </span>
         </div>
       </div>
 
       {/* Filters + P2 bulk approve */}
-      <div className="border-b border-slate-100 px-3 py-2">
-        <div className="flex flex-wrap gap-1">
-          {(['all', 'open', 'P0', 'P1', 'P2', 'resolved'] as IssueFilter[]).map(f => (
+      <div className="border-b border-slate-100 px-3 py-1">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex flex-wrap gap-1">
+            {(['all', 'open', 'P0', 'P1', 'P2', 'resolved'] as IssueFilter[]).map(f => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setFilter(f)}
+                className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                  filter === f
+                    ? 'bg-slate-900 text-white'
+                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                }`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
+          {bulkApprovableP2Units.length > 0 && (
             <button
-              key={f}
               type="button"
-              onClick={() => setFilter(f)}
-              className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                filter === f
-                  ? 'bg-slate-900 text-white'
-                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-              }`}
+              data-testid="bulk-approve-btn"
+              onClick={() => onBulkApprove(bulkApprovableP2Units)}
+              className="flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 hover:bg-emerald-50 hover:text-emerald-800"
+              title={t.dubbingEditor.issueQueue.bulkApproveP2(bulkApprovableP2Units.length)}
+              aria-label={t.dubbingEditor.issueQueue.bulkApproveP2(bulkApprovableP2Units.length)}
             >
-              {f}
+              <CheckCheck size={11} />
+              <span className="tabular-nums">{bulkApprovableP2Units.length}</span>
             </button>
-          ))}
+          )}
         </div>
-        {bulkApprovableP2Units.length > 0 && (
-          <button
-            type="button"
-            data-testid="bulk-approve-btn"
-            onClick={() => onBulkApprove(bulkApprovableP2Units)}
-            className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-emerald-600 hover:text-emerald-800"
-          >
-            <CheckCheck size={11} />
-            {t.dubbingEditor.issueQueue.bulkApproveP2(bulkApprovableP2Units.length)}
-          </button>
-        )}
       </div>
 
       {/* Issues list */}
@@ -701,28 +701,31 @@ function CharacterStatusBadge({ status }: { status: string }) {
 
 function CharacterCastSection({ characters }: { characters: DubbingEditorCharacter[] }) {
   const { t } = useI18n()
-  const [expanded, setExpanded] = useState(true)
+  const [expanded, setExpanded] = useState(false)
 
   return (
-    <div className="border-t border-slate-200">
+    <div className="shrink-0 border-t-2 border-slate-100 bg-slate-50/60">
       <button
         type="button"
         onClick={() => setExpanded(e => !e)}
-        className="flex w-full items-center justify-between px-4 py-2.5 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+        className="flex w-full items-center justify-between px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 hover:bg-slate-100/60"
       >
         <div className="flex items-center gap-1.5">
           <User size={11} />
           {t.dubbingEditor.characterCast}
+          <span className="rounded-full bg-slate-200 px-1.5 py-px text-[9px] tabular-nums text-slate-600">
+            {characters.length}
+          </span>
         </div>
         {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
       </button>
       {expanded && (
-        <div className="max-h-48 overflow-y-auto">
+        <div className="max-h-48 overflow-y-auto bg-white">
           {characters.map(char => (
-            <div key={char.character_id} className="flex items-center justify-between px-4 py-2 hover:bg-slate-50">
-              <div>
-                <div className="text-xs font-medium text-slate-800">{char.display_name}</div>
-                <div className="text-[10px] text-slate-400">
+            <div key={char.character_id} className="flex items-center justify-between px-3 py-1.5 hover:bg-slate-50">
+              <div className="min-w-0">
+                <div className="truncate text-xs font-medium text-slate-800">{char.display_name}</div>
+                <div className="truncate text-[10px] text-slate-400">
                   {char.speaker_ids[0]} · {char.pitch_class}
                   {char.pitch_hz && ` · ${char.pitch_hz.toFixed(0)}Hz`}
                 </div>
@@ -884,7 +887,7 @@ function TimelinePane({
   useEffect(() => {
     if (!darkMode || !scrollRef.current) return
     const el = scrollRef.current
-    const trackLabelWidth = 112
+    const trackLabelWidth = 96
     const targetScrollLeft = playheadLeft + trackLabelWidth - el.clientWidth / 2
     el.scrollTo({ left: Math.max(0, targetScrollLeft), behavior: 'smooth' })
   }, [darkMode, playheadLeft])
@@ -894,8 +897,8 @@ function TimelinePane({
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (!scrollRef.current) return
       const rect = scrollRef.current.getBoundingClientRect()
-      // Account for track label width (112px = w-28)
-      const trackLabelWidth = 112
+      // Account for track label width (96px = w-24)
+      const trackLabelWidth = 96
       const clickX = e.clientX - rect.left + scrollRef.current.scrollLeft - trackLabelWidth
       if (clickX < 0) return
       const sec = (clickX / totalWidth) * totalDuration
@@ -949,32 +952,32 @@ function TimelinePane({
             <div
               data-testid="playhead"
               className={`pointer-events-none absolute inset-y-0 z-20 w-px ${darkMode ? 'bg-blue-400' : 'bg-blue-400'}`}
-              style={{ left: `${playheadLeft + 112}px` }}
+              style={{ left: `${playheadLeft + 96}px` }}
             />
           )}
 
           {/* Original Dialogue track */}
           <div className={`flex shrink-0 items-center gap-0 border-b ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
-            <span className={`w-28 shrink-0 px-3 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{t.dubbingEditor.timeline.labels.original}</span>
-            <div className="h-10 flex-1 overflow-hidden">
+            <span className={`w-24 shrink-0 px-2 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{t.dubbingEditor.timeline.labels.original}</span>
+            <div className="h-8 flex-1 overflow-hidden">
               <WaveformBar
                 peaks={originalWaveformQuery.data?.peaks ?? []}
                 pending={originalWaveformQuery.data?.available === false && originalWaveformQuery.data?.pending}
                 color={darkMode ? '#475569' : '#cbd5e1'}
-                height={40}
+                height={32}
               />
             </div>
           </div>
 
           {/* Background track */}
           <div className={`flex shrink-0 items-center border-b ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
-            <span className={`w-28 shrink-0 px-3 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{t.dubbingEditor.timeline.labels.background}</span>
-            <div className="h-8 flex-1 overflow-hidden">
+            <span className={`w-24 shrink-0 px-2 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{t.dubbingEditor.timeline.labels.background}</span>
+            <div className="h-7 flex-1 overflow-hidden">
               <WaveformBar
                 peaks={backgroundWaveformQuery.data?.peaks ?? []}
                 pending={backgroundWaveformQuery.data?.available === false && backgroundWaveformQuery.data?.pending}
                 color={darkMode ? '#1e293b' : '#334155'}
-                height={32}
+                height={28}
               />
             </div>
           </div>
@@ -983,8 +986,8 @@ function TimelinePane({
           <div className={`flex flex-1 flex-col overflow-y-auto border-t ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
             {project.characters.length === 0 ? (
               // Fallback: no characters, show flat unit lane
-              <div className="flex shrink-0 items-center" style={{ height: '36px' }}>
-                <span className={`w-28 shrink-0 px-3 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{t.dubbingEditor.timeline.labels.units}</span>
+              <div className="flex shrink-0 items-center" style={{ height: '28px' }}>
+                <span className={`w-24 shrink-0 px-2 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{t.dubbingEditor.timeline.labels.units}</span>
                 <div className={`relative flex-1 h-full overflow-hidden border-l ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50/50 border-slate-100'}`}>
                   {units.map(unit => {
                     const left = (unit.start / totalDuration) * totalWidth
@@ -998,7 +1001,7 @@ function TimelinePane({
                         onClick={e => { e.stopPropagation(); onSelectUnit(unit) }}
                         style={{ left: `${left}px`, width: `${Math.max(2, width)}px` }}
                         title={`${unit.source_text}\n→ ${unit.target_text}\n[${formatTimeSec(unit.start)} – ${formatTimeSec(unit.end)}]`}
-                        className={`absolute inset-y-1 cursor-pointer rounded border text-[9px] font-medium flex items-center overflow-hidden px-1 transition-opacity ${
+                        className={`absolute inset-y-0.5 cursor-pointer rounded border text-[9px] font-medium flex items-center overflow-hidden px-1 transition-opacity ${
                           isSelected
                             ? 'bg-blue-100 border-blue-400 ring-1 ring-blue-400 text-blue-700'
                             : 'bg-slate-100 border-slate-300 text-slate-600 opacity-80 hover:opacity-100'
@@ -1018,10 +1021,10 @@ function TimelinePane({
                   <div
                     key={char.character_id}
                     className={`flex shrink-0 items-center border-b last:border-b-0 ${darkMode ? 'border-slate-700/60' : 'border-slate-100'}`}
-                    style={{ height: '36px' }}
+                    style={{ height: '28px' }}
                   >
                     {/* Lane label */}
-                    <div className="w-28 shrink-0 flex items-center gap-1.5 px-2">
+                    <div className="w-24 shrink-0 flex items-center gap-1.5 px-2">
                       <span
                         className="inline-block h-2 w-2 rounded-full shrink-0"
                         style={{ backgroundColor: color.dot }}
@@ -1043,7 +1046,7 @@ function TimelinePane({
                             onClick={e => { e.stopPropagation(); onSelectUnit(unit) }}
                             style={{ left: `${left}px`, width: `${Math.max(2, width)}px` }}
                             title={`${unit.source_text}\n→ ${unit.target_text}\n[${formatTimeSec(unit.start)} – ${formatTimeSec(unit.end)}]`}
-                            className={`absolute inset-y-1 cursor-pointer rounded border transition-opacity flex items-center overflow-hidden px-1 ${
+                            className={`absolute inset-y-0.5 cursor-pointer rounded border transition-opacity flex items-center overflow-hidden px-1 ${
                               isSelected
                                 ? `${color.bg} ${color.border} ring-1 ring-offset-0 ring-blue-400 ${color.text}`
                                 : hasIssue
@@ -1120,13 +1123,12 @@ function CurrentLinePane({
 
   if (!selectedUnit) {
     return (
-      <div className="flex h-full flex-col">
-        <div className="border-b border-slate-100 px-5 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.currentLine.title}</div>
-        </div>
-        <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
-          {t.dubbingEditor.currentLine.empty}
-        </div>
+      <div className="flex h-7 items-center gap-2 px-3 text-[10px] text-slate-400">
+        <span className="font-semibold uppercase tracking-widest">
+          {t.dubbingEditor.currentLine.title}
+        </span>
+        <span className="h-2.5 w-px bg-slate-200" aria-hidden="true" />
+        <span>{t.dubbingEditor.currentLine.empty}</span>
       </div>
     )
   }
@@ -1135,89 +1137,119 @@ function CurrentLinePane({
   const char = project.characters.find(c => c.character_id === selectedUnit.character_id)
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col">
       {/* Hidden audio element for Space key playback */}
       <audio ref={clipAudioRef} preload="none" className="hidden" />
 
-      <div className="border-b border-slate-100 px-5 py-3">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.currentLine.title}</div>
-        <div className="mt-1 text-xs text-slate-500">
-          {selectedUnit.unit_id} · {formatTimeSec(selectedUnit.start)} – {formatTimeSec(selectedUnit.end)}
-        </div>
-      </div>
-
-      {/* 2-column body */}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
-        {/* Left: source / target texts */}
-        <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto border-r border-slate-100 px-5 py-4">
-          <div>
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.currentLine.sourceText}</div>
-            <div className="rounded-md bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-800">
-              {selectedUnit.source_text}
-            </div>
+      {/* Single-row strip: identity | source | target | A/B audio */}
+      <div className="flex items-stretch gap-3 px-3 py-2">
+        {/* Identity column */}
+        <div className="flex w-44 shrink-0 flex-col justify-center gap-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+              {t.dubbingEditor.currentLine.title}
+            </span>
           </div>
-          <div>
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.currentLine.dubText}</div>
-            <div className="rounded-md bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-800">
-              {selectedUnit.target_text}
-            </div>
+          <div className="text-[11px] font-medium text-slate-700">
+            {selectedUnit.unit_id}
           </div>
-          <div className="flex flex-wrap items-center gap-1.5">
+          <div className="text-[10px] tabular-nums text-slate-400">
+            {formatTimeSec(selectedUnit.start)} – {formatTimeSec(selectedUnit.end)}
+          </div>
+          <div className="flex flex-wrap items-center gap-1">
             <UnitStatusBadge status={selectedUnit.status} />
-            {char && <span className="text-xs text-slate-500">{char.display_name}</span>}
+            {char && <span className="truncate text-[10px] text-slate-500">{char.display_name}</span>}
             {hasIssue && (
-              <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+              <span className="rounded bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-700">
                 {t.dubbingEditor.currentLine.issueCount(selectedUnit.issue_ids.length)}
               </span>
             )}
           </div>
         </div>
 
-        {/* Right: A/B players + render result */}
-        <div className="flex w-72 shrink-0 flex-col gap-2 overflow-y-auto px-4 py-3">
-          {/* P1: A/B clip comparison */}
-          <div className="rounded-md border border-slate-200 px-3 py-2.5">
-            <div className="mb-2 text-[10px] font-semibold text-slate-500">{t.dubbingEditor.currentLine.abCompare}</div>
-            <div className="mb-1 text-[9px] font-medium uppercase tracking-widest text-slate-400">{t.dubbingEditor.currentLine.originalA}</div>
+        {/* Source / target text columns */}
+        <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
+          <div className="flex min-w-0 flex-col">
+            <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-widest text-slate-400">
+              {t.dubbingEditor.currentLine.sourceText}
+            </div>
+            <div
+              className="min-h-0 flex-1 overflow-y-auto rounded-md bg-slate-50 px-2.5 py-1.5 text-[12px] leading-snug text-slate-800"
+              title={selectedUnit.source_text}
+            >
+              {selectedUnit.source_text}
+            </div>
+          </div>
+          <div className="flex min-w-0 flex-col">
+            <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-widest text-slate-400">
+              {t.dubbingEditor.currentLine.dubText}
+            </div>
+            <div
+              className="min-h-0 flex-1 overflow-y-auto rounded-md bg-slate-50 px-2.5 py-1.5 text-[12px] leading-snug text-slate-800"
+              title={selectedUnit.target_text}
+            >
+              {selectedUnit.target_text}
+            </div>
+          </div>
+        </div>
+
+        {/* A/B audio column */}
+        <div className="flex w-[260px] shrink-0 flex-col gap-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">
+              {t.dubbingEditor.currentLine.abCompare}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 shrink-0 text-[9px] font-bold text-slate-400">A</span>
             {clipPreviewQuery.data?.url ? (
               <audio
                 controls
                 src={clipPreviewQuery.data.url}
-                className="mb-2 h-7 w-full"
+                className="h-7 flex-1"
               />
             ) : (
-              <div className="mb-2 h-7 rounded bg-slate-100 text-center text-[10px] leading-7 text-slate-400">
+              <div className="h-7 flex-1 rounded bg-slate-100 text-center text-[10px] leading-7 text-slate-400">
                 {clipPreviewQuery.isLoading ? t.dubbingEditor.currentLine.loading : t.dubbingEditor.currentLine.empty1}
               </div>
             )}
-            <div className="text-[9px] font-medium uppercase tracking-widest text-slate-400">{t.dubbingEditor.currentLine.dubB}</div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 shrink-0 text-[9px] font-bold text-slate-400">B</span>
             {selectedUnit.current_clip?.audio_artifact_path ? (
               <audio
                 data-testid="clip-audio"
                 controls
                 src={`/api/tasks/${taskId}/artifacts/${selectedUnit.current_clip.audio_artifact_path}`}
-                className="mt-0.5 h-7 w-full"
+                className="h-7 flex-1"
               />
             ) : (
-              <div className="mt-0.5 h-7 rounded bg-slate-100 text-center text-[10px] leading-7 text-slate-400">{t.dubbingEditor.currentLine.empty1}</div>
+              <div className="h-7 flex-1 rounded bg-slate-100 text-center text-[10px] leading-7 text-slate-400">
+                {t.dubbingEditor.currentLine.empty1}
+              </div>
             )}
           </div>
-
-          {/* Range render player */}
-          {renderRangeResult && (
-            <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5">
-              <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-semibold text-blue-700">
-                <AudioLines size={10} />
-                {t.dubbingEditor.currentLine.rangePreview}
-              </div>
-              <div className="mb-1.5 text-[10px] text-blue-500">
-                {formatTimeSec(renderRangeResult.start_sec)} – {formatTimeSec(renderRangeResult.end_sec)}
-              </div>
-              <audio ref={rangeAudioRef} controls src={renderRangeResult.url} className="h-8 w-full" />
-            </div>
-          )}
         </div>
       </div>
+
+      {/* Range render result — appears as a thin secondary strip */}
+      {renderRangeResult && (
+        <div className="flex items-center gap-2 border-t border-slate-100 bg-blue-50/60 px-3 py-1.5">
+          <AudioLines size={11} className="text-blue-600" />
+          <span className="text-[10px] font-semibold text-blue-700">
+            {t.dubbingEditor.currentLine.rangePreview}
+          </span>
+          <span className="text-[10px] tabular-nums text-blue-500">
+            {formatTimeSec(renderRangeResult.start_sec)} – {formatTimeSec(renderRangeResult.end_sec)}
+          </span>
+          <audio
+            ref={rangeAudioRef}
+            controls
+            src={renderRangeResult.url}
+            className="ml-auto h-7 w-[320px]"
+          />
+        </div>
+      )}
     </div>
   )
 }
@@ -1330,7 +1362,7 @@ function SegmentInspector({
   return (
     <div className="space-y-0">
       {/* Segment header */}
-      <div className="flex items-center justify-between px-5 py-3">
+      <div className="flex items-center justify-between px-3 py-2">
         <div>
           <div className="text-xs font-semibold text-slate-800">{unit.unit_id}</div>
           <div className="text-[10px] text-slate-400">
@@ -1341,7 +1373,7 @@ function SegmentInspector({
       </div>
 
       {/* Editable target text */}
-      <div className="border-t border-slate-100 px-5 py-3">
+      <div className="border-t border-slate-100 px-3 py-2">
         <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.dubText}</div>
         <textarea
           value={editingText}
@@ -1367,7 +1399,7 @@ function SegmentInspector({
       </div>
 
       {/* Clip info */}
-      <div className="border-t border-slate-100 px-5 py-3">
+      <div className="border-t border-slate-100 px-3 py-2">
         <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.clip}</div>
         <div className="space-y-1 text-[10px] text-slate-500">
           <div className="flex justify-between">
@@ -1405,7 +1437,7 @@ function SegmentInspector({
       {(qualitySegment || clip.duration) && (
         <div
           data-testid="quality-scores"
-          className="border-t border-slate-100 px-5 py-3"
+          className="border-t border-slate-100 px-3 py-2"
         >
           <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.qualityScores}</div>
           <div className="space-y-1.5">
@@ -1420,7 +1452,7 @@ function SegmentInspector({
       {hasMismatch && (
         <div
           data-testid="voice-mismatch-card"
-          className="border-t border-slate-100 mx-5 my-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5"
+          className="mx-3 my-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
         >
           <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold text-amber-700">
             <AlertTriangle size={11} />
@@ -1447,7 +1479,7 @@ function SegmentInspector({
       )}
 
       {/* Action buttons */}
-      <div className="border-t border-slate-100 px-5 py-3">
+      <div className="border-t border-slate-100 px-3 py-2">
         <div className="flex gap-2">
           <button
             type="button"
@@ -1489,7 +1521,7 @@ function SegmentInspector({
       </div>
 
       {/* Phase 2: Back-translation check */}
-      <div className="border-t border-slate-100 px-5 py-2">
+      <div className="border-t border-slate-100 px-3 py-2">
         <button
           type="button"
           onClick={() => setShowBacktranslate(v => !v)}
@@ -1528,13 +1560,13 @@ function SegmentInspector({
       {/* Phase 2: Candidate Tournament */}
       {unit.candidates.length > 0 && (
         <div className="border-t border-slate-100">
-          <div className="flex items-center justify-between px-5 py-2">
+          <div className="flex items-center justify-between px-3 py-2">
             <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
               <Star size={10} />
               {t.dubbingEditor.inspector.candidatesTitle(unit.candidates.length)}
             </div>
           </div>
-          <div data-testid="candidate-list" className="space-y-1 px-5 pb-3">
+          <div data-testid="candidate-list" className="space-y-1 px-3 pb-2">
             {unit.candidates.map((cand, idx) => (
               <div
                 key={cand.candidate_id}
@@ -1573,7 +1605,7 @@ function SegmentInspector({
               </div>
             ))}
           </div>
-          <div className="px-5 pb-3">
+          <div className="px-3 pb-2">
             <button
               type="button"
               onClick={() => onResynthesize(unit.unit_id)}
@@ -1594,7 +1626,7 @@ function SegmentInspector({
             type="button"
             data-testid="op-history-btn"
             onClick={() => setShowHistory(v => !v)}
-            className="flex w-full items-center justify-between px-5 py-2 text-[10px] font-semibold text-slate-500 hover:bg-slate-50"
+            className="flex w-full items-center justify-between px-3 py-2 text-[10px] font-semibold text-slate-500 hover:bg-slate-50"
           >
             <div className="flex items-center gap-1.5">
               <History size={10} />
@@ -1603,7 +1635,7 @@ function SegmentInspector({
             {showHistory ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
           </button>
           {showHistory && (
-            <div className="space-y-0.5 px-5 pb-3">
+            <div className="space-y-0.5 px-3 pb-2">
               {unitOps.map(op => (
                 <div key={op.op_id} className="flex items-center justify-between text-[10px] text-slate-500">
                   <span className="font-medium text-slate-700">{op.type}</span>
@@ -1687,7 +1719,7 @@ function CharacterInspector({
   const [showVoicePicker, setShowVoicePicker] = useState(false)
 
   return (
-    <div className="px-5 py-3">
+    <div className="px-3 py-2">
       <div className="mb-3 flex items-center gap-2">
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100">
           <User size={14} className="text-slate-500" />
@@ -1812,7 +1844,7 @@ function InspectorPanel({
   if (!selectedUnit) {
     return (
       <div className="flex h-full flex-col">
-        <div className="border-b border-slate-100 px-5 py-3">
+        <div className="border-b border-slate-100 px-3 py-2">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.title}</div>
         </div>
         <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
@@ -1826,14 +1858,14 @@ function InspectorPanel({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <div className="border-b border-slate-100 px-5 py-3">
+      <div className="border-b border-slate-100 px-3 py-2">
         <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.title}</div>
         <div className="mt-0.5 text-xs text-slate-600">{selectedUnit.unit_id}</div>
       </div>
 
       {/* Segment Inspector */}
       <div>
-        <div className="flex items-center gap-1.5 px-5 pt-4 pb-1 text-[10px] font-semibold text-slate-500">
+        <div className="flex items-center gap-1.5 px-3 pt-3 pb-0.5 text-[10px] font-semibold text-slate-500">
           <Settings2 size={11} />
           {t.dubbingEditor.inspector.segment}
         </div>
@@ -1852,7 +1884,7 @@ function InspectorPanel({
       {/* Character Inspector */}
       {char && (
         <div className="border-t border-slate-100">
-          <div className="flex items-center gap-1.5 px-5 pt-4 pb-1 text-[10px] font-semibold text-slate-500">
+          <div className="flex items-center gap-1.5 px-3 pt-3 pb-0.5 text-[10px] font-semibold text-slate-500">
             <User size={11} />
             {t.dubbingEditor.inspector.character}
           </div>
@@ -2152,6 +2184,7 @@ export function DubbingEditorPage() {
   const [opCursor, setOpCursor] = useState<number | null>(null)
   const [playheadSec, setPlayheadSec] = useState(0)
   const [editorMode, setEditorMode] = useState<'edit' | 'preview'>('edit')
+  const [issueQueueOpen, setIssueQueueOpen] = useState(true)
 
   // P0: ref for Space-key audio playback (clips)
   const clipAudioRef = useRef<HTMLAudioElement | null>(null)
@@ -2450,22 +2483,53 @@ export function DubbingEditorPage() {
       )}
 
       {editorMode === 'edit' ? (
-        /* ── Edit Mode: 3-column layout ── */
-        <div className="flex min-h-0 flex-1 overflow-hidden p-4 gap-4 bg-[#F5F7FB]">
-          {/* Left: Issue Queue */}
-          <div className="flex w-[340px] shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <IssueQueue
-              project={project}
-              selectedIssueId={selectedIssueId}
-              onSelectIssue={handleSelectIssue}
-              onBulkApprove={handleBulkApprove}
-            />
-          </div>
+        /* ── Edit Mode: 3-column layout (collapsible left rail · timeline-first center · inspector) ── */
+        <div className="flex min-h-0 flex-1 overflow-hidden bg-white">
+          {/* Left: Issue Queue (collapsible) */}
+          {issueQueueOpen ? (
+            <div className="flex w-[300px] shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white">
+              <div className="flex h-9 shrink-0 items-center justify-between border-b border-slate-100 pl-3 pr-1">
+                <div className="flex items-center gap-1.5">
+                  <AlertTriangle size={12} className="text-slate-400" />
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    {t.dubbingEditor.issueQueue.title}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIssueQueueOpen(false)}
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                  title={t.dubbingEditor.issueQueue.title}
+                >
+                  <PanelLeftClose size={13} />
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <IssueQueue
+                  project={project}
+                  selectedIssueId={selectedIssueId}
+                  onSelectIssue={handleSelectIssue}
+                  onBulkApprove={handleBulkApprove}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex w-9 shrink-0 flex-col items-center border-r border-slate-200 bg-white py-2">
+              <button
+                type="button"
+                onClick={() => setIssueQueueOpen(true)}
+                className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                title={t.dubbingEditor.issueQueue.title}
+              >
+                <PanelLeftOpen size={14} />
+              </button>
+            </div>
+          )}
 
-          {/* Center: Clip Preview + Timeline */}
-          <div className="flex min-w-0 flex-1 flex-col gap-3 overflow-hidden">
-            {/* Current line */}
-            <div className="flex shrink-0 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden" style={{ height: '360px', minHeight: '360px' }}>
+          {/* Center: Current line strip + Timeline */}
+          <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#FAFBFD]">
+            {/* Current line — compact strip, auto height */}
+            <div className="shrink-0 border-b border-slate-200 bg-white">
               <CurrentLinePane
                 project={project}
                 taskId={taskId}
@@ -2475,8 +2539,8 @@ export function DubbingEditorPage() {
               />
             </div>
 
-            {/* Timeline */}
-            <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            {/* Timeline — fills remaining */}
+            <div className="min-h-0 flex-1 overflow-hidden bg-white">
               <TimelinePane
                 project={project}
                 taskId={taskId}
@@ -2489,7 +2553,7 @@ export function DubbingEditorPage() {
           </div>
 
           {/* Right: Inspector */}
-          <div className="flex w-96 shrink-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex w-[340px] shrink-0 flex-col overflow-hidden border-l border-slate-200 bg-white">
             <InspectorPanel
               project={project}
               taskId={taskId}

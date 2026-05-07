@@ -21,6 +21,8 @@ const zhMessages = {
     tools: '原子工具集',
     settings: '全局设置',
     subtitle: 'Pipeline Manager',
+    collapseSidebar: '收起侧边栏',
+    expandSidebar: '展开侧边栏',
   },
   header: {
     ready: '就绪',
@@ -596,6 +598,8 @@ const enMessages: LocaleMessages = {
     tools: 'Atomic Tools',
     settings: 'Settings',
     subtitle: 'Pipeline Manager',
+    collapseSidebar: 'Collapse sidebar',
+    expandSidebar: 'Expand sidebar',
   },
   header: {
     ready: 'Ready',

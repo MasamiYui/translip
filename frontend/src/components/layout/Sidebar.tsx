@@ -11,6 +11,8 @@ import {
   MessageSquareText,
   Mic,
   Music,
+  PanelLeftClose,
+  PanelLeftOpen,
   PlusCircle,
   ScanSearch,
   Settings,
@@ -24,7 +26,12 @@ function normalizePathname(pathname: string) {
   return pathname.replace(/\/+$/, '')
 }
 
-export function Sidebar() {
+interface SidebarProps {
+  collapsed?: boolean
+  onToggle?: () => void
+}
+
+export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
   const { t } = useI18n()
   const { pathname } = useLocation()
   const navigate = useNavigate()
@@ -73,42 +80,69 @@ export function Sidebar() {
   const activeNavClass =
     'bg-white text-blue-700 ring-1 ring-blue-100 shadow-[0_10px_24px_-20px_rgba(37,99,235,0.55)]'
 
+  const asideWidth = collapsed ? 'w-[56px]' : 'w-[220px]'
+
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-full w-[220px] flex-col border-r border-slate-200/80 bg-[#F5F7FB]">
+    <aside
+      className={cn(
+        'fixed left-0 top-0 z-40 flex h-full flex-col border-r border-slate-200/80 bg-[#F5F7FB] transition-[width] duration-200 ease-out',
+        asideWidth,
+      )}
+    >
       {/* Logo area */}
       <div
         data-ui-sidebar-brand=""
-        className="flex h-16 items-center gap-3 border-b border-slate-200/80 px-5"
+        className={cn(
+          'flex h-16 items-center gap-3 border-b border-slate-200/80',
+          collapsed ? 'justify-center px-0' : 'px-5',
+        )}
       >
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-[0_12px_24px_-18px_rgba(37,99,235,0.85)]">
           <Cpu size={16} className="text-white" />
         </div>
-        <div>
-          <div className="text-sm font-semibold leading-tight text-slate-900">Translip</div>
-          <div className="text-xs leading-tight text-slate-500">{t.nav.subtitle}</div>
-        </div>
+        {!collapsed && (
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold leading-tight text-slate-900">
+              Translip
+            </div>
+            <div className="truncate text-xs leading-tight text-slate-500">{t.nav.subtitle}</div>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      <nav
+        className={cn('flex-1 space-y-1 py-4', collapsed ? 'px-2' : 'px-3')}
+      >
         {navItems.map(({ to, label, icon: Icon, isActive }) => (
           <Link
             key={to}
             to={to}
             aria-current={isActive ? 'page' : undefined}
+            title={collapsed ? label : undefined}
+            aria-label={collapsed ? label : undefined}
             className={cn(
-              'flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+              'flex items-center rounded-xl text-sm font-medium transition-colors',
+              collapsed
+                ? 'h-10 w-10 justify-center'
+                : 'gap-3 px-3 py-2.5',
               isActive ? activeNavClass : 'text-slate-600 hover:bg-white hover:text-slate-900',
             )}
           >
             <Icon size={16} />
-            {label}
+            {!collapsed && label}
           </Link>
         ))}
 
         <button
           type="button"
+          title={collapsed ? t.atomicTools.title : undefined}
+          aria-label={collapsed ? t.atomicTools.title : undefined}
           onClick={() => {
+            if (collapsed) {
+              if (!isToolsRoute) navigate('/tools')
+              return
+            }
             if (toolsExpanded) {
               setToolsExpanded(false)
               return
@@ -120,54 +154,79 @@ export function Sidebar() {
             }
           }}
           className={cn(
-            'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors',
+            'flex items-center rounded-xl text-sm font-medium transition-colors',
+            collapsed
+              ? 'h-10 w-10 justify-center'
+              : 'w-full gap-3 px-3 py-2.5',
             isToolsRoute ? activeNavClass : 'text-slate-600 hover:bg-white hover:text-slate-900',
           )}
         >
           <Wrench size={16} />
-          {t.atomicTools.title}
-          <ChevronDown
-            size={14}
-            className={cn('ml-auto transition-transform', toolsExpanded && 'rotate-180')}
-          />
+          {!collapsed && (
+            <>
+              {t.atomicTools.title}
+              <ChevronDown
+                size={14}
+                className={cn('ml-auto transition-transform', toolsExpanded && 'rotate-180')}
+              />
+            </>
+          )}
         </button>
 
-        <div
-          aria-hidden={!toolsExpanded}
-          className={cn(
-            'grid transition-[grid-template-rows,opacity,margin] duration-200 ease-out',
-            toolsExpanded ? 'mt-1 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
-          )}
-        >
-          <div className="overflow-hidden">
-            <div className="ml-4 space-y-1 border-l border-slate-200 pl-3 pb-1">
-              {toolNavItems.map(({ to, label, icon: Icon }) => {
-                const isActive = currentPath === to
-                return (
-                  <Link
-                    key={to}
-                    to={to}
-                    aria-current={isActive ? 'page' : undefined}
-                    className={cn(
-                      'flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors',
-                      isActive
-                        ? 'bg-white text-blue-700 ring-1 ring-blue-100 shadow-sm'
-                        : 'text-slate-500 hover:bg-white hover:text-slate-900',
-                    )}
-                  >
-                    <Icon size={14} />
-                    {label}
-                  </Link>
-                )
-              })}
+        {!collapsed && (
+          <div
+            aria-hidden={!toolsExpanded}
+            className={cn(
+              'grid transition-[grid-template-rows,opacity,margin] duration-200 ease-out',
+              toolsExpanded ? 'mt-1 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+            )}
+          >
+            <div className="overflow-hidden">
+              <div className="ml-4 space-y-1 border-l border-slate-200 pl-3 pb-1">
+                {toolNavItems.map(({ to, label, icon: Icon }) => {
+                  const isActive = currentPath === to
+                  return (
+                    <Link
+                      key={to}
+                      to={to}
+                      aria-current={isActive ? 'page' : undefined}
+                      className={cn(
+                        'flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors',
+                        isActive
+                          ? 'bg-white text-blue-700 ring-1 ring-blue-100 shadow-sm'
+                          : 'text-slate-500 hover:bg-white hover:text-slate-900',
+                      )}
+                    >
+                      <Icon size={14} />
+                      {label}
+                    </Link>
+                  )
+                })}
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-slate-200/80 px-5 py-4">
-        <div className="text-xs text-slate-400">v0.1.0</div>
+      <div
+        className={cn(
+          'flex items-center border-t border-slate-200/80 py-3',
+          collapsed ? 'justify-center px-2' : 'justify-between px-5',
+        )}
+      >
+        {!collapsed && <div className="text-xs text-slate-400">v0.1.0</div>}
+        {onToggle && (
+          <button
+            type="button"
+            onClick={onToggle}
+            title={collapsed ? t.nav.expandSidebar : t.nav.collapseSidebar}
+            aria-label={collapsed ? t.nav.expandSidebar : t.nav.collapseSidebar}
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white hover:text-slate-700"
+          >
+            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+          </button>
+        )}
       </div>
     </aside>
   )
