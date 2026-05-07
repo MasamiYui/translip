@@ -619,20 +619,30 @@ function IssueQueue({
       <div className="border-b border-slate-100 px-3 py-1">
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-wrap gap-1">
-            {(['all', 'open', 'P0', 'P1', 'P2', 'resolved'] as IssueFilter[]).map(f => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => setFilter(f)}
-                className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
-                  filter === f
-                    ? 'bg-slate-900 text-white'
-                    : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-                }`}
-              >
-                {f}
-              </button>
-            ))}
+            {(['all', 'open', 'P0', 'P1', 'P2', 'resolved'] as IssueFilter[]).map(f => {
+              const label =
+                f === 'all'
+                  ? t.dubbingEditor.issueQueue.filters.all
+                  : f === 'open'
+                    ? t.dubbingEditor.issueQueue.filters.open
+                    : f === 'resolved'
+                      ? t.dubbingEditor.issueQueue.filters.resolved
+                      : f
+              return (
+                <button
+                  key={f}
+                  type="button"
+                  onClick={() => setFilter(f)}
+                  className={`rounded-full px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                    filter === f
+                      ? 'bg-slate-900 text-white'
+                      : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
           </div>
           {bulkApprovableP2Units.length > 0 && (
             <button

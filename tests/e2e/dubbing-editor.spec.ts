@@ -29,13 +29,13 @@ test('dubbing editor loads and shows key regions', async ({ page }) => {
   await expect(page.getByText(/专业配音编辑台/).first()).toBeVisible()
 
   // Issue Queue panel
-  await expect(page.getByText('Issue Queue').first()).toBeVisible()
+  await expect(page.getByText('问题队列').first()).toBeVisible()
 
   // Timeline header
   await expect(page.locator('[data-testid="timeline-header"]')).toBeVisible()
 
   // Inspector panel
-  await expect(page.getByText('Inspector').first()).toBeVisible()
+  await expect(page.getByText('检视面板').first()).toBeVisible()
 })
 
 // ---------------------------------------------------------------------------
@@ -99,7 +99,7 @@ test('background track is present in timeline', async ({ page }) => {
   await gotoEditor(page)
 
   // The "Background" label should be present in the timeline
-  const bgLabel = page.getByText('Background').first()
+  const bgLabel = page.getByText('背景音').first()
   await expect(bgLabel).toBeVisible()
   await page.screenshot({ path: path.join(SCREENSHOTS_DIR, '05-background-track.png') })
 })
@@ -125,7 +125,7 @@ test('clicking an issue selects the corresponding unit', async ({ page }) => {
   await page.waitForTimeout(300)
 
   // Inspector should now show a unit_id
-  const inspector = page.getByText('Inspector').first()
+  const inspector = page.getByText('检视面板').first()
   await expect(inspector).toBeVisible()
   await page.screenshot({ path: path.join(SCREENSHOTS_DIR, '06-issue-selected.png'), fullPage: true })
 })
@@ -493,8 +493,8 @@ test('edit mode is active by default with 3-column layout', async ({ page }) => 
   await gotoEditor(page)
 
   // Edit mode: Issue Queue + Inspector should be visible
-  await expect(page.getByText('Issue Queue').first()).toBeVisible()
-  await expect(page.getByText('Inspector').first()).toBeVisible()
+  await expect(page.getByText('问题队列').first()).toBeVisible()
+  await expect(page.getByText('检视面板').first()).toBeVisible()
   await expect(page.locator('[data-testid="timeline-header"]')).toBeVisible()
 
   // Edit button should appear active (has bg-white class indicating selected)
@@ -516,10 +516,10 @@ test('switching to preview mode shows video player and hides side panels', async
   await page.waitForTimeout(300)
 
   // Issue Queue should be gone
-  await expect(page.getByText('Issue Queue').first()).not.toBeVisible()
+  await expect(page.getByText('问题队列').first()).not.toBeVisible()
 
   // Inspector should be gone
-  await expect(page.getByText('Inspector').first()).not.toBeVisible()
+  await expect(page.getByText('检视面板').first()).not.toBeVisible()
 
   // Preview mode shows a video element
   await expect(page.locator('video')).toBeVisible()
@@ -566,8 +566,8 @@ test('can switch back from preview to edit mode', async ({ page }) => {
   await page.waitForTimeout(300)
 
   // Edit layout should restore
-  await expect(page.getByText('Issue Queue').first()).toBeVisible()
-  await expect(page.getByText('Inspector').first()).toBeVisible()
+  await expect(page.getByText('问题队列').first()).toBeVisible()
+  await expect(page.getByText('检视面板').first()).toBeVisible()
   await expect(page.locator('video')).not.toBeVisible()
 
   await page.screenshot({ path: path.join(SCREENSHOTS_DIR, '26-back-to-edit.png') })
