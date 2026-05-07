@@ -37,6 +37,8 @@ import {
 } from 'lucide-react'
 import { dubbingEditorApi } from '../api/dubbing-editor'
 import { tasksApi } from '../api/tasks'
+import { useI18n } from '../i18n/useI18n'
+import type { LocaleMessages } from '../i18n/messages'
 import type {
   BacktranslateResult,
   DubbingEditorCharacter,
@@ -68,18 +70,19 @@ function formatScore(score: number): string {
 // ---------------------------------------------------------------------------
 
 function BenchmarkBadge({ status, score }: { status: string; score: number }) {
+  const { t } = useI18n()
   const config: Record<string, { label: string; cls: string }> = {
-    approved: { label: 'Approved', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+    approved: { label: t.dubbingEditor.benchmark.approved, cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
     deliverable_candidate: {
-      label: 'Deliverable',
+      label: t.dubbingEditor.benchmark.deliverable,
       cls: 'bg-blue-50 text-blue-700 border-blue-200',
     },
     review_required: {
-      label: 'Review Required',
+      label: t.dubbingEditor.benchmark.reviewRequired,
       cls: 'bg-amber-50 text-amber-700 border-amber-200',
     },
-    blocked: { label: 'Blocked', cls: 'bg-rose-50 text-rose-700 border-rose-200' },
-    unknown: { label: 'Unknown', cls: 'bg-slate-50 text-slate-500 border-slate-200' },
+    blocked: { label: t.dubbingEditor.benchmark.blocked, cls: 'bg-rose-50 text-rose-700 border-rose-200' },
+    unknown: { label: t.dubbingEditor.benchmark.unknown, cls: 'bg-slate-50 text-slate-500 border-slate-200' },
   }
   const cfg = config[status] ?? config['unknown']
   return (
@@ -97,13 +100,14 @@ function BenchmarkBadge({ status, score }: { status: string; score: number }) {
 // ---------------------------------------------------------------------------
 
 function ProgressBar({ approved, total }: { approved: number; total: number }) {
+  const { t } = useI18n()
   const pct = total > 0 ? (approved / total) * 100 : 0
   const colorCls = pct >= 80 ? 'bg-emerald-500' : pct >= 40 ? 'bg-blue-500' : 'bg-amber-500'
   return (
     <div
       className="flex items-center gap-2"
       data-testid="progress-bar"
-      title={`已批准 ${approved} / ${total}`}
+      title={t.dubbingEditor.approvedTooltip(approved, total)}
     >
       <div className="h-1.5 w-28 overflow-hidden rounded-full bg-slate-200">
         <div
@@ -184,6 +188,7 @@ function EditorTopBar({
   mode: 'edit' | 'preview'
   onModeToggle: () => void
 }) {
+  const { t } = useI18n()
   const { summary, quality_benchmark } = project
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showMore, setShowMore] = useState(false)
@@ -248,7 +253,7 @@ function EditorTopBar({
             className="flex shrink-0 items-center gap-1.5 text-sm text-slate-400 transition-colors hover:text-slate-600"
           >
             <ArrowLeft size={14} />
-            返回任务详情
+            {t.dubbingEditor.backToTask}
           </Link>
           <span className="h-4 w-px shrink-0 bg-slate-200" aria-hidden="true" />
           <div className="flex min-w-0 items-baseline gap-2">
@@ -258,7 +263,7 @@ function EditorTopBar({
             >
               {taskName ?? taskId}
             </span>
-            <span className="shrink-0 text-xs text-slate-400">配音编辑台</span>
+            <span className="shrink-0 text-xs text-slate-400">{t.dubbingEditor.pageTitle}</span>
           </div>
         </div>
 
@@ -267,7 +272,7 @@ function EditorTopBar({
           <div
             className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1"
             role="tablist"
-            aria-label="编辑器模式"
+            aria-label={t.dubbingEditor.modeGroupLabel}
           >
             <button
               type="button"
@@ -282,7 +287,7 @@ function EditorTopBar({
               }`}
             >
               <PenLine size={12} />
-              编辑
+              {t.dubbingEditor.modeEdit}
             </button>
             <button
               type="button"
@@ -297,7 +302,7 @@ function EditorTopBar({
               }`}
             >
               <Video size={12} />
-              预览
+              {t.dubbingEditor.modePreview}
             </button>
           </div>
 
@@ -308,7 +313,7 @@ function EditorTopBar({
             className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-xs font-medium text-white shadow-[0_8px_20px_-12px_rgba(37,99,235,0.7)] transition-colors hover:bg-blue-700"
           >
             <Download size={14} />
-            Export
+            {t.dubbingEditor.export}
           </a>
         </div>
       </div>
@@ -335,7 +340,7 @@ function EditorTopBar({
             onClick={onUndo}
             disabled={!canUndo}
             className={TOPBAR_ICON_BTN}
-            title="撤销 (Ctrl+Z)"
+            title={t.dubbingEditor.undoTooltip}
           >
             <Undo2 size={14} />
           </button>
@@ -345,7 +350,7 @@ function EditorTopBar({
             onClick={onRedo}
             disabled={!canRedo}
             className={TOPBAR_ICON_BTN}
-            title="重做 (Ctrl+Y)"
+            title={t.dubbingEditor.redoTooltip}
           >
             <Redo2 size={14} />
           </button>
@@ -358,30 +363,30 @@ function EditorTopBar({
             data-testid="srt-export-btn"
             onClick={handleSRTExport}
             className={TOPBAR_TEXT_BTN}
-            title="导出SRT字幕"
+            title={t.dubbingEditor.srtExportTooltip}
           >
             <Download size={13} />
-            SRT
+            {t.dubbingEditor.srtExport}
           </button>
           <button
             type="button"
             onClick={onRefresh}
             disabled={isRefreshing}
             className={TOPBAR_TEXT_BTN}
-            title="刷新数据"
+            title={t.dubbingEditor.refreshTooltip}
           >
             <RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />
-            刷新
+            {t.dubbingEditor.refresh}
           </button>
           <button
             type="button"
             onClick={onRenderRange}
             disabled={!selectedUnit}
             className={TOPBAR_TEXT_BTN}
-            title="渲染选中片段附近的一段预览"
+            title={t.dubbingEditor.renderRangeTooltip}
           >
             <Sliders size={13} />
-            Render Range
+            {t.dubbingEditor.renderRange}
           </button>
 
           <span className="mx-1 h-4 w-px bg-slate-200" aria-hidden="true" />
@@ -393,7 +398,7 @@ function EditorTopBar({
               data-testid="keyboard-shortcuts-btn"
               onClick={() => setShowShortcuts(v => !v)}
               className={TOPBAR_ICON_BTN}
-              title="键盘快捷键"
+              title={t.dubbingEditor.shortcutsTooltip}
               aria-haspopup="true"
               aria-expanded={showShortcuts}
             >
@@ -405,18 +410,18 @@ function EditorTopBar({
                 className="absolute right-0 top-9 z-50 w-60 rounded-xl border border-slate-200 bg-white p-3 shadow-lg"
               >
                 <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-                  键盘快捷键
+                  {t.dubbingEditor.shortcutsTitle}
                 </div>
                 {[
-                  ['↓ / J', '下一条问题'],
-                  ['↑ / K', '上一条问题'],
-                  ['Space', '播放/暂停配音片段'],
-                  ['A', '批准当前片段'],
-                  ['F', '标记需复核'],
-                  ['R', 'Render Range'],
-                  ['Ctrl+Z', '撤销'],
-                  ['Ctrl+Y', '重做'],
-                  ['Esc', '取消选择'],
+                  ['↓ / J', t.dubbingEditor.shortcutDescriptions.nextIssue],
+                  ['↑ / K', t.dubbingEditor.shortcutDescriptions.prevIssue],
+                  ['Space', t.dubbingEditor.shortcutDescriptions.togglePlay],
+                  ['A', t.dubbingEditor.shortcutDescriptions.approve],
+                  ['F', t.dubbingEditor.shortcutDescriptions.needsReview],
+                  ['R', t.dubbingEditor.shortcutDescriptions.renderRange],
+                  ['Ctrl+Z', t.dubbingEditor.shortcutDescriptions.undo],
+                  ['Ctrl+Y', t.dubbingEditor.shortcutDescriptions.redo],
+                  ['Esc', t.dubbingEditor.shortcutDescriptions.cancelSelection],
                 ].map(([key, desc]) => (
                   <div key={key} className="flex items-center justify-between py-0.5 text-[11px]">
                     <kbd className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] text-slate-700">
@@ -435,7 +440,7 @@ function EditorTopBar({
               type="button"
               onClick={() => setShowMore(v => !v)}
               className={TOPBAR_ICON_BTN}
-              title="更多"
+              title={t.dubbingEditor.moreTooltip}
               aria-haspopup="true"
               aria-expanded={showMore}
             >
@@ -452,7 +457,7 @@ function EditorTopBar({
                   className="flex items-center gap-2 px-3 py-2 text-xs text-slate-700 hover:bg-slate-50"
                 >
                   <BookOpen size={13} className="text-slate-400" />
-                  使用手册 / 帮助文档
+                  {t.dubbingEditor.helpManual}
                 </a>
               </div>
             )}
@@ -467,15 +472,15 @@ function EditorTopBar({
 // Issue Queue
 // ---------------------------------------------------------------------------
 
-const ISSUE_TYPE_LABELS: Record<string, string> = {
-  voice_gender_mismatch: '音色冲突',
-  silent_with_subtitle: '字幕无声',
-  speaker_similarity_failed: '声纹失败',
-  wrong_character: '人物错误',
-  duration_overrun: '时长超出',
-  overlap_conflict: '时间重叠',
-  translation_untrusted: '文本可信度低',
-  pronunciation_issue: '发音问题',
+const ISSUE_TYPE_LABEL_KEYS: Record<string, keyof LocaleMessages['dubbingEditor']['issueTypes']> = {
+  voice_gender_mismatch: 'voice_gender_mismatch',
+  silent_with_subtitle: 'silent_with_subtitle',
+  speaker_similarity_failed: 'speaker_similarity_failed',
+  wrong_character: 'wrong_character',
+  duration_overrun: 'duration_overrun',
+  overlap_conflict: 'overlap_conflict',
+  translation_untrusted: 'translation_untrusted',
+  pronunciation_issue: 'pronunciation_issue',
 }
 
 function SeverityBadge({ severity }: { severity: string }) {
@@ -497,7 +502,10 @@ function IssueCard({
   isSelected: boolean
   onClick: () => void
 }) {
+  const { t } = useI18n()
   const resolved = issue.status === 'resolved' || issue.status === 'ignored'
+  const typeKey = ISSUE_TYPE_LABEL_KEYS[issue.type]
+  const typeLabel = typeKey ? t.dubbingEditor.issueTypes[typeKey] : issue.type
   return (
     <button
       type="button"
@@ -519,7 +527,7 @@ function IssueCard({
         {resolved ? <s className="text-slate-400">{issue.title}</s> : issue.title}
       </div>
       <div className="mt-0.5 text-[10px] text-slate-400">
-        {ISSUE_TYPE_LABELS[issue.type] ?? issue.type} · {issue.description}
+        {typeLabel} · {issue.description}
       </div>
     </button>
   )
@@ -538,6 +546,7 @@ function IssueQueue({
   onSelectIssue: (issue: DubbingEditorIssue) => void
   onBulkApprove: (unitIds: string[]) => void
 }) {
+  const { t } = useI18n()
   const [filter, setFilter] = useState<IssueFilter>('open')
   const [charFilter, setCharFilter] = useState<string>('all')
 
@@ -580,10 +589,10 @@ function IssueQueue({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <AlertTriangle size={13} className="text-slate-400" />
-            <span className="text-xs font-semibold text-slate-700">Issue Queue</span>
+            <span className="text-xs font-semibold text-slate-700">{t.dubbingEditor.issueQueue.title}</span>
           </div>
           <span className="text-xs text-slate-400">
-            {filteredIssues.length} open · {summary?.approved_count ?? 0} approved
+            {t.dubbingEditor.issueQueue.summary(filteredIssues.length, summary?.approved_count ?? 0)}
           </span>
         </div>
 
@@ -601,11 +610,11 @@ function IssueQueue({
             onClick={() => setCharFilter(charFilter === 'all' ? '' : 'all')}
           >
             <div className="text-sm font-bold text-slate-700">{charReview}</div>
-            <div className="text-[10px] text-slate-400">角色</div>
+            <div className="text-[10px] text-slate-400">{t.dubbingEditor.issueQueue.character}</div>
           </div>
           <div className="rounded-md border border-slate-200 py-2 text-center">
             <div className="text-sm font-bold text-slate-700">{candidateCount}</div>
-            <div className="text-[10px] text-slate-400">候选</div>
+            <div className="text-[10px] text-slate-400">{t.dubbingEditor.issueQueue.candidate}</div>
           </div>
         </div>
       </div>
@@ -636,7 +645,7 @@ function IssueQueue({
             className="mt-1.5 flex items-center gap-1 text-[10px] font-medium text-emerald-600 hover:text-emerald-800"
           >
             <CheckCheck size={11} />
-            批量批准 {bulkApprovableP2Units.length} 条仅P2问题
+            {t.dubbingEditor.issueQueue.bulkApproveP2(bulkApprovableP2Units.length)}
           </button>
         )}
       </div>
@@ -645,7 +654,7 @@ function IssueQueue({
       <div className="min-h-0 flex-1 overflow-y-auto" data-testid="issue-list">
         {filteredIssues.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-slate-400">
-            {filter === 'open' ? '暂无未处理问题' : '无匹配问题'}
+            {filter === 'open' ? t.dubbingEditor.issueQueue.noOpen : t.dubbingEditor.issueQueue.noMatches}
           </div>
         ) : (
           filteredIssues.map(issue => (
@@ -670,26 +679,28 @@ function IssueQueue({
 // ---------------------------------------------------------------------------
 
 function CharacterStatusBadge({ status }: { status: string }) {
+  const { t } = useI18n()
   if (status === 'passed')
     return (
       <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
-        passed
+        {t.dubbingEditor.characterStatus.passed}
       </span>
     )
   if (status === 'blocked')
     return (
       <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 text-[10px] font-medium text-rose-700">
-        blocked
+        {t.dubbingEditor.characterStatus.blocked}
       </span>
     )
   return (
     <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-      review
+      {t.dubbingEditor.characterStatus.review}
     </span>
   )
 }
 
 function CharacterCastSection({ characters }: { characters: DubbingEditorCharacter[] }) {
+  const { t } = useI18n()
   const [expanded, setExpanded] = useState(true)
 
   return (
@@ -701,7 +712,7 @@ function CharacterCastSection({ characters }: { characters: DubbingEditorCharact
       >
         <div className="flex items-center gap-1.5">
           <User size={11} />
-          Character Cast
+          {t.dubbingEditor.characterCast}
         </div>
         {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
       </button>
@@ -749,13 +760,14 @@ function WaveformBar({
   height?: number
   pending?: boolean
 }) {
+  const { t } = useI18n()
   if (pending || !peaks || peaks.length === 0) {
     return (
       <div
         className="flex items-center justify-center rounded bg-slate-900/80 text-[10px] text-slate-500"
         style={{ height }}
       >
-        {pending ? '生成中…' : 'loading…'}
+        {pending ? t.dubbingEditor.waveform.generating : t.dubbingEditor.waveform.loading}
       </div>
     )
   }
@@ -830,6 +842,7 @@ function TimelinePane({
   onSeek: (sec: number) => void
   darkMode?: boolean
 }) {
+  const { t } = useI18n()
   const [zoomIdx, setZoomIdx] = useState(2) // 40px/s default
   const pixelsPerSec = ZOOM_LEVELS[zoomIdx]
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -899,7 +912,7 @@ function TimelinePane({
         className={`flex shrink-0 items-center justify-between border-b px-3 py-1 ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}
       >
         <span className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-slate-500'}`}>
-          {formatTimeSec(totalDuration)} · {units.length} segments
+          {t.dubbingEditor.timeline.summary(formatTimeSec(totalDuration), units.length)}
         </span>
         <div data-testid="zoom-controls" className="flex items-center gap-1">
           <button
@@ -907,7 +920,7 @@ function TimelinePane({
             onClick={() => setZoomIdx(i => Math.max(0, i - 1))}
             disabled={zoomIdx === 0}
             className={`rounded p-0.5 disabled:opacity-30 ${darkMode ? 'text-slate-500 hover:bg-slate-700 hover:text-slate-300' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'}`}
-            title="Zoom out"
+            title={t.dubbingEditor.timeline.zoomOut}
           >
             <ZoomOut size={12} />
           </button>
@@ -917,7 +930,7 @@ function TimelinePane({
             onClick={() => setZoomIdx(i => Math.min(ZOOM_LEVELS.length - 1, i + 1))}
             disabled={zoomIdx === ZOOM_LEVELS.length - 1}
             className={`rounded p-0.5 disabled:opacity-30 ${darkMode ? 'text-slate-500 hover:bg-slate-700 hover:text-slate-300' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700'}`}
-            title="Zoom in"
+            title={t.dubbingEditor.timeline.zoomIn}
           >
             <ZoomIn size={12} />
           </button>
@@ -942,7 +955,7 @@ function TimelinePane({
 
           {/* Original Dialogue track */}
           <div className={`flex shrink-0 items-center gap-0 border-b ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
-            <span className={`w-28 shrink-0 px-3 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Original</span>
+            <span className={`w-28 shrink-0 px-3 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{t.dubbingEditor.timeline.labels.original}</span>
             <div className="h-10 flex-1 overflow-hidden">
               <WaveformBar
                 peaks={originalWaveformQuery.data?.peaks ?? []}
@@ -955,7 +968,7 @@ function TimelinePane({
 
           {/* Background track */}
           <div className={`flex shrink-0 items-center border-b ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
-            <span className={`w-28 shrink-0 px-3 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Background</span>
+            <span className={`w-28 shrink-0 px-3 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{t.dubbingEditor.timeline.labels.background}</span>
             <div className="h-8 flex-1 overflow-hidden">
               <WaveformBar
                 peaks={backgroundWaveformQuery.data?.peaks ?? []}
@@ -971,7 +984,7 @@ function TimelinePane({
             {project.characters.length === 0 ? (
               // Fallback: no characters, show flat unit lane
               <div className="flex shrink-0 items-center" style={{ height: '36px' }}>
-                <span className={`w-28 shrink-0 px-3 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Units</span>
+                <span className={`w-28 shrink-0 px-3 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{t.dubbingEditor.timeline.labels.units}</span>
                 <div className={`relative flex-1 h-full overflow-hidden border-l ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50/50 border-slate-100'}`}>
                   {units.map(unit => {
                     const left = (unit.start / totalDuration) * totalWidth
@@ -1075,6 +1088,7 @@ function CurrentLinePane({
   renderRangeResult: { url: string; start_sec: number; end_sec: number } | null
   clipAudioRef: React.RefObject<HTMLAudioElement | null>
 }) {
+  const { t } = useI18n()
   const rangeAudioRef = useRef<HTMLAudioElement>(null)
 
   // P1: load clip preview via API for A/B comparison
@@ -1108,10 +1122,10 @@ function CurrentLinePane({
     return (
       <div className="flex h-full flex-col">
         <div className="border-b border-slate-100 px-5 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Current Line</div>
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.currentLine.title}</div>
         </div>
         <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
-          从左侧问题队列选择一个片段
+          {t.dubbingEditor.currentLine.empty}
         </div>
       </div>
     )
@@ -1126,7 +1140,7 @@ function CurrentLinePane({
       <audio ref={clipAudioRef} preload="none" className="hidden" />
 
       <div className="border-b border-slate-100 px-5 py-3">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Current Line</div>
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.currentLine.title}</div>
         <div className="mt-1 text-xs text-slate-500">
           {selectedUnit.unit_id} · {formatTimeSec(selectedUnit.start)} – {formatTimeSec(selectedUnit.end)}
         </div>
@@ -1137,13 +1151,13 @@ function CurrentLinePane({
         {/* Left: source / target texts */}
         <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto border-r border-slate-100 px-5 py-4">
           <div>
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">源文</div>
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.currentLine.sourceText}</div>
             <div className="rounded-md bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-800">
               {selectedUnit.source_text}
             </div>
           </div>
           <div>
-            <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">配音稿</div>
+            <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.currentLine.dubText}</div>
             <div className="rounded-md bg-slate-50 px-3 py-2 text-sm leading-relaxed text-slate-800">
               {selectedUnit.target_text}
             </div>
@@ -1153,7 +1167,7 @@ function CurrentLinePane({
             {char && <span className="text-xs text-slate-500">{char.display_name}</span>}
             {hasIssue && (
               <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
-                {selectedUnit.issue_ids.length} issues
+                {t.dubbingEditor.currentLine.issueCount(selectedUnit.issue_ids.length)}
               </span>
             )}
           </div>
@@ -1163,8 +1177,8 @@ function CurrentLinePane({
         <div className="flex w-72 shrink-0 flex-col gap-2 overflow-y-auto px-4 py-3">
           {/* P1: A/B clip comparison */}
           <div className="rounded-md border border-slate-200 px-3 py-2.5">
-            <div className="mb-2 text-[10px] font-semibold text-slate-500">A/B 对比</div>
-            <div className="mb-1 text-[9px] font-medium uppercase tracking-widest text-slate-400">原声(A)</div>
+            <div className="mb-2 text-[10px] font-semibold text-slate-500">{t.dubbingEditor.currentLine.abCompare}</div>
+            <div className="mb-1 text-[9px] font-medium uppercase tracking-widest text-slate-400">{t.dubbingEditor.currentLine.originalA}</div>
             {clipPreviewQuery.data?.url ? (
               <audio
                 controls
@@ -1173,10 +1187,10 @@ function CurrentLinePane({
               />
             ) : (
               <div className="mb-2 h-7 rounded bg-slate-100 text-center text-[10px] leading-7 text-slate-400">
-                {clipPreviewQuery.isLoading ? '加载中…' : '—'}
+                {clipPreviewQuery.isLoading ? t.dubbingEditor.currentLine.loading : t.dubbingEditor.currentLine.empty1}
               </div>
             )}
-            <div className="text-[9px] font-medium uppercase tracking-widest text-slate-400">配音(B)</div>
+            <div className="text-[9px] font-medium uppercase tracking-widest text-slate-400">{t.dubbingEditor.currentLine.dubB}</div>
             {selectedUnit.current_clip?.audio_artifact_path ? (
               <audio
                 data-testid="clip-audio"
@@ -1185,7 +1199,7 @@ function CurrentLinePane({
                 className="mt-0.5 h-7 w-full"
               />
             ) : (
-              <div className="mt-0.5 h-7 rounded bg-slate-100 text-center text-[10px] leading-7 text-slate-400">—</div>
+              <div className="mt-0.5 h-7 rounded bg-slate-100 text-center text-[10px] leading-7 text-slate-400">{t.dubbingEditor.currentLine.empty1}</div>
             )}
           </div>
 
@@ -1194,7 +1208,7 @@ function CurrentLinePane({
             <div className="rounded-md border border-blue-200 bg-blue-50 px-3 py-2.5">
               <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-semibold text-blue-700">
                 <AudioLines size={10} />
-                局部预览
+                {t.dubbingEditor.currentLine.rangePreview}
               </div>
               <div className="mb-1.5 text-[10px] text-blue-500">
                 {formatTimeSec(renderRangeResult.start_sec)} – {formatTimeSec(renderRangeResult.end_sec)}
@@ -1213,15 +1227,16 @@ function CurrentLinePane({
 // ---------------------------------------------------------------------------
 
 function UnitStatusBadge({ status }: { status: string }) {
+  const { t } = useI18n()
   const config: Record<string, { label: string; cls: string }> = {
     approved: {
-      label: 'approved',
+      label: t.dubbingEditor.unitStatus.approved,
       cls: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
     },
-    locked: { label: 'locked', cls: 'bg-blue-50 text-blue-700 border border-blue-200' },
-    needs_review: { label: 'needs_review', cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
-    ignored: { label: 'ignored', cls: 'bg-slate-50 text-slate-400 border border-slate-200' },
-    unreviewed: { label: 'unreviewed', cls: 'bg-slate-50 text-slate-500 border border-slate-200' },
+    locked: { label: t.dubbingEditor.unitStatus.locked, cls: 'bg-blue-50 text-blue-700 border border-blue-200' },
+    needs_review: { label: t.dubbingEditor.unitStatus.needs_review, cls: 'bg-amber-50 text-amber-700 border border-amber-200' },
+    ignored: { label: t.dubbingEditor.unitStatus.ignored, cls: 'bg-slate-50 text-slate-400 border border-slate-200' },
+    unreviewed: { label: t.dubbingEditor.unitStatus.unreviewed, cls: 'bg-slate-50 text-slate-500 border border-slate-200' },
   }
   const cfg = config[status] ?? config['unreviewed']
   return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${cfg.cls}`}>{cfg.label}</span>
@@ -1265,6 +1280,7 @@ function SegmentInspector({
   onResynthesize: (unitId: string) => void
   isSynthesizing: boolean
 }) {
+  const { t } = useI18n()
   const [editingText, setEditingText] = useState(unit.target_text)
   const [isDirty, setIsDirty] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -1326,7 +1342,7 @@ function SegmentInspector({
 
       {/* Editable target text */}
       <div className="border-t border-slate-100 px-5 py-3">
-        <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">配音稿</div>
+        <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.dubText}</div>
         <textarea
           value={editingText}
           onChange={e => {
@@ -1345,30 +1361,30 @@ function SegmentInspector({
             }}
             className="mt-1.5 text-xs font-medium text-blue-600 hover:text-blue-800"
           >
-            保存文案
+            {t.dubbingEditor.inspector.saveText}
           </button>
         )}
       </div>
 
       {/* Clip info */}
       <div className="border-t border-slate-100 px-5 py-3">
-        <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Clip</div>
+        <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.clip}</div>
         <div className="space-y-1 text-[10px] text-slate-500">
           <div className="flex justify-between">
-            <span>状态</span>
+            <span>{t.dubbingEditor.inspector.clipStatus}</span>
             <span className={`font-medium ${clip.mix_status === 'placed' ? 'text-emerald-600' : 'text-amber-600'}`}>
               {clip.mix_status || 'unknown'}
             </span>
           </div>
           {clip.duration && (
             <div className="flex justify-between">
-              <span>时长</span>
+              <span>{t.dubbingEditor.inspector.clipDuration}</span>
               <span className="text-slate-700">{clip.duration.toFixed(2)}s</span>
             </div>
           )}
           {clip.fit_strategy && (
             <div className="flex justify-between">
-              <span>Fit 策略</span>
+              <span>{t.dubbingEditor.inspector.clipFitStrategy}</span>
               <span className="text-slate-700">{clip.fit_strategy}</span>
             </div>
           )}
@@ -1391,11 +1407,11 @@ function SegmentInspector({
           data-testid="quality-scores"
           className="border-t border-slate-100 px-5 py-3"
         >
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">质量评分</div>
+          <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.qualityScores}</div>
           <div className="space-y-1.5">
-            <ScoreBar label="声纹相似度" value={qualitySegment?.speaker_similarity ?? 0.75} />
-            <ScoreBar label="时长比例" value={Math.min(1, qualitySegment?.duration_ratio ?? 1)} />
-            <ScoreBar label="可懂度" value={qualitySegment?.intelligibility ?? 0.8} />
+            <ScoreBar label={t.dubbingEditor.inspector.speakerSimilarity} value={qualitySegment?.speaker_similarity ?? 0.75} />
+            <ScoreBar label={t.dubbingEditor.inspector.durationRatio} value={Math.min(1, qualitySegment?.duration_ratio ?? 1)} />
+            <ScoreBar label={t.dubbingEditor.inspector.intelligibility} value={qualitySegment?.intelligibility ?? 0.8} />
           </div>
         </div>
       )}
@@ -1408,7 +1424,7 @@ function SegmentInspector({
         >
           <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold text-amber-700">
             <AlertTriangle size={11} />
-            音色不匹配
+            {t.dubbingEditor.inspector.voiceMismatchTitle}
           </div>
           <div className="flex gap-1.5">
             <button
@@ -1417,14 +1433,14 @@ function SegmentInspector({
               disabled={isSynthesizing}
               className="flex-1 rounded bg-amber-100 px-2 py-1 text-[10px] font-medium text-amber-800 hover:bg-amber-200 disabled:opacity-50"
             >
-              参考重合成
+              {t.dubbingEditor.inspector.voiceMismatchResynth}
             </button>
             <button
               type="button"
               onClick={() => onApprove(unit.unit_id)}
               className="flex-1 rounded bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-200"
             >
-              标记豁免
+              {t.dubbingEditor.inspector.voiceMismatchExempt}
             </button>
           </div>
         </div>
@@ -1440,7 +1456,7 @@ function SegmentInspector({
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
           >
             <Check size={12} />
-            标记已修
+            {t.dubbingEditor.inspector.approve}
             <kbd className="ml-1 rounded bg-emerald-700/60 px-1 text-[9px]">A</kbd>
           </button>
           <button
@@ -1450,7 +1466,7 @@ function SegmentInspector({
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
           >
             <AlertTriangle size={12} />
-            仍需复核
+            {t.dubbingEditor.inspector.needsReview}
             <kbd className="ml-1 rounded bg-amber-200/60 px-1 text-[9px]">F</kbd>
           </button>
         </div>
@@ -1468,7 +1484,7 @@ function SegmentInspector({
           ) : (
             <RotateCcw size={12} />
           )}
-          重新合成
+          {t.dubbingEditor.inspector.resynthesize}
         </button>
       </div>
 
@@ -1480,7 +1496,7 @@ function SegmentInspector({
           className="flex items-center gap-1.5 text-[10px] font-medium text-slate-500 hover:text-slate-700"
         >
           <AudioLines size={10} />
-          ASR 回译校验
+          {t.dubbingEditor.inspector.backtranslateTitle}
           {showBacktranslate ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
         </button>
         {showBacktranslate && (
@@ -1488,20 +1504,20 @@ function SegmentInspector({
             {backtranslateQuery.isLoading ? (
               <div className="flex items-center gap-1.5 text-[10px] text-slate-400">
                 <Loader2 size={10} className="animate-spin" />
-                识别中…
+                {t.dubbingEditor.inspector.backtranslateLoading}
               </div>
             ) : backtranslateQuery.data ? (
               <>
                 <div className="text-[10px] text-slate-500">
-                  <span className="font-medium text-slate-700">听到：</span>{' '}
+                  <span className="font-medium text-slate-700">{t.dubbingEditor.inspector.backtranslateHeard}</span>{' '}
                   {backtranslateQuery.data.heard_text}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] text-slate-500">匹配度</span>
+                  <span className="text-[10px] text-slate-500">{t.dubbingEditor.inspector.backtranslateMatch}</span>
                   <ScoreBar label="" value={backtranslateQuery.data.match_score} />
                 </div>
                 {!backtranslateQuery.data.asr_available && (
-                  <div className="text-[9px] text-slate-400">（ASR未安装，显示期望文本）</div>
+                  <div className="text-[9px] text-slate-400">{t.dubbingEditor.inspector.backtranslateAsrUnavailable}</div>
                 )}
               </>
             ) : null}
@@ -1515,7 +1531,7 @@ function SegmentInspector({
           <div className="flex items-center justify-between px-5 py-2">
             <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
               <Star size={10} />
-              候选版本 ({unit.candidates.length})
+              {t.dubbingEditor.inspector.candidatesTitle(unit.candidates.length)}
             </div>
           </div>
           <div data-testid="candidate-list" className="space-y-1 px-5 pb-3">
@@ -1549,7 +1565,7 @@ function SegmentInspector({
                       audio.play().catch(() => {})
                     }}
                     className="ml-auto rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                    title="播放此候选"
+                    title={t.dubbingEditor.inspector.candidatePlay}
                   >
                     <Play size={10} />
                   </button>
@@ -1565,7 +1581,7 @@ function SegmentInspector({
               className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-200 py-1.5 text-[10px] font-medium text-slate-500 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
             >
               <RotateCcw size={10} />
-              生成更多候选
+              {t.dubbingEditor.inspector.generateMoreCandidates}
             </button>
           </div>
         </div>
@@ -1582,7 +1598,7 @@ function SegmentInspector({
           >
             <div className="flex items-center gap-1.5">
               <History size={10} />
-              操作历史 ({unitOps.length})
+              {t.dubbingEditor.inspector.operationHistory(unitOps.length)}
             </div>
             {showHistory ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
           </button>
@@ -1615,24 +1631,25 @@ function VoicePickerModal({
   onClose: () => void
   onAssign: (voicePath: string) => void
 }) {
+  const { t } = useI18n()
   const [inputPath, setInputPath] = useState(character.default_voice?.reference_path ?? '')
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="w-96 rounded-xl border border-slate-200 bg-white p-5 shadow-xl">
         <div className="mb-4 flex items-center justify-between">
-          <div className="text-sm font-semibold text-slate-800">更换声音参考</div>
+          <div className="text-sm font-semibold text-slate-800">{t.dubbingEditor.voicePicker.title}</div>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <X size={14} />
           </button>
         </div>
-        <div className="mb-3 text-[11px] text-slate-500">角色: {character.display_name}</div>
-        <label className="mb-1 block text-[10px] font-medium text-slate-500">声音参考路径</label>
+        <div className="mb-3 text-[11px] text-slate-500">{t.dubbingEditor.voicePicker.characterLabel(character.display_name)}</div>
+        <label className="mb-1 block text-[10px] font-medium text-slate-500">{t.dubbingEditor.voicePicker.pathLabel}</label>
         <input
           type="text"
           value={inputPath}
           onChange={e => setInputPath(e.target.value)}
-          placeholder="e.g. voices/speaker_a.wav"
+          placeholder={t.dubbingEditor.voicePicker.pathPlaceholder}
           className="mb-3 w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-200"
         />
         <div className="flex gap-2">
@@ -1641,7 +1658,7 @@ function VoicePickerModal({
             onClick={onClose}
             className="flex-1 rounded-lg border border-slate-200 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
-            取消
+            {t.dubbingEditor.voicePicker.cancel}
           </button>
           <button
             type="button"
@@ -1649,7 +1666,7 @@ function VoicePickerModal({
             disabled={!inputPath.trim()}
             className="flex-1 rounded-lg bg-blue-600 py-2 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            确认更换
+            {t.dubbingEditor.voicePicker.confirm}
           </button>
         </div>
       </div>
@@ -1666,6 +1683,7 @@ function CharacterInspector({
   taskId: string
   onAssignVoice: (characterId: string, voicePath: string) => void
 }) {
+  const { t } = useI18n()
   const [showVoicePicker, setShowVoicePicker] = useState(false)
 
   return (
@@ -1682,24 +1700,24 @@ function CharacterInspector({
 
       <div className="space-y-2 text-[11px] text-slate-600">
         <div className="flex justify-between">
-          <span className="text-slate-400">Pitch</span>
+          <span className="text-slate-400">{t.dubbingEditor.inspector.pitch}</span>
           <span>
             {character.pitch_class}
             {character.pitch_hz && ` · ${character.pitch_hz.toFixed(1)}Hz`}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-400">Voice lock</span>
+          <span className="text-slate-400">{t.dubbingEditor.inspector.voiceLock}</span>
           <span className={character.voice_lock ? 'text-emerald-600' : 'text-slate-500'}>
-            {character.voice_lock ? 'Locked' : 'Unlocked'}
+            {character.voice_lock ? t.dubbingEditor.inspector.voiceLockOn : t.dubbingEditor.inspector.voiceLockOff}
           </span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-400">Segments</span>
+          <span className="text-slate-400">{t.dubbingEditor.inspector.segments}</span>
           <span>{character.stats.segment_count}</span>
         </div>
         <div className="flex justify-between">
-          <span className="text-slate-400">Speaker failed</span>
+          <span className="text-slate-400">{t.dubbingEditor.inspector.speakerFailed}</span>
           <span
             className={
               character.stats.speaker_failed_ratio > 0.15 ? 'font-medium text-amber-600' : 'text-slate-600'
@@ -1713,7 +1731,7 @@ function CharacterInspector({
       {/* Phase 2: Voice sample preview + swap */}
       <div className="mt-3 rounded-md border border-slate-100 px-3 py-2">
         <div className="mb-1.5 flex items-center justify-between">
-          <span className="text-[10px] font-semibold text-slate-500">声音参考</span>
+          <span className="text-[10px] font-semibold text-slate-500">{t.dubbingEditor.inspector.voiceReference}</span>
           <button
             type="button"
             data-testid="voice-swap-btn"
@@ -1721,7 +1739,7 @@ function CharacterInspector({
             className="flex items-center gap-1 rounded px-2 py-0.5 text-[10px] font-medium text-blue-600 hover:bg-blue-50"
           >
             <Volume2 size={9} />
-            更换
+            {t.dubbingEditor.inspector.voiceSwap}
           </button>
         </div>
         {character.default_voice?.reference_path ? (
@@ -1736,14 +1754,14 @@ function CharacterInspector({
             data-testid="voice-preview-player"
             className="h-7 rounded bg-slate-50 text-center text-[10px] leading-7 text-slate-400"
           >
-            未设置参考音频
+            {t.dubbingEditor.inspector.voiceReferenceMissing}
           </div>
         )}
       </div>
 
       {character.risk_flags.length > 0 && (
         <div className="mt-3">
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">Risk Flags</div>
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.riskFlags}</div>
           <div className="flex flex-wrap gap-1">
             {character.risk_flags.map(flag => (
               <span key={flag} className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] text-amber-700">
@@ -1790,14 +1808,15 @@ function InspectorPanel({
   onAssignVoice: (characterId: string, voicePath: string) => void
   isSynthesizing: boolean
 }) {
+  const { t } = useI18n()
   if (!selectedUnit) {
     return (
       <div className="flex h-full flex-col">
         <div className="border-b border-slate-100 px-5 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Inspector</div>
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.title}</div>
         </div>
         <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
-          选择片段查看详情
+          {t.dubbingEditor.inspector.empty}
         </div>
       </div>
     )
@@ -1808,7 +1827,7 @@ function InspectorPanel({
   return (
     <div className="flex h-full flex-col overflow-y-auto">
       <div className="border-b border-slate-100 px-5 py-3">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Inspector</div>
+        <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.title}</div>
         <div className="mt-0.5 text-xs text-slate-600">{selectedUnit.unit_id}</div>
       </div>
 
@@ -1816,7 +1835,7 @@ function InspectorPanel({
       <div>
         <div className="flex items-center gap-1.5 px-5 pt-4 pb-1 text-[10px] font-semibold text-slate-500">
           <Settings2 size={11} />
-          Segment Inspector
+          {t.dubbingEditor.inspector.segment}
         </div>
         <SegmentInspector
           unit={selectedUnit}
@@ -1835,7 +1854,7 @@ function InspectorPanel({
         <div className="border-t border-slate-100">
           <div className="flex items-center gap-1.5 px-5 pt-4 pb-1 text-[10px] font-semibold text-slate-500">
             <User size={11} />
-            Character
+            {t.dubbingEditor.inspector.character}
           </div>
           <CharacterInspector
             character={char}
@@ -1867,6 +1886,7 @@ function PreviewPane({
   onSelectUnit: (unit: DubbingEditorUnit) => void
   selectedUnit: DubbingEditorUnit | null
 }) {
+  const { t } = useI18n()
   const videoRef = useRef<HTMLVideoElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
@@ -2033,7 +2053,7 @@ function PreviewPane({
               type="button"
               onClick={togglePlay}
               className="flex h-8 w-8 items-center justify-center rounded-full text-slate-700 hover:bg-slate-100 transition-colors"
-              title={isPlaying ? '暂停 (Space)' : '播放 (Space)'}
+              title={isPlaying ? t.dubbingEditor.preview.pause : t.dubbingEditor.preview.play}
             >
               {isPlaying ? <Pause size={16} /> : <Play size={16} />}
             </button>
@@ -2043,7 +2063,7 @@ function PreviewPane({
               type="button"
               onClick={toggleMute}
               className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-              title={isMuted ? '取消静音' : '静音'}
+              title={isMuted ? t.dubbingEditor.preview.unmute : t.dubbingEditor.preview.mute}
             >
               {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
             </button>
@@ -2066,7 +2086,7 @@ function PreviewPane({
                   audioTrack === 'original' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                原声
+                {t.dubbingEditor.preview.original}
               </button>
               <button
                 type="button"
@@ -2075,7 +2095,7 @@ function PreviewPane({
                   audioTrack === 'dub' ? 'bg-blue-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
-                配音
+                {t.dubbingEditor.preview.dub}
               </button>
             </div>
 
@@ -2084,7 +2104,7 @@ function PreviewPane({
               type="button"
               onClick={toggleFullscreen}
               className="flex h-7 w-7 items-center justify-center rounded text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
-              title="全屏"
+              title={t.dubbingEditor.preview.fullscreen}
             >
               {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
             </button>
@@ -2115,6 +2135,7 @@ function PreviewPane({
 // ---------------------------------------------------------------------------
 
 export function DubbingEditorPage() {
+  const { t } = useI18n()
   const { id: taskId } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
 
@@ -2378,7 +2399,7 @@ export function DubbingEditorPage() {
       <div className="flex h-full items-center justify-center bg-[#F5F7FB]">
         <div className="flex items-center gap-3 text-sm text-slate-500">
           <Loader2 size={16} className="animate-spin" />
-          正在加载配音编辑台…
+          {t.dubbingEditor.loading}
         </div>
       </div>
     )
@@ -2388,13 +2409,13 @@ export function DubbingEditorPage() {
     return (
       <div className="flex h-full items-center justify-center bg-[#F5F7FB]">
         <div className="text-center">
-          <div className="text-sm text-slate-500">加载失败，请重试</div>
+          <div className="text-sm text-slate-500">{t.dubbingEditor.loadFailed}</div>
           <button
             type="button"
             onClick={handleRefresh}
             className="mt-3 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
           >
-            重新加载
+            {t.dubbingEditor.reload}
           </button>
         </div>
       </div>
@@ -2424,7 +2445,7 @@ export function DubbingEditorPage() {
       {/* Undo mode indicator */}
       {opCursor !== null && (
         <div className="shrink-0 bg-amber-50 px-4 py-1 text-[10px] font-medium text-amber-700 border-b border-amber-200">
-          查看历史版本 · 操作 {opCursor} / {effectiveTotalOps} — 点击重做恢复最新版本
+          {t.dubbingEditor.undoModeBanner(opCursor, effectiveTotalOps)}
         </div>
       )}
 
