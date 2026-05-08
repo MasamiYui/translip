@@ -30,6 +30,15 @@ class FakeBackend:
         ]
 
 
+class CapturingBackend(FakeBackend):
+    def __init__(self) -> None:
+        self.source_lang: str | None = None
+
+    def translate_batch(self, *, items, source_lang, target_lang):
+        self.source_lang = source_lang
+        return super().translate_batch(items=items, source_lang=source_lang, target_lang=target_lang)
+
+
 class FakeCondenseBackend(FakeBackend):
     supports_condensation = True
 
@@ -274,6 +283,48 @@ def test_translate_script_writes_expected_artifacts(tmp_path: Path) -> None:
     assert payload["segments"][0]["glossary_matches"][0]["entry_id"] == "dubai"
     assert editable["units"][0]["segments"][0]["segment_id"] == "seg-0001"
     assert manifest["status"] == "succeeded"
+
+
+def test_translate_script_auto_detects_japanese_source_language(tmp_path: Path) -> None:
+    segments_path = tmp_path / "segments.auto.json"
+    segments_path.write_text(
+        json.dumps(
+            _make_segments_payload([
+                {
+                    "id": "seg-0001",
+                    "start": 0.0,
+                    "end": 1.0,
+                    "duration": 1.0,
+                    "speaker_label": "SPEAKER_00",
+                    "text": "こんにちは。今日は京都に行きます。",
+                    "language": "auto",
+                }
+            ]),
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    profiles_path = tmp_path / "speaker_profiles.json"
+    profiles_path.write_text(
+        json.dumps(_make_profiles_payload([("SPEAKER_00", "spk_0000")]), ensure_ascii=False),
+        encoding="utf-8",
+    )
+    backend = CapturingBackend()
+
+    result = translate_script(
+        TranslationRequest(
+            segments_path=segments_path,
+            profiles_path=profiles_path,
+            output_dir=tmp_path / "output",
+            source_lang="auto",
+            target_lang="en",
+        ),
+        backend_override=backend,
+    )
+
+    payload = json.loads(result.artifacts.translation_json_path.read_text(encoding="utf-8"))
+    assert backend.source_lang == "ja"
+    assert payload["backend"]["source_lang"] == "ja"
 
 
 def _make_segments_payload(segments: list[dict]) -> dict:
