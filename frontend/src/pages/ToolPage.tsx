@@ -1,4 +1,4 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useState, type Dispatch, type SetStateAction } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
@@ -9,15 +9,26 @@ import { ToolProgressBar } from '../components/atomic-tools/ToolProgressBar'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { useAtomicTool } from '../hooks/useAtomicTool'
 import { useI18n } from '../i18n/useI18n'
-import { readAtomicToolPrefill } from '../lib/atomicToolPrefill'
+import type { Locale, LocaleMessages } from '../i18n/messages'
+import { readAtomicToolPrefill, type AtomicToolPrefill } from '../lib/atomicToolPrefill'
 import type { FileUploadResponse } from '../types/atomic-tools'
 
 type FileRefMap = Record<string, FileUploadResponse | null>
+type SelectOption = string | { value: string; label: string }
+
+const TRANSCRIPTION_LANGUAGE_CODES = ['auto', 'zh', 'en', 'ja'] as const
 
 export function ToolPage() {
   const { toolId = 'probe' } = useParams()
-  const { locale, t } = useI18n()
   const [searchParams] = useSearchParams()
+  const prefillParam = searchParams.get('prefill') ?? ''
+
+  return <ToolPageContent key={`${toolId}:${prefillParam}`} toolId={toolId} prefillParam={prefillParam} />
+}
+
+function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillParam: string }) {
+  const { locale, t, getLanguageLabel } = useI18n()
+  const prefill = readAtomicToolPrefill(prefillParam)
   const { data: tools = [] } = useQuery({
     queryKey: ['atomic-tools'],
     queryFn: atomicToolsApi.listTools,
@@ -27,45 +38,10 @@ export function ToolPage() {
   const { uploadFile, job, artifacts, runTool, isRunning, getDownloadUrl, errorMessage, reset } =
     useAtomicTool({ toolId })
 
-  const [fileRefs, setFileRefs] = useState<FileRefMap>({})
+  const [fileRefs, setFileRefs] = useState<FileRefMap>(() => buildInitialFileRefs(prefill))
   const [translationInputMode, setTranslationInputMode] = useState<'text' | 'file'>('text')
-  const [textInput, setTextInput] = useState('')
+  const [textInput, setTextInput] = useState(() => prefill?.text ?? '')
   const [params, setParams] = useState<Record<string, string | number | boolean>>(getDefaultParams(toolId))
-
-  useEffect(() => {
-    setFileRefs({})
-    setTextInput('')
-    setTranslationInputMode('text')
-    setParams(getDefaultParams(toolId))
-    reset()
-  }, [toolId])
-
-  useEffect(() => {
-    const prefill = readAtomicToolPrefill(searchParams.get('prefill'))
-    if (!prefill) return
-
-    if (prefill.text) {
-      setTextInput(prefill.text)
-      if (toolId === 'translation' || toolId === 'tts') {
-        setTranslationInputMode('text')
-      }
-    }
-
-    if (prefill.files) {
-      setFileRefs(prev => {
-        const next = { ...prev }
-        for (const [key, value] of Object.entries(prefill.files ?? {})) {
-          next[key] = {
-            file_id: value.file_id,
-            filename: value.filename,
-            size_bytes: 0,
-            content_type: 'application/octet-stream',
-          }
-        }
-        return next
-      })
-    }
-  }, [searchParams, toolId])
 
   if (!tool) {
     return (
@@ -79,6 +55,9 @@ export function ToolPage() {
 
   const title = locale === 'zh-CN' ? tool.name_zh : tool.name_en
   const description = locale === 'zh-CN' ? tool.description_zh : tool.description_en
+  const uploadGridClass = toolId === 'mixing' || toolId === 'muxing'
+    ? 'grid gap-4 md:grid-cols-2'
+    : 'grid gap-4'
 
   async function handleFileSelected(slot: string, file: File) {
     const uploaded = await uploadFile(file)
@@ -88,6 +67,14 @@ export function ToolPage() {
   async function handleRun() {
     const payload = buildRunPayload(toolId, params, fileRefs, textInput, translationInputMode)
     await runTool(payload)
+  }
+
+  function handleReset() {
+    setFileRefs({})
+    setTextInput('')
+    setTranslationInputMode('text')
+    setParams(getDefaultParams(toolId))
+    reset()
   }
 
   return (
@@ -103,7 +90,7 @@ export function ToolPage() {
         </div>
         <button
           type="button"
-          onClick={reset}
+          onClick={handleReset}
           className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600"
         >
           <RefreshCw size={16} />
@@ -113,11 +100,11 @@ export function ToolPage() {
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <section className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className={uploadGridClass}>
             {renderUploadZones(toolId, fileRefs, handleFileSelected, t.atomicTools.uploadHints)}
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-5">
+          <div className="rounded-xl border border-slate-200 bg-white p-5">
             {renderControls(
               toolId,
               params,
@@ -127,6 +114,8 @@ export function ToolPage() {
               translationInputMode,
               setTranslationInputMode,
               t.atomicTools,
+              getLanguageLabel,
+              locale,
             )}
           </div>
 
@@ -234,6 +223,21 @@ function renderUploadZones(
   )
 }
 
+function buildInitialFileRefs(prefill: AtomicToolPrefill | null): FileRefMap {
+  const next: FileRefMap = {}
+
+  for (const [key, value] of Object.entries(prefill?.files ?? {})) {
+    next[key] = {
+      file_id: value.file_id,
+      filename: value.filename,
+      size_bytes: 0,
+      content_type: 'application/octet-stream',
+    }
+  }
+
+  return next
+}
+
 function renderControls(
   toolId: string,
   params: Record<string, string | number | boolean>,
@@ -242,11 +246,22 @@ function renderControls(
   setTextInput: Dispatch<SetStateAction<string>>,
   translationInputMode: 'text' | 'file',
   setTranslationInputMode: Dispatch<SetStateAction<'text' | 'file'>>,
-  atomicTools: any,
+  atomicTools: LocaleMessages['atomicTools'],
+  getLanguageLabel: (code: string) => string,
+  locale: Locale,
 ) {
   const setField = (key: string, value: string | number | boolean) => {
     setParams(prev => ({ ...prev, [key]: value }))
   }
+  const transcriptionLanguageOptions = TRANSCRIPTION_LANGUAGE_CODES.map(code => ({
+    value: code,
+    label:
+      code === 'auto'
+        ? locale === 'zh-CN'
+          ? '自动检测 (auto)'
+          : 'Auto Detect (auto)'
+        : `${getLanguageLabel(code)} (${code})`,
+  }))
 
   if (toolId === 'separation') {
     return (
@@ -271,7 +286,7 @@ function renderControls(
   if (toolId === 'transcription') {
     return (
       <div className="grid gap-4 md:grid-cols-2">
-        <TextField label={atomicTools.fields.language} value={String(params.language)} onChange={value => setField('language', value)} />
+        <SelectField label={atomicTools.fields.language} value={String(params.language)} options={transcriptionLanguageOptions} onChange={value => setField('language', value)} />
         <SelectField label={atomicTools.fields.asrModel} value={String(params.asr_model)} options={['tiny', 'base', 'small', 'medium', 'large-v3']} onChange={value => setField('asr_model', value)} />
         <CheckboxField label={atomicTools.fields.enableDiarization} checked={Boolean(params.enable_diarization)} onChange={value => setField('enable_diarization', value)} />
         <CheckboxField label={atomicTools.fields.generateSrt} checked={Boolean(params.generate_srt)} onChange={value => setField('generate_srt', value)} />
@@ -399,7 +414,7 @@ function SelectField({
 }: {
   label: string
   value: string
-  options: string[]
+  options: SelectOption[]
   onChange: (value: string) => void
 }) {
   return (
@@ -407,8 +422,8 @@ function SelectField({
       <span className="font-medium text-slate-700">{label}</span>
       <select value={value} onChange={event => onChange(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
         {options.map(option => (
-          <option key={option} value={option}>
-            {option}
+          <option key={typeof option === 'string' ? option : option.value} value={typeof option === 'string' ? option : option.value}>
+            {typeof option === 'string' ? option : option.label}
           </option>
         ))}
       </select>
