@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   AudioLines,
+  Captions,
   ChevronDown,
   Clapperboard,
   Cpu,
+  Eraser,
   Languages,
   LayoutDashboard,
   ListChecks,
@@ -15,11 +18,32 @@ import {
   PanelLeftOpen,
   PlusCircle,
   ScanSearch,
+  ScanText,
   Settings,
   Wrench,
+  type LucideIcon,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useI18n } from '../../i18n/useI18n'
+import { atomicToolsApi } from '../../api/atomic-tools'
+import type { ToolInfo } from '../../types/atomic-tools'
+
+const TOOL_ICON_MAP: Record<string, LucideIcon> = {
+  AudioLines,
+  Captions,
+  Clapperboard,
+  Eraser,
+  Languages,
+  MessageSquareText,
+  Mic,
+  Music,
+  ScanSearch,
+  ScanText,
+}
+
+function resolveToolIcon(name: string): LucideIcon {
+  return TOOL_ICON_MAP[name] ?? Wrench
+}
 
 function normalizePathname(pathname: string) {
   if (pathname === '/') return pathname
@@ -32,7 +56,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const currentPath = normalizePathname(pathname)
@@ -69,15 +93,18 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
     isActive: currentPath === '/settings',
   }
 
-  const toolNavItems = [
-    { to: '/tools/separation', label: t.atomicTools.tools.separation, icon: AudioLines },
-    { to: '/tools/mixing', label: t.atomicTools.tools.mixing, icon: Music },
-    { to: '/tools/transcription', label: t.atomicTools.tools.transcription, icon: MessageSquareText },
-    { to: '/tools/translation', label: t.atomicTools.tools.translation, icon: Languages },
-    { to: '/tools/tts', label: t.atomicTools.tools.tts, icon: Mic },
-    { to: '/tools/probe', label: t.atomicTools.tools.probe, icon: ScanSearch },
-    { to: '/tools/muxing', label: t.atomicTools.tools.muxing, icon: Clapperboard },
-  ]
+  const toolLabels = t.atomicTools.tools as Record<string, string | undefined>
+  const { data: tools } = useQuery({
+    queryKey: ['atomic-tools'],
+    queryFn: atomicToolsApi.listTools,
+    staleTime: 30_000,
+  })
+
+  const toolNavItems = (tools ?? []).map((tool: ToolInfo) => ({
+    to: `/tools/${tool.tool_id}`,
+    label: toolLabels[tool.tool_id] ?? (locale === 'zh-CN' ? tool.name_zh : tool.name_en),
+    icon: resolveToolIcon(tool.icon),
+  }))
 
   const asideWidth = collapsed ? 'w-[60px]' : 'w-[220px]'
 
