@@ -7,6 +7,7 @@ import {
   FolderOpen,
   HardDrive,
   Loader2,
+  MoreHorizontal,
   RefreshCw,
   RotateCcw,
   Trash2,
@@ -26,6 +27,12 @@ import type {
 } from '../../types'
 
 const GROUP_ORDER: CacheGroupKind[] = ['model', 'hub', 'pipeline', 'temp']
+const CACHE_MENU_ITEM =
+  'flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-700 transition-colors hover:bg-slate-50'
+
+interface CacheSectionProps {
+  cacheSize: string
+}
 
 interface BackendError {
   detail?: { code?: string; message?: string } | string
@@ -50,14 +57,16 @@ function pickErrorMessage(err: unknown): string | undefined {
   return (err as Error)?.message
 }
 
-export function CacheSection() {
+export function CacheSection({ cacheSize }: CacheSectionProps) {
   const { t } = useI18n()
   const queryClient = useQueryClient()
   const [showDetails, setShowDetails] = useState(false)
+  const [showActionsMenu, setShowActionsMenu] = useState(false)
   const [dialog, setDialog] = useState<null | 'change' | 'migrate' | 'cleanup'>(null)
   const [pipelineCleanupItem, setPipelineCleanupItem] = useState<CacheBreakdownItem | null>(null)
   const [activeMigration, setActiveMigration] = useState<CacheMigrateTask | null>(null)
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
+  const actionsMenuRef = useRef<HTMLDivElement>(null)
 
   const needsBreakdown = showDetails || dialog === 'cleanup'
   const breakdownQuery = useQuery({
@@ -196,84 +205,143 @@ export function CacheSection() {
     return () => window.clearTimeout(timer)
   }, [toast])
 
+  useEffect(() => {
+    const onDocClick = (event: MouseEvent) => {
+      if (actionsMenuRef.current && !actionsMenuRef.current.contains(event.target as Node)) {
+        setShowActionsMenu(false)
+      }
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowActionsMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', onDocClick)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [])
+
   const breakdown = breakdownQuery.data
   const grouped = useMemo(() => groupItems(breakdown?.items ?? []), [breakdown])
 
   return (
-    <div className="border-b border-slate-100 px-6 py-5">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-          {t.settings.cache.sectionTitle}
-        </h2>
-        <div className="flex flex-wrap items-center gap-2">
+    <div className="py-2.5" data-testid="cache-size-row">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 gap-4">
+          <span className="w-24 shrink-0 text-slate-400">{t.settings.fields.cacheSize}</span>
+          <span className="text-slate-700">{cacheSize}</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end" aria-label={t.settings.cache.sectionTitle}>
           <button
             type="button"
             onClick={() => setShowDetails(s => !s)}
             data-testid="cache-toggle-details"
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+            title={showDetails ? t.settings.cache.hideDetails : t.settings.cache.viewDetails}
+            aria-label={showDetails ? t.settings.cache.hideDetails : t.settings.cache.viewDetails}
+            className={`inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-md border px-2.5 py-1 text-xs font-medium transition-colors ${
+              showDetails
+                ? 'border-slate-300 bg-slate-100 text-slate-800'
+                : 'border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+            }`}
           >
             {showDetails ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-            {showDetails ? t.settings.cache.hideDetails : t.settings.cache.viewDetails}
-          </button>
-          <button
-            type="button"
-            onClick={() => setDialog('change')}
-            data-testid="cache-change-dir"
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
-          >
-            <FolderOpen size={12} />
-            {t.settings.cache.changeDir}
-          </button>
-          <button
-            type="button"
-            onClick={() => setDialog('migrate')}
-            data-testid="cache-migrate"
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
-          >
-            <HardDrive size={12} />
-            {t.settings.cache.migrate}
+            <span className="hidden sm:inline">{showDetails ? t.settings.cache.hideDetails : t.settings.cache.viewDetails}</span>
           </button>
           <button
             type="button"
             onClick={() => setDialog('cleanup')}
             data-testid="cache-cleanup"
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+            title={t.settings.cache.cleanupAll}
+            aria-label={t.settings.cache.cleanupAll}
+            className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-md border border-rose-200 px-2.5 py-1 text-xs font-medium text-rose-600 transition-colors hover:border-rose-300 hover:bg-rose-50"
           >
             <Trash2 size={12} />
-            {t.settings.cache.cleanupAll}
+            <span className="hidden sm:inline">{t.settings.cache.cleanupAll}</span>
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm(t.settings.cache.resetConfirm)) {
-                resetMutation.mutate()
-              }
-            }}
-            data-testid="cache-reset-default"
-            className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs text-slate-500 hover:bg-slate-50"
-          >
-            <RotateCcw size={12} />
-            {t.settings.cache.resetDefault}
-          </button>
+          <div className="relative" ref={actionsMenuRef}>
+            <button
+              type="button"
+              onClick={() => setShowActionsMenu(v => !v)}
+              data-testid="cache-more-actions"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-900"
+              title={t.settings.cache.moreActions}
+              aria-label={t.settings.cache.moreActions}
+              aria-haspopup="true"
+              aria-expanded={showActionsMenu}
+            >
+              <MoreHorizontal size={14} />
+            </button>
+            {showActionsMenu && (
+              <div
+                data-testid="cache-actions-menu"
+                className="absolute right-0 top-10 z-50 w-52 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+              >
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowActionsMenu(false)
+                    setDialog('change')
+                  }}
+                  data-testid="cache-change-dir"
+                  className={CACHE_MENU_ITEM}
+                >
+                  <FolderOpen size={13} className="text-slate-400" />
+                  {t.settings.cache.changeDir}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowActionsMenu(false)
+                    setDialog('migrate')
+                  }}
+                  data-testid="cache-migrate"
+                  className={CACHE_MENU_ITEM}
+                >
+                  <HardDrive size={13} className="text-slate-400" />
+                  {t.settings.cache.migrate}
+                </button>
+                <div className="my-1 h-px bg-slate-100" />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowActionsMenu(false)
+                    if (window.confirm(t.settings.cache.resetConfirm)) {
+                      resetMutation.mutate()
+                    }
+                  }}
+                  data-testid="cache-reset-default"
+                  className={`${CACHE_MENU_ITEM} text-slate-500`}
+                >
+                  <RotateCcw size={13} className="text-slate-400" />
+                  {t.settings.cache.resetDefault}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {activeMigration && (
-        <MigrationProgressBanner
-          task={activeMigration}
-          onCancel={async () => {
-            try {
-              await cacheApi.cancelMigrate(activeMigration.task_id)
-            } catch {
-              /* swallow */
-            }
-          }}
-          onDismiss={() => setActiveMigration(null)}
-        />
+        <div className="mt-3">
+          <MigrationProgressBanner
+            task={activeMigration}
+            onCancel={async () => {
+              try {
+                await cacheApi.cancelMigrate(activeMigration.task_id)
+              } catch {
+                /* swallow */
+              }
+            }}
+            onDismiss={() => setActiveMigration(null)}
+          />
+        </div>
       )}
 
       {showDetails && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4" data-testid="cache-breakdown">
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50/50 p-4" data-testid="cache-breakdown">
           <div className="mb-3 flex items-center justify-between">
             <div className="text-sm font-medium text-slate-700">{t.settings.cache.breakdownTitle}</div>
             <button

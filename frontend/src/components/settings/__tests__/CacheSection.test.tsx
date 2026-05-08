@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { tasksApi } from '../../../api/tasks'
@@ -86,11 +86,34 @@ function task(id: string, name: string, outputRoot: string, status = 'succeeded'
 }
 
 afterEach(() => {
+  cleanup()
   vi.restoreAllMocks()
   vi.clearAllMocks()
 })
 
 describe('CacheSection pipeline cleanup', () => {
+  it('integrates cache management controls into the cache size row', async () => {
+    render(<CacheSection cacheSize="300 B" />, { wrapper: createWrapper() })
+
+    const row = screen.getByTestId('cache-size-row')
+    expect(row).toHaveTextContent('缓存大小')
+    expect(row).toHaveTextContent('300 B')
+    expect(row).not.toHaveTextContent('缓存管理')
+    expect(screen.getByTestId('cache-toggle-details')).toBeInTheDocument()
+    expect(screen.getByTestId('cache-cleanup')).toBeInTheDocument()
+    expect(screen.getByTestId('cache-more-actions')).toBeInTheDocument()
+    expect(screen.queryByTestId('cache-change-dir')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('cache-migrate')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('cache-reset-default')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('cache-more-actions'))
+
+    expect(await screen.findByTestId('cache-actions-menu')).toBeInTheDocument()
+    expect(screen.getByTestId('cache-change-dir')).toBeInTheDocument()
+    expect(screen.getByTestId('cache-migrate')).toBeInTheDocument()
+    expect(screen.getByTestId('cache-reset-default')).toBeInTheDocument()
+  })
+
   it('opens a task selection dialog for Pipeline Outputs and deletes selected tasks with artifacts', async () => {
     mockBreakdown()
     vi.mocked(tasksApi.list).mockResolvedValue({
@@ -108,7 +131,7 @@ describe('CacheSection pipeline cleanup', () => {
     vi.mocked(cacheApi.removeItem).mockResolvedValue({ ok: true, key: 'pipeline_outputs', freed_bytes: 300 })
     const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
 
-    render(<CacheSection />, { wrapper: createWrapper() })
+    render(<CacheSection cacheSize="300 B" />, { wrapper: createWrapper() })
 
     fireEvent.click(screen.getByTestId('cache-toggle-details'))
     await screen.findByTestId('cache-item-pipeline_outputs')
