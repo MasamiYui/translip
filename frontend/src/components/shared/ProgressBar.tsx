@@ -12,11 +12,11 @@ export function ProgressBar({ value, size = 'md', color, className }: ProgressBa
   const pct = Math.max(0, Math.min(100, value))
 
   return (
-    <div className={cn('w-full bg-slate-100 rounded-full overflow-hidden', heights[size], className)}>
+    <div className={cn('w-full bg-[#f3f4f6] rounded-full overflow-hidden', heights[size], className)}>
       <div
         className={cn(
           'h-full rounded-full transition-all duration-500',
-          color ?? 'bg-blue-500',
+          color ?? 'bg-[#3b5bdb]',
         )}
         style={{ width: `${pct}%` }}
       />

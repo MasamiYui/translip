@@ -79,33 +79,35 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
   }
 
   return (
-    <PageContainer className={`${APP_CONTENT_MAX_WIDTH} space-y-6`}>
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <PageContainer className={`${APP_CONTENT_MAX_WIDTH} space-y-5`}>
+      {/* Page header */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link to="/tools" className="mb-2 inline-flex items-center gap-2 text-sm text-slate-500">
-            <ArrowLeft size={16} />
+          <Link to="/tools" className="mb-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-[#9ca3af] hover:text-[#374151] transition-colors">
+            <ArrowLeft size={13} />
             {t.atomicTools.back}
           </Link>
-          <h1 className="text-3xl font-semibold text-slate-900">{title}</h1>
-          <p className="mt-2 text-sm leading-7 text-slate-600">{description}</p>
+          <h1 className="text-xl font-bold text-[#111827]">{title}</h1>
+          <p className="mt-1 text-sm text-[#6b7280] leading-relaxed max-w-xl">{description}</p>
         </div>
         <button
           type="button"
           onClick={handleReset}
-          className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600"
+          className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-xs font-semibold text-[#6b7280] transition-all hover:bg-[#f9fafb] hover:text-[#374151]"
         >
-          <RefreshCw size={16} />
+          <RefreshCw size={13} />
           {t.atomicTools.actions.reset}
         </button>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-        <section className="space-y-6">
+      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+        {/* Left: inputs + controls */}
+        <section className="space-y-4">
           <div className={uploadGridClass}>
             {renderUploadZones(toolId, fileRefs, handleFileSelected, t.atomicTools.uploadHints)}
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="rounded-xl border border-[#e5e7eb] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,.04)]">
             {renderControls(
               toolId,
               params,
@@ -125,11 +127,11 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
               type="button"
               onClick={() => void handleRun()}
               disabled={isRunning}
-              className="rounded-full bg-blue-600 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-lg bg-[#3b5bdb] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7] hover:shadow-[0_4px_12px_rgba(59,91,219,.3)] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isRunning ? t.atomicTools.actions.running : t.atomicTools.actions.run}
             </button>
-            {errorMessage && <span className="text-sm text-rose-600">{errorMessage}</span>}
+            {errorMessage && <span className="text-sm font-medium text-red-500">{errorMessage}</span>}
           </div>
 
           <ToolProgressBar job={job} />

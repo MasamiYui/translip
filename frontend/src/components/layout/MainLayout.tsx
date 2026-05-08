@@ -5,7 +5,7 @@ import { Header } from './Header'
 
 const SIDEBAR_STORAGE_KEY = 'translip:sidebar-collapsed'
 const SIDEBAR_EXPANDED_WIDTH = 220
-const SIDEBAR_COLLAPSED_WIDTH = 56
+const SIDEBAR_COLLAPSED_WIDTH = 60
 
 function readInitialCollapsed() {
   if (typeof window === 'undefined') return false
@@ -39,7 +39,7 @@ export function MainLayout() {
   const sidebarOffsetStyle = { '--sidebar-offset': `${sidebarWidth}px` } as CSSProperties
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-[#f4f6fa]">
       <div className="hidden md:block">
         <Sidebar collapsed={collapsed} onToggle={toggleSidebar} />
       </div>
@@ -48,8 +48,8 @@ export function MainLayout() {
         style={sidebarOffsetStyle}
         className={
           isWorkbench
-            ? 'ml-0 md:ml-[var(--sidebar-offset)] pt-12 h-screen overflow-hidden bg-[#F5F7FB] transition-[margin-left] duration-200 ease-out'
-            : 'ml-0 md:ml-[var(--sidebar-offset)] pt-16 min-h-screen transition-[margin-left] duration-200 ease-out'
+            ? 'ml-0 md:ml-[var(--sidebar-offset)] pt-12 h-screen overflow-hidden bg-[#f4f6fa] transition-[margin-left] duration-200 ease-out'
+            : 'ml-0 md:ml-[var(--sidebar-offset)] pt-[60px] min-h-screen transition-[margin-left] duration-200 ease-out'
         }
       >
         {isWorkbench ? (
@@ -57,7 +57,7 @@ export function MainLayout() {
             <Outlet />
           </div>
         ) : (
-          <div className="p-4 sm:p-6">
+          <div className="px-6 py-6">
             <Outlet />
           </div>
         )}

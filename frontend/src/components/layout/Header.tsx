@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Monitor, CheckCircle, AlertCircle } from 'lucide-react'
+import { Monitor, Zap, AlertCircle } from 'lucide-react'
 import { systemApi } from '../../api/config'
 import { useI18n } from '../../i18n/useI18n'
 
@@ -18,29 +18,46 @@ export function Header({ workbench = false, sidebarOffset = 220 }: HeaderProps) 
     retry: 1,
   })
 
-  const heightClass = workbench ? 'h-12' : 'h-16'
-  const pillPad = workbench ? 'px-2 py-0.5' : 'px-2.5 py-1'
+  const heightClass = workbench ? 'h-12' : 'h-[60px]'
   const sidebarOffsetStyle = { '--sidebar-offset': `${sidebarOffset}px` } as CSSProperties
 
   return (
     <header
       style={sidebarOffsetStyle}
-      className={`fixed top-0 right-0 left-0 md:left-[var(--sidebar-offset)] ${heightClass} bg-white border-b border-slate-200 flex items-center justify-between px-4 sm:px-6 z-30 transition-[left] duration-200 ease-out`}
+      className={`fixed top-0 right-0 left-0 md:left-[var(--sidebar-offset)] ${heightClass} bg-white/90 backdrop-blur-md border-b border-[#f3f4f6] flex items-center justify-between px-5 z-30 transition-[left] duration-200 ease-out`}
     >
       <div />
-      <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+      <div className="flex items-center gap-3">
+        {sysInfo && (
+          <div className="hidden items-center gap-1.5 text-xs text-[#6b7280] sm:flex">
+            <Monitor size={13} className="text-[#9ca3af]" />
+            <span className="font-medium">{sysInfo.device}</span>
+          </div>
+        )}
+        {sysInfo ? (
+          <div className="hidden items-center gap-1.5 text-xs sm:flex">
+            <Zap size={12} className="text-emerald-500" />
+            <span className="text-[#6b7280] font-medium">{t.header.ready}</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1.5 text-xs text-[#9ca3af]">
+            <AlertCircle size={12} />
+            <span>{t.header.connecting}</span>
+          </div>
+        )}
+
+        {/* Language switcher */}
         <div
-          className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1"
+          className="flex items-center gap-0.5 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-0.5"
           aria-label={t.header.languageSwitcherLabel}
-          title={t.header.languageSwitcherLabel}
         >
           <button
             type="button"
             onClick={() => setLocale('zh-CN')}
-            className={`rounded-lg ${pillPad} text-xs font-medium transition-colors ${
+            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
               locale === 'zh-CN'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
+                ? 'bg-white text-[#111827] shadow-sm'
+                : 'text-[#9ca3af] hover:text-[#374151]'
             }`}
           >
             中文
@@ -48,33 +65,15 @@ export function Header({ workbench = false, sidebarOffset = 220 }: HeaderProps) 
           <button
             type="button"
             onClick={() => setLocale('en-US')}
-            className={`rounded-lg ${pillPad} text-xs font-medium transition-colors ${
+            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
               locale === 'en-US'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
+                ? 'bg-white text-[#111827] shadow-sm'
+                : 'text-[#9ca3af] hover:text-[#374151]'
             }`}
           >
             EN
           </button>
         </div>
-        {sysInfo && (
-          <>
-            <div className="hidden items-center gap-1.5 text-sm text-slate-600 sm:flex">
-              <Monitor size={14} className="text-slate-400" />
-              <span>{sysInfo.device}</span>
-            </div>
-            <div className="hidden items-center gap-1.5 text-sm sm:flex">
-              <CheckCircle size={14} className="text-emerald-500" />
-              <span className="text-slate-600">{t.header.ready}</span>
-            </div>
-          </>
-        )}
-        {!sysInfo && (
-          <div className="flex items-center gap-1.5 text-sm text-slate-400">
-            <AlertCircle size={14} />
-            <span>{t.header.connecting}</span>
-          </div>
-        )}
       </div>
     </header>
   )
