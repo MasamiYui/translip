@@ -60,13 +60,14 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
       icon: PlusCircle,
       isActive: isNewTaskRoute,
     },
-    {
-      to: '/settings',
-      label: t.nav.settings,
-      icon: Settings,
-      isActive: currentPath === '/settings',
-    },
   ]
+
+  const settingsNavItem = {
+    to: '/settings',
+    label: t.nav.settings,
+    icon: Settings,
+    isActive: currentPath === '/settings',
+  }
 
   const toolNavItems = [
     { to: '/tools/separation', label: t.atomicTools.tools.separation, icon: AudioLines },
@@ -206,6 +207,29 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
             </div>
           </div>
         )}
+
+        {(() => {
+          const { to, label, icon: Icon, isActive } = settingsNavItem
+          return (
+            <Link
+              key={to}
+              to={to}
+              aria-current={isActive ? 'page' : undefined}
+              title={collapsed ? label : undefined}
+              aria-label={collapsed ? label : undefined}
+              className={cn(
+                'flex items-center rounded-xl text-sm font-medium transition-colors',
+                collapsed
+                  ? 'h-10 w-10 justify-center'
+                  : 'gap-3 px-3 py-2.5',
+                isActive ? activeNavClass : 'text-slate-600 hover:bg-white hover:text-slate-900',
+              )}
+            >
+              <Icon size={16} />
+              {!collapsed && label}
+            </Link>
+          )
+        })()}
       </nav>
 
       {/* Footer */}
