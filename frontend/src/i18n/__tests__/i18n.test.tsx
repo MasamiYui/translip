@@ -61,6 +61,9 @@ describe('I18nProvider', () => {
 
     expect(result.current.getLanguageLabel('en')).toBe('英语')
     expect(result.current.getStageLabel('task-d')).toBe('Task D: 语音合成')
+    expect(result.current.t.tasks.deleteConfirmOne).toBe('确定删除此任务及其产物？')
+    expect(result.current.t.tasks.deleteConfirmMany(2)).toBe('确定删除 2 个任务及其产物？')
+    expect(result.current.t.taskDetail.deleteConfirm).toBe('确定删除此任务及其产物？')
 
     act(() => {
       result.current.setLocale('en-US')
@@ -68,6 +71,9 @@ describe('I18nProvider', () => {
 
     expect(result.current.formatDuration(65)).toBe('1m 5s')
     expect(result.current.getStatusLabel('succeeded')).toBe('Completed')
+    expect(result.current.t.tasks.deleteConfirmOne).toBe('Delete this task and its artifacts?')
+    expect(result.current.t.tasks.deleteConfirmMany(2)).toBe('Delete 2 tasks and their artifacts?')
+    expect(result.current.t.taskDetail.deleteConfirm).toBe('Delete this task and its artifacts?')
     expect(document.documentElement.lang).toBe('en-US')
   })
 })

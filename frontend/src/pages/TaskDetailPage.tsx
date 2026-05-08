@@ -501,7 +501,7 @@ export function TaskDetailPage() {
             <button
               type="button"
               onClick={() => {
-                if (confirm('确认删除这个任务吗？')) {
+                if (confirm(t.taskDetail.deleteConfirm)) {
                   deleteMutation.mutate()
                 }
               }}
@@ -509,7 +509,7 @@ export function TaskDetailPage() {
               className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-50 disabled:opacity-50"
             >
               <Trash2 size={14} />
-              删除任务
+              {t.taskDetail.deleteTask}
             </button>
           </div>
         </div>

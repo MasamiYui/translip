@@ -70,8 +70,8 @@ const zhMessages = {
       actions: '操作',
     },
     totalCount: (count: number) => `共 ${count} 条`,
-    deleteConfirmOne: '确定删除此任务？',
-    deleteConfirmMany: (count: number) => `确定删除 ${count} 个任务？`,
+    deleteConfirmOne: '确定删除此任务及其产物？',
+    deleteConfirmMany: (count: number) => `确定删除 ${count} 个任务及其产物？`,
     deleteAction: '删除',
   },
   newTask: {
@@ -213,7 +213,7 @@ const zhMessages = {
     rerunFromStage: '从此阶段重跑',
     stopTask: '停止任务',
     deleteTask: '删除',
-    deleteConfirm: '确定删除此任务？',
+    deleteConfirm: '确定删除此任务及其产物？',
     stageDetails: {
       progress: '进度',
       duration: '耗时',
@@ -269,6 +269,11 @@ const zhMessages = {
       cleanupAllTitle: '选择要清理的项',
       cleanupAllHint: '勾选下面的项目以释放空间。模型权重清理后再次使用时会重新下载。',
       cleanupSelected: (count: number) => `清理已选 ${count} 项`,
+      pipelineTasksTitle: '选择要删除的任务',
+      pipelineTasksHint: '删除任务记录时会同时删除该任务的流水线产物。',
+      pipelineTasksEmpty: '没有找到可清理的任务产物',
+      cleanupSelectedTasks: (count: number) => `删除已选 ${count} 个任务`,
+      pipelineTasksCleaned: (count: number) => `已删除 ${count} 个任务及其产物`,
       reload: '刷新',
       changeDirTitle: '更改缓存目录',
       changeDirHint: '此操作仅切换指针，不会移动文件。建议你手动迁移现有内容。',
@@ -716,8 +721,8 @@ const enMessages: LocaleMessages = {
       actions: 'Actions',
     },
     totalCount: (count: number) => `Total ${count}`,
-    deleteConfirmOne: 'Delete this task?',
-    deleteConfirmMany: (count: number) => `Delete ${count} tasks?`,
+    deleteConfirmOne: 'Delete this task and its artifacts?',
+    deleteConfirmMany: (count: number) => `Delete ${count} tasks and their artifacts?`,
     deleteAction: 'Delete',
   },
   newTask: {
@@ -859,7 +864,7 @@ const enMessages: LocaleMessages = {
     rerunFromStage: 'Rerun from this stage',
     stopTask: 'Stop Task',
     deleteTask: 'Delete',
-    deleteConfirm: 'Delete this task?',
+    deleteConfirm: 'Delete this task and its artifacts?',
     stageDetails: {
       progress: 'Progress',
       duration: 'Duration',
@@ -916,6 +921,11 @@ const enMessages: LocaleMessages = {
       cleanupAllHint:
         'Pick items below to free disk space. Model weights will be re-downloaded the next time they are used.',
       cleanupSelected: (count: number) => `Clean ${count} selected`,
+      pipelineTasksTitle: 'Select tasks to delete',
+      pipelineTasksHint: 'Deleting a task record also removes its pipeline artifacts.',
+      pipelineTasksEmpty: 'No task artifacts found',
+      cleanupSelectedTasks: (count: number) => `Delete ${count} selected tasks`,
+      pipelineTasksCleaned: (count: number) => `Deleted ${count} tasks and artifacts`,
       reload: 'Reload',
       changeDirTitle: 'Change Cache Directory',
       changeDirHint:

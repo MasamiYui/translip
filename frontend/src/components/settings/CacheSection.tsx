@@ -13,6 +13,7 @@ import {
   X,
 } from 'lucide-react'
 import { cacheApi } from '../../api/config'
+import { tasksApi } from '../../api/tasks'
 import { ProgressBar } from '../shared/ProgressBar'
 import { useI18n } from '../../i18n/useI18n'
 import { formatBytes } from '../../lib/utils'
@@ -21,6 +22,7 @@ import type {
   CacheBreakdownItem,
   CacheGroupKind,
   CacheMigrateTask,
+  Task,
 } from '../../types'
 
 const GROUP_ORDER: CacheGroupKind[] = ['model', 'hub', 'pipeline', 'temp']
@@ -53,6 +55,7 @@ export function CacheSection() {
   const queryClient = useQueryClient()
   const [showDetails, setShowDetails] = useState(false)
   const [dialog, setDialog] = useState<null | 'change' | 'migrate' | 'cleanup'>(null)
+  const [pipelineCleanupItem, setPipelineCleanupItem] = useState<CacheBreakdownItem | null>(null)
   const [activeMigration, setActiveMigration] = useState<CacheMigrateTask | null>(null)
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
@@ -98,6 +101,25 @@ export function CacheSection() {
     onSuccess: data => {
       setToast({ kind: 'ok', text: `${t.settings.cache.cleanupAll} ✓ ${formatBytes(data.freed_bytes)}` })
       setDialog(null)
+      refresh()
+    },
+    onError: err => {
+      const errs = t.settings.cache.errors as Record<string, string>
+      setToast({ kind: 'err', text: pickErrorMessage(err) ?? errs.generic })
+    },
+  })
+
+  const pipelineTaskCleanupMutation = useMutation({
+    mutationFn: async (taskIds: string[]) => {
+      for (const taskId of taskIds) {
+        await tasksApi.delete(taskId, true)
+      }
+      return { count: taskIds.length }
+    },
+    onSuccess: data => {
+      setToast({ kind: 'ok', text: t.settings.cache.pipelineTasksCleaned(data.count) })
+      setPipelineCleanupItem(null)
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
       refresh()
     },
     onError: err => {
@@ -305,8 +327,17 @@ export function CacheSection() {
                           <div className="shrink-0 text-xs text-slate-500">{formatBytes(item.bytes)}</div>
                           <button
                             type="button"
-                            disabled={!item.removable || !item.present || removeItemMutation.isPending}
+                            disabled={
+                              !item.removable
+                              || !item.present
+                              || removeItemMutation.isPending
+                              || pipelineTaskCleanupMutation.isPending
+                            }
                             onClick={() => {
+                              if (item.key === 'pipeline_outputs') {
+                                setPipelineCleanupItem(item)
+                                return
+                              }
                               const confirmText = t.settings.cache.itemActionCleanConfirm(item.label, formatBytes(item.bytes))
                               if (window.confirm(confirmText)) {
                                 removeItemMutation.mutate(item.key)
@@ -388,6 +419,16 @@ export function CacheSection() {
           onClose={() => setDialog(null)}
           onSubmit={async keys => {
             await cleanupMutation.mutateAsync(keys)
+          }}
+        />
+      )}
+
+      {pipelineCleanupItem && (
+        <PipelineTasksCleanupDialog
+          pipelineItem={pipelineCleanupItem}
+          onClose={() => setPipelineCleanupItem(null)}
+          onSubmit={async taskIds => {
+            await pipelineTaskCleanupMutation.mutateAsync(taskIds)
           }}
         />
       )}
@@ -531,6 +572,126 @@ function ModalShell({
       </div>
     </div>
   )
+}
+
+function PipelineTasksCleanupDialog({
+  pipelineItem,
+  onClose,
+  onSubmit,
+}: {
+  pipelineItem: CacheBreakdownItem
+  onClose: () => void
+  onSubmit: (taskIds: string[]) => Promise<void>
+}) {
+  const { t } = useI18n()
+  const pipelineRoot = pipelineItem.paths[0] ?? ''
+  const tasksQuery = useQuery({
+    queryKey: ['cache-pipeline-tasks', pipelineRoot],
+    queryFn: () => tasksApi.list({ page: 1, size: 100 }),
+    refetchOnWindowFocus: false,
+    retry: 1,
+  })
+  const tasks = useMemo(
+    () => (tasksQuery.data?.items ?? []).filter(task => isPipelineTask(task, pipelineRoot)),
+    [pipelineRoot, tasksQuery.data?.items],
+  )
+  const [selected, setSelected] = useState<Record<string, boolean>>({})
+  const seededRef = useRef(false)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (seededRef.current) return
+    if (tasks.length === 0) return
+    seededRef.current = true
+    setSelected(Object.fromEntries(tasks.map(task => [task.id, isTaskDeletable(task)])))
+  }, [tasks])
+
+  const selectedTaskIds = Object.entries(selected).filter(([, v]) => v).map(([k]) => k)
+
+  return (
+    <ModalShell title={t.settings.cache.pipelineTasksTitle} onClose={onClose} testId="cache-pipeline-tasks-dialog">
+      <p className="mb-3 text-xs text-slate-500">{t.settings.cache.pipelineTasksHint}</p>
+      {pipelineRoot && (
+        <div className="mb-3 truncate rounded bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-400">
+          {pipelineRoot}
+        </div>
+      )}
+      {tasksQuery.isFetching && !tasksQuery.data ? (
+        <div className="flex items-center gap-2 py-6 text-sm text-slate-400">
+          <Loader2 size={14} className="animate-spin" />
+          {t.settings.cache.breakdownLoading}
+        </div>
+      ) : tasks.length === 0 ? (
+        <div className="py-4 text-sm text-slate-400">{t.settings.cache.pipelineTasksEmpty}</div>
+      ) : (
+        <ul className="max-h-80 space-y-1 overflow-y-auto">
+          {tasks.map(task => (
+            <li
+              key={task.id}
+              className="flex items-center justify-between gap-3 rounded border border-slate-100 px-3 py-2 text-sm"
+            >
+              <label className="min-w-0 flex flex-1 items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={!!selected[task.id]}
+                  disabled={!isTaskDeletable(task)}
+                  onChange={e => setSelected(s => ({ ...s, [task.id]: e.target.checked }))}
+                  data-testid={`cache-pipeline-task-checkbox-${task.id}`}
+                />
+                <span className="min-w-0">
+                  <span className="block truncate text-slate-700">{task.name}</span>
+                  <span className="block truncate font-mono text-[11px] text-slate-400">
+                    {task.id} · {task.status}
+                  </span>
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      )}
+      {error && <div className="mt-2 text-xs text-rose-600">{error}</div>}
+      <div className="mt-4 flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onClose}
+          className="rounded border border-slate-200 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-50"
+        >
+          {t.settings.cache.cancel}
+        </button>
+        <button
+          type="button"
+          disabled={submitting || tasksQuery.isFetching || selectedTaskIds.length === 0}
+          data-testid="cache-pipeline-tasks-submit"
+          onClick={async () => {
+            setError(null)
+            setSubmitting(true)
+            try {
+              await onSubmit(selectedTaskIds)
+            } catch (e) {
+              setError((e as Error).message)
+            } finally {
+              setSubmitting(false)
+            }
+          }}
+          className="rounded bg-rose-600 px-3 py-1.5 text-xs text-white hover:bg-rose-700 disabled:opacity-50"
+        >
+          {submitting ? t.settings.cache.submitting : t.settings.cache.cleanupSelectedTasks(selectedTaskIds.length)}
+        </button>
+      </div>
+    </ModalShell>
+  )
+}
+
+function isPipelineTask(task: Task, pipelineRoot: string): boolean {
+  if (!pipelineRoot) return false
+  const root = pipelineRoot.replace(/\/+$/, '')
+  const outputRoot = task.output_root.replace(/\/+$/, '')
+  return outputRoot === root || outputRoot.startsWith(`${root}/`)
+}
+
+function isTaskDeletable(task: Task): boolean {
+  return task.status !== 'running'
 }
 
 function PathDialog({
@@ -784,4 +945,3 @@ function CleanupDialog({
     </ModalShell>
   )
 }
-

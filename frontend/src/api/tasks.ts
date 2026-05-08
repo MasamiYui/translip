@@ -62,7 +62,7 @@ export const tasksApi = {
   create: (req: CreateTaskRequest) =>
     api.post<Task>('/api/tasks', req).then(r => r.data),
 
-  delete: (id: string, deleteArtifacts = false) =>
+  delete: (id: string, deleteArtifacts = true) =>
     api.delete(`/api/tasks/${id}`, { params: { delete_artifacts: deleteArtifacts } }).then(r => r.data),
 
   rerun: (id: string, fromStage: string) =>

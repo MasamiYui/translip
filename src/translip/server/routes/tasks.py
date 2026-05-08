@@ -170,7 +170,7 @@ def get_task(task_id: str, session: Session = Depends(get_session)):
 @router.delete("/{task_id}")
 def delete_task(
     task_id: str,
-    delete_artifacts: bool = Query(False),
+    delete_artifacts: bool = Query(True),
     session: Session = Depends(get_session),
 ):
     task = session.get(Task, task_id)
