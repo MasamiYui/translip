@@ -45,15 +45,22 @@ class JobManager:
         filename = Path(file.filename or "upload.bin").name
         target_dir = self.upload_root / file_id
         target_dir.mkdir(parents=True, exist_ok=True)
-        payload = await file.read()
         target_path = target_dir / filename
-        target_path.write_bytes(payload)
+        chunk_size = 4 * 1024 * 1024
+        size_bytes = 0
+        with target_path.open("wb") as dst:
+            while True:
+                chunk = await file.read(chunk_size)
+                if not chunk:
+                    break
+                dst.write(chunk)
+                size_bytes += len(chunk)
         content_type = file.content_type or mimetypes.guess_type(filename)[0] or "application/octet-stream"
         stored = StoredFile(
             file_id=file_id,
             filename=filename,
             path=target_path,
-            size_bytes=len(payload),
+            size_bytes=size_bytes,
             content_type=content_type,
             created_at=datetime.now(),
         )
