@@ -29,7 +29,7 @@ export function SettingsPage() {
               <InfoRow label={t.settings.fields.platform} value={sysInfo.platform} />
               <InfoRow label={t.settings.fields.device} value={sysInfo.device} />
               <InfoRow label={t.settings.fields.cacheDir} value={sysInfo.cache_dir} mono />
-              <InfoRow label={t.settings.fields.cacheSize} value={formatBytes(sysInfo.cache_size_bytes)} />
+              <CacheSection cacheSize={formatBytes(sysInfo.cache_size_bytes)} />
             </div>
           ) : (
             <div className="border-l-2 border-rose-400 bg-rose-50 py-2 pl-3 text-sm text-rose-600">{t.settings.connectionError}</div>
@@ -62,9 +62,6 @@ export function SettingsPage() {
             </div>
           </div>
         )}
-
-        {/* Cache management */}
-        <CacheSection />
 
         {/* About */}
         <div className="px-6 py-5">
