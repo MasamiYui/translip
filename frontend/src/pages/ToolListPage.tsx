@@ -20,28 +20,29 @@ export function ToolListPage() {
   })).filter(group => group.tools.length > 0)
 
   return (
-    <PageContainer className={`${APP_CONTENT_MAX_WIDTH} space-y-8`}>
-      <section className="rounded-[2rem] border border-slate-200 bg-white px-6 py-8">
-        <div className="max-w-3xl space-y-3">
-          <div className="text-xs font-semibold uppercase tracking-[0.3em] text-blue-600">
+    <PageContainer className={`${APP_CONTENT_MAX_WIDTH} space-y-6`}>
+      {/* Hero */}
+      <div className="rounded-xl border border-[#e5e7eb] bg-white px-6 py-6 shadow-[0_1px_3px_rgba(0,0,0,.04)]">
+        <div className="max-w-2xl">
+          <div className="mb-2 inline-flex rounded-full border border-[#3b5bdb]/20 bg-[#f0f3ff] px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-widest text-[#3b5bdb]">
             {t.atomicTools.sectionEyebrow}
           </div>
-          <h1 className="text-3xl font-semibold text-slate-900">{t.atomicTools.title}</h1>
-          <p className="text-sm leading-7 text-slate-600">{t.atomicTools.description}</p>
+          <h1 className="text-xl font-bold text-[#111827]">{t.atomicTools.title}</h1>
+          <p className="mt-1.5 text-sm text-[#6b7280] leading-relaxed">{t.atomicTools.description}</p>
         </div>
-      </section>
+      </div>
 
       {toolsByCategory.map(group => (
-        <section key={group.category} className="space-y-4">
+        <section key={group.category} className="space-y-3">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-[#9ca3af]">
               {t.atomicTools.categories[group.category]}
             </h2>
-            <div className="text-xs uppercase tracking-[0.2em] text-slate-400">
+            <div className="text-xs font-semibold tabular-nums text-[#d1d5db]">
               {group.tools.length}
             </div>
           </div>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {group.tools.map(tool => (
               <ToolCard
                 key={tool.tool_id}

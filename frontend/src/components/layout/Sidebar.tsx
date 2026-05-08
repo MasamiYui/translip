@@ -78,42 +78,56 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
     { to: '/tools/probe', label: t.atomicTools.tools.probe, icon: ScanSearch },
     { to: '/tools/muxing', label: t.atomicTools.tools.muxing, icon: Clapperboard },
   ]
-  const activeNavClass =
-    'bg-white text-blue-700 ring-1 ring-blue-100 shadow-[0_10px_24px_-20px_rgba(37,99,235,0.55)]'
 
-  const asideWidth = collapsed ? 'w-[56px]' : 'w-[220px]'
+  const asideWidth = collapsed ? 'w-[60px]' : 'w-[220px]'
+
+  function navItemClass(isActive: boolean) {
+    if (isActive) {
+      return cn(
+        'flex items-center rounded-lg text-sm font-medium transition-all',
+        collapsed ? 'h-9 w-9 justify-center' : 'gap-3 px-3 py-2',
+        'bg-[#3b5bdb]/10 text-[#3b5bdb]',
+      )
+    }
+    return cn(
+      'flex items-center rounded-lg text-sm font-medium transition-all',
+      collapsed ? 'h-9 w-9 justify-center' : 'gap-3 px-3 py-2',
+      'text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827]',
+    )
+  }
 
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 flex h-full flex-col border-r border-slate-200/80 bg-[#F5F7FB] transition-[width] duration-200 ease-out',
+        'fixed left-0 top-0 z-40 flex h-full flex-col bg-white transition-[width] duration-200 ease-out',
+        'border-r border-[#e5e7eb]',
         asideWidth,
       )}
     >
-      {/* Logo area */}
+      {/* Brand / Logo */}
       <div
         data-ui-sidebar-brand=""
         className={cn(
-          'flex h-16 items-center gap-3 border-b border-slate-200/80',
-          collapsed ? 'justify-center px-0' : 'px-5',
+          'flex h-[60px] items-center gap-3 border-b border-[#f3f4f6]',
+          collapsed ? 'justify-center px-0' : 'px-4',
         )}
       >
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-[0_12px_24px_-18px_rgba(37,99,235,0.85)]">
-          <Cpu size={16} className="text-white" />
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#3b5bdb]">
+          <Cpu size={14} className="text-white" />
         </div>
         {!collapsed && (
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold leading-tight text-slate-900">
+            <div className="truncate text-sm font-semibold text-[#111827] leading-tight">
               Translip
             </div>
-            <div className="truncate text-xs leading-tight text-slate-500">{t.nav.subtitle}</div>
+            <div className="truncate text-[11px] text-[#9ca3af] leading-tight">{t.nav.subtitle}</div>
           </div>
         )}
       </div>
 
       {/* Navigation */}
       <nav
-        className={cn('flex-1 space-y-1 py-4', collapsed ? 'px-2' : 'px-3')}
+        className={cn('flex-1 space-y-0.5 py-3 overflow-y-auto', collapsed ? 'px-[10px]' : 'px-3')}
       >
         {navItems.map(({ to, label, icon: Icon, isActive }) => (
           <Link
@@ -122,19 +136,14 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
             aria-current={isActive ? 'page' : undefined}
             title={collapsed ? label : undefined}
             aria-label={collapsed ? label : undefined}
-            className={cn(
-              'flex items-center rounded-xl text-sm font-medium transition-colors',
-              collapsed
-                ? 'h-10 w-10 justify-center'
-                : 'gap-3 px-3 py-2.5',
-              isActive ? activeNavClass : 'text-slate-600 hover:bg-white hover:text-slate-900',
-            )}
+            className={navItemClass(isActive)}
           >
-            <Icon size={16} />
-            {!collapsed && label}
+            <Icon size={15} className="shrink-0" />
+            {!collapsed && <span className="truncate">{label}</span>}
           </Link>
         ))}
 
+        {/* Tools accordion */}
         <button
           type="button"
           title={collapsed ? t.atomicTools.title : undefined}
@@ -148,27 +157,18 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
               setToolsExpanded(false)
               return
             }
-
             setToolsExpanded(true)
-            if (!isToolsRoute) {
-              navigate('/tools')
-            }
+            if (!isToolsRoute) navigate('/tools')
           }}
-          className={cn(
-            'flex items-center rounded-xl text-sm font-medium transition-colors',
-            collapsed
-              ? 'h-10 w-10 justify-center'
-              : 'w-full gap-3 px-3 py-2.5',
-            isToolsRoute ? activeNavClass : 'text-slate-600 hover:bg-white hover:text-slate-900',
-          )}
+          className={navItemClass(isToolsRoute && !toolsExpanded ? true : isToolsRoute)}
         >
-          <Wrench size={16} />
+          <Wrench size={15} className="shrink-0" />
           {!collapsed && (
             <>
-              {t.atomicTools.title}
+              <span className="flex-1 truncate text-left">{t.atomicTools.title}</span>
               <ChevronDown
-                size={14}
-                className={cn('ml-auto transition-transform', toolsExpanded && 'rotate-180')}
+                size={13}
+                className={cn('shrink-0 transition-transform duration-200', toolsExpanded && 'rotate-180')}
               />
             </>
           )}
@@ -178,12 +178,12 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
           <div
             aria-hidden={!toolsExpanded}
             className={cn(
-              'grid transition-[grid-template-rows,opacity,margin] duration-200 ease-out',
-              toolsExpanded ? 'mt-1 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+              'grid transition-[grid-template-rows,opacity] duration-200 ease-out',
+              toolsExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
             )}
           >
             <div className="overflow-hidden">
-              <div className="ml-4 space-y-1 border-l border-slate-200 pl-3 pb-1">
+              <div className="ml-[22px] mt-0.5 space-y-0.5 border-l border-[#e5e7eb] pl-3 pb-1">
                 {toolNavItems.map(({ to, label, icon: Icon }) => {
                   const isActive = currentPath === to
                   return (
@@ -192,14 +192,14 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
                       to={to}
                       aria-current={isActive ? 'page' : undefined}
                       className={cn(
-                        'flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-medium transition-colors',
+                        'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-all',
                         isActive
-                          ? 'bg-white text-blue-700 ring-1 ring-blue-100 shadow-sm'
-                          : 'text-slate-500 hover:bg-white hover:text-slate-900',
+                          ? 'bg-[#3b5bdb]/10 text-[#3b5bdb]'
+                          : 'text-[#9ca3af] hover:bg-[#f3f4f6] hover:text-[#374151]',
                       )}
                     >
-                      <Icon size={14} />
-                      {label}
+                      <Icon size={13} className="shrink-0" />
+                      <span className="truncate">{label}</span>
                     </Link>
                   )
                 })}
@@ -208,6 +208,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
           </div>
         )}
 
+        {/* Settings */}
         {(() => {
           const { to, label, icon: Icon, isActive } = settingsNavItem
           return (
@@ -217,16 +218,10 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
               aria-current={isActive ? 'page' : undefined}
               title={collapsed ? label : undefined}
               aria-label={collapsed ? label : undefined}
-              className={cn(
-                'flex items-center rounded-xl text-sm font-medium transition-colors',
-                collapsed
-                  ? 'h-10 w-10 justify-center'
-                  : 'gap-3 px-3 py-2.5',
-                isActive ? activeNavClass : 'text-slate-600 hover:bg-white hover:text-slate-900',
-              )}
+              className={navItemClass(isActive)}
             >
-              <Icon size={16} />
-              {!collapsed && label}
+              <Icon size={15} className="shrink-0" />
+              {!collapsed && <span className="truncate">{label}</span>}
             </Link>
           )
         })()}
@@ -235,23 +230,25 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
       {/* Footer */}
       <div
         className={cn(
-          'flex items-center border-t border-slate-200/80 py-3',
-          collapsed ? 'justify-center px-2' : 'justify-between px-5',
+          'flex items-center border-t border-[#f3f4f6] py-2.5',
+          collapsed ? 'justify-center px-[10px]' : 'justify-between px-4',
         )}
       >
-        {!collapsed && <div className="text-xs text-slate-400">v0.1.0</div>}
+        {!collapsed && <div className="text-[11px] text-[#d1d5db] font-medium">v0.1.0</div>}
         {onToggle && (
           <button
             type="button"
             onClick={onToggle}
             title={collapsed ? t.nav.expandSidebar : t.nav.collapseSidebar}
             aria-label={collapsed ? t.nav.expandSidebar : t.nav.collapseSidebar}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-white hover:text-slate-700"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-[#9ca3af] transition-colors hover:bg-[#f3f4f6] hover:text-[#374151]"
           >
-            {collapsed ? <PanelLeftOpen size={16} /> : <PanelLeftClose size={16} />}
+            {collapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
           </button>
         )}
       </div>
     </aside>
   )
 }
+
+

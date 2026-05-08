@@ -74,7 +74,7 @@ function Select({ value, onChange, options }: {
     <select
       value={value}
       onChange={event => onChange(event.target.value)}
-      className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
+      className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
     >
       {options.map(option => (
         <option key={option.value} value={option.value}>
@@ -97,7 +97,7 @@ function TextInput({ value, onChange, placeholder = '', type = 'text' }: {
       value={value}
       onChange={event => onChange(event.target.value)}
       placeholder={placeholder}
-      className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-slate-300"
+      className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
     />
   )
 }

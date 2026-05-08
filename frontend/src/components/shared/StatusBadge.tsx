@@ -4,13 +4,13 @@ import type { TaskStatus, StageStatus } from '../../types'
 import type { StatusKey } from '../../i18n/formatters'
 
 const STATUS_CONFIG: Record<string, { dot: string; bg: string; text: string }> = {
-  pending: { dot: 'bg-slate-400', bg: 'bg-slate-100', text: 'text-slate-600' },
-  running: { dot: 'bg-blue-500 animate-pulse', bg: 'bg-blue-50', text: 'text-blue-700' },
+  pending: { dot: 'bg-[#9ca3af]', bg: 'bg-[#f3f4f6]', text: 'text-[#4b5563]' },
+  running: { dot: 'bg-[#3b5bdb] animate-pulse', bg: 'bg-blue-50', text: 'text-[#3b5bdb]' },
   succeeded: { dot: 'bg-emerald-500', bg: 'bg-emerald-50', text: 'text-emerald-700' },
   partial_success: { dot: 'bg-amber-500', bg: 'bg-amber-50', text: 'text-amber-700' },
-  failed: { dot: 'bg-red-500', bg: 'bg-red-50', text: 'text-red-700' },
+  failed: { dot: 'bg-red-400', bg: 'bg-red-50', text: 'text-red-600' },
   cached: { dot: 'bg-violet-500', bg: 'bg-violet-50', text: 'text-violet-700' },
-  skipped: { dot: 'bg-amber-500', bg: 'bg-amber-50', text: 'text-amber-700' },
+  skipped: { dot: 'bg-[#9ca3af]', bg: 'bg-[#f3f4f6]', text: 'text-[#6b7280]' },
 }
 
 interface StatusBadgeProps {

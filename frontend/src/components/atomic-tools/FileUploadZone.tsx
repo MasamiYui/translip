@@ -22,18 +22,18 @@ export function FileUploadZone({
 
   return (
     <div className="space-y-2">
-      <label htmlFor={inputId} className="block text-sm font-medium text-slate-700">
+      <label htmlFor={inputId} className="block text-sm font-semibold text-[#374151]">
         {label}
       </label>
       <label
         htmlFor={inputId}
-        className="flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-6 text-center transition hover:border-blue-400 hover:bg-blue-50/40"
+        className="flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-[#d1d5db] bg-[#fafafa] px-4 py-6 text-center transition-all hover:border-[#3b5bdb]/50 hover:bg-[#f0f3ff]/60"
       >
-        <UploadCloud size={22} className="mb-3 text-slate-400" />
-        <div className="text-sm font-medium text-slate-700">
+        <UploadCloud size={20} className={`mb-2.5 ${value ? 'text-[#3b5bdb]' : 'text-[#9ca3af]'}`} />
+        <div className={`text-sm font-semibold ${value ? 'text-[#3b5bdb]' : 'text-[#374151]'}`}>
           {value ? value.filename : label}
         </div>
-        <div className="mt-1 text-xs text-slate-500">{hint}</div>
+        <div className="mt-1 text-xs text-[#9ca3af]">{hint}</div>
       </label>
       <input
         id={inputId}

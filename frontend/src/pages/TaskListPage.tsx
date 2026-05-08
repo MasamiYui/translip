@@ -67,12 +67,12 @@ export function TaskListPage() {
     <PageContainer className={`${APP_CONTENT_MAX_WIDTH} space-y-5`}>
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-900">{t.tasks.title}</h1>
+        <h1 className="text-xl font-bold text-[#111827]">{t.tasks.title}</h1>
         <Link
           to="/tasks/new"
-          className="flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+          className="flex items-center gap-2 rounded-lg bg-[#3b5bdb] px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7]"
         >
-          <PlusCircle size={15} />
+          <PlusCircle size={14} />
           {t.common.createTask}
         </Link>
       </div>
@@ -80,23 +80,23 @@ export function TaskListPage() {
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
         <div className="relative flex-1 min-w-[200px] max-w-xs">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9ca3af]" />
           <input
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1) }}
             placeholder={t.tasks.searchPlaceholder}
-            className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-md bg-white focus:outline-none focus:ring-1 focus:ring-slate-300"
+            className="w-full pl-9 pr-3 py-2 text-sm border border-[#e5e7eb] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-1.5">
           {statusOptions.map(opt => (
             <button
               key={opt.value}
               onClick={() => { setStatusFilter(opt.value); setPage(1) }}
-              className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 statusFilter === opt.value
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                  ? 'bg-[#3b5bdb] text-white shadow-sm'
+                  : 'bg-white border border-[#e5e7eb] text-[#6b7280] hover:bg-[#f9fafb] hover:text-[#374151]'
               }`}
             >
               {opt.label}
@@ -106,24 +106,24 @@ export function TaskListPage() {
         {selected.size > 0 && (
           <button
             onClick={handleBulkDelete}
-            className="flex items-center gap-1.5 rounded-md border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-600 transition-colors hover:bg-rose-100"
+            className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100"
           >
-            <Trash2 size={13} />
+            <Trash2 size={12} />
             {t.tasks.deleteSelected(selected.size)}
           </button>
         )}
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+      <div className="overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]">
         {isLoading ? (
-          <div className="py-16 text-center text-slate-400 text-sm">{t.tasks.loading}</div>
+          <div className="py-16 text-center text-[#9ca3af] text-sm">{t.tasks.loading}</div>
         ) : items.length === 0 ? (
-          <div className="py-16 text-center text-slate-400 text-sm">{t.tasks.noMatches}</div>
+          <div className="py-16 text-center text-[#9ca3af] text-sm">{t.tasks.noMatches}</div>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-left">
+              <tr className="border-b border-[#f3f4f6] text-left">
                 <th className="px-4 py-3 w-10">
                   <input
                     type="checkbox"
@@ -132,13 +132,13 @@ export function TaskListPage() {
                     className="rounded"
                   />
                 </th>
-                <th className="px-4 py-3 font-medium text-slate-500">{t.tasks.columns.name}</th>
-                <th className="px-4 py-3 font-medium text-slate-500">{t.tasks.columns.status}</th>
-                <th className="px-4 py-3 font-medium text-slate-500 w-32">{t.tasks.columns.progress}</th>
-                <th className="px-4 py-3 font-medium text-slate-500">{t.tasks.columns.language}</th>
-                <th className="px-4 py-3 font-medium text-slate-500">{t.tasks.columns.duration}</th>
-                <th className="px-4 py-3 font-medium text-slate-500">{t.tasks.columns.createdAt}</th>
-                <th className="px-4 py-3 font-medium text-slate-500 w-20">{t.tasks.columns.actions}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.tasks.columns.name}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.tasks.columns.status}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] w-32">{t.tasks.columns.progress}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.tasks.columns.language}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.tasks.columns.duration}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.tasks.columns.createdAt}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] w-16"></th>
               </tr>
             </thead>
             <tbody>
@@ -161,15 +161,15 @@ export function TaskListPage() {
 
       {/* Pagination */}
       {pageCount > 1 && (
-        <div className="flex items-center justify-between text-sm text-slate-500">
+        <div className="flex items-center justify-between text-sm text-[#6b7280]">
           <span>{t.tasks.totalCount(total)}</span>
           <div className="flex gap-1">
             {Array.from({ length: pageCount }, (_, i) => i + 1).map(p => (
               <button
                 key={p}
                 onClick={() => setPage(p)}
-                className={`h-8 w-8 rounded-md font-medium ${
-                  p === page ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                className={`h-8 w-8 rounded-lg text-xs font-semibold transition-all ${
+                  p === page ? 'bg-[#3b5bdb] text-white' : 'text-[#6b7280] hover:bg-[#f3f4f6]'
                 }`}
               >
                 {p}
@@ -193,49 +193,49 @@ function TaskRow({ task, selected, onSelect, onDelete, onClick }: {
 
   return (
     <tr
-      className={`border-b border-slate-50 hover:bg-slate-50 cursor-pointer group ${
-        task.status === 'running' ? 'border-l-2 border-l-blue-500' : ''
+      className={`border-b border-[#f9fafb] last:border-0 hover:bg-[#fafafa] cursor-pointer group transition-colors ${
+        task.status === 'running' ? 'border-l-2 border-l-[#3b5bdb]' : ''
       }`}
     >
-      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+      <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
         <input
           type="checkbox"
           checked={selected}
           onChange={onSelect}
-          className="rounded"
+          className="rounded accent-[#3b5bdb]"
         />
       </td>
-      <td className="px-4 py-3 font-medium text-slate-900" onClick={onClick}>
-        {task.name}
-        <div className="text-xs text-slate-400 font-normal mt-0.5 truncate max-w-[200px]">
+      <td className="px-4 py-3.5" onClick={onClick}>
+        <div className="font-medium text-[#111827]">{task.name}</div>
+        <div className="text-[11px] text-[#9ca3af] font-normal mt-0.5 truncate max-w-[200px]">
           {task.id}
         </div>
       </td>
-      <td className="px-4 py-3" onClick={onClick}>
+      <td className="px-4 py-3.5" onClick={onClick}>
         <StatusBadge status={task.status} size="sm" />
       </td>
-      <td className="px-4 py-3" onClick={onClick}>
+      <td className="px-4 py-3.5" onClick={onClick}>
         <div className="flex items-center gap-2">
           <ProgressBar value={task.overall_progress} size="sm" className="flex-1" />
-          <span className="text-xs text-slate-500 w-8 text-right">{task.overall_progress.toFixed(0)}%</span>
+          <span className="text-xs text-[#6b7280] w-8 text-right tabular-nums">{task.overall_progress.toFixed(0)}%</span>
         </div>
       </td>
-      <td className="px-4 py-3 text-slate-600" onClick={onClick}>
+      <td className="px-4 py-3.5 text-[#6b7280]" onClick={onClick}>
         {getLanguageLabel(task.source_lang)} → {getLanguageLabel(task.target_lang)}
       </td>
-      <td className="px-4 py-3 text-slate-600" onClick={onClick}>
+      <td className="px-4 py-3.5 text-[#6b7280] tabular-nums" onClick={onClick}>
         {formatDuration(task.elapsed_sec)}
       </td>
-      <td className="px-4 py-3 text-slate-400" onClick={onClick}>
+      <td className="px-4 py-3.5 text-[#9ca3af]" onClick={onClick}>
         {formatRelativeTime(task.created_at)}
       </td>
-      <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+      <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
         <button
           onClick={onDelete}
-          className="opacity-0 group-hover:opacity-100 rounded-md p-1.5 text-rose-400 transition-all hover:bg-rose-50 hover:text-rose-600"
+          className="opacity-0 group-hover:opacity-100 rounded-lg p-1.5 text-red-400 transition-all hover:bg-red-50 hover:text-red-600"
           title={t.tasks.deleteAction}
         >
-          <Trash2 size={14} />
+          <Trash2 size={13} />
         </button>
       </td>
     </tr>

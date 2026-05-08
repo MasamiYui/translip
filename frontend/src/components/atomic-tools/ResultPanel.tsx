@@ -1,7 +1,6 @@
-import { Download, FileText } from 'lucide-react'
+import { Download, FileText, CheckCircle2 } from 'lucide-react'
 import { useI18n } from '../../i18n/useI18n'
 import { CrossToolAction } from './CrossToolAction'
-import type { AtomicToolPrefill } from '../../lib/atomicToolPrefill'
 import type { ArtifactInfo, AtomicJob } from '../../types/atomic-tools'
 
 interface ResultPanelProps {
@@ -11,6 +10,13 @@ interface ResultPanelProps {
   getDownloadUrl: (filename: string) => string
 }
 
+const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
+  completed: { label: 'COMPLETED', color: 'text-emerald-600', dot: 'bg-emerald-500' },
+  running: { label: 'RUNNING', color: 'text-blue-600', dot: 'bg-blue-500' },
+  failed: { label: 'FAILED', color: 'text-red-500', dot: 'bg-red-500' },
+  pending: { label: 'PENDING', color: 'text-[#9ca3af]', dot: 'bg-[#d1d5db]' },
+}
+
 export function ResultPanel({ toolId, job, artifacts, getDownloadUrl }: ResultPanelProps) {
   const { t } = useI18n()
   if (!job) return null
@@ -18,29 +24,49 @@ export function ResultPanel({ toolId, job, artifacts, getDownloadUrl }: ResultPa
   const translatedText =
     typeof job.result?.translated_text === 'string' ? job.result.translated_text : null
 
+  const statusCfg = STATUS_CONFIG[job.status] ?? { label: job.status.toUpperCase(), color: 'text-[#6b7280]', dot: 'bg-[#9ca3af]' }
+
   return (
-    <section className="space-y-4 rounded-3xl border border-slate-200 bg-white p-5">
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold text-slate-900">{t.atomicTools.result.title}</h3>
-        <div className="text-xs uppercase tracking-[0.2em] text-slate-400">{job.status}</div>
+    <section className="space-y-4">
+      {/* Result header card */}
+      <div className="rounded-xl border border-[#e5e7eb] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,.04)]">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-bold text-[#111827] uppercase tracking-wide">{t.atomicTools.result.title}</h3>
+          <div className={`flex items-center gap-1.5 text-xs font-semibold ${statusCfg.color}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${statusCfg.dot}`} />
+            {statusCfg.label}
+          </div>
+        </div>
+
+        {job.status === 'completed' && !job.result && (
+          <div className="flex items-center gap-2 text-sm text-emerald-600">
+            <CheckCircle2 size={16} />
+            <span className="font-medium">处理完成</span>
+          </div>
+        )}
+
+        {job.result && (
+          <details className="group">
+            <summary className="cursor-pointer list-none text-xs font-semibold text-[#9ca3af] hover:text-[#374151] transition-colors flex items-center gap-1.5">
+              <span className="group-open:hidden">▶ 查看 JSON</span>
+              <span className="hidden group-open:inline">▼ 收起 JSON</span>
+            </summary>
+            <div className="mt-3 rounded-lg bg-[#f8f9fa] border border-[#e5e7eb] p-4 text-[11px] leading-5 font-mono text-[#374151] overflow-x-auto">
+              <pre className="whitespace-pre-wrap">{JSON.stringify(job.result, null, 2)}</pre>
+            </div>
+          </details>
+        )}
       </div>
 
-      {job.result && (
-        <div className="rounded-2xl bg-slate-950 p-4 text-xs leading-6 text-slate-200">
-          <pre className="overflow-x-auto whitespace-pre-wrap">
-            {JSON.stringify(job.result, null, 2)}
-          </pre>
-        </div>
-      )}
-
+      {/* Translated text */}
       {translatedText && (
-        <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
-            <FileText size={16} />
+        <div className="rounded-xl border border-[#e5e7eb] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,.04)]">
+          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-[#374151]">
+            <FileText size={15} className="text-[#9ca3af]" />
             {t.atomicTools.result.translatedText}
           </div>
-          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-600">{translatedText}</p>
-          <div className="mt-3">
+          <p className="whitespace-pre-wrap text-sm leading-6 text-[#4b5563]">{translatedText}</p>
+          <div className="mt-4 pt-4 border-t border-[#f3f4f6]">
             <CrossToolAction
               label={t.atomicTools.result.toTts}
               targetToolId="tts"
@@ -50,44 +76,50 @@ export function ResultPanel({ toolId, job, artifacts, getDownloadUrl }: ResultPa
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        {artifacts.map(artifact => (
-          <div key={artifact.filename} className="rounded-2xl border border-slate-200 p-4">
-            <div className="mb-3 flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-medium text-slate-900">{artifact.filename}</div>
-                <div className="text-xs text-slate-500">{artifact.content_type}</div>
+      {/* Artifacts */}
+      {artifacts.length > 0 && (
+        <div className="space-y-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">输出文件</div>
+          {artifacts.map(artifact => (
+            <div key={artifact.filename} className="rounded-xl border border-[#e5e7eb] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,.04)]">
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-[#111827] truncate">{artifact.filename}</div>
+                  <div className="text-xs text-[#9ca3af] mt-0.5">{artifact.content_type}</div>
+                </div>
+                <a
+                  href={getDownloadUrl(artifact.filename)}
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-[#e5e7eb] px-3 py-1.5 text-xs font-semibold text-[#3b5bdb] transition-all hover:bg-[#f0f3ff]"
+                >
+                  <Download size={13} />
+                  {t.atomicTools.actions.download}
+                </a>
               </div>
-              <a
-                href={getDownloadUrl(artifact.filename)}
-                className="inline-flex items-center gap-1 text-sm font-medium text-blue-600"
-              >
-                <Download size={16} />
-                {t.atomicTools.actions.download}
-              </a>
+
+              {isAudioFile(artifact.filename, artifact.content_type) && (
+                <audio controls className="w-full mt-1" src={getDownloadUrl(artifact.filename)} />
+              )}
+
+              {isVideoFile(artifact.filename, artifact.content_type) && (
+                <video controls className="w-full mt-1 rounded-lg" src={getDownloadUrl(artifact.filename)} />
+              )}
+
+              {buildArtifactActions(toolId, artifact, translatedText, t.atomicTools.result).length > 0 && (
+                <div className="mt-3 pt-3 border-t border-[#f3f4f6] flex flex-wrap gap-2">
+                  {buildArtifactActions(toolId, artifact, translatedText, t.atomicTools.result).map(action => (
+                    <CrossToolAction
+                      key={`${artifact.filename}-${action.targetToolId}-${action.label}`}
+                      label={action.label}
+                      targetToolId={action.targetToolId}
+                      payload={action.payload}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
-
-            {isAudioFile(artifact.filename, artifact.content_type) && (
-              <audio controls className="w-full" src={getDownloadUrl(artifact.filename)} />
-            )}
-
-            {isVideoFile(artifact.filename, artifact.content_type) && (
-              <video controls className="w-full rounded-xl" src={getDownloadUrl(artifact.filename)} />
-            )}
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              {buildArtifactActions(toolId, artifact, translatedText, t.atomicTools.result).map(action => (
-                <CrossToolAction
-                  key={`${artifact.filename}-${action.targetToolId}-${action.label}`}
-                  label={action.label}
-                  targetToolId={action.targetToolId}
-                  payload={action.payload}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </section>
   )
 }
