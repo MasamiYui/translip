@@ -52,3 +52,5 @@ from .translation import TranslationAdapter  # noqa: E402,F401
 from .tts import TtsAdapter  # noqa: E402,F401
 from .probe import ProbeAdapter  # noqa: E402,F401
 from .muxing import MuxingAdapter  # noqa: E402,F401
+from .subtitle_detect import SubtitleDetectAdapter  # noqa: E402,F401
+from .subtitle_erase import SubtitleEraseAdapter  # noqa: E402,F401

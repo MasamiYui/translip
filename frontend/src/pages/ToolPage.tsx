@@ -215,6 +215,39 @@ function renderUploadZones(
     )
   }
 
+  if (toolId === 'subtitle-detect') {
+    return (
+      <FileUploadZone
+        label={hints.videoLabel}
+        hint={hints.videoHint}
+        accept=".mp4,.mkv,.mov,.avi"
+        value={fileRefs.file ?? null}
+        onFileSelected={file => onFileSelected('file', file)}
+      />
+    )
+  }
+
+  if (toolId === 'subtitle-erase') {
+    return (
+      <>
+        <FileUploadZone
+          label={hints.videoLabel}
+          hint={hints.videoHint}
+          accept=".mp4,.mkv,.mov,.avi"
+          value={fileRefs.file ?? null}
+          onFileSelected={file => onFileSelected('file', file)}
+        />
+        <FileUploadZone
+          label={hints.detectionLabel}
+          hint={hints.detectionHint}
+          accept=".json"
+          value={fileRefs.detection_file ?? null}
+          onFileSelected={file => onFileSelected('detection_file', file)}
+        />
+      </>
+    )
+  }
+
   return (
     <FileUploadZone
       label={hints.fileLabel}
@@ -334,6 +367,142 @@ function renderControls(
     )
   }
 
+  if (toolId === 'subtitle-detect') {
+    return (
+      <div className="grid gap-4 md:grid-cols-3">
+        <SelectField
+          label={atomicTools.fields.language}
+          value={String(params.language ?? 'ch')}
+          options={['ch', 'en', 'ch_tra', 'japan', 'korean']}
+          onChange={value => setField('language', value)}
+        />
+        <SelectField
+          label={atomicTools.fields.positionMode}
+          value={String(params.position_mode ?? 'bottom')}
+          options={['auto', 'bottom', 'top', 'full']}
+          onChange={value => setField('position_mode', value)}
+        />
+        <TextField
+          label={atomicTools.fields.roiBottomRatio}
+          type="number"
+          value={String(params.roi_bottom_ratio ?? 0.34)}
+          onChange={value => setField('roi_bottom_ratio', Number(value))}
+        />
+        <TextField
+          label={atomicTools.fields.sampleInterval}
+          type="number"
+          value={String(params.sample_interval ?? 0.4)}
+          onChange={value => setField('sample_interval', Number(value))}
+        />
+        <TextField
+          label={atomicTools.fields.mergeThreshold}
+          type="number"
+          value={String(params.merge_threshold ?? 0.78)}
+          onChange={value => setField('merge_threshold', Number(value))}
+        />
+        <TextField
+          label={atomicTools.fields.previewFrames}
+          type="number"
+          value={String(params.preview_frames ?? 3)}
+          onChange={value => setField('preview_frames', Number(value))}
+        />
+      </div>
+    )
+  }
+
+  if (toolId === 'subtitle-erase') {
+    const preset = String(params.preset ?? 'fast')
+    return (
+      <div className="space-y-4">
+        <div>
+          <div className="mb-2 text-sm font-medium text-slate-700">{atomicTools.fields.preset}</div>
+          <div className="grid gap-2 md:grid-cols-3">
+            {(['fast', 'balanced', 'quality'] as const).map(option => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setField('preset', option)}
+                className={`rounded-2xl border p-3 text-left transition ${
+                  preset === option
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="text-sm font-semibold text-slate-900">
+                  {atomicTools.presetLabels[option]}
+                </div>
+                <div className="mt-1 text-xs leading-5 text-slate-500">
+                  {atomicTools.presetHints[option]}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <details className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+          <summary className="cursor-pointer text-sm font-medium text-slate-700">
+            {atomicTools.fields.advanced}
+          </summary>
+          <div className="mt-3 grid gap-4 md:grid-cols-3">
+            <SelectField
+              label={atomicTools.fields.mode}
+              value={String(params.mode ?? 'auto')}
+              options={['auto', 'manual']}
+              onChange={value => setField('mode', value)}
+            />
+            <SelectField
+              label={atomicTools.fields.backend}
+              value={String(params.backend ?? '')}
+              options={['', 'telea', 'flow-guided', 'lama']}
+              onChange={value => setField('backend', value)}
+            />
+            <CheckboxField
+              label={atomicTools.fields.autoTune}
+              checked={Boolean(params.auto_tune)}
+              onChange={value => setField('auto_tune', value)}
+            />
+            <TextField
+              label={atomicTools.fields.maskDilateX}
+              type="number"
+              value={String(params.mask_dilate_x ?? '')}
+              onChange={value => setField('mask_dilate_x', value === '' ? '' : Number(value))}
+            />
+            <TextField
+              label={atomicTools.fields.maskDilateY}
+              type="number"
+              value={String(params.mask_dilate_y ?? '')}
+              onChange={value => setField('mask_dilate_y', value === '' ? '' : Number(value))}
+            />
+            <TextField
+              label={atomicTools.fields.temporalRadius}
+              type="number"
+              value={String(params.mask_temporal_radius ?? '')}
+              onChange={value => setField('mask_temporal_radius', value === '' ? '' : Number(value))}
+            />
+            <TextField
+              label={atomicTools.fields.cleanupCoverage}
+              type="number"
+              value={String(params.cleanup_max_coverage ?? '')}
+              onChange={value => setField('cleanup_max_coverage', value === '' ? '' : Number(value))}
+            />
+            <TextField
+              label={atomicTools.fields.temporalConsensus}
+              type="number"
+              value={String(params.temporal_consensus ?? '')}
+              onChange={value => setField('temporal_consensus', value === '' ? '' : Number(value))}
+            />
+            <TextField
+              label={atomicTools.fields.temporalStd}
+              type="number"
+              value={String(params.temporal_std_threshold ?? '')}
+              onChange={value => setField('temporal_std_threshold', value === '' ? '' : Number(value))}
+            />
+          </div>
+        </details>
+      </div>
+    )
+  }
+
   return null
 }
 
@@ -346,6 +515,23 @@ function buildRunPayload(
 ) {
   if (toolId === 'separation' || toolId === 'probe' || toolId === 'transcription') {
     return { ...params, file_id: fileRefs.file?.file_id }
+  }
+
+  if (toolId === 'subtitle-detect') {
+    return { ...params, file_id: fileRefs.file?.file_id }
+  }
+
+  if (toolId === 'subtitle-erase') {
+    const cleaned: Record<string, unknown> = {
+      file_id: fileRefs.file?.file_id,
+      detection_file_id: fileRefs.detection_file?.file_id,
+    }
+    for (const [key, value] of Object.entries(params)) {
+      if (value === '' || value === undefined) continue
+      if (key === 'backend' && value === '') continue
+      cleaned[key] = value
+    }
+    return cleaned
   }
 
   if (toolId === 'mixing') {
@@ -397,6 +583,17 @@ function getDefaultParams(toolId: string): Record<string, string | number | bool
       return { language: 'auto' }
     case 'muxing':
       return { video_codec: 'copy', audio_codec: 'aac', audio_bitrate: '192k' }
+    case 'subtitle-detect':
+      return {
+        language: 'ch',
+        position_mode: 'bottom',
+        roi_bottom_ratio: 0.34,
+        sample_interval: 0.4,
+        merge_threshold: 0.78,
+        preview_frames: 3,
+      }
+    case 'subtitle-erase':
+      return { preset: 'fast', mode: 'auto', backend: '', auto_tune: false }
     default:
       return {}
   }

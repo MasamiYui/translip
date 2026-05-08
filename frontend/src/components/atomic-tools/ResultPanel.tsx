@@ -2,6 +2,7 @@ import { Download, FileText, CheckCircle2 } from 'lucide-react'
 import { useI18n } from '../../i18n/useI18n'
 import { CrossToolAction } from './CrossToolAction'
 import type { ArtifactInfo, AtomicJob } from '../../types/atomic-tools'
+import type { AtomicToolPrefill } from '../../lib/atomicToolPrefill'
 
 interface ResultPanelProps {
   toolId: string
@@ -25,6 +26,13 @@ export function ResultPanel({ toolId, job, artifacts, getDownloadUrl }: ResultPa
     typeof job.result?.translated_text === 'string' ? job.result.translated_text : null
 
   const statusCfg = STATUS_CONFIG[job.status] ?? { label: job.status.toUpperCase(), color: 'text-[#6b7280]', dot: 'bg-[#9ca3af]' }
+
+  const sideBySide = buildSubtitleEraseCompare(toolId, job, artifacts, getDownloadUrl, {
+    compareTitle: t.atomicTools.result.compareTitle,
+    compareOriginal: t.atomicTools.result.compareOriginal,
+    compareErased: t.atomicTools.result.compareErased,
+    quickMetrics: t.atomicTools.result.quickMetrics,
+  })
 
   return (
     <section className="space-y-4">
@@ -75,6 +83,8 @@ export function ResultPanel({ toolId, job, artifacts, getDownloadUrl }: ResultPa
           </div>
         </div>
       )}
+
+      {sideBySide}
 
       {/* Artifacts */}
       {artifacts.length > 0 && (
@@ -142,6 +152,7 @@ function buildArtifactActions(
     toMixing: string
     toTranslation: string
     toMuxing: string
+    toSubtitleErase: string
   },
 ) {
   const fileId = artifact.file_id ?? undefined
@@ -197,7 +208,76 @@ function buildArtifactActions(
     return [buildArtifactAction(labels.toTts, 'tts', { text: translatedText })]
   }
 
+  if (toolId === 'subtitle-detect' && /detection\.json$/i.test(artifact.filename)) {
+    return [
+      buildArtifactAction(labels.toSubtitleErase, 'subtitle-erase', {
+        files: { detection_file: { file_id: fileId, filename: artifact.filename } },
+      }),
+    ]
+  }
+
+  if (toolId === 'subtitle-erase' && /erased\.(mp4|mov|mkv)$/i.test(artifact.filename)) {
+    return [
+      buildArtifactAction(labels.toMuxing, 'muxing', {
+        files: { video_file: { file_id: fileId, filename: artifact.filename } },
+      }),
+    ]
+  }
+
   return []
+}
+
+function buildSubtitleEraseCompare(
+  toolId: string,
+  job: AtomicJob,
+  artifacts: ArtifactInfo[],
+  getDownloadUrl: (filename: string) => string,
+  labels: { compareTitle: string; compareOriginal: string; compareErased: string; quickMetrics: string },
+) {
+  if (toolId !== 'subtitle-erase') return null
+  const erased = artifacts.find(item => /erased\.(mp4|mov|mkv|webm)$/i.test(item.filename))
+  if (!erased) return null
+
+  const result = job.result ?? {}
+  const sourceUrl = typeof result.source_url === 'string' ? result.source_url : null
+  const metrics = result.quick_metrics as Record<string, unknown> | null | undefined
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+      <div className="mb-3 text-sm font-medium text-slate-700">{labels.compareTitle}</div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <div>
+          <div className="mb-1 text-xs uppercase tracking-widest text-slate-400">{labels.compareOriginal}</div>
+          {sourceUrl ? (
+            <video controls className="w-full rounded-xl" src={sourceUrl} />
+          ) : (
+            <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-slate-300 text-xs text-slate-400">
+              —
+            </div>
+          )}
+        </div>
+        <div>
+          <div className="mb-1 text-xs uppercase tracking-widest text-slate-400">{labels.compareErased}</div>
+          <video controls className="w-full rounded-xl" src={getDownloadUrl(erased.filename)} />
+        </div>
+      </div>
+      {metrics && typeof metrics === 'object' && (
+        <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-white px-3 py-2 text-xs text-slate-600 md:grid-cols-4">
+          <div className="col-span-2 text-[11px] uppercase tracking-widest text-slate-400 md:col-span-4">
+            {labels.quickMetrics}
+          </div>
+          {Object.entries(metrics).map(([key, value]) => (
+            <div key={key} className="flex justify-between gap-2">
+              <span className="text-slate-400">{key}</span>
+              <span className="font-mono text-slate-700">
+                {typeof value === 'number' ? value.toFixed(3) : String(value)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
 }
 
 function buildArtifactAction(label: string, targetToolId: string, payload: AtomicToolPrefill) {

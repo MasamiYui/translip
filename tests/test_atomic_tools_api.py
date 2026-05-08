@@ -51,6 +51,8 @@ def test_atomic_tools_api_supports_upload_run_status_and_artifacts(tmp_path: Pat
         "tts",
         "probe",
         "muxing",
+        "subtitle-detect",
+        "subtitle-erase",
     }
 
     upload_response = client.post(

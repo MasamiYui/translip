@@ -113,3 +113,34 @@ class MuxingToolRequest(BaseModel):
     video_codec: str = "copy"
     audio_codec: str = "aac"
     audio_bitrate: str = "192k"
+
+
+SubtitleErasePreset = Literal["fast", "balanced", "quality"]
+
+
+class SubtitleDetectToolRequest(BaseModel):
+    file_id: str
+    language: Literal["ch", "en", "ch_tra", "japan", "korean"] = "ch"
+    position_mode: Literal["auto", "bottom", "top", "full"] = "bottom"
+    roi_bottom_ratio: float = 0.34
+    sample_interval: float = 0.4
+    merge_threshold: float = 0.78
+    preview_frames: int = 3
+
+
+class SubtitleEraseToolRequest(BaseModel):
+    file_id: str
+    detection_file_id: str
+    preset: SubtitleErasePreset = "fast"
+    backend: Literal["telea", "flow-guided", "lama"] | None = None
+    mode: Literal["auto", "manual"] = "auto"
+    regions: list[tuple[float, float, float, float]] | None = None
+    mask_dilate_x: int | None = None
+    mask_dilate_y: int | None = None
+    mask_temporal_radius: int | None = None
+    event_lead_frames: int | None = None
+    event_trail_frames: int | None = None
+    cleanup_max_coverage: float | None = None
+    temporal_consensus: int | None = None
+    temporal_std_threshold: float | None = None
+    auto_tune: bool = False
