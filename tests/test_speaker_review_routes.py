@@ -76,6 +76,68 @@ def test_speaker_review_decision_and_apply_routes_write_corrected_segments(tmp_p
     assert (output_root / "asr-ocr-correct" / "voice" / "speaker-review-manifest.json").exists()
 
 
+def test_speaker_review_new_endpoints(tmp_path: Path) -> None:
+    engine = _test_engine(tmp_path, "speaker-review-new.db")
+    output_root = tmp_path / "output"
+    _write_segments_fixture(output_root)
+    _insert_task(engine, output_root)
+
+    def override_session():
+        with Session(engine) as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        client = TestClient(app)
+
+        review = client.get("/api/tasks/task-speaker-review/speaker-review").json()
+        assert "similarity" in review
+        assert review["speakers"]
+        first_speaker = review["speakers"][0]
+        assert "reference_clips" in first_speaker
+        if review["speaker_runs"]:
+            assert "audio_url" in review["speaker_runs"][0]
+
+        similarity = client.get("/api/tasks/task-speaker-review/speaker-review/similarity")
+        assert similarity.status_code == 200
+        data = similarity.json()
+        assert "labels" in data and "matrix" in data
+
+        label = first_speaker["speaker_label"]
+        clips = client.get(
+            f"/api/tasks/task-speaker-review/speaker-review/speakers/{label}/reference-clips"
+        )
+        assert clips.status_code == 200
+        clips_payload = clips.json()
+        assert clips_payload["speaker_label"] == label
+
+        client.post(
+            "/api/tasks/task-speaker-review/speaker-review/decisions",
+            json={
+                "item_id": "segment:seg-0002",
+                "item_type": "segment",
+                "decision": "keep_independent",
+                "segment_ids": ["seg-0002"],
+            },
+        )
+        deleted = client.delete(
+            "/api/tasks/task-speaker-review/speaker-review/decisions/segment:seg-0002"
+        )
+        assert deleted.status_code == 200
+        deleted_body = deleted.json()
+        assert deleted_body.get("ok") is True
+        assert deleted_body.get("removed", 0) >= 1
+
+        audio = client.get(
+            "/api/tasks/task-speaker-review/speaker-review/audio",
+            params={"start": 0.0, "end": 1.0},
+        )
+        assert audio.status_code in (200, 206)
+        assert audio.headers.get("content-type", "").startswith("audio/")
+    finally:
+        app.dependency_overrides.clear()
+
+
 def _test_engine(tmp_path: Path, name: str):
     engine = create_engine(
         f"sqlite:///{tmp_path / name}",

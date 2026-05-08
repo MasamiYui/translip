@@ -1,19 +1,23 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
+  ArrowLeft,
   Ban,
   Check,
+  ChevronDown,
+  ChevronUp,
   GitMerge,
+  Keyboard,
   Loader2,
-  Mic2,
+  Pause,
+  Play,
   RotateCcw,
-  Route,
-  SlidersHorizontal,
+  SkipBack,
+  SkipForward,
+  Trash2,
   UserRound,
   Wand2,
-  X,
-  type LucideIcon,
 } from 'lucide-react'
 import { tasksApi } from '../../api/tasks'
 import type {
@@ -23,14 +27,35 @@ import type {
   SpeakerReviewSegment,
   SpeakerReviewSpeaker,
 } from '../../types'
+import { useSpeakerReviewStore, type ReviewSelection } from './speakerReviewStore'
 
-type ReviewTab = 'speakers' | 'runs' | 'segments'
+type QueueEntry =
+  | { kind: 'speaker'; id: string; start: number; end: number; risk: string; speaker: SpeakerReviewSpeaker }
+  | { kind: 'run'; id: string; start: number; end: number; risk: string; run: SpeakerReviewRun }
+  | { kind: 'segment'; id: string; start: number; end: number; risk: string; segment: SpeakerReviewSegment }
 
-const TAB_CONFIG: Array<{ id: ReviewTab; label: string; description: string }> = [
-  { id: 'speakers', label: '说话人总览', description: '先处理低样本和不可克隆角色' },
-  { id: 'runs', label: '短孤岛', description: '修正夹在上下文中的异常 speaker run' },
-  { id: 'segments', label: '片段风险', description: '逐段处理边界和长段异常' },
-]
+const RISK_ORDER: Record<string, number> = { high: 0, medium: 1, low: 2 }
+
+function formatDuration(value?: number | null) {
+  if (!value && value !== 0) return '--'
+  const total = Math.max(0, Math.round(value))
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
+function fmtTime(value?: number | null) {
+  if (value === undefined || value === null) return '0:00.0'
+  const minutes = Math.floor(value / 60)
+  const seconds = value - minutes * 60
+  return `${minutes}:${seconds.toFixed(1).padStart(4, '0')}`
+}
+
+function riskColor(risk?: string | null) {
+  if (risk === 'high') return 'text-rose-700 bg-rose-50 border-rose-200'
+  if (risk === 'medium') return 'text-amber-700 bg-amber-50 border-amber-200'
+  return 'text-emerald-700 bg-emerald-50 border-emerald-200'
+}
 
 export function SpeakerReviewDrawer({
   taskId,
@@ -43,8 +68,47 @@ export function SpeakerReviewDrawer({
   onClose: () => void
   onRerunFromTaskB?: () => void
 }) {
-  const [activeTab, setActiveTab] = useState<ReviewTab>('speakers')
   const queryClient = useQueryClient()
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [applyResult, setApplyResult] = useState<string | null>(null)
+  const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
+    if (typeof window === 'undefined') return 220
+    return window.localStorage.getItem('translip:sidebar-collapsed') === '1' ? 56 : 220
+  })
+  const [headerHeight, setHeaderHeight] = useState<number>(48)
+  useEffect(() => {
+    const handler = () => {
+      setSidebarWidth(
+        window.localStorage.getItem('translip:sidebar-collapsed') === '1' ? 56 : 220,
+      )
+      const headerEl = document.querySelector('header')
+      if (headerEl instanceof HTMLElement) {
+        setHeaderHeight(headerEl.getBoundingClientRect().height || 48)
+      }
+    }
+    handler()
+    window.addEventListener('storage', handler)
+    const interval = window.setInterval(handler, 600)
+    return () => {
+      window.removeEventListener('storage', handler)
+      window.clearInterval(interval)
+    }
+  }, [])
+
+  const {
+    selection,
+    bulkSelection,
+    filters,
+    showShortcuts,
+    pendingMerge,
+    setSelection,
+    toggleBulk,
+    clearBulk,
+    setFilters,
+    setShowShortcuts,
+    setPendingMerge,
+  } = useSpeakerReviewStore()
 
   const reviewQuery = useQuery({
     queryKey: ['speaker-review', taskId],
@@ -53,7 +117,15 @@ export function SpeakerReviewDrawer({
   })
 
   const decisionMutation = useMutation({
-    mutationFn: (payload: SpeakerReviewDecisionPayload) => tasksApi.saveSpeakerReviewDecision(taskId, payload),
+    mutationFn: (payload: SpeakerReviewDecisionPayload) =>
+      tasksApi.saveSpeakerReviewDecision(taskId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['speaker-review', taskId] })
+    },
+  })
+
+  const deleteDecisionMutation = useMutation({
+    mutationFn: (itemId: string) => tasksApi.deleteSpeakerReviewDecision(taskId, itemId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['speaker-review', taskId] })
     },
@@ -61,782 +133,989 @@ export function SpeakerReviewDrawer({
 
   const applyMutation = useMutation({
     mutationFn: () => tasksApi.applySpeakerReviewDecisions(taskId),
-    onSuccess: () => {
+    onSuccess: data => {
+      setApplyResult(data.archive_path ? `已归档旧产物到 ${data.archive_path}` : '已应用')
       queryClient.invalidateQueries({ queryKey: ['speaker-review', taskId] })
-      queryClient.invalidateQueries({ queryKey: ['artifacts', taskId] })
-      queryClient.invalidateQueries({ queryKey: ['task', taskId] })
     },
   })
 
-  const review = reviewQuery.data
-  const stats = useMemo(() => summarizeReview(review), [review])
-  const speakerOptions = useMemo(
-    () => review?.speakers.map(speaker => speaker.speaker_label).sort() ?? [],
-    [review],
-  )
+  const queue = useMemo(() => buildQueue(reviewQuery.data), [reviewQuery.data])
 
-  if (!isOpen) {
-    return null
+  const filteredQueue = useMemo(() => {
+    let rows = queue.filter(r => filters.risk.includes(r.risk as never))
+    if (filters.onlyUndecided) {
+      rows = rows.filter(r => !getDecisionFor(r))
+    }
+    if (filters.sortBy === 'time') {
+      rows = [...rows].sort((a, b) => a.start - b.start)
+    } else {
+      rows = [...rows].sort(
+        (a, b) => (RISK_ORDER[a.risk] ?? 9) - (RISK_ORDER[b.risk] ?? 9) || a.start - b.start,
+      )
+    }
+    return rows
+  }, [queue, filters])
+
+  const selected = useMemo(() => findSelected(reviewQuery.data, selection), [reviewQuery.data, selection])
+
+  const audioSrc = useMemo(() => {
+    if (!selected) return null
+    const sel = selected as { audio_url?: string | null; reference_clips?: Array<{ url?: string | null }> }
+    return sel.audio_url ?? sel.reference_clips?.[0]?.url ?? null
+  }, [selected])
+
+  useEffect(() => {
+    if (audioSrc && audioRef.current) {
+      audioRef.current.src = audioSrc
+      audioRef.current.load()
+    }
+  }, [audioSrc])
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handler = (event: KeyboardEvent) => {
+      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
+      if (event.key === '?') {
+        setShowShortcuts(!showShortcuts)
+        return
+      }
+      if (event.key === 'Escape') {
+        if (pendingMerge) {
+          setPendingMerge(null)
+          return
+        }
+        onClose()
+        return
+      }
+      if (event.key === ' ') {
+        event.preventDefault()
+        const el = audioRef.current
+        if (!el) return
+        if (el.paused) {
+          el.play().catch(() => undefined)
+          setIsPlaying(true)
+        } else {
+          el.pause()
+          setIsPlaying(false)
+        }
+        return
+      }
+      if (event.key === 'j' || event.key === 'ArrowDown') {
+        event.preventDefault()
+        if (!filteredQueue.length) return
+        const idx = filteredQueue.findIndex(entry => entry.id === selection?.id && entry.kind === selection?.kind)
+        const next = filteredQueue[Math.min(Math.max(idx + 1, 0), filteredQueue.length - 1)]
+        if (next) setSelection({ kind: next.kind, id: next.id })
+      } else if (event.key === 'k' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        if (!filteredQueue.length) return
+        const idx = filteredQueue.findIndex(entry => entry.id === selection?.id && entry.kind === selection?.kind)
+        const next = filteredQueue[Math.min(Math.max(idx - 1, 0), filteredQueue.length - 1)]
+        if (next) setSelection({ kind: next.kind, id: next.id })
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [isOpen, showShortcuts, pendingMerge, filteredQueue, selection, onClose, setShowShortcuts, setPendingMerge, setSelection])
+
+  const togglePlay = () => {
+    const el = audioRef.current
+    if (!el) return
+    if (el.paused) {
+      el.play().catch(() => undefined)
+      setIsPlaying(true)
+    } else {
+      el.pause()
+      setIsPlaying(false)
+    }
   }
 
-  function saveDecision(payload: SpeakerReviewDecisionPayload) {
+  const handleDecision = (payload: SpeakerReviewDecisionPayload) => {
     decisionMutation.mutate(payload)
   }
 
+  const confirmMerge = () => {
+    if (!pendingMerge) return
+    const selectedRun = selected && 'run_id' in selected ? (selected as SpeakerReviewRun) : null
+    if (selectedRun) {
+      handleDecision({
+        item_id: selectedRun.run_id,
+        item_type: 'speaker_run',
+        decision: 'merge_speaker',
+        payload: { target_speaker: pendingMerge.target, source_speaker: pendingMerge.source },
+      })
+    } else {
+      handleDecision({
+        item_id: `speaker:${pendingMerge.source}`,
+        item_type: 'speaker_profile',
+        decision: 'merge_speaker',
+        payload: { target_speaker: pendingMerge.target, source_speaker: pendingMerge.source },
+      })
+    }
+    setPendingMerge(null)
+  }
+
+  if (!isOpen) return null
+
+  const data = reviewQuery.data
+
   return (
-    <>
-      <button
-        type="button"
-        className="fixed inset-0 z-30 bg-slate-950/25"
-        onClick={onClose}
-        aria-label="关闭说话人审查"
-      />
-      <aside className="fixed inset-y-0 right-0 z-40 flex w-full max-w-6xl flex-col border-l border-slate-200 bg-white">
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-              <Mic2 size={13} />
-              Step 1 · Speaker Review
-            </div>
-            <h2 className="mt-2 text-xl font-semibold text-slate-900">说话人核对</h2>
-            <div className="mt-1 text-sm text-slate-500">
-              确认每一段话是谁说的。归属错误会污染后续音色克隆，审查通过后请从 Task B 重跑。
-            </div>
-            <FlowProgress />
-          </div>
+    <div
+      className="fixed inset-y-0 right-0 z-40 flex items-stretch bg-[#F5F7FB]"
+      style={{ left: sidebarWidth, top: headerHeight }}
+      data-testid="speaker-review-drawer"
+    >
+      <div className="flex h-full w-full flex-col bg-[#F5F7FB]">
+        <Topbar
+          data={data}
+          onClose={onClose}
+          onApply={() => applyMutation.mutate()}
+          applying={applyMutation.isPending}
+          applyResult={applyResult}
+          onRerunFromTaskB={onRerunFromTaskB}
+          onToggleShortcuts={() => setShowShortcuts(!showShortcuts)}
+        />
+
+        <GlobalAudioPlayer
+          audioRef={audioRef}
+          src={audioSrc}
+          isPlaying={isPlaying}
+          onToggle={togglePlay}
+          onEnded={() => setIsPlaying(false)}
+          label={selected ? describeSelection(selected) : '未选中'}
+        />
+
+        <div className="grid flex-1 grid-cols-[300px_1fr_380px] gap-3 overflow-hidden bg-[#F5F7FB] p-3">
+          <RosterPanel
+            data={data}
+            onSelect={sel => setSelection(sel)}
+            selection={selection}
+            onMergeSuggest={(source, target) => setPendingMerge({ source, target })}
+          />
+
+          <ReviewQueue
+            entries={filteredQueue}
+            filters={filters}
+            setFilters={setFilters}
+            onSelect={sel => setSelection(sel)}
+            selection={selection}
+            bulkSelection={bulkSelection}
+            onToggleBulk={toggleBulk}
+            onClearBulk={clearBulk}
+            onBulkKeep={() => handleBulkKeep(filteredQueue, bulkSelection, handleDecision, clearBulk)}
+          />
+
+          <InspectorPanel
+            selected={selected}
+            onDecision={handleDecision}
+            onDeleteDecision={itemId => deleteDecisionMutation.mutate(itemId)}
+            loading={decisionMutation.isPending || deleteDecisionMutation.isPending}
+            data={data}
+          />
+        </div>
+
+        {pendingMerge && (
+          <MergeConfirmModal
+            pending={pendingMerge}
+            onCancel={() => setPendingMerge(null)}
+            onConfirm={confirmMerge}
+          />
+        )}
+
+        {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
+      </div>
+    </div>
+  )
+}
+
+const TOPBAR_ICON_BTN =
+  'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent'
+
+function Topbar({
+  data,
+  onClose,
+  onApply,
+  applying,
+  applyResult,
+  onRerunFromTaskB,
+  onToggleShortcuts,
+}: {
+  data?: SpeakerReviewResponse
+  onClose: () => void
+  onApply: () => void
+  applying: boolean
+  applyResult: string | null
+  onRerunFromTaskB?: () => void
+  onToggleShortcuts: () => void
+}) {
+  const summary = data?.summary
+  return (
+    <div
+      className="shrink-0 border-b border-slate-200 bg-white"
+      data-testid="speaker-review-topbar"
+    >
+      <div className="flex h-12 items-center gap-2 px-3">
+        <div className="flex min-w-0 shrink items-center gap-1.5">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-md border border-slate-200 p-1.5 text-slate-500 transition-colors hover:bg-slate-50 hover:text-slate-700"
-            aria-label="关闭"
+            className="flex shrink-0 items-center gap-1 rounded-md px-1.5 py-1 text-xs text-slate-400 transition-colors hover:bg-slate-50 hover:text-slate-600"
+            title="返回任务详情"
+            data-testid="close-drawer"
           >
-            <X size={16} />
+            <ArrowLeft size={14} />
           </button>
+          <span className="min-w-0 truncate text-sm font-semibold text-slate-900" title="说话人核对">
+            说话人核对
+          </span>
         </div>
 
-        <div className="border-b border-slate-100 px-6 py-4">
-          <div className="grid gap-3 md:grid-cols-5">
-            <ReviewStat label="说话人" value={stats.speakers} />
-            <ReviewStat label="高风险" value={stats.highRiskSpeakers} />
-            <ReviewStat label="短孤岛" value={stats.runs} />
-            <ReviewStat label="片段风险" value={stats.segments} />
-            <ReviewStat label="决策" value={stats.decisions} />
-          </div>
+        <span className="h-4 w-px shrink-0 bg-slate-200" aria-hidden="true" />
+
+        <div className="flex shrink-0 items-center gap-1.5 text-[11px]">
+          <StatBadge label="说话人" value={summary?.speaker_count} />
+          <StatBadge label="待审" value={summary?.review_segment_count} />
+          <StatBadge label="高风险" value={summary?.high_risk_run_count} tone="warn" />
+          <StatBadge label="已决策" value={summary?.decision_count} tone="ok" />
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-3">
-          <div className="flex gap-1 overflow-x-auto">
-            {TAB_CONFIG.map(tab => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`min-w-36 rounded-lg px-3 py-2 text-left transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800'
-                }`}
-              >
-                <div className="text-sm font-semibold">{tab.label}</div>
-                <div className="mt-0.5 text-xs opacity-75">{tab.description}</div>
-              </button>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            {review?.summary.corrected_exists && <StatusPill tone="emerald">已生成修正版</StatusPill>}
+        <div className="flex-1" />
+
+        {applyResult && (
+          <span className="truncate text-[11px] text-emerald-700" data-testid="apply-result">
+            {applyResult}
+          </span>
+        )}
+
+        <div className="flex shrink-0 items-center gap-0.5">
+          <button
+            type="button"
+            className={TOPBAR_ICON_BTN}
+            onClick={onToggleShortcuts}
+            data-testid="shortcuts-button"
+            title="快捷键帮助"
+            aria-label="快捷键"
+          >
+            <Keyboard size={14} />
+          </button>
+          {onRerunFromTaskB && (
             <button
               type="button"
-              onClick={() => applyMutation.mutate()}
-              disabled={!review || review.status !== 'available' || review.summary.decision_count === 0 || applyMutation.isPending}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className={TOPBAR_ICON_BTN}
+              onClick={onRerunFromTaskB}
+              title="从 Task B 重跑"
+              aria-label="重跑 Task B"
             >
-              {applyMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
-              应用 speaker 修正
+              <RotateCcw size={14} />
             </button>
-          </div>
+          )}
+
+          <span className="mx-1 h-4 w-px bg-slate-200" aria-hidden="true" />
+
+          <button
+            type="button"
+            className="flex h-8 items-center gap-1 rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={onApply}
+            disabled={applying}
+            data-testid="apply-decisions"
+            title="应用所有决策"
+          >
+            {applying ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+            应用决策
+          </button>
         </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-5">
-          {reviewQuery.isLoading && (
-            <Notice icon={Loader2} tone="slate" spin>
-              正在生成说话人诊断...
-            </Notice>
-          )}
-
-          {reviewQuery.isError && (
-            <Notice icon={AlertTriangle} tone="rose">
-              说话人审查数据读取失败，请确认 Task A 产物是否完整。
-            </Notice>
-          )}
-
-          {applyMutation.isSuccess && (
-            <div className="mb-4 flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3.5">
-              <Check size={16} className="mt-0.5 shrink-0 text-emerald-600" />
-              <div className="min-w-0 flex-1">
-                <div className="text-sm font-semibold text-emerald-800">修正已应用</div>
-                <div className="mt-0.5 text-sm text-emerald-700">
-                  已输出 <code className="rounded bg-emerald-100 px-1 py-0.5 font-mono text-xs">segments.zh.speaker-corrected.json</code>，
-                  建议立即从 Task B 重跑以使变更生效。
-                </div>
-                {onRerunFromTaskB && (
-                  <button
-                    type="button"
-                    onClick={onRerunFromTaskB}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-emerald-700"
-                  >
-                    <RotateCcw size={13} />
-                    立即从 Task B 重跑
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {applyMutation.isError && (
-            <Notice icon={AlertTriangle} tone="rose">
-              应用 speaker 决策失败，请先确认已经保存至少一条人工决策。
-            </Notice>
-          )}
-
-          {review && review.status === 'missing' && (
-            <EmptyState
-              title="当前还没有可审查的说话人产物"
-              description="需要先完成 Task A，生成 segments.zh.json 或 ASR/OCR corrected segments 后，这里才会显示诊断结果。"
-            />
-          )}
-
-          {review && review.status === 'available' && (
-            <>
-              {activeTab === 'speakers' && (
-                <SpeakerPanel
-                  speakers={review.speakers}
-                  speakerOptions={speakerOptions}
-                  isSaving={decisionMutation.isPending}
-                  onSave={saveDecision}
-                />
-              )}
-              {activeTab === 'runs' && (
-                <RunPanel
-                  runs={review.speaker_runs}
-                  speakerOptions={speakerOptions}
-                  isSaving={decisionMutation.isPending}
-                  onSave={saveDecision}
-                />
-              )}
-              {activeTab === 'segments' && (
-                <SegmentPanel
-                  segments={review.segments}
-                  speakerOptions={speakerOptions}
-                  isSaving={decisionMutation.isPending}
-                  onSave={saveDecision}
-                />
-              )}
-            </>
-          )}
-        </div>
-      </aside>
-    </>
-  )
-}
-
-function SpeakerPanel({
-  speakers,
-  speakerOptions,
-  isSaving,
-  onSave,
-}: {
-  speakers: SpeakerReviewSpeaker[]
-  speakerOptions: string[]
-  isSaving: boolean
-  onSave: (payload: SpeakerReviewDecisionPayload) => void
-}) {
-  const [targets, setTargets] = useState<Record<string, string>>({})
-  const sorted = useMemo(
-    () => [...speakers].sort((a, b) => riskSort(a.risk_level, b.risk_level) || b.segment_count - a.segment_count),
-    [speakers],
-  )
-
-  if (sorted.length === 0) {
-    return <EmptyState title="没有说话人统计" description="当前 segments 文件为空，无法生成 speaker summary。" />
-  }
-
-  return (
-    <div className="space-y-4">
-      {sorted.map(speaker => {
-        const target = targets[speaker.speaker_label] ?? ''
-        return (
-          <section key={speaker.speaker_label} className="rounded-xl border border-slate-200 bg-white">
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-3.5">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <UserRound size={15} className="text-slate-400" />
-                  <h3 className="font-mono text-sm font-semibold text-slate-900">{speaker.speaker_label}</h3>
-                  <RiskPill level={speaker.risk_level} />
-                  {!speaker.cloneable_by_default && <StatusPill tone="amber">默认不建议克隆</StatusPill>}
-                  {speaker.decision && <StatusPill tone="blue">已决策：{decisionLabel(speaker.decision.decision)}</StatusPill>}
-                </div>
-                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-                  <span>片段 {speaker.segment_count}</span>
-                  <span>语音 {formatSeconds(speaker.total_speech_sec)}</span>
-                  <span>平均 {formatSeconds(speaker.avg_duration_sec)}</span>
-                  <span>短句 {speaker.short_segment_count}</span>
-                </div>
-                <RiskFlags flags={speaker.risk_flags} />
-              </div>
-              <div className="flex flex-wrap justify-end gap-2">
-                <ReviewActionButton
-                  icon={Ban}
-                  label="不克隆"
-                  disabled={isSaving}
-                  active={speaker.decision?.decision === 'mark_non_cloneable'}
-                  onClick={() => onSave({
-                    item_id: `speaker:${speaker.speaker_label}`,
-                    item_type: 'speaker_profile',
-                    decision: 'mark_non_cloneable',
-                    source_speaker_label: speaker.speaker_label,
-                    segment_ids: speaker.segment_ids,
-                  })}
-                />
-                <ReviewActionButton
-                  icon={Check}
-                  label="保持独立"
-                  disabled={isSaving}
-                  active={speaker.decision?.decision === 'keep_independent'}
-                  onClick={() => onSave({
-                    item_id: `speaker:${speaker.speaker_label}`,
-                    item_type: 'speaker_profile',
-                    decision: 'keep_independent',
-                    source_speaker_label: speaker.speaker_label,
-                    segment_ids: speaker.segment_ids,
-                  })}
-                />
-              </div>
-            </div>
-            <div className="grid gap-3 px-4 py-3.5 md:grid-cols-[minmax(0,1fr)_280px]">
-              <div className="min-w-0 text-sm leading-6 text-slate-600">
-                {speaker.risk_flags.length > 0
-                  ? '优先判断这个 label 是否是真实角色。如果只是短孤岛或误分出来的临时说话人，应合并到上下文角色，或标记为不克隆。'
-                  : '当前统计没有明显风险，通常可以保持独立。'}
-              </div>
-              <TargetSelect
-                value={target}
-                options={speakerOptions.filter(option => option !== speaker.speaker_label)}
-                onChange={value => setTargets(current => ({ ...current, [speaker.speaker_label]: value }))}
-                onApply={() => onSave({
-                  item_id: `speaker:${speaker.speaker_label}`,
-                  item_type: 'speaker_profile',
-                  decision: 'merge_speaker',
-                  source_speaker_label: speaker.speaker_label,
-                  target_speaker_label: target,
-                  segment_ids: speaker.segment_ids,
-                })}
-                disabled={isSaving || !target}
-                label="合并到"
-              />
-            </div>
-          </section>
-        )
-      })}
-    </div>
-  )
-}
-
-function RunPanel({
-  runs,
-  speakerOptions,
-  isSaving,
-  onSave,
-}: {
-  runs: SpeakerReviewRun[]
-  speakerOptions: string[]
-  isSaving: boolean
-  onSave: (payload: SpeakerReviewDecisionPayload) => void
-}) {
-  const [targets, setTargets] = useState<Record<string, string>>({})
-  const riskyRuns = useMemo(
-    () => runs.filter(run => run.risk_flags.length > 0).sort((a, b) => riskSort(a.risk_level, b.risk_level) || a.start - b.start),
-    [runs],
-  )
-
-  if (riskyRuns.length === 0) {
-    return <EmptyState title="没有短孤岛风险" description="当前没有发现需要优先处理的 speaker run。" />
-  }
-
-  return (
-    <div className="space-y-4">
-      {riskyRuns.map(run => {
-        const target = targets[run.run_id] ?? ''
-        return (
-          <section key={run.run_id} className="rounded-xl border border-slate-200 bg-white">
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-100 px-4 py-3.5">
-              <RunHeader run={run} />
-              <div className="flex flex-wrap justify-end gap-2">
-                <NeighborButton run={run} direction="previous" disabled={isSaving} onSave={onSave} />
-                <NeighborButton run={run} direction="next" disabled={isSaving} onSave={onSave} />
-                <ReviewActionButton
-                  icon={Check}
-                  label="保持"
-                  disabled={isSaving}
-                  active={run.decision?.decision === 'keep_independent'}
-                  onClick={() => onSave(baseRunPayload(run, 'keep_independent'))}
-                />
-              </div>
-            </div>
-            <div className="grid gap-3 px-4 py-3.5 md:grid-cols-[minmax(0,1fr)_280px]">
-              <div className="min-w-0">
-                <div className="text-sm leading-6 text-slate-700">{run.text || '无文本'}</div>
-                <RiskFlags flags={run.risk_flags} />
-              </div>
-              <TargetSelect
-                value={target}
-                options={speakerOptions.filter(option => option !== run.speaker_label)}
-                onChange={value => setTargets(current => ({ ...current, [run.run_id]: value }))}
-                onApply={() => onSave({
-                  ...baseRunPayload(run, 'relabel'),
-                  target_speaker_label: target,
-                })}
-                disabled={isSaving || !target}
-                label="改为"
-              />
-            </div>
-          </section>
-        )
-      })}
-    </div>
-  )
-}
-
-function SegmentPanel({
-  segments,
-  speakerOptions,
-  isSaving,
-  onSave,
-}: {
-  segments: SpeakerReviewSegment[]
-  speakerOptions: string[]
-  isSaving: boolean
-  onSave: (payload: SpeakerReviewDecisionPayload) => void
-}) {
-  const [targets, setTargets] = useState<Record<string, string>>({})
-  const riskySegments = useMemo(
-    () => segments.filter(segment => segment.risk_flags.length > 0).sort((a, b) => riskSort(a.risk_level, b.risk_level) || a.start - b.start),
-    [segments],
-  )
-
-  if (riskySegments.length === 0) {
-    return <EmptyState title="没有片段级风险" description="当前没有发现长段、短句或边界风险。" />
-  }
-
-  return (
-    <div className="space-y-3">
-      {riskySegments.map(segment => {
-        const target = targets[segment.segment_id] ?? ''
-        return (
-          <section key={segment.segment_id} className="rounded-xl border border-slate-200 bg-white px-4 py-3.5">
-            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_460px]">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-sm font-semibold text-slate-900">{segment.segment_id}</span>
-                  <StatusPill tone="slate">{segment.speaker_label}</StatusPill>
-                  <RiskPill level={segment.risk_level} />
-                  {segment.decision && <StatusPill tone="blue">已决策：{decisionLabel(segment.decision.decision)}</StatusPill>}
-                </div>
-                <div className="mt-1 text-xs text-slate-500">
-                  {formatSeconds(segment.start)} - {formatSeconds(segment.end)} · {formatSeconds(segment.duration)}
-                </div>
-                <div className="mt-2 text-sm leading-6 text-slate-700">{segment.text || '无文本'}</div>
-                <RiskFlags flags={segment.risk_flags} />
-              </div>
-              <div className="space-y-2">
-                <div className="flex flex-wrap justify-end gap-2">
-                  <SegmentNeighborButton segment={segment} direction="previous" disabled={isSaving} onSave={onSave} />
-                  <SegmentNeighborButton segment={segment} direction="next" disabled={isSaving} onSave={onSave} />
-                  <ReviewActionButton
-                    icon={Check}
-                    label="保持"
-                    disabled={isSaving}
-                    active={segment.decision?.decision === 'keep_independent'}
-                    onClick={() => onSave(baseSegmentPayload(segment, 'keep_independent'))}
-                  />
-                </div>
-                <TargetSelect
-                  value={target}
-                  options={speakerOptions.filter(option => option !== segment.speaker_label)}
-                  onChange={value => setTargets(current => ({ ...current, [segment.segment_id]: value }))}
-                  onApply={() => onSave({
-                    ...baseSegmentPayload(segment, 'relabel'),
-                    target_speaker_label: target,
-                  })}
-                  disabled={isSaving || !target}
-                  label="改为"
-                />
-              </div>
-            </div>
-          </section>
-        )
-      })}
-    </div>
-  )
-}
-
-function RunHeader({ run }: { run: SpeakerReviewRun }) {
-  return (
-    <div className="min-w-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <Route size={15} className="text-slate-400" />
-        <h3 className="font-mono text-sm font-semibold text-slate-900">{run.run_id}</h3>
-        <StatusPill tone="slate">{run.speaker_label}</StatusPill>
-        <RiskPill level={run.risk_level} />
-        {run.decision && <StatusPill tone="blue">已决策：{decisionLabel(run.decision.decision)}</StatusPill>}
-      </div>
-      <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
-        <span>{formatSeconds(run.start)} - {formatSeconds(run.end)}</span>
-        <span>片段 {run.segment_count}</span>
-        <span>上一个 {run.previous_speaker_label ?? '-'}</span>
-        <span>下一个 {run.next_speaker_label ?? '-'}</span>
       </div>
     </div>
   )
 }
 
-function NeighborButton({
-  run,
-  direction,
-  disabled,
-  onSave,
-}: {
-  run: SpeakerReviewRun
-  direction: 'previous' | 'next'
-  disabled: boolean
-  onSave: (payload: SpeakerReviewDecisionPayload) => void
-}) {
-  const target = direction === 'previous' ? run.previous_speaker_label : run.next_speaker_label
-  if (!target) {
-    return null
-  }
-  const decision = direction === 'previous' ? 'relabel_to_previous_speaker' : 'relabel_to_next_speaker'
+function StatBadge({ label, value, tone }: { label: string; value?: number; tone?: 'ok' | 'warn' }) {
+  const cls =
+    tone === 'warn'
+      ? 'border-amber-200 bg-amber-50 text-amber-700'
+      : tone === 'ok'
+        ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+        : 'border-slate-200 bg-slate-50 text-slate-600'
   return (
-    <ReviewActionButton
-      icon={GitMerge}
-      label={direction === 'previous' ? `改为上一个 ${target}` : `改为下一个 ${target}`}
-      disabled={disabled}
-      active={run.decision?.decision === decision}
-      onClick={() => onSave({
-        ...baseRunPayload(run, decision),
-        target_speaker_label: target,
-      })}
-    />
-  )
-}
-
-function SegmentNeighborButton({
-  segment,
-  direction,
-  disabled,
-  onSave,
-}: {
-  segment: SpeakerReviewSegment
-  direction: 'previous' | 'next'
-  disabled: boolean
-  onSave: (payload: SpeakerReviewDecisionPayload) => void
-}) {
-  const target = direction === 'previous' ? segment.previous_speaker_label : segment.next_speaker_label
-  if (!target) {
-    return null
-  }
-  const decision = direction === 'previous' ? 'relabel_to_previous_speaker' : 'relabel_to_next_speaker'
-  return (
-    <ReviewActionButton
-      icon={GitMerge}
-      label={direction === 'previous' ? `改为上一个 ${target}` : `改为下一个 ${target}`}
-      disabled={disabled}
-      active={segment.decision?.decision === decision}
-      onClick={() => onSave({
-        ...baseSegmentPayload(segment, decision),
-        target_speaker_label: target,
-      })}
-    />
-  )
-}
-
-function TargetSelect({
-  value,
-  options,
-  label,
-  disabled,
-  onChange,
-  onApply,
-}: {
-  value: string
-  options: string[]
-  label: string
-  disabled: boolean
-  onChange: (value: string) => void
-  onApply: () => void
-}) {
-  return (
-    <div className="flex items-center justify-end gap-2">
-      <label className="text-xs font-medium text-slate-400">{label}</label>
-      <select
-        value={value}
-        onChange={event => onChange(event.target.value)}
-        className="min-w-36 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 outline-none transition-colors focus:border-blue-400"
-      >
-        <option value="">选择 speaker</option>
-        {options.map(option => (
-          <option key={option} value={option}>{option}</option>
-        ))}
-      </select>
-      <ReviewActionButton icon={SlidersHorizontal} label="应用" disabled={disabled} onClick={onApply} />
-    </div>
-  )
-}
-
-function baseRunPayload(run: SpeakerReviewRun, decision: string): SpeakerReviewDecisionPayload {
-  return {
-    item_id: run.run_id,
-    item_type: 'speaker_run',
-    decision,
-    source_speaker_label: run.speaker_label,
-    segment_ids: run.segment_ids,
-    payload: {
-      previous_speaker_label: run.previous_speaker_label,
-      next_speaker_label: run.next_speaker_label,
-      start: run.start,
-      end: run.end,
-    },
-  }
-}
-
-function baseSegmentPayload(segment: SpeakerReviewSegment, decision: string): SpeakerReviewDecisionPayload {
-  return {
-    item_id: `segment:${segment.segment_id}`,
-    item_type: 'segment',
-    decision,
-    source_speaker_label: segment.speaker_label,
-    segment_ids: [segment.segment_id],
-    payload: {
-      previous_speaker_label: segment.previous_speaker_label,
-      next_speaker_label: segment.next_speaker_label,
-      start: segment.start,
-      end: segment.end,
-    },
-  }
-}
-
-function ReviewActionButton({
-  icon: Icon,
-  label,
-  active,
-  disabled,
-  onClick,
-}: {
-  icon: LucideIcon
-  label: string
-  active?: boolean
-  disabled?: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 ${
-        active
-          ? 'border-blue-500 bg-blue-50 text-blue-700'
-          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800'
-      }`}
+    <span
+      className={`inline-flex h-6 items-center gap-1 rounded-md border px-1.5 text-[11px] leading-none ${cls}`}
     >
-      <Icon size={13} />
-      {label}
-    </button>
-  )
-}
-
-function ReviewStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2">
-      <div className="text-xs text-slate-400">{label}</div>
-      <div className="mt-0.5 text-sm font-semibold text-slate-800">{value}</div>
-    </div>
-  )
-}
-
-function RiskFlags({ flags }: { flags: string[] }) {
-  if (flags.length === 0) {
-    return <div className="mt-2 text-xs text-slate-400">无明显风险</div>
-  }
-  return (
-    <div className="mt-2 flex flex-wrap gap-1.5">
-      {flags.map(flag => <StatusPill key={flag} tone={riskFlagTone(flag)}>{riskFlagLabel(flag)}</StatusPill>)}
-    </div>
-  )
-}
-
-function RiskPill({ level }: { level: string }) {
-  if (level === 'high') {
-    return <StatusPill tone="rose">高风险</StatusPill>
-  }
-  if (level === 'medium') {
-    return <StatusPill tone="amber">中风险</StatusPill>
-  }
-  return <StatusPill tone="emerald">低风险</StatusPill>
-}
-
-function StatusPill({ tone, children }: { tone: 'slate' | 'blue' | 'emerald' | 'amber' | 'rose'; children: ReactNode }) {
-  const cls = {
-    slate: 'border-slate-200 bg-slate-100 text-slate-600',
-    blue: 'border-blue-200 bg-blue-50 text-blue-700',
-    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    amber: 'border-amber-200 bg-amber-50 text-amber-700',
-    rose: 'border-rose-200 bg-rose-50 text-rose-700',
-  }[tone]
-  return (
-    <span className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${cls}`}>
-      {children}
+      <span className="text-slate-500">{label}</span>
+      <strong className="font-semibold tabular-nums">{value ?? 0}</strong>
     </span>
   )
 }
 
-function Notice({
-  icon: Icon,
-  tone,
-  spin,
-  children,
+function GlobalAudioPlayer({
+  audioRef,
+  src,
+  isPlaying,
+  onToggle,
+  onEnded,
+  label,
 }: {
-  icon: LucideIcon
-  tone: 'slate' | 'emerald' | 'rose'
-  spin?: boolean
-  children: ReactNode
+  audioRef: React.MutableRefObject<HTMLAudioElement | null>
+  src: string | null
+  isPlaying: boolean
+  onToggle: () => void
+  onEnded: () => void
+  label: string
 }) {
-  const cls = {
-    slate: 'border-slate-200 bg-slate-50 text-slate-500',
-    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    rose: 'border-rose-200 bg-rose-50 text-rose-700',
-  }[tone]
   return (
-    <div className={`mb-4 flex items-start gap-2 rounded-xl border px-4 py-3 text-sm ${cls}`}>
-      <Icon size={16} className={`mt-0.5 shrink-0 ${spin ? 'animate-spin' : ''}`} />
-      <div>{children}</div>
+    <div
+      className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-2"
+      data-testid="global-audio-player"
+    >
+      <button
+        type="button"
+        className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-600 text-white transition-colors hover:bg-emerald-500 disabled:opacity-40"
+        onClick={onToggle}
+        disabled={!src}
+        data-testid="play-toggle"
+        title={isPlaying ? '暂停' : '播放'}
+      >
+        {isPlaying ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+      </button>
+      <div className="min-w-0 flex-1 truncate text-xs text-slate-700" data-testid="player-label">
+        {label}
+      </div>
+      <div className="ml-auto flex shrink-0 items-center gap-2 text-[11px] text-slate-500">
+        <SkipBack className="h-3.5 w-3.5" />
+        <span>按 J/K 切换</span>
+        <SkipForward className="h-3.5 w-3.5" />
+      </div>
+      <audio
+        ref={audioRef}
+        className="hidden"
+        onEnded={onEnded}
+        onPause={() => undefined}
+        data-testid="audio-element"
+      />
     </div>
   )
 }
 
-function EmptyState({ title, description }: { title: string; description: string }) {
+function RosterPanel({
+  data,
+  onSelect,
+  selection,
+  onMergeSuggest,
+}: {
+  data?: SpeakerReviewResponse
+  onSelect: (selection: ReviewSelection) => void
+  selection: ReviewSelection | null
+  onMergeSuggest: (source: string, target: string) => void
+}) {
+  const speakers = data?.speakers ?? []
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-5">
-      <div className="text-sm font-semibold text-slate-900">{title}</div>
-      <div className="mt-1 text-sm leading-6 text-slate-500">{description}</div>
-    </div>
+    <aside
+      className="flex h-full flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+      data-testid="roster-panel"
+    >
+      <header className="border-b border-slate-200 px-4 py-3 text-xs font-semibold text-slate-800">
+        说话人花名册（{speakers.length}）
+      </header>
+      <div className="flex-1 overflow-y-auto">
+        {speakers.map(sp => {
+          const active = selection?.kind === 'speaker' && selection.id === sp.speaker_label
+          return (
+            <div
+              key={sp.speaker_label}
+              className={`cursor-pointer border-b border-slate-200 px-4 py-3 text-xs transition ${
+                active ? 'bg-slate-100' : 'hover:bg-slate-50'
+              }`}
+              onClick={() => onSelect({ kind: 'speaker', id: sp.speaker_label })}
+              data-testid={`roster-item-${sp.speaker_label}`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <UserRound className="h-4 w-4 text-slate-500" />
+                  <span className="font-semibold text-slate-900">{sp.speaker_label}</span>
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-[10px] ${riskColor(sp.risk_level)}`}
+                  >
+                    {sp.risk_level}
+                  </span>
+                </div>
+                <span className="text-slate-500">{sp.segment_count} 段</span>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-500">
+                <span>{formatDuration(sp.total_speech_sec)}</span>
+                <span>平均 {sp.avg_duration_sec.toFixed(1)}s</span>
+                {sp.risk_flags?.map(flag => (
+                  <span
+                    key={flag}
+                    className="rounded-full border border-slate-200 px-2 py-0.5 text-[10px] text-slate-700"
+                  >
+                    {flag}
+                  </span>
+                ))}
+              </div>
+              {!!sp.similar_peers?.length && (
+                <div className="mt-2 space-y-1">
+                  {sp.similar_peers.map(peer => (
+                    <button
+                      key={peer.label}
+                      type="button"
+                      onClick={event => {
+                        event.stopPropagation()
+                        onMergeSuggest(sp.speaker_label, peer.label)
+                      }}
+                      className="flex w-full items-center justify-between rounded-md border border-amber-200 bg-amber-50 px-2 py-1 text-[11px] text-amber-700 hover:bg-amber-100"
+                      data-testid={`suggest-merge-${sp.speaker_label}-${peer.label}`}
+                    >
+                      <span className="flex items-center gap-1">
+                        <GitMerge className="h-3 w-3" />合并到 {peer.label}
+                      </span>
+                      <span>相似度 {(peer.similarity * 100).toFixed(0)}%</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </aside>
   )
 }
 
-function summarizeReview(review: SpeakerReviewResponse | undefined) {
-  if (!review) {
-    return { speakers: '-', highRiskSpeakers: '-', runs: '-', segments: '-', decisions: '-' }
-  }
-  return {
-    speakers: String(review.summary.speaker_count),
-    highRiskSpeakers: String(review.summary.high_risk_speaker_count),
-    runs: `${review.summary.review_run_count ?? review.summary.high_risk_run_count}/${review.summary.speaker_run_count}`,
-    segments: String(review.summary.review_segment_count),
-    decisions: String(review.summary.decision_count),
-  }
-}
-
-function riskSort(left: string, right: string): number {
-  const order: Record<string, number> = { high: 0, medium: 1, low: 2 }
-  return (order[left] ?? 3) - (order[right] ?? 3)
-}
-
-function formatSeconds(value: number | null | undefined): string {
-  if (value === null || value === undefined || Number.isNaN(value)) {
-    return '-'
-  }
-  return `${value.toFixed(value >= 10 ? 1 : 2)}s`
-}
-
-function riskFlagTone(flag: string): 'slate' | 'blue' | 'emerald' | 'amber' | 'rose' {
-  if (flag.includes('single') || flag.includes('very_long') || flag.includes('sandwiched')) {
-    return 'rose'
-  }
-  if (flag.includes('low') || flag.includes('short') || flag.includes('boundary')) {
-    return 'amber'
-  }
-  return 'slate'
-}
-
-function riskFlagLabel(flag: string): string {
-  const labels: Record<string, string> = {
-    single_segment_speaker: '单段 speaker',
-    low_sample_speaker: '样本不足',
-    mostly_short_segments: '短句偏多',
-    sparse_long_timing: '长时间戳异常',
-    no_reference_safe_segment: '无安全参考段',
-    single_segment_run: '单段 run',
-    short_run: '短 run',
-    sandwiched_run: '夹心孤岛',
-    rapid_turn_boundary: '快速切换边界',
-    short_segment: '短句',
-    long_timing_short_text: '长时长短文本',
-    very_long_segment: '超长片段',
-    speaker_boundary_risk: '边界风险',
-    speaker_sample_risk: 'speaker 样本风险',
-  }
-  return labels[flag] ?? flag
-}
-
-function decisionLabel(value: string): string {
-  switch (value) {
-    case 'mark_non_cloneable':
-      return '不克隆'
-    case 'keep_independent':
-      return '保持独立'
-    case 'merge_speaker':
-      return '合并 speaker'
-    case 'relabel':
-      return '改 speaker'
-    case 'relabel_to_previous_speaker':
-      return '改为上一个'
-    case 'relabel_to_next_speaker':
-      return '改为下一个'
-    case 'merge_to_surrounding_speaker':
-      return '合并到上下文'
-    default:
-      return value
-  }
-}
-
-function FlowProgress() {
-  const steps: Array<{ label: string; state: 'done' | 'current' | 'todo' }> = [
-    { label: 'Task A', state: 'done' },
-    { label: '说话人核对', state: 'current' },
-    { label: 'Task B/C/D', state: 'todo' },
-    { label: '专业配音编辑台', state: 'todo' },
-    { label: '导出成品', state: 'todo' },
-  ]
+function ReviewQueue({
+  entries,
+  filters,
+  setFilters,
+  onSelect,
+  selection,
+  bulkSelection,
+  onToggleBulk,
+  onClearBulk,
+  onBulkKeep,
+}: {
+  entries: QueueEntry[]
+  filters: { risk: string[]; onlyUndecided: boolean; sortBy: 'time' | 'risk' }
+  setFilters: (
+    updater: (value: { risk: ('high' | 'medium' | 'low')[]; onlyUndecided: boolean; sortBy: 'time' | 'risk' }) => {
+      risk: ('high' | 'medium' | 'low')[]
+      onlyUndecided: boolean
+      sortBy: 'time' | 'risk'
+    },
+  ) => void
+  onSelect: (selection: ReviewSelection) => void
+  selection: ReviewSelection | null
+  bulkSelection: Set<string>
+  onToggleBulk: (id: string) => void
+  onClearBulk: () => void
+  onBulkKeep: () => void
+}) {
   return (
-    <div data-testid="speaker-review-flow-progress" className="mt-3 flex flex-wrap items-center gap-1.5 text-[11px]">
-      {steps.map((step, idx) => (
-        <span key={step.label} className="flex items-center gap-1.5">
-          <span
-            className={
-              'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 font-medium ' +
-              (step.state === 'done'
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                : step.state === 'current'
-                ? 'border-blue-200 bg-blue-50 text-blue-700 ring-1 ring-blue-200'
-                : 'border-slate-200 bg-slate-50 text-slate-400')
+    <section
+      className="flex h-full flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+      data-testid="review-queue"
+    >
+      <header className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
+        <span className="text-xs font-semibold text-slate-900">待审队列（{entries.length}）</span>
+        <div className="ml-auto flex items-center gap-2 text-[11px] text-slate-500">
+          <label className="flex items-center gap-1">
+            <input
+              type="checkbox"
+              checked={filters.onlyUndecided}
+              onChange={event =>
+                setFilters(current => ({ ...current, onlyUndecided: event.target.checked }))
+              }
+              data-testid="filter-undecided"
+            />
+            仅未决
+          </label>
+          <select
+            value={filters.sortBy}
+            onChange={event =>
+              setFilters(current => ({
+                ...current,
+                sortBy: event.target.value as 'time' | 'risk',
+              }))
             }
+            className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px]"
+            data-testid="sort-by"
           >
-            {step.state === 'done' && <Check size={10} />}
-            {step.state === 'current' && <span className="text-[10px]">●</span>}
-            {step.label}
-          </span>
-          {idx < steps.length - 1 && <span className="text-slate-300">›</span>}
-        </span>
-      ))}
+            <option value="risk">按风险</option>
+            <option value="time">按时间</option>
+          </select>
+          {bulkSelection.size > 0 && (
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="rounded-md bg-emerald-600 px-2 py-1 text-[11px] text-white"
+                onClick={onBulkKeep}
+                data-testid="bulk-keep"
+              >
+                批量保留 ({bulkSelection.size})
+              </button>
+              <button
+                type="button"
+                className="rounded-md border border-slate-200 px-2 py-1 text-[11px] text-slate-700"
+                onClick={onClearBulk}
+              >
+                清空
+              </button>
+            </div>
+          )}
+        </div>
+      </header>
+      <div className="flex-1 overflow-y-auto">
+        {entries.length === 0 ? (
+          <div className="flex h-full items-center justify-center text-xs text-slate-500">
+            没有需要处理的条目，好棒！
+          </div>
+        ) : (
+          entries.map(entry => {
+            const active = selection?.kind === entry.kind && selection.id === entry.id
+            const isBulk = bulkSelection.has(entry.id)
+            const decision = getDecisionFor(entry)
+            return (
+              <div
+                key={`${entry.kind}:${entry.id}`}
+                className={`flex cursor-pointer items-start gap-3 border-b border-slate-200 px-4 py-3 text-xs transition ${
+                  active ? 'bg-slate-100' : 'hover:bg-slate-50'
+                }`}
+                onClick={() => onSelect({ kind: entry.kind, id: entry.id })}
+                data-testid={`queue-item-${entry.id}`}
+              >
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={isBulk}
+                  onClick={event => event.stopPropagation()}
+                  onChange={() => onToggleBulk(entry.id)}
+                  data-testid={`queue-check-${entry.id}`}
+                />
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`rounded-full border px-2 py-0.5 text-[10px] ${riskColor(entry.risk)}`}
+                    >
+                      {entry.risk}
+                    </span>
+                    <span className="font-semibold text-slate-900">
+                      {entry.kind === 'speaker'
+                        ? entry.speaker.speaker_label
+                        : entry.kind === 'run'
+                          ? entry.run.speaker_label
+                          : entry.segment.speaker_label}
+                    </span>
+                    <span className="text-slate-500">
+                      {fmtTime(entry.start)} – {fmtTime(entry.end)}
+                    </span>
+                    {decision && (
+                      <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+                        ✓ {decision.decision}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-slate-700">
+                    {entry.kind === 'speaker'
+                      ? `${entry.speaker.segment_count} 段，平均 ${entry.speaker.avg_duration_sec.toFixed(1)}s`
+                      : entry.kind === 'run'
+                        ? entry.run.text
+                        : entry.segment.text}
+                  </p>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+    </section>
+  )
+}
+
+function InspectorPanel({
+  selected,
+  onDecision,
+  onDeleteDecision,
+  loading,
+  data,
+}: {
+  selected: SpeakerReviewSpeaker | SpeakerReviewRun | SpeakerReviewSegment | null
+  onDecision: (payload: SpeakerReviewDecisionPayload) => void
+  onDeleteDecision: (itemId: string) => void
+  loading: boolean
+  data?: SpeakerReviewResponse
+}) {
+  if (!selected) {
+    return (
+      <aside
+        className="flex h-full items-center justify-center rounded-lg border border-slate-200 bg-white text-xs text-slate-500 shadow-sm"
+        data-testid="inspector-panel"
+      >
+        选择一条记录开始核对
+      </aside>
+    )
+  }
+
+  const isSpeaker = 'speaker_label' in selected && !('start' in selected)
+  const isSegment = 'segment_id' in selected
+  const speakers = data?.speakers ?? []
+  const itemId = isSpeaker
+    ? `speaker:${(selected as SpeakerReviewSpeaker).speaker_label}`
+    : isSegment
+      ? (selected as SpeakerReviewSegment).segment_id
+      : (selected as SpeakerReviewRun).run_id
+  const itemType = isSpeaker ? 'speaker_profile' : isSegment ? 'segment' : 'speaker_run'
+  const decoratedSelected = selected as {
+    decision?: { decision?: string } | null
+    recommended_action?: string | null
+    risk_flags?: string[] | null
+  }
+  const current = decoratedSelected.decision ?? null
+
+  return (
+    <aside
+      className="flex h-full flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm"
+      data-testid="inspector-panel"
+    >
+      <header className="border-b border-slate-200 px-4 py-3">
+        <div className="flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-slate-900">
+            {describeSelection(selected)}
+          </h3>
+          {current && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] text-emerald-700">
+              已决策
+            </span>
+          )}
+        </div>
+        {decoratedSelected.recommended_action && (
+          <p className="mt-1 flex items-center gap-1 text-[11px] text-amber-700">
+            <Wand2 className="h-3 w-3" /> 建议：{decoratedSelected.recommended_action}
+          </p>
+        )}
+      </header>
+      <div className="flex-1 overflow-y-auto p-4 text-xs text-slate-700">
+        {!isSpeaker && (
+          <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <p className="font-semibold text-slate-900">内容</p>
+            <p className="mt-1 text-slate-700">
+              {(selected as SpeakerReviewRun | SpeakerReviewSegment).text}
+            </p>
+            <p className="mt-2 text-[11px] text-slate-500">
+              上：{(selected as SpeakerReviewRun).previous_speaker_label ?? '—'} ／ 下：
+              {(selected as SpeakerReviewRun).next_speaker_label ?? '—'}
+            </p>
+          </div>
+        )}
+
+        {(decoratedSelected.risk_flags?.length ?? 0) > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {decoratedSelected.risk_flags!.map((flag: string) => (
+              <span
+                key={flag}
+                className="flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[11px] text-amber-700"
+              >
+                <AlertTriangle className="h-3 w-3" />
+                {flag}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <h4 className="text-[11px] font-semibold uppercase text-slate-500">决策动作</h4>
+          {isSpeaker ? (
+            <>
+              <ActionButton
+                icon={<Ban className="h-3.5 w-3.5" />}
+                label="标记为不可克隆"
+                onClick={() =>
+                  onDecision({
+                    item_id: itemId,
+                    item_type: itemType,
+                    decision: 'mark_non_cloneable',
+                  })
+                }
+                loading={loading}
+                testId="action-mark-non-cloneable"
+              />
+              <ActionButton
+                icon={<Check className="h-3.5 w-3.5" />}
+                label="保持独立角色"
+                onClick={() =>
+                  onDecision({
+                    item_id: itemId,
+                    item_type: itemType,
+                    decision: 'keep_independent',
+                  })
+                }
+                loading={loading}
+                testId="action-keep-independent"
+              />
+              <h5 className="mt-3 text-[11px] font-semibold uppercase text-slate-500">合并到</h5>
+              <div className="grid grid-cols-2 gap-2">
+                {speakers
+                  .filter(sp => sp.speaker_label !== (selected as SpeakerReviewSpeaker).speaker_label)
+                  .map(sp => (
+                    <button
+                      key={sp.speaker_label}
+                      type="button"
+                      onClick={() =>
+                        onDecision({
+                          item_id: itemId,
+                          item_type: itemType,
+                          decision: 'merge_speaker',
+                          payload: {
+                            target_speaker: sp.speaker_label,
+                            source_speaker: (selected as SpeakerReviewSpeaker).speaker_label,
+                          },
+                        })
+                      }
+                      className="rounded-md border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-800 hover:bg-slate-100"
+                      data-testid={`action-merge-${sp.speaker_label}`}
+                    >
+                      {sp.speaker_label}
+                    </button>
+                  ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <ActionButton
+                icon={<ChevronUp className="h-3.5 w-3.5" />}
+                label="归到上一位说话人"
+                onClick={() =>
+                  onDecision({
+                    item_id: itemId,
+                    item_type: itemType,
+                    decision: 'relabel_to_previous_speaker',
+                  })
+                }
+                loading={loading}
+                testId="action-relabel-prev"
+              />
+              <ActionButton
+                icon={<ChevronDown className="h-3.5 w-3.5" />}
+                label="归到下一位说话人"
+                onClick={() =>
+                  onDecision({
+                    item_id: itemId,
+                    item_type: itemType,
+                    decision: 'relabel_to_next_speaker',
+                  })
+                }
+                loading={loading}
+                testId="action-relabel-next"
+              />
+              <ActionButton
+                icon={<GitMerge className="h-3.5 w-3.5" />}
+                label="并入相邻说话人"
+                onClick={() =>
+                  onDecision({
+                    item_id: itemId,
+                    item_type: itemType,
+                    decision: 'merge_to_surrounding_speaker',
+                  })
+                }
+                loading={loading}
+                testId="action-merge-surrounding"
+              />
+              <ActionButton
+                icon={<Check className="h-3.5 w-3.5" />}
+                label="保留原判"
+                onClick={() =>
+                  onDecision({
+                    item_id: itemId,
+                    item_type: itemType,
+                    decision: 'keep_independent',
+                  })
+                }
+                loading={loading}
+                testId="action-keep"
+              />
+            </>
+          )}
+        </div>
+
+        {current && (
+          <button
+            type="button"
+            className="mt-4 flex w-full items-center justify-center gap-1 rounded-md border border-red-500/30 px-3 py-2 text-[11px] text-red-300 hover:bg-red-500/10"
+            onClick={() => onDeleteDecision(itemId)}
+            data-testid="delete-decision"
+          >
+            <Trash2 className="h-3.5 w-3.5" />撤销当前决策
+          </button>
+        )}
+      </div>
+    </aside>
+  )
+}
+
+function ActionButton({
+  icon,
+  label,
+  onClick,
+  loading,
+  testId,
+}: {
+  icon: ReactNode
+  label: string
+  onClick: () => void
+  loading: boolean
+  testId: string
+}) {
+  return (
+    <button
+      type="button"
+      className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[12px] text-slate-800 hover:bg-slate-100 disabled:opacity-50"
+      onClick={onClick}
+      disabled={loading}
+      data-testid={testId}
+    >
+      {icon}
+      <span>{label}</span>
+    </button>
+  )
+}
+
+function MergeConfirmModal({
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  pending: { source: string; target: string }
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm"
+      data-testid="merge-confirm-modal"
+    >
+      <div className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl">
+        <h4 className="text-base font-semibold text-slate-900">确认合并？</h4>
+        <p className="mt-2 text-sm text-slate-700">
+          将 <span className="font-mono text-amber-700">{pending.source}</span> 全部归到{' '}
+          <span className="font-mono text-emerald-700">{pending.target}</span>。此动作可随时通过“撤销当前决策”回退。
+        </p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-700 hover:bg-slate-100"
+            onClick={onCancel}
+            data-testid="merge-cancel"
+          >
+            取消
+          </button>
+          <button
+            type="button"
+            className="rounded-md bg-emerald-600 px-4 py-1.5 text-xs font-semibold text-white hover:bg-emerald-500"
+            onClick={onConfirm}
+            data-testid="merge-confirm"
+          >
+            确认合并
+          </button>
+        </div>
+      </div>
     </div>
   )
+}
+
+function ShortcutsModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-60 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm"
+      onClick={onClose}
+      data-testid="shortcuts-modal"
+    >
+      <div
+        className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-6 shadow-2xl"
+        onClick={event => event.stopPropagation()}
+      >
+        <h4 className="text-base font-semibold text-slate-900">快捷键</h4>
+        <ul className="mt-3 space-y-2 text-sm text-slate-700">
+          <li><kbd className="rounded bg-slate-100 px-2 py-0.5">空格</kbd> 播放/暂停当前片段</li>
+          <li><kbd className="rounded bg-slate-100 px-2 py-0.5">J / ↓</kbd> 下一条</li>
+          <li><kbd className="rounded bg-slate-100 px-2 py-0.5">K / ↑</kbd> 上一条</li>
+          <li><kbd className="rounded bg-slate-100 px-2 py-0.5">?</kbd> 显示/关闭本面板</li>
+          <li><kbd className="rounded bg-slate-100 px-2 py-0.5">Esc</kbd> 关闭抽屉或取消对话框</li>
+        </ul>
+      </div>
+    </div>
+  )
+}
+
+function buildQueue(data?: SpeakerReviewResponse): QueueEntry[] {
+  if (!data) return []
+  const runs: QueueEntry[] = (data.speaker_runs ?? []).map(run => ({
+    kind: 'run',
+    id: run.run_id,
+    start: run.start,
+    end: run.end,
+    risk: run.risk_level ?? 'low',
+    run,
+  }))
+  const segs: QueueEntry[] = (data.segments ?? []).map(segment => ({
+    kind: 'segment',
+    id: segment.segment_id,
+    start: segment.start,
+    end: segment.end,
+    risk: segment.risk_level ?? 'low',
+    segment,
+  }))
+  return [...runs, ...segs]
+}
+
+function findSelected(data?: SpeakerReviewResponse, selection?: ReviewSelection | null) {
+  if (!data || !selection) return null
+  if (selection.kind === 'speaker') {
+    return data.speakers.find(sp => sp.speaker_label === selection.id) ?? null
+  }
+  if (selection.kind === 'run') {
+    return data.speaker_runs.find(r => r.run_id === selection.id) ?? null
+  }
+  return data.segments.find(s => s.segment_id === selection.id) ?? null
+}
+
+function describeSelection(selected: SpeakerReviewSpeaker | SpeakerReviewRun | SpeakerReviewSegment) {
+  if ('run_id' in selected) {
+    return `Run ${selected.run_id} · ${selected.speaker_label} · ${fmtTime(selected.start)} → ${fmtTime(
+      selected.end,
+    )}`
+  }
+  if ('segment_id' in selected) {
+    return `Segment ${selected.segment_id} · ${selected.speaker_label} · ${fmtTime(selected.start)} → ${fmtTime(
+      selected.end,
+    )}`
+  }
+  return `Speaker ${selected.speaker_label} · ${selected.segment_count} 段`
+}
+
+function getDecisionFor(entry: QueueEntry | SpeakerReviewSpeaker | SpeakerReviewRun | SpeakerReviewSegment) {
+  const target =
+    'kind' in entry
+      ? entry.kind === 'speaker'
+        ? entry.speaker
+        : entry.kind === 'run'
+          ? entry.run
+          : entry.segment
+      : entry
+  return (target as { decision?: { decision?: string } | null } | undefined)?.decision ?? null
+}
+
+function handleBulkKeep(
+  entries: QueueEntry[],
+  bulk: Set<string>,
+  onDecision: (payload: SpeakerReviewDecisionPayload) => void,
+  clearBulk: () => void,
+) {
+  entries
+    .filter(entry => bulk.has(entry.id))
+    .forEach(entry => {
+      const itemType = entry.kind === 'speaker' ? 'speaker_profile' : entry.kind === 'run' ? 'speaker_run' : 'segment'
+      const itemId = entry.kind === 'speaker' ? `speaker:${entry.id}` : entry.id
+      onDecision({
+        item_id: itemId,
+        item_type: itemType,
+        decision: 'keep_independent',
+      })
+    })
+  clearBulk()
 }

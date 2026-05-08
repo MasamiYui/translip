@@ -83,14 +83,19 @@ def build_speaker_diagnostics(
     segment_rows = _build_segment_rows(segments, speakers_by_label=speakers_by_label)
     run_rows = _build_run_rows(segments)
 
+    _attach_reference_clips(speakers, segments)
+    similarity = _build_similarity_matrix(speakers, segments)
+    _attach_similar_peers(speakers, similarity)
+    _attach_recommended_action(speakers, run_rows, segment_rows)
+
     high_risk_speaker_count = sum(1 for row in speakers if row["risk_level"] == "high")
     review_segment_count = sum(1 for row in segment_rows if row["risk_flags"])
     review_run_count = sum(1 for row in run_rows if row["risk_flags"])
     high_risk_run_count = sum(1 for row in run_rows if row["risk_level"] == "high")
 
     return {
-        "version": 1,
-        "algorithm_version": "speaker-review-diagnostics-v1",
+        "version": 2,
+        "algorithm_version": "speaker-review-diagnostics-v2",
         "generated_at": now_iso(),
         "source_path": source_path,
         "summary": {
@@ -105,6 +110,7 @@ def build_speaker_diagnostics(
         "speakers": speakers,
         "speaker_runs": run_rows,
         "segments": segment_rows,
+        "similarity": similarity,
     }
 
 
@@ -387,3 +393,195 @@ def _dedupe(values: list[str]) -> list[str]:
         seen.add(value)
         result.append(value)
     return result
+
+
+REFERENCE_CLIP_LIMIT = 3
+
+
+def _attach_reference_clips(
+    speakers: list[dict[str, Any]],
+    segments: list[NormalizedSegment],
+) -> None:
+    by_label: dict[str, list[NormalizedSegment]] = {}
+    for segment in segments:
+        by_label.setdefault(segment.speaker_label, []).append(segment)
+
+    for row in speakers:
+        label = str(row.get("speaker_label") or "")
+        candidates = by_label.get(label, [])
+        scored: list[tuple[float, NormalizedSegment]] = []
+        for segment in candidates:
+            if segment.duration < MIN_REFERENCE_DURATION:
+                continue
+            if segment.duration > MAX_REFERENCE_DURATION:
+                continue
+            text_len = len("".join(segment.text.split()))
+            score = min(segment.duration, 8.0) + min(text_len / 10.0, 1.5)
+            scored.append((score, segment))
+        scored.sort(key=lambda item: item[0], reverse=True)
+        clips: list[dict[str, Any]] = []
+        for index, (score, segment) in enumerate(scored[:REFERENCE_CLIP_LIMIT]):
+            clips.append(
+                {
+                    "clip_id": f"{label}::ref::{segment.segment_id}",
+                    "segment_id": segment.segment_id,
+                    "start": round(segment.start, 3),
+                    "end": round(segment.end, 3),
+                    "duration": round(segment.duration, 3),
+                    "text": segment.text,
+                    "is_best": index == 0,
+                    "score": round(score, 3),
+                }
+            )
+        if not clips and candidates:
+            best = max(candidates, key=lambda item: item.duration)
+            clips.append(
+                {
+                    "clip_id": f"{label}::ref::{best.segment_id}",
+                    "segment_id": best.segment_id,
+                    "start": round(best.start, 3),
+                    "end": round(best.end, 3),
+                    "duration": round(best.duration, 3),
+                    "text": best.text,
+                    "is_best": True,
+                    "score": 0.0,
+                }
+            )
+        row["reference_clips"] = clips
+        row["best_reference_clip_id"] = clips[0]["clip_id"] if clips else None
+
+
+MIN_REFERENCE_DURATION = 1.5
+MAX_REFERENCE_DURATION = 12.0
+SIMILAR_PEER_THRESHOLD = 0.55
+SIMILAR_PEER_LIMIT = 3
+
+
+def _build_similarity_matrix(
+    speakers: list[dict[str, Any]],
+    segments: list[NormalizedSegment],
+) -> dict[str, Any]:
+    labels = [str(row.get("speaker_label") or "") for row in speakers]
+    profiles: dict[str, dict[str, float]] = {}
+    for label in labels:
+        profile: dict[str, float] = {
+            "avg_duration": 0.0,
+            "short_ratio": 0.0,
+            "segment_count": 0.0,
+            "total_speech": 0.0,
+        }
+        speaker_segments = [seg for seg in segments if seg.speaker_label == label]
+        if not speaker_segments:
+            profiles[label] = profile
+            continue
+        durations = [seg.duration for seg in speaker_segments]
+        profile["avg_duration"] = float(sum(durations) / len(durations))
+        short = sum(1 for value in durations if value < SHORT_SEGMENT_SEC)
+        profile["short_ratio"] = float(short / len(durations))
+        profile["segment_count"] = float(len(speaker_segments))
+        profile["total_speech"] = float(sum(durations))
+        profiles[label] = profile
+
+    matrix: list[list[float]] = []
+    for label_a in labels:
+        row: list[float] = []
+        for label_b in labels:
+            row.append(round(_speaker_profile_similarity(profiles[label_a], profiles[label_b]), 3))
+        matrix.append(row)
+
+    return {
+        "labels": labels,
+        "matrix": matrix,
+        "threshold_suggest_merge": SIMILAR_PEER_THRESHOLD,
+        "method": "profile-heuristic-v1",
+    }
+
+
+def _speaker_profile_similarity(
+    profile_a: dict[str, float],
+    profile_b: dict[str, float],
+) -> float:
+    if profile_a is profile_b:
+        return 1.0
+    avg_diff = abs(profile_a["avg_duration"] - profile_b["avg_duration"])
+    avg_score = max(0.0, 1.0 - min(avg_diff / 5.0, 1.0))
+    short_score = max(0.0, 1.0 - abs(profile_a["short_ratio"] - profile_b["short_ratio"]))
+    seg_a = profile_a["segment_count"]
+    seg_b = profile_b["segment_count"]
+    seg_score = 0.0
+    if seg_a > 0 and seg_b > 0:
+        seg_score = min(seg_a, seg_b) / max(seg_a, seg_b)
+    return 0.5 * avg_score + 0.3 * short_score + 0.2 * seg_score
+
+
+def _attach_similar_peers(
+    speakers: list[dict[str, Any]],
+    similarity: dict[str, Any],
+) -> None:
+    labels: list[str] = list(similarity.get("labels", []))
+    matrix: list[list[float]] = list(similarity.get("matrix", []))
+    threshold: float = float(similarity.get("threshold_suggest_merge", SIMILAR_PEER_THRESHOLD))
+    for index, row in enumerate(speakers):
+        label = str(row.get("speaker_label") or "")
+        peers: list[dict[str, Any]] = []
+        if label not in labels or index >= len(matrix):
+            row["similar_peers"] = peers
+            continue
+        scores = matrix[index]
+        ranked = sorted(
+            (
+                (other_label, scores[other_index])
+                for other_index, other_label in enumerate(labels)
+                if other_label != label
+            ),
+            key=lambda item: item[1],
+            reverse=True,
+        )
+        for other_label, score in ranked[:SIMILAR_PEER_LIMIT]:
+            peers.append(
+                {
+                    "label": other_label,
+                    "similarity": round(float(score), 3),
+                    "suggest_merge": bool(score >= threshold),
+                }
+            )
+        row["similar_peers"] = peers
+
+
+def _attach_recommended_action(
+    speakers: list[dict[str, Any]],
+    runs: list[dict[str, Any]],
+    segments: list[dict[str, Any]],
+) -> None:
+    for row in speakers:
+        flags = set(row.get("risk_flags", []))
+        if flags & {"single_segment_speaker", "low_sample_speaker", "no_reference_safe_segment"}:
+            row["recommended_action"] = "mark_non_cloneable"
+        elif row.get("similar_peers") and row["similar_peers"][0].get("suggest_merge"):
+            row["recommended_action"] = "merge_speaker"
+        else:
+            row["recommended_action"] = "keep_independent"
+
+    for row in runs:
+        flags = set(row.get("risk_flags", []))
+        previous_label = row.get("previous_speaker_label")
+        next_label = row.get("next_speaker_label")
+        if "sandwiched_run" in flags and previous_label and previous_label == next_label:
+            row["recommended_action"] = "merge_to_surrounding_speaker"
+        elif "short_run" in flags and previous_label:
+            row["recommended_action"] = "relabel_to_previous_speaker"
+        elif "single_segment_run" in flags and next_label:
+            row["recommended_action"] = "relabel_to_next_speaker"
+        else:
+            row["recommended_action"] = "keep_independent"
+
+    for row in segments:
+        flags = set(row.get("risk_flags", []))
+        if "speaker_boundary_risk" in flags and row.get("previous_speaker_label"):
+            row["recommended_action"] = "relabel_to_previous_speaker"
+        elif "very_long_segment" in flags:
+            row["recommended_action"] = "keep_independent"
+        elif "speaker_sample_risk" in flags and row.get("next_speaker_label"):
+            row["recommended_action"] = "relabel_to_next_speaker"
+        else:
+            row["recommended_action"] = "keep_independent"

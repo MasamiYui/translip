@@ -28,6 +28,9 @@ const ToolListPage = lazy(() =>
 const ToolPage = lazy(() =>
   import('./pages/ToolPage').then(module => ({ default: module.ToolPage })),
 )
+const SpeakerReviewHarnessPage = lazy(() =>
+  import('./pages/SpeakerReviewHarnessPage').then(module => ({ default: module.SpeakerReviewHarnessPage })),
+)
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +60,7 @@ export default function App() {
                 <Route path="tasks/new" element={<NewTaskPage />} />
                 <Route path="tasks/:id" element={<TaskDetailPage />} />
                 <Route path="tasks/:id/dubbing-editor" element={<DubbingEditorPage />} />
+                <Route path="harness/speaker-review/:taskId" element={<SpeakerReviewHarnessPage />} />
                 <Route path="tools" element={<ToolListPage />} />
                 <Route path="tools/:toolId" element={<ToolPage />} />
                 <Route path="settings" element={<SettingsPage />} />

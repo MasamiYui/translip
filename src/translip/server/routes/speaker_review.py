@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import re
+import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
@@ -85,9 +88,19 @@ def get_speaker_review(task_id: str, session: Session = Depends(get_session)) ->
             "corrected_exists": paths["corrected_segments"].exists(),
         },
         "artifact_paths": _existing_artifact_paths(paths, root),
-        "speakers": _attach_speaker_decisions(diagnostics.get("speakers", []), decisions),
-        "speaker_runs": _attach_item_decisions(diagnostics.get("speaker_runs", []), decisions, id_key="run_id"),
-        "segments": _attach_segment_decisions(diagnostics.get("segments", []), decisions),
+        "speakers": _enrich_speakers(
+            _attach_speaker_decisions(diagnostics.get("speakers", []), decisions),
+            task_id=task_id,
+        ),
+        "speaker_runs": _enrich_time_items(
+            _attach_item_decisions(diagnostics.get("speaker_runs", []), decisions, id_key="run_id"),
+            task_id=task_id,
+        ),
+        "segments": _enrich_time_items(
+            _attach_segment_decisions(diagnostics.get("segments", []), decisions),
+            task_id=task_id,
+        ),
+        "similarity": diagnostics.get("similarity", {}),
         "review_plan": review_plan,
         "decisions": list(decisions.values()),
         "manifest": manifest,
@@ -162,6 +175,16 @@ def apply_speaker_review_decisions(task_id: str, session: Session = Depends(get_
     if not paths["decisions"].exists():
         raise HTTPException(status_code=400, detail="No manual speaker decisions found")
 
+    archive_path: Path | None = None
+    if paths["corrected_segments"].exists() or paths["manifest"].exists():
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        archive_path = paths["review_dir"] / "_archive" / timestamp
+        archive_path.mkdir(parents=True, exist_ok=True)
+        for key in ("corrected_segments", "corrected_srt", "manifest"):
+            source = paths[key]
+            if source.exists():
+                shutil.copy2(source, archive_path / source.name)
+
     manifest = write_speaker_corrected_artifacts(
         source_segments_path=source_segments_path,
         decisions_path=paths["decisions"],
@@ -174,9 +197,186 @@ def apply_speaker_review_decisions(task_id: str, session: Session = Depends(get_
         "path": _relative_path(paths["corrected_segments"], root),
         "srt_path": _relative_path(paths["corrected_srt"], root),
         "manifest_path": _relative_path(paths["manifest"], root),
+        "archive_path": _relative_path(archive_path, root) if archive_path else None,
         "summary": manifest.get("summary", {}),
         "applied_at": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
+
+
+@router.delete("/{task_id}/speaker-review/decisions/{item_id:path}")
+def delete_speaker_review_decision(
+    task_id: str,
+    item_id: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    task = _get_task(session, task_id)
+    root = Path(task.output_root).resolve()
+    paths = _speaker_review_paths(root)
+    if not paths["decisions"].exists():
+        return {"ok": True, "removed": 0, "decision_count": 0}
+
+    payload = load_json(paths["decisions"])
+    decisions = [
+        row
+        for row in payload.get("decisions", [])
+        if not (isinstance(row, dict) and str(row.get("item_id") or "") == item_id)
+    ]
+    removed = len(payload.get("decisions", [])) - len(decisions)
+    payload["decisions"] = decisions
+    payload["updated_at"] = now_iso()
+    payload["decision_count"] = len(decisions)
+    write_json(payload, paths["decisions"])
+    return {
+        "ok": True,
+        "removed": removed,
+        "decision_count": len(decisions),
+    }
+
+
+@router.get("/{task_id}/speaker-review/similarity")
+def get_speaker_similarity(task_id: str, session: Session = Depends(get_session)) -> dict[str, Any]:
+    task = _get_task(session, task_id)
+    root = Path(task.output_root).resolve()
+    paths = _speaker_review_paths(root)
+    source_segments_path = _source_segments_path(paths)
+    if source_segments_path is None:
+        raise HTTPException(status_code=404, detail="Task A segments not found")
+    diagnostics = build_speaker_diagnostics(
+        load_json(source_segments_path),
+        source_path=_relative_path(source_segments_path, root),
+    )
+    return diagnostics.get("similarity", {"labels": [], "matrix": [], "threshold_suggest_merge": 0.55})
+
+
+@router.get("/{task_id}/speaker-review/speakers/{label}/reference-clips")
+def get_speaker_reference_clips(
+    task_id: str,
+    label: str,
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    task = _get_task(session, task_id)
+    root = Path(task.output_root).resolve()
+    paths = _speaker_review_paths(root)
+    source_segments_path = _source_segments_path(paths)
+    if source_segments_path is None:
+        raise HTTPException(status_code=404, detail="Task A segments not found")
+    diagnostics = build_speaker_diagnostics(
+        load_json(source_segments_path),
+        source_path=_relative_path(source_segments_path, root),
+    )
+    for speaker in diagnostics.get("speakers", []):
+        if str(speaker.get("speaker_label") or "") == label:
+            clips = [
+                {**clip, "url": _audio_stream_url(task_id, float(clip.get("start") or 0.0), float(clip.get("end") or 0.0))}
+                for clip in speaker.get("reference_clips", [])
+            ]
+            return {
+                "speaker_label": label,
+                "clips": clips,
+                "best_clip_id": speaker.get("best_reference_clip_id"),
+            }
+    raise HTTPException(status_code=404, detail=f"Speaker {label} not found")
+
+
+@router.get("/{task_id}/speaker-review/audio")
+def stream_speaker_review_audio(
+    task_id: str,
+    request: Request,
+    start: float = 0.0,
+    end: float | None = None,
+    session: Session = Depends(get_session),
+) -> Response:
+    task = _get_task(session, task_id)
+    root = Path(task.output_root).resolve()
+    audio_path = _resolve_audio_path(root)
+    if audio_path is None:
+        # Fallback: synthesize a short silent WAV so the UI stays functional even
+        # when real audio assets are missing. This keeps the review workflow usable
+        # on partial or mocked datasets.
+        duration = max(0.1, (end or start + 1.0) - start)
+        return Response(
+            content=_synthesize_silent_wav(duration_sec=duration),
+            media_type="audio/wav",
+            headers={"X-Audio-Source": "synthesized-silence"},
+        )
+
+    file_size = audio_path.stat().st_size
+    range_header = request.headers.get("range") or request.headers.get("Range")
+    range_match = re.match(r"bytes=(\d+)-(\d*)", range_header or "")
+    if range_match:
+        range_start = int(range_match.group(1))
+        range_end_text = range_match.group(2)
+        range_end = int(range_end_text) if range_end_text else file_size - 1
+        range_end = min(range_end, file_size - 1)
+        length = max(0, range_end - range_start + 1)
+
+        def _iter_range():
+            with audio_path.open("rb") as handle:
+                handle.seek(range_start)
+                remaining = length
+                chunk_size = 64 * 1024
+                while remaining > 0:
+                    chunk = handle.read(min(chunk_size, remaining))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    yield chunk
+
+        headers = {
+            "Content-Range": f"bytes {range_start}-{range_end}/{file_size}",
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(length),
+            "X-Audio-Path": _relative_path(audio_path, root),
+        }
+        return StreamingResponse(_iter_range(), status_code=206, media_type="audio/wav", headers=headers)
+
+    def _iter_full():
+        with audio_path.open("rb") as handle:
+            while True:
+                chunk = handle.read(64 * 1024)
+                if not chunk:
+                    break
+                yield chunk
+
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Length": str(file_size),
+        "X-Audio-Path": _relative_path(audio_path, root),
+    }
+    return StreamingResponse(_iter_full(), media_type="audio/wav", headers=headers)
+
+
+def _resolve_audio_path(root: Path) -> Path | None:
+    candidates = [
+        root / "stage1" / "voice" / "voice.wav",
+        root / "task-a" / "voice" / "voice.wav",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return None
+
+
+def _audio_stream_url(task_id: str, start: float, end: float) -> str:
+    return f"/api/tasks/{task_id}/speaker-review/audio?start={start:.3f}&end={end:.3f}"
+
+
+def _synthesize_silent_wav(duration_sec: float, sample_rate: int = 16000) -> bytes:
+    import struct
+
+    duration_sec = max(0.1, min(duration_sec, 30.0))
+    frame_count = int(duration_sec * sample_rate)
+    data_size = frame_count * 2
+    header = (
+        b"RIFF"
+        + struct.pack("<I", 36 + data_size)
+        + b"WAVE"
+        + b"fmt "
+        + struct.pack("<IHHIIHH", 16, 1, 1, sample_rate, sample_rate * 2, 2, 16)
+        + b"data"
+        + struct.pack("<I", data_size)
+    )
+    return header + b"\x00" * data_size
 
 
 def _get_task(session: Session, task_id: str) -> Task:
@@ -268,3 +468,36 @@ def _attach_segment_decisions(
         row["decision"] = decisions.get(f"segment:{row.get('segment_id')}") or decisions.get(str(row.get("segment_id") or ""))
         result.append(row)
     return result
+
+
+def _enrich_speakers(speakers: list[dict[str, Any]], *, task_id: str) -> list[dict[str, Any]]:
+    enriched: list[dict[str, Any]] = []
+    for row in speakers:
+        clips = list(row.get("reference_clips") or [])
+        for clip in clips:
+            clip["url"] = _audio_stream_url(
+                task_id,
+                float(clip.get("start") or 0.0),
+                float(clip.get("end") or 0.0),
+            )
+        row["reference_clips"] = clips
+        enriched.append(row)
+    return enriched
+
+
+def _enrich_time_items(rows: list[dict[str, Any]], *, task_id: str) -> list[dict[str, Any]]:
+    enriched: list[dict[str, Any]] = []
+    for row in rows:
+        start = float(row.get("start") or 0.0)
+        end = float(row.get("end") or start + 1.0)
+        if end <= start:
+            end = start + 0.5
+        row["audio_url"] = _audio_stream_url(task_id, start, end)
+        prev_start = max(0.0, start - 1.5)
+        if prev_start < start:
+            row["prev_context_url"] = _audio_stream_url(task_id, prev_start, start)
+        else:
+            row["prev_context_url"] = None
+        row["next_context_url"] = _audio_stream_url(task_id, end, end + 1.5)
+        enriched.append(row)
+    return enriched

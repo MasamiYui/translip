@@ -1,9 +1,11 @@
 import api from './client'
 import type {
   CreateTaskRequest,
+  SpeakerReferenceClip,
   SpeakerReviewApplyResponse,
   SpeakerReviewDecisionPayload,
   SpeakerReviewResponse,
+  SpeakerSimilarityMatrix,
   Task,
   TaskListResponse,
   WorkflowGraph,
@@ -92,8 +94,23 @@ export const tasksApi = {
   saveSpeakerReviewDecision: (id: string, payload: SpeakerReviewDecisionPayload) =>
     api.post(`/api/tasks/${id}/speaker-review/decisions`, payload).then(r => r.data),
 
+  deleteSpeakerReviewDecision: (id: string, itemId: string) =>
+    api
+      .delete(`/api/tasks/${id}/speaker-review/decisions/${encodeURIComponent(itemId)}`)
+      .then(r => r.data),
+
   applySpeakerReviewDecisions: (id: string) =>
     api.post<SpeakerReviewApplyResponse>(`/api/tasks/${id}/speaker-review/apply`).then(r => r.data),
+
+  getSpeakerSimilarity: (id: string) =>
+    api.get<SpeakerSimilarityMatrix>(`/api/tasks/${id}/speaker-review/similarity`).then(r => r.data),
+
+  getSpeakerReferenceClips: (id: string, label: string) =>
+    api
+      .get<{ speaker_label: string; best_clip_id: string | null; clips: SpeakerReferenceClip[] }>(
+        `/api/tasks/${id}/speaker-review/speakers/${encodeURIComponent(label)}/reference-clips`,
+      )
+      .then(r => r.data),
 
   createSubtitlePreview: (id: string, payload: SubtitlePreviewPayload) =>
     api.post(`/api/tasks/${id}/subtitle-preview`, payload).then(r => r.data),

@@ -18,7 +18,10 @@ function readInitialCollapsed() {
 
 export function MainLayout() {
   const { pathname } = useLocation()
-  const isWorkbench = /\/tasks\/[^/]+\/dubbing-editor\/?$/.test(pathname)
+  const isWorkbench =
+    /\/tasks\/[^/]+\/dubbing-editor\/?$/.test(pathname) ||
+    /\/harness\/speaker-review\//.test(pathname) ||
+    /\/tasks\/[^/]+\/speaker-review\/?$/.test(pathname)
 
   const [collapsed, setCollapsed] = useState<boolean>(readInitialCollapsed)
 

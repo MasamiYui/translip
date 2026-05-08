@@ -314,6 +314,24 @@ export interface SpeakerReviewDecision {
   updated_at?: string
 }
 
+export interface SpeakerReferenceClip {
+  clip_id: string
+  segment_id: string
+  start: number
+  end: number
+  duration: number
+  text: string
+  is_best: boolean
+  score: number
+  url: string
+}
+
+export interface SpeakerSimilarPeer {
+  label: string
+  similarity: number
+  suggest_merge: boolean
+}
+
 export interface SpeakerReviewSpeaker {
   speaker_label: string
   segment_count: number
@@ -325,6 +343,10 @@ export interface SpeakerReviewSpeaker {
   risk_level: 'low' | 'medium' | 'high'
   cloneable_by_default: boolean
   decision?: SpeakerReviewDecision | null
+  reference_clips?: SpeakerReferenceClip[]
+  best_reference_clip_id?: string | null
+  similar_peers?: SpeakerSimilarPeer[]
+  recommended_action?: string
 }
 
 export interface SpeakerReviewRun {
@@ -343,6 +365,10 @@ export interface SpeakerReviewRun {
   risk_flags: string[]
   risk_level: 'low' | 'medium' | 'high'
   decision?: SpeakerReviewDecision | null
+  audio_url?: string
+  prev_context_url?: string | null
+  next_context_url?: string | null
+  recommended_action?: string
 }
 
 export interface SpeakerReviewSegment {
@@ -358,6 +384,17 @@ export interface SpeakerReviewSegment {
   risk_flags: string[]
   risk_level: 'low' | 'medium' | 'high'
   decision?: SpeakerReviewDecision | null
+  audio_url?: string
+  prev_context_url?: string | null
+  next_context_url?: string | null
+  recommended_action?: string
+}
+
+export interface SpeakerSimilarityMatrix {
+  labels: string[]
+  matrix: number[][]
+  threshold_suggest_merge: number
+  method?: string
 }
 
 export interface SpeakerReviewPlanItem {
@@ -390,6 +427,7 @@ export interface SpeakerReviewResponse {
   speakers: SpeakerReviewSpeaker[]
   speaker_runs: SpeakerReviewRun[]
   segments: SpeakerReviewSegment[]
+  similarity?: SpeakerSimilarityMatrix
   review_plan: {
     summary?: Record<string, unknown>
     items: SpeakerReviewPlanItem[]
@@ -413,6 +451,7 @@ export interface SpeakerReviewApplyResponse {
   path: string
   srt_path: string
   manifest_path: string
+  archive_path?: string | null
   summary: Record<string, unknown>
   applied_at: string
 }
