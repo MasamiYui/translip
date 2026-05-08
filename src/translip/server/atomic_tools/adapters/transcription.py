@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from ....transcription.runner import transcribe_file
@@ -7,6 +8,12 @@ from ....types import TranscriptionRequest
 from ..registry import ToolSpec, register_tool
 from ..schemas import TranscriptionToolRequest
 from . import ToolAdapter
+
+
+def _artifact_language_tag(language: object) -> str:
+    raw = str(language or "zh").strip().lower()
+    sanitized = re.sub(r"[^a-z0-9.-]+", "-", raw).strip("-")
+    return sanitized or "zh"
 
 
 class TranscriptionAdapter(ToolAdapter):
@@ -25,9 +32,14 @@ class TranscriptionAdapter(ToolAdapter):
         ).normalized()
         on_progress(10.0, "transcribing")
         result = transcribe_file(request)
-        segments_path = self.copy_output(Path(result.artifacts.segments_json_path), output_dir)
+        language_tag = _artifact_language_tag(params.get("language", "zh"))
+        segments_path = self.copy_output(
+            Path(result.artifacts.segments_json_path),
+            output_dir,
+            f"segments.{language_tag}.json",
+        )
         srt_path = (
-            self.copy_output(Path(result.artifacts.srt_path), output_dir)
+            self.copy_output(Path(result.artifacts.srt_path), output_dir, f"segments.{language_tag}.srt")
             if result.artifacts.srt_path is not None
             else None
         )

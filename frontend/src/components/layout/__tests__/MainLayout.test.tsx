@@ -29,4 +29,25 @@ describe('MainLayout', () => {
     expect(screen.getByText('Content')).toBeInTheDocument()
     expect(container.firstChild).toHaveClass('bg-white')
   })
+
+  it('does not reserve sidebar width on mobile viewports', () => {
+    const { container } = render(
+      <I18nProvider>
+        <MemoryRouter initialEntries={['/tools/transcription']}>
+          <Routes>
+            <Route path="/tools/transcription" element={<MainLayout />}>
+              <Route index element={<div>Content</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </I18nProvider>,
+    )
+
+    const sidebarWrapper = container.querySelector('aside')?.parentElement
+    const main = container.querySelector('main')
+
+    expect(sidebarWrapper).toHaveClass('hidden', 'md:block')
+    expect(main).toHaveClass('ml-0', 'md:ml-[var(--sidebar-offset)]')
+    expect(main).not.toHaveAttribute('style', expect.stringContaining('margin-left'))
+  })
 })

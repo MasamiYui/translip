@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
@@ -36,17 +36,20 @@ export function MainLayout() {
   const toggleSidebar = useCallback(() => setCollapsed((prev) => !prev), [])
 
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
+  const sidebarOffsetStyle = { '--sidebar-offset': `${sidebarWidth}px` } as CSSProperties
 
   return (
     <div className="min-h-screen bg-white">
-      <Sidebar collapsed={collapsed} onToggle={toggleSidebar} />
+      <div className="hidden md:block">
+        <Sidebar collapsed={collapsed} onToggle={toggleSidebar} />
+      </div>
       <Header workbench={isWorkbench} sidebarOffset={sidebarWidth} />
       <main
-        style={{ marginLeft: sidebarWidth }}
+        style={sidebarOffsetStyle}
         className={
           isWorkbench
-            ? 'pt-12 h-screen overflow-hidden bg-[#F5F7FB] transition-[margin-left] duration-200 ease-out'
-            : 'pt-16 min-h-screen transition-[margin-left] duration-200 ease-out'
+            ? 'ml-0 md:ml-[var(--sidebar-offset)] pt-12 h-screen overflow-hidden bg-[#F5F7FB] transition-[margin-left] duration-200 ease-out'
+            : 'ml-0 md:ml-[var(--sidebar-offset)] pt-16 min-h-screen transition-[margin-left] duration-200 ease-out'
         }
       >
         {isWorkbench ? (
@@ -54,7 +57,7 @@ export function MainLayout() {
             <Outlet />
           </div>
         ) : (
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
             <Outlet />
           </div>
         )}
