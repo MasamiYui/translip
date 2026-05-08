@@ -39,7 +39,7 @@ def subtitle_erase_manifest_path(request: PipelineRequest) -> Path:
 
 
 def build_subtitle_erase_command(request: PipelineRequest) -> list[str]:
-    return [
+    cmd: list[str] = [
         str(resolve_erase_python(request)),
         "-m",
         "subtitle_eraser.cli",
@@ -53,7 +53,44 @@ def build_subtitle_erase_command(request: PipelineRequest) -> list[str]:
         str(ocr_detection_path(request)),
         "--debug-dir",
         str(request.output_root / "subtitle-erase" / "debug"),
+        "--inpaint-backend",
+        str(request.erase_backend),
+        "--mode",
+        str(request.erase_mode),
+        "--mask-dilate-x",
+        str(int(request.erase_mask_dilate_x)),
+        "--mask-dilate-y",
+        str(int(request.erase_mask_dilate_y)),
+        "--mask-temporal-radius",
+        str(int(request.erase_mask_temporal_radius)),
+        "--context-frames",
+        str(int(request.erase_context_frames)),
+        "--event-lead-frames",
+        str(int(request.erase_event_lead_frames)),
+        "--event-trail-frames",
+        str(int(request.erase_event_trail_frames)),
+        "--cleanup-max-coverage",
+        f"{float(request.erase_cleanup_max_coverage):.4f}",
+        "--temporal-consensus",
+        str(int(request.erase_temporal_consensus)),
+        "--temporal-std-threshold",
+        f"{float(request.erase_temporal_std_threshold):.4f}",
+        "--inpaint-radius",
+        str(int(request.erase_inpaint_radius)),
+        "--inpaint-context-margin",
+        str(int(request.erase_inpaint_context_margin)),
+        "--lama-device",
+        str(request.erase_lama_device),
     ]
+    if request.erase_regions:
+        for x1, y1, x2, y2 in request.erase_regions:
+            cmd.extend([
+                "--region",
+                f"{float(x1):.4f},{float(y1):.4f},{float(x2):.4f},{float(y2):.4f}",
+            ])
+    if request.erase_auto_tune:
+        cmd.append("--auto-tune")
+    return cmd
 
 
 def build_subtitle_erase_env(request: PipelineRequest) -> dict[str, str]:

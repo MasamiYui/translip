@@ -550,6 +550,22 @@ class PipelineRequest:
             },
         )
     )
+    erase_backend: str = "telea"
+    erase_mode: str = "auto"
+    erase_regions: list[tuple[float, float, float, float]] | None = None
+    erase_mask_dilate_x: int = 16
+    erase_mask_dilate_y: int = 12
+    erase_mask_temporal_radius: int = 2
+    erase_context_frames: int = 14
+    erase_event_lead_frames: int = 3
+    erase_event_trail_frames: int = 8
+    erase_cleanup_max_coverage: float = 0.12
+    erase_temporal_consensus: int = 2
+    erase_temporal_std_threshold: float = 14.0
+    erase_inpaint_radius: int = 5
+    erase_inpaint_context_margin: int = 100
+    erase_lama_device: str = "auto"
+    erase_auto_tune: bool = False
 
     def normalized(self) -> "PipelineRequest":
         return PipelineRequest(
@@ -629,6 +645,22 @@ class PipelineRequest:
             bilingual_english_position=self.bilingual_english_position,
             bilingual_export_strategy=self.bilingual_export_strategy,
             transcription_correction=cast(TranscriptionCorrectionConfig, dict(self.transcription_correction)),
+            erase_backend=self.erase_backend,
+            erase_mode=self.erase_mode,
+            erase_regions=list(self.erase_regions) if self.erase_regions else None,
+            erase_mask_dilate_x=int(self.erase_mask_dilate_x),
+            erase_mask_dilate_y=int(self.erase_mask_dilate_y),
+            erase_mask_temporal_radius=int(self.erase_mask_temporal_radius),
+            erase_context_frames=int(self.erase_context_frames),
+            erase_event_lead_frames=int(self.erase_event_lead_frames),
+            erase_event_trail_frames=int(self.erase_event_trail_frames),
+            erase_cleanup_max_coverage=float(self.erase_cleanup_max_coverage),
+            erase_temporal_consensus=int(self.erase_temporal_consensus),
+            erase_temporal_std_threshold=float(self.erase_temporal_std_threshold),
+            erase_inpaint_radius=int(self.erase_inpaint_radius),
+            erase_inpaint_context_margin=int(self.erase_inpaint_context_margin),
+            erase_lama_device=self.erase_lama_device,
+            erase_auto_tune=bool(self.erase_auto_tune),
         )
 
 
