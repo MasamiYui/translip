@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from pathlib import Path
 
@@ -181,14 +182,34 @@ def _validate_request(request: TranslationRequest) -> TranslationRequest:
 
 
 def _resolved_source_language(*, requested: str, payload: dict[str, object]) -> str:
-    if requested and requested != "auto":
-        return requested
+    canonical_requested = canonical_language_code(requested or "")
+    if canonical_requested and canonical_requested != "auto":
+        return canonical_requested
     segments = payload.get("segments", [])
-    if isinstance(segments, list) and segments:
-        first = segments[0]
-        if isinstance(first, dict) and first.get("language"):
-            return str(first["language"])
+    if isinstance(segments, list):
+        for segment in segments:
+            if not isinstance(segment, dict):
+                continue
+            language = canonical_language_code(str(segment.get("language") or ""))
+            if language and language != "auto":
+                return language
+        for segment in segments:
+            if not isinstance(segment, dict):
+                continue
+            detected = _detect_source_language(str(segment.get("text") or ""))
+            if detected:
+                return detected
     return "zh"
+
+
+def _detect_source_language(text: str) -> str | None:
+    if re.search(r"[\u3040-\u30ff]", text):
+        return "ja"
+    if re.search(r"[\u3400-\u9fff]", text):
+        return "zh"
+    if re.search(r"[A-Za-z]", text):
+        return "en"
+    return None
 
 
 def _load_segment_records(

@@ -16,7 +16,8 @@ import type { FileUploadResponse } from '../types/atomic-tools'
 type FileRefMap = Record<string, FileUploadResponse | null>
 type SelectOption = string | { value: string; label: string }
 
-const TRANSCRIPTION_LANGUAGE_CODES = ['auto', 'zh', 'en', 'ja'] as const
+const SOURCE_LANGUAGE_CODES = ['auto', 'zh', 'en', 'ja'] as const
+const TARGET_LANGUAGE_CODES = ['zh', 'en', 'ja'] as const
 
 export function ToolPage() {
   const { toolId = 'probe' } = useParams()
@@ -253,15 +254,8 @@ function renderControls(
   const setField = (key: string, value: string | number | boolean) => {
     setParams(prev => ({ ...prev, [key]: value }))
   }
-  const transcriptionLanguageOptions = TRANSCRIPTION_LANGUAGE_CODES.map(code => ({
-    value: code,
-    label:
-      code === 'auto'
-        ? locale === 'zh-CN'
-          ? '自动检测 (auto)'
-          : 'Auto Detect (auto)'
-        : `${getLanguageLabel(code)} (${code})`,
-  }))
+  const sourceLanguageOptions = languageOptions(SOURCE_LANGUAGE_CODES, getLanguageLabel, locale)
+  const targetLanguageOptions = languageOptions(TARGET_LANGUAGE_CODES, getLanguageLabel, locale)
 
   if (toolId === 'separation') {
     return (
@@ -286,7 +280,7 @@ function renderControls(
   if (toolId === 'transcription') {
     return (
       <div className="grid gap-4 md:grid-cols-2">
-        <SelectField label={atomicTools.fields.language} value={String(params.language)} options={transcriptionLanguageOptions} onChange={value => setField('language', value)} />
+        <SelectField label={atomicTools.fields.language} value={String(params.language)} options={sourceLanguageOptions} onChange={value => setField('language', value)} />
         <SelectField label={atomicTools.fields.asrModel} value={String(params.asr_model)} options={['tiny', 'base', 'small', 'medium', 'large-v3']} onChange={value => setField('asr_model', value)} />
         <CheckboxField label={atomicTools.fields.enableDiarization} checked={Boolean(params.enable_diarization)} onChange={value => setField('enable_diarization', value)} />
         <CheckboxField label={atomicTools.fields.generateSrt} checked={Boolean(params.generate_srt)} onChange={value => setField('generate_srt', value)} />
@@ -309,8 +303,8 @@ function renderControls(
           <TextAreaField label={atomicTools.fields.text} value={textInput} onChange={setTextInput} />
         )}
         <div className="grid gap-4 md:grid-cols-3">
-          <TextField label={atomicTools.fields.sourceLang} value={String(params.source_lang)} onChange={value => setField('source_lang', value)} />
-          <TextField label={atomicTools.fields.targetLang} value={String(params.target_lang)} onChange={value => setField('target_lang', value)} />
+          <SelectField label={atomicTools.fields.sourceLang} value={String(params.source_lang)} options={sourceLanguageOptions} onChange={value => setField('source_lang', value)} />
+          <SelectField label={atomicTools.fields.targetLang} value={String(params.target_lang)} options={targetLanguageOptions} onChange={value => setField('target_lang', value)} />
           <SelectField label={atomicTools.fields.backend} value={String(params.backend)} options={['local-m2m100', 'siliconflow']} onChange={value => setField('backend', value)} />
         </div>
       </div>
@@ -406,6 +400,22 @@ function getDefaultParams(toolId: string): Record<string, string | number | bool
   }
 }
 
+function languageOptions(
+  codes: readonly string[],
+  getLanguageLabel: (code: string) => string,
+  locale: Locale,
+): SelectOption[] {
+  return codes.map(code => ({
+    value: code,
+    label:
+      code === 'auto'
+        ? locale === 'zh-CN'
+          ? '自动检测 (auto)'
+          : 'Auto Detect (auto)'
+        : `${getLanguageLabel(code)} (${code})`,
+  }))
+}
+
 function SelectField({
   label,
   value,
@@ -418,7 +428,7 @@ function SelectField({
   onChange: (value: string) => void
 }) {
   return (
-    <label className="space-y-2 text-sm">
+    <label className="block space-y-2 text-sm">
       <span className="font-medium text-slate-700">{label}</span>
       <select value={value} onChange={event => onChange(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
         {options.map(option => (
@@ -443,7 +453,7 @@ function TextField({
   type?: string
 }) {
   return (
-    <label className="space-y-2 text-sm">
+    <label className="block space-y-2 text-sm">
       <span className="font-medium text-slate-700">{label}</span>
       <input type={type} value={value} onChange={event => onChange(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700" />
     </label>
@@ -460,7 +470,7 @@ function TextAreaField({
   onChange: (value: string) => void
 }) {
   return (
-    <label className="space-y-2 text-sm">
+    <label className="block space-y-2 text-sm">
       <span className="font-medium text-slate-700">{label}</span>
       <textarea rows={6} value={value} onChange={event => onChange(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm leading-6 text-slate-700" />
     </label>
