@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
@@ -13,6 +13,10 @@ import {
   Keyboard,
   Loader2,
   Pause,
+  PanelLeftClose,
+  PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   Pencil,
   Play,
   RotateCcw,
@@ -94,6 +98,121 @@ function personaDotStyle(color?: string | null): React.CSSProperties {
   }
 }
 
+const SPEAKER_REVIEW_LAYOUT_STORAGE_KEY = 'translip:speaker-review-layout'
+const SPEAKER_ROSTER_PANEL_MIN = 240
+const SPEAKER_ROSTER_PANEL_MAX = 460
+const SPEAKER_ROSTER_PANEL_DEFAULT = 300
+const SPEAKER_INSPECTOR_PANEL_MIN = 300
+const SPEAKER_INSPECTOR_PANEL_MAX = 560
+const SPEAKER_INSPECTOR_PANEL_DEFAULT = 380
+const SPEAKER_PANEL_RESIZE_STEP = 24
+
+interface SpeakerReviewLayout {
+  leftWidth: number
+  rightWidth: number
+  leftOpen: boolean
+  rightOpen: boolean
+}
+
+interface SpeakerPanelResizeState {
+  side: 'left' | 'right'
+  startX: number
+  startWidth: number
+}
+
+const DEFAULT_SPEAKER_REVIEW_LAYOUT: SpeakerReviewLayout = {
+  leftWidth: SPEAKER_ROSTER_PANEL_DEFAULT,
+  rightWidth: SPEAKER_INSPECTOR_PANEL_DEFAULT,
+  leftOpen: true,
+  rightOpen: true,
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function sanitizePanelWidth(value: unknown, fallback: number, min: number, max: number): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? clampNumber(Math.round(value), min, max)
+    : fallback
+}
+
+function readInitialSpeakerReviewLayout(): SpeakerReviewLayout {
+  if (typeof window === 'undefined') return DEFAULT_SPEAKER_REVIEW_LAYOUT
+  try {
+    const raw = window.localStorage.getItem(SPEAKER_REVIEW_LAYOUT_STORAGE_KEY)
+    if (!raw) return DEFAULT_SPEAKER_REVIEW_LAYOUT
+    const parsed = JSON.parse(raw) as Partial<SpeakerReviewLayout>
+    return {
+      leftWidth: sanitizePanelWidth(
+        parsed.leftWidth,
+        SPEAKER_ROSTER_PANEL_DEFAULT,
+        SPEAKER_ROSTER_PANEL_MIN,
+        SPEAKER_ROSTER_PANEL_MAX,
+      ),
+      rightWidth: sanitizePanelWidth(
+        parsed.rightWidth,
+        SPEAKER_INSPECTOR_PANEL_DEFAULT,
+        SPEAKER_INSPECTOR_PANEL_MIN,
+        SPEAKER_INSPECTOR_PANEL_MAX,
+      ),
+      leftOpen: typeof parsed.leftOpen === 'boolean' ? parsed.leftOpen : true,
+      rightOpen: typeof parsed.rightOpen === 'boolean' ? parsed.rightOpen : true,
+    }
+  } catch {
+    return DEFAULT_SPEAKER_REVIEW_LAYOUT
+  }
+}
+
+function SpeakerPanelResizeHandle({
+  side,
+  label,
+  value,
+  min,
+  max,
+  onMouseDown,
+  onKeyboardResize,
+}: {
+  side: 'left' | 'right'
+  label: string
+  value: number
+  min: number
+  max: number
+  onMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void
+  onKeyboardResize: (side: 'left' | 'right', delta: number) => void
+}) {
+  const testId =
+    side === 'left' ? 'resize-speaker-roster-panel' : 'resize-speaker-inspector-panel'
+
+  return (
+    <div
+      role="separator"
+      aria-label={label}
+      aria-orientation="vertical"
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={value}
+      tabIndex={0}
+      title={label}
+      data-testid={testId}
+      onMouseDown={onMouseDown}
+      onKeyDown={event => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+        event.preventDefault()
+        const direction = event.key === 'ArrowRight' ? 1 : -1
+        const delta =
+          side === 'left'
+            ? direction * SPEAKER_PANEL_RESIZE_STEP
+            : -direction * SPEAKER_PANEL_RESIZE_STEP
+        onKeyboardResize(side, delta)
+      }}
+      className="group flex w-2 shrink-0 cursor-col-resize items-center justify-center rounded-md bg-transparent transition-colors hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+    >
+      <span className="h-14 w-1 rounded-full bg-slate-300 transition-colors group-hover:bg-blue-500 group-focus:bg-blue-500" />
+    </div>
+  )
+}
+
 export function SpeakerReviewDrawer({
   taskId,
   isOpen,
@@ -109,6 +228,8 @@ export function SpeakerReviewDrawer({
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [applyResult, setApplyResult] = useState<string | null>(null)
+  const [panelLayout, setPanelLayout] = useState<SpeakerReviewLayout>(readInitialSpeakerReviewLayout)
+  const [resizeState, setResizeState] = useState<SpeakerPanelResizeState | null>(null)
   const [sidebarWidth, setSidebarWidth] = useState<number>(() => {
     if (typeof window === 'undefined') return 220
     return window.localStorage.getItem('translip:sidebar-collapsed') === '1' ? 56 : 220
@@ -131,6 +252,94 @@ export function SpeakerReviewDrawer({
       window.removeEventListener('storage', handler)
       window.clearInterval(interval)
     }
+  }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(SPEAKER_REVIEW_LAYOUT_STORAGE_KEY, JSON.stringify(panelLayout))
+    } catch {
+      /* ignore private mode / quota errors */
+    }
+  }, [panelLayout])
+
+  useEffect(() => {
+    if (!resizeState) return
+
+    const previousCursor = document.body.style.cursor
+    const previousSelect = document.body.style.userSelect
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const rawWidth =
+        resizeState.side === 'left'
+          ? resizeState.startWidth + event.clientX - resizeState.startX
+          : resizeState.startWidth + resizeState.startX - event.clientX
+      const min =
+        resizeState.side === 'left' ? SPEAKER_ROSTER_PANEL_MIN : SPEAKER_INSPECTOR_PANEL_MIN
+      const max =
+        resizeState.side === 'left' ? SPEAKER_ROSTER_PANEL_MAX : SPEAKER_INSPECTOR_PANEL_MAX
+      const nextWidth = clampNumber(Math.round(rawWidth), min, max)
+
+      setPanelLayout(prev => ({
+        ...prev,
+        ...(resizeState.side === 'left' ? { leftWidth: nextWidth } : { rightWidth: nextWidth }),
+      }))
+    }
+
+    const handleMouseUp = () => setResizeState(null)
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousSelect
+    }
+  }, [resizeState])
+
+  const beginPanelResize = useCallback(
+    (side: 'left' | 'right', event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      setResizeState({
+        side,
+        startX: event.clientX,
+        startWidth: side === 'left' ? panelLayout.leftWidth : panelLayout.rightWidth,
+      })
+    },
+    [panelLayout.leftWidth, panelLayout.rightWidth],
+  )
+
+  const handleKeyboardResize = useCallback((side: 'left' | 'right', delta: number) => {
+    setPanelLayout(prev => {
+      if (side === 'left') {
+        return {
+          ...prev,
+          leftWidth: clampNumber(
+            prev.leftWidth + delta,
+            SPEAKER_ROSTER_PANEL_MIN,
+            SPEAKER_ROSTER_PANEL_MAX,
+          ),
+        }
+      }
+      return {
+        ...prev,
+        rightWidth: clampNumber(
+          prev.rightWidth + delta,
+          SPEAKER_INSPECTOR_PANEL_MIN,
+          SPEAKER_INSPECTOR_PANEL_MAX,
+        ),
+      }
+    })
+  }, [])
+
+  const setRosterPanelOpen = useCallback((leftOpen: boolean) => {
+    setPanelLayout(prev => ({ ...prev, leftOpen }))
+  }, [])
+
+  const setInspectorPanelOpen = useCallback((rightOpen: boolean) => {
+    setPanelLayout(prev => ({ ...prev, rightOpen }))
   }, [])
 
   const {
@@ -307,7 +516,7 @@ export function SpeakerReviewDrawer({
     return null
   }
 
-  const findNextUnnamedSpeaker = (currentSpeaker: string | null): string | null => {
+  const findNextUnnamedSpeaker = useCallback((currentSpeaker: string | null): string | null => {
     const speakers = reviewQuery.data?.speakers ?? []
     const bySpeaker = reviewQuery.data?.personas?.by_speaker ?? {}
     const labels = speakers.map(s => s.speaker_label).filter((s): s is string => Boolean(s))
@@ -316,7 +525,7 @@ export function SpeakerReviewDrawer({
       if (!bySpeaker[labels[i]]?.persona_id) return labels[i]
     }
     return null
-  }
+  }, [reviewQuery.data])
 
   const commitRename = async () => {
     if (!renamingSpeaker) return
@@ -575,6 +784,7 @@ export function SpeakerReviewDrawer({
     undoPersonaMutation,
     redoPersonaMutation,
     applyPreviewMutation,
+    findNextUnnamedSpeaker,
     pendingConflict,
     setPendingConflict,
     showApplyPreview,
@@ -700,51 +910,152 @@ export function SpeakerReviewDrawer({
           label={selected ? describeSelection(selected, data) : '未选中'}
         />
 
-        <div className="grid flex-1 grid-cols-[300px_1fr_380px] gap-3 overflow-hidden bg-[#F5F7FB] p-3">
-          <RosterPanel
-            data={data}
-            onSelect={sel => setSelection(sel)}
-            selection={selection}
-            onMergeSuggest={(source, target) => setPendingMerge({ source, target })}
-            renamingSpeaker={renamingSpeaker}
-            renameDraft={renameDraft}
-            onStartRename={(speaker, initial) => startRename(speaker, initial)}
-            onChangeRename={updateRenameDraft}
-            onCommitRename={() => { void commitRename() }}
-            onCancelRename={cancelRename}
-            onUnbind={(personaId, speaker) => unbindPersonaMutation.mutate({ id: personaId, speaker })}
-            onEditVoice={(personaId, currentVoiceId) => {
-              const input = window.prompt('设置 TTS 配音 voice_id（留空=使用默认）', currentVoiceId ?? '')
-              if (input === null) return
-              const next = input.trim() || null
-              updatePersonaMutation.mutate({ id: personaId, tts_voice_id: next })
-            }}
-          />
+        <div
+          className="flex min-h-0 flex-1 gap-2 overflow-hidden bg-[#F5F7FB] p-3"
+          data-testid="speaker-review-layout"
+        >
+          {panelLayout.leftOpen ? (
+            <>
+              <div
+                className="relative h-full shrink-0 overflow-hidden rounded-lg"
+                style={{ width: `${panelLayout.leftWidth}px` }}
+                data-testid="speaker-roster-panel-shell"
+              >
+                <RosterPanel
+                  data={data}
+                  onSelect={sel => setSelection(sel)}
+                  selection={selection}
+                  onMergeSuggest={(source, target) => setPendingMerge({ source, target })}
+                  renamingSpeaker={renamingSpeaker}
+                  renameDraft={renameDraft}
+                  onStartRename={(speaker, initial) => startRename(speaker, initial)}
+                  onChangeRename={updateRenameDraft}
+                  onCommitRename={() => { void commitRename() }}
+                  onCancelRename={cancelRename}
+                  onUnbind={(personaId, speaker) => unbindPersonaMutation.mutate({ id: personaId, speaker })}
+                  onEditVoice={(personaId, currentVoiceId) => {
+                    const input = window.prompt('设置 TTS 配音 voice_id（留空=使用默认）', currentVoiceId ?? '')
+                    if (input === null) return
+                    const next = input.trim() || null
+                    updatePersonaMutation.mutate({ id: personaId, tts_voice_id: next })
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setRosterPanelOpen(false)}
+                  data-testid="toggle-speaker-roster-panel"
+                  className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-400 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-slate-50 hover:text-slate-600"
+                  title="隐藏说话人花名册"
+                  aria-label="隐藏说话人花名册"
+                >
+                  <PanelLeftClose size={14} />
+                </button>
+              </div>
+              <SpeakerPanelResizeHandle
+                side="left"
+                label="调整说话人花名册宽度"
+                value={panelLayout.leftWidth}
+                min={SPEAKER_ROSTER_PANEL_MIN}
+                max={SPEAKER_ROSTER_PANEL_MAX}
+                onMouseDown={event => beginPanelResize('left', event)}
+                onKeyboardResize={handleKeyboardResize}
+              />
+            </>
+          ) : (
+            <div
+              className="flex h-full w-10 shrink-0 flex-col items-center rounded-lg border border-slate-200 bg-white py-2 shadow-sm"
+              data-testid="speaker-roster-rail"
+            >
+              <button
+                type="button"
+                onClick={() => setRosterPanelOpen(true)}
+                data-testid="toggle-speaker-roster-panel"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                title="展开说话人花名册"
+                aria-label="展开说话人花名册"
+              >
+                <PanelLeftOpen size={14} />
+              </button>
+              <span className="mt-3 origin-center rotate-90 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                花名册
+              </span>
+            </div>
+          )}
 
-          <ReviewQueue
-            entries={filteredQueue}
-            filters={filters}
-            setFilters={setFilters}
-            onSelect={sel => setSelection(sel)}
-            selection={selection}
-            bulkSelection={bulkSelection}
-            onToggleBulk={toggleBulk}
-            onClearBulk={clearBulk}
-            onBulkKeep={() => handleBulkKeep(filteredQueue, bulkSelection, handleDecision, clearBulk)}
-            data={data}
-          />
+          <div className="min-w-0 flex-1">
+            <ReviewQueue
+              entries={filteredQueue}
+              filters={filters}
+              setFilters={setFilters}
+              onSelect={sel => setSelection(sel)}
+              selection={selection}
+              bulkSelection={bulkSelection}
+              onToggleBulk={toggleBulk}
+              onClearBulk={clearBulk}
+              onBulkKeep={() => handleBulkKeep(filteredQueue, bulkSelection, handleDecision, clearBulk)}
+              data={data}
+            />
+          </div>
 
-          <InspectorPanel
-            selected={selected}
-            onDecision={handleDecision}
-            onDeleteDecision={itemId => deleteDecisionMutation.mutate(itemId)}
-            loading={decisionMutation.isPending || deleteDecisionMutation.isPending}
-            data={data}
-            onRename={(speaker, initial) => startRename(speaker, initial)}
-            onBindToPersona={(personaId, speaker) =>
-              bindPersonaMutation.mutate({ id: personaId, speaker })
-            }
-          />
+          {panelLayout.rightOpen ? (
+            <>
+              <SpeakerPanelResizeHandle
+                side="right"
+                label="调整检视面板宽度"
+                value={panelLayout.rightWidth}
+                min={SPEAKER_INSPECTOR_PANEL_MIN}
+                max={SPEAKER_INSPECTOR_PANEL_MAX}
+                onMouseDown={event => beginPanelResize('right', event)}
+                onKeyboardResize={handleKeyboardResize}
+              />
+              <div
+                className="relative h-full shrink-0 overflow-hidden rounded-lg"
+                style={{ width: `${panelLayout.rightWidth}px` }}
+                data-testid="speaker-inspector-panel-shell"
+              >
+                <InspectorPanel
+                  selected={selected}
+                  onDecision={handleDecision}
+                  onDeleteDecision={itemId => deleteDecisionMutation.mutate(itemId)}
+                  loading={decisionMutation.isPending || deleteDecisionMutation.isPending}
+                  data={data}
+                  onRename={(speaker, initial) => startRename(speaker, initial)}
+                  onBindToPersona={(personaId, speaker) =>
+                    bindPersonaMutation.mutate({ id: personaId, speaker })
+                  }
+                />
+                <button
+                  type="button"
+                  onClick={() => setInspectorPanelOpen(false)}
+                  data-testid="toggle-speaker-inspector-panel"
+                  className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-white text-slate-400 shadow-sm ring-1 ring-slate-200 transition-colors hover:bg-slate-50 hover:text-slate-600"
+                  title="隐藏检视面板"
+                  aria-label="隐藏检视面板"
+                >
+                  <PanelRightClose size={14} />
+                </button>
+              </div>
+            </>
+          ) : (
+            <div
+              className="flex h-full w-10 shrink-0 flex-col items-center rounded-lg border border-slate-200 bg-white py-2 shadow-sm"
+              data-testid="speaker-inspector-rail"
+            >
+              <button
+                type="button"
+                onClick={() => setInspectorPanelOpen(true)}
+                data-testid="toggle-speaker-inspector-panel"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                title="展开检视面板"
+                aria-label="展开检视面板"
+              >
+                <PanelRightOpen size={14} />
+              </button>
+              <span className="mt-3 origin-center rotate-90 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                检视
+              </span>
+            </div>
+          )}
         </div>
 
         {pendingMerge && (
