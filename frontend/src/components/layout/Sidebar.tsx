@@ -209,10 +209,36 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
               toolsExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
             )}
           >
-            <div className="overflow-hidden">
-              <div className="ml-[22px] mt-0.5 space-y-0.5 border-l border-[#e5e7eb] pl-3 pb-1">
-                {toolNavItems.map(({ to, label, icon: Icon }) => {
-                  const isActive = currentPath === to
+              <div className="overflow-hidden">
+                <div className="ml-[22px] mt-0.5 space-y-0.5 border-l border-[#e5e7eb] pl-3 pb-1">
+                  <Link
+                    to="/tools"
+                    aria-current={currentPath === '/tools' ? 'page' : undefined}
+                    className={cn(
+                      'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-all',
+                      currentPath === '/tools'
+                        ? 'bg-[#3b5bdb]/10 text-[#3b5bdb]'
+                        : 'text-[#9ca3af] hover:bg-[#f3f4f6] hover:text-[#374151]',
+                    )}
+                  >
+                    <Wrench size={13} className="shrink-0" />
+                    <span className="truncate">{t.atomicJobs.library}</span>
+                  </Link>
+                  <Link
+                    to="/tools/jobs"
+                    aria-current={currentPath === '/tools/jobs' || currentPath.startsWith('/tools/jobs/') ? 'page' : undefined}
+                    className={cn(
+                      'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-all',
+                      currentPath === '/tools/jobs' || currentPath.startsWith('/tools/jobs/')
+                        ? 'bg-[#3b5bdb]/10 text-[#3b5bdb]'
+                        : 'text-[#9ca3af] hover:bg-[#f3f4f6] hover:text-[#374151]',
+                    )}
+                  >
+                    <ListChecks size={13} className="shrink-0" />
+                    <span className="truncate">{t.atomicJobs.history}</span>
+                  </Link>
+                  {toolNavItems.map(({ to, label, icon: Icon }) => {
+                    const isActive = currentPath === to
                   return (
                     <Link
                       key={to}
@@ -277,5 +303,4 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
     </aside>
   )
 }
-
 

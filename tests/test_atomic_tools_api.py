@@ -87,6 +87,26 @@ def test_atomic_tools_api_supports_upload_run_status_and_artifacts(tmp_path: Pat
     assert download_response.status_code == 200
     assert download_response.json()["format_name"] == "mp4"
 
+    jobs_response = client.get("/api/atomic-tools/jobs")
+    assert jobs_response.status_code == 200
+    jobs_payload = jobs_response.json()
+    assert jobs_payload["total"] == 1
+    assert jobs_payload["items"][0]["job_id"] == job_id
+    assert jobs_payload["items"][0]["tool_id"] == "probe"
+    assert jobs_payload["items"][0]["artifact_count"] == 1
+
+    recent_response = client.get("/api/atomic-tools/jobs/recent?limit=3")
+    assert recent_response.status_code == 200
+    assert recent_response.json()[0]["job_id"] == job_id
+
+    detail_response = client.get(f"/api/atomic-tools/jobs/{job_id}")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["input_files"][0]["filename"] == "demo.mp4"
+
+    rerun_response = client.post(f"/api/atomic-tools/jobs/{job_id}/rerun")
+    assert rerun_response.status_code == 200
+    assert rerun_response.json()["tool_id"] == "probe"
+
 
 def test_atomic_tools_api_returns_404_for_missing_or_mismatched_jobs(
     tmp_path: Path, monkeypatch
@@ -126,3 +146,7 @@ def test_atomic_tools_api_returns_404_for_missing_or_mismatched_jobs(
     mismatch_response = client.get(f"/api/atomic-tools/tts/jobs/{job_id}")
     assert mismatch_response.status_code == 404
     assert mismatch_response.json()["detail"] == "Job not found"
+
+    missing_detail_response = client.get(f"/api/atomic-tools/jobs/{missing_job_id}")
+    assert missing_detail_response.status_code == 404
+    assert missing_detail_response.json()["detail"] == "Job not found"

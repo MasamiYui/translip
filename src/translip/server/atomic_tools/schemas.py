@@ -26,7 +26,7 @@ class FileUploadResponse(BaseModel):
     content_type: str
 
 
-JobStatus = Literal["pending", "running", "completed", "failed"]
+JobStatus = Literal["pending", "running", "completed", "failed", "cancelled", "interrupted"]
 
 
 class JobResponse(BaseModel):
@@ -49,6 +49,32 @@ class ArtifactInfo(BaseModel):
     content_type: str
     download_url: str
     file_id: str | None = None
+
+
+class AtomicStoredFileInfo(BaseModel):
+    file_id: str
+    filename: str
+    size_bytes: int
+    content_type: str
+
+
+class AtomicJobRead(JobResponse):
+    tool_name: str
+    input_files: list[AtomicStoredFileInfo] = []
+    artifact_count: int = 0
+    updated_at: datetime | None = None
+
+
+class AtomicJobDetail(AtomicJobRead):
+    params: dict[str, Any] = {}
+    artifacts: list[ArtifactInfo] = []
+
+
+class AtomicJobListResponse(BaseModel):
+    items: list[AtomicJobRead]
+    total: int
+    page: int
+    size: int
 
 
 class SeparationToolRequest(BaseModel):

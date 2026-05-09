@@ -10,10 +10,22 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import UploadFile
+from sqlalchemy.engine import Engine
+from sqlmodel import SQLModel, Session, select
 
 from ...config import CACHE_ROOT
+from ..database import engine as default_engine
+from ..models import AtomicToolArtifact, AtomicToolFile, AtomicToolJob
 from .registry import create_adapter, get_tool_spec
-from .schemas import ArtifactInfo, FileUploadResponse, JobResponse
+from .schemas import (
+    ArtifactInfo,
+    AtomicJobDetail,
+    AtomicJobListResponse,
+    AtomicJobRead,
+    AtomicStoredFileInfo,
+    FileUploadResponse,
+    JobResponse,
+)
 
 
 @dataclass(slots=True)
@@ -27,14 +39,19 @@ class StoredFile:
 
 
 class JobManager:
-    def __init__(self, *, root: Path | None = None, max_concurrent_jobs: int = 2) -> None:
+    def __init__(
+        self,
+        *,
+        root: Path | None = None,
+        max_concurrent_jobs: int = 2,
+        db_engine: Engine | None = None,
+    ) -> None:
         self.root = (root or (CACHE_ROOT / "atomic-tools")).resolve()
         self.upload_root = self.root / "uploads"
         self.jobs_root = self.root / "jobs"
         self.max_concurrent_jobs = max_concurrent_jobs
-        self._jobs: dict[str, JobResponse] = {}
-        self._files: dict[str, StoredFile] = {}
-        self._job_artifacts: dict[str, list[ArtifactInfo]] = {}
+        self.db_engine = db_engine or default_engine
+        SQLModel.metadata.create_all(self.db_engine)
         self._adapter_overrides: dict[str, Any] = {}
 
     def register_adapter(self, tool_id: str, adapter: Any) -> None:
@@ -64,7 +81,19 @@ class JobManager:
             content_type=content_type,
             created_at=datetime.now(),
         )
-        self._files[file_id] = stored
+        with self._session() as session:
+            session.add(
+                AtomicToolFile(
+                    id=stored.file_id,
+                    kind="upload",
+                    filename=stored.filename,
+                    path=str(stored.path),
+                    size_bytes=stored.size_bytes,
+                    content_type=stored.content_type,
+                    created_at=stored.created_at,
+                )
+            )
+            session.commit()
         return FileUploadResponse(
             file_id=file_id,
             filename=filename,
@@ -80,25 +109,37 @@ class JobManager:
         normalized = adapter.validate_params(params)
         self._validate_file_references(spec.accept_formats, spec.max_file_size_mb, normalized)
         job_id = uuid4().hex
-        job = JobResponse(
-            job_id=job_id,
+        now = datetime.now()
+        model = AtomicToolJob(
+            id=job_id,
             tool_id=tool_id,
+            tool_name=spec.name_zh,
             status="pending",
+            params=dict(params),
+            normalized_params=normalized,
+            input_files=self._input_file_infos(normalized),
             progress_percent=0.0,
-            created_at=datetime.now(),
-            result=None,
+            job_root=str(self.jobs_root / job_id),
+            created_at=now,
+            updated_at=now,
         )
-        self._jobs[job_id] = job
-        setattr(job, "_normalized_params", normalized)
-        return job
+        with self._session() as session:
+            session.add(model)
+            session.commit()
+            session.refresh(model)
+            return self._job_to_response(model)
 
     async def execute_job(self, job_id: str) -> None:
         await asyncio.to_thread(self._execute_job_sync, job_id)
 
     def _execute_job_sync(self, job_id: str) -> None:
-        job = self._jobs[job_id]
-        params = getattr(job, "_normalized_params")
-        adapter = self._get_adapter(job.tool_id)
+        with self._session() as session:
+            job = session.get(AtomicToolJob, job_id)
+            if job is None:
+                raise KeyError(job_id)
+            params = dict(job.normalized_params)
+            tool_id = job.tool_id
+        adapter = self._get_adapter(tool_id)
         job_dir = self.jobs_root / job_id
         input_dir = job_dir / "input"
         output_dir = job_dir / "output"
@@ -107,76 +148,223 @@ class JobManager:
         self._materialize_inputs(params, input_dir)
 
         started_at = datetime.now()
-        job.status = "running"
-        job.started_at = started_at
-        job.progress_percent = 1.0
-        job.current_step = "starting"
+        self._update_job(
+            job_id,
+            status="running",
+            started_at=started_at,
+            progress_percent=1.0,
+            current_step="starting",
+            error_message=None,
+        )
 
         def on_progress(percent: float, step: str | None = None) -> None:
-            job.progress_percent = max(0.0, min(99.0, float(percent)))
-            job.current_step = step
+            self._update_job(
+                job_id,
+                progress_percent=max(0.0, min(99.0, float(percent))),
+                current_step=step,
+            )
 
         try:
             result = adapter.run(params, input_dir, output_dir, on_progress)
         except Exception as exc:
             finished_at = datetime.now()
-            job.status = "failed"
-            job.error_message = str(exc)
-            job.finished_at = finished_at
-            job.elapsed_sec = round((finished_at - started_at).total_seconds(), 3)
-            job.progress_percent = min(job.progress_percent or 0.0, 99.0)
+            with self._session() as session:
+                job = session.get(AtomicToolJob, job_id)
+                current_progress = job.progress_percent if job else 0.0
+            self._update_job(
+                job_id,
+                status="failed",
+                error_message=str(exc),
+                finished_at=finished_at,
+                elapsed_sec=round((finished_at - started_at).total_seconds(), 3),
+                progress_percent=min(current_progress or 0.0, 99.0),
+            )
             return
 
         finished_at = datetime.now()
-        job.status = "completed"
-        job.result = result
-        job.finished_at = finished_at
-        job.elapsed_sec = round((finished_at - started_at).total_seconds(), 3)
-        job.progress_percent = 100.0
-        job.current_step = "completed"
-        self._job_artifacts[job_id] = self._register_artifacts(job)
+        self._update_job(
+            job_id,
+            status="completed",
+            result=result,
+            finished_at=finished_at,
+            elapsed_sec=round((finished_at - started_at).total_seconds(), 3),
+            progress_percent=100.0,
+            current_step="completed",
+        )
+        self._register_artifacts(job_id, tool_id)
 
     def get_job(self, job_id: str) -> JobResponse:
-        return self._jobs[job_id]
+        with self._session() as session:
+            job = session.get(AtomicToolJob, job_id)
+            if job is None:
+                raise KeyError(job_id)
+            return self._job_to_response(job)
+
+    def get_job_detail(self, job_id: str) -> AtomicJobDetail:
+        with self._session() as session:
+            job = session.get(AtomicToolJob, job_id)
+            if job is None:
+                raise KeyError(job_id)
+            return self._job_to_detail(job)
 
     def get_job_result(self, job_id: str) -> dict[str, Any] | None:
         return self.get_job(job_id).result
 
     def list_artifacts(self, job_id: str) -> list[ArtifactInfo]:
         self.get_job(job_id)
-        return list(self._job_artifacts.get(job_id, []))
+        with self._session() as session:
+            artifacts = list(
+                session.exec(
+                    select(AtomicToolArtifact).where(AtomicToolArtifact.job_id == job_id)
+                ).all()
+            )
+            return [self._artifact_to_info(artifact) for artifact in artifacts]
 
     def get_artifact_path(self, job_id: str, filename: str) -> Path | None:
-        for artifact in self._job_artifacts.get(job_id, []):
-            if artifact.filename == filename:
-                path = self.jobs_root / job_id / "output" / filename
+        with self._session() as session:
+            artifact = session.exec(
+                select(AtomicToolArtifact).where(
+                    AtomicToolArtifact.job_id == job_id,
+                    AtomicToolArtifact.filename == filename,
+                )
+            ).first()
+            if artifact is not None:
+                path = Path(artifact.path)
                 if path.exists():
                     return path
         return None
 
+    def list_jobs(
+        self,
+        *,
+        status: str | None = None,
+        tool_id: str | None = None,
+        search: str | None = None,
+        page: int = 1,
+        size: int = 20,
+    ) -> AtomicJobListResponse:
+        with self._session() as session:
+            jobs = list(session.exec(select(AtomicToolJob)).all())
+        jobs = [job for job in jobs if self._owns_job(job)]
+
+        if status and status != "all":
+            jobs = [job for job in jobs if job.status == status]
+        if tool_id and tool_id != "all":
+            jobs = [job for job in jobs if job.tool_id == tool_id]
+        if search:
+            needle = search.lower()
+            jobs = [
+                job
+                for job in jobs
+                if needle in job.id.lower()
+                or needle in job.tool_id.lower()
+                or needle in job.tool_name.lower()
+                or any(needle in str(item.get("filename", "")).lower() for item in job.input_files)
+            ]
+
+        jobs.sort(key=lambda item: item.created_at, reverse=True)
+        total = len(jobs)
+        offset = (page - 1) * size
+        page_items = jobs[offset : offset + size]
+        return AtomicJobListResponse(
+            items=[self._job_to_read(job) for job in page_items],
+            total=total,
+            page=page,
+            size=size,
+        )
+
+    def list_recent_jobs(self, *, limit: int = 5) -> list[AtomicJobRead]:
+        return self.list_jobs(page=1, size=limit).items
+
+    def rerun_job(self, job_id: str) -> JobResponse:
+        with self._session() as session:
+            job = session.get(AtomicToolJob, job_id)
+            if job is None:
+                raise KeyError(job_id)
+            tool_id = job.tool_id
+            params = dict(job.params or job.normalized_params)
+        return self.create_job(tool_id, params)
+
+    def delete_job(self, job_id: str, *, delete_artifacts: bool = True) -> None:
+        with self._session() as session:
+            job = session.get(AtomicToolJob, job_id)
+            if job is None:
+                raise KeyError(job_id)
+            artifacts = list(
+                session.exec(
+                    select(AtomicToolArtifact).where(AtomicToolArtifact.job_id == job_id)
+                ).all()
+            )
+            for artifact in artifacts:
+                stored_file = session.get(AtomicToolFile, artifact.file_id)
+                if stored_file is not None:
+                    session.delete(stored_file)
+                session.delete(artifact)
+            session.delete(job)
+            session.commit()
+        if delete_artifacts:
+            shutil.rmtree(self.jobs_root / job_id, ignore_errors=True)
+
+    def mark_interrupted_jobs(self) -> int:
+        count = 0
+        now = datetime.now()
+        with self._session() as session:
+            jobs = list(
+                session.exec(
+                    select(AtomicToolJob).where(AtomicToolJob.status.in_(["pending", "running"]))
+                ).all()
+            )
+            jobs = [job for job in jobs if self._owns_job(job)]
+            for job in jobs:
+                job.status = "interrupted"
+                job.error_message = "Interrupted by service restart"
+                job.finished_at = now
+                job.updated_at = now
+                if job.started_at:
+                    job.elapsed_sec = round((now - job.started_at).total_seconds(), 3)
+                session.add(job)
+                count += 1
+            session.commit()
+        return count
+
     def cleanup_expired(self, max_age_hours: int = 24) -> int:
         threshold = datetime.now() - timedelta(hours=max_age_hours)
         removed = 0
-        for file_id, stored in list(self._files.items()):
-            if stored.created_at < threshold:
-                if stored.path.parent.exists():
-                    shutil.rmtree(stored.path.parent, ignore_errors=True)
-                self._files.pop(file_id, None)
+        with self._session() as session:
+            files = list(
+                session.exec(
+                    select(AtomicToolFile).where(AtomicToolFile.created_at < threshold)
+                ).all()
+            )
+            for stored in files:
+                path = Path(stored.path)
+                if stored.kind == "upload" and path.parent.exists():
+                    shutil.rmtree(path.parent, ignore_errors=True)
+                session.delete(stored)
                 removed += 1
 
-        for job_id, job in list(self._jobs.items()):
-            if job.created_at < threshold:
-                shutil.rmtree(self.jobs_root / job_id, ignore_errors=True)
-                self._jobs.pop(job_id, None)
-                self._job_artifacts.pop(job_id, None)
+            jobs = list(
+                session.exec(
+                    select(AtomicToolJob).where(AtomicToolJob.created_at < threshold)
+                ).all()
+            )
+            jobs = [job for job in jobs if self._owns_job(job)]
+            for job in jobs:
+                shutil.rmtree(self.jobs_root / job.id, ignore_errors=True)
+                session.delete(job)
                 removed += 1
+            session.commit()
         return removed
 
     def _get_adapter(self, tool_id: str):
         return self._adapter_overrides.get(tool_id) or create_adapter(tool_id)
 
     def _active_job_count(self) -> int:
-        return sum(1 for job in self._jobs.values() if job.status in {"pending", "running"})
+        with self._session() as session:
+            jobs = session.exec(
+                select(AtomicToolJob).where(AtomicToolJob.status.in_(["pending", "running"]))
+            ).all()
+            return len([job for job in jobs if self._owns_job(job)])
 
     def _validate_file_references(
         self,
@@ -206,7 +394,7 @@ class JobManager:
         *,
         param_name: str,
     ) -> None:
-        stored = self._files.get(file_id)
+        stored = self._get_stored_file(file_id)
         if stored is None:
             raise ValueError(f"Unknown file reference for {param_name}: {file_id}")
         if stored.size_bytes > (max_file_size_mb * 1024 * 1024):
@@ -233,38 +421,155 @@ class JobManager:
                     self._copy_file_to_input(f"{stem}_{index}", file_id, input_dir)
 
     def _copy_file_to_input(self, stem: str, file_id: str, input_dir: Path) -> None:
-        stored = self._files[file_id]
+        stored = self._require_stored_file(file_id)
         target_dir = input_dir / stem
         target_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(stored.path, target_dir / stored.filename)
 
-    def _register_artifacts(self, job: JobResponse) -> list[ArtifactInfo]:
-        output_dir = self.jobs_root / job.job_id / "output"
+    def _register_artifacts(self, job_id: str, tool_id: str) -> list[ArtifactInfo]:
+        output_dir = self.jobs_root / job_id / "output"
         artifacts: list[ArtifactInfo] = []
         for path in sorted(output_dir.rglob("*")):
             if not path.is_file():
                 continue
             file_id = uuid4().hex
             content_type = mimetypes.guess_type(str(path))[0] or "application/octet-stream"
-            stored = StoredFile(
-                file_id=file_id,
-                filename=path.name,
-                path=path,
-                size_bytes=path.stat().st_size,
-                content_type=content_type,
-                created_at=datetime.now(),
-            )
-            self._files[file_id] = stored
-            artifacts.append(
-                ArtifactInfo(
-                    filename=path.relative_to(output_dir).as_posix(),
+            relative_name = path.relative_to(output_dir).as_posix()
+            now = datetime.now()
+            with self._session() as session:
+                session.add(
+                    AtomicToolFile(
+                        id=file_id,
+                        kind="artifact",
+                        filename=path.name,
+                        path=str(path),
+                        size_bytes=path.stat().st_size,
+                        content_type=content_type,
+                        source_job_id=job_id,
+                        created_at=now,
+                    )
+                )
+                artifact = AtomicToolArtifact(
+                    job_id=job_id,
+                    file_id=file_id,
+                    filename=relative_name,
+                    path=str(path),
+                    size_bytes=path.stat().st_size,
+                    content_type=content_type,
+                    download_url=f"/api/atomic-tools/{tool_id}/jobs/{job_id}/artifacts/{relative_name}",
+                    created_at=now,
+                )
+                session.add(artifact)
+                session.commit()
+                session.refresh(artifact)
+                artifacts.append(self._artifact_to_info(artifact))
+        return artifacts
+
+    def _session(self) -> Session:
+        return Session(self.db_engine)
+
+    def _owns_job(self, job: AtomicToolJob) -> bool:
+        try:
+            return Path(job.job_root).resolve().is_relative_to(self.jobs_root)
+        except Exception:
+            return str(job.job_root).startswith(str(self.jobs_root))
+
+    def _get_stored_file(self, file_id: str) -> StoredFile | None:
+        with self._session() as session:
+            stored = session.get(AtomicToolFile, file_id)
+            if stored is None:
+                return None
+            return self._stored_file_from_model(stored)
+
+    def _require_stored_file(self, file_id: str) -> StoredFile:
+        stored = self._get_stored_file(file_id)
+        if stored is None:
+            raise KeyError(file_id)
+        return stored
+
+    def _input_file_infos(self, params: dict[str, Any]) -> list[dict[str, Any]]:
+        file_ids: list[str] = []
+        for key, value in params.items():
+            if key == "file_id" and isinstance(value, str):
+                file_ids.append(value)
+            elif key.endswith("_file_id") and isinstance(value, str):
+                file_ids.append(value)
+            elif key.endswith("_file_ids") and isinstance(value, list):
+                file_ids.extend(item for item in value if isinstance(item, str))
+
+        items: list[dict[str, Any]] = []
+        for file_id in file_ids:
+            stored = self._require_stored_file(file_id)
+            items.append(
+                AtomicStoredFileInfo(
+                    file_id=stored.file_id,
+                    filename=stored.filename,
                     size_bytes=stored.size_bytes,
                     content_type=stored.content_type,
-                    download_url=f"/api/atomic-tools/{job.tool_id}/jobs/{job.job_id}/artifacts/{path.relative_to(output_dir).as_posix()}",
-                    file_id=file_id,
-                )
+                ).model_dump()
             )
-        return artifacts
+        return items
+
+    def _stored_file_from_model(self, stored: AtomicToolFile) -> StoredFile:
+        return StoredFile(
+            file_id=stored.id,
+            filename=stored.filename,
+            path=Path(stored.path),
+            size_bytes=stored.size_bytes,
+            content_type=stored.content_type,
+            created_at=stored.created_at,
+        )
+
+    def _artifact_to_info(self, artifact: AtomicToolArtifact) -> ArtifactInfo:
+        return ArtifactInfo(
+            filename=artifact.filename,
+            size_bytes=artifact.size_bytes,
+            content_type=artifact.content_type,
+            download_url=artifact.download_url,
+            file_id=artifact.file_id,
+        )
+
+    def _job_to_response(self, job: AtomicToolJob) -> JobResponse:
+        return JobResponse(
+            job_id=job.id,
+            tool_id=job.tool_id,
+            status=job.status,
+            progress_percent=job.progress_percent,
+            current_step=job.current_step,
+            created_at=job.created_at,
+            started_at=job.started_at,
+            finished_at=job.finished_at,
+            elapsed_sec=job.elapsed_sec,
+            error_message=job.error_message,
+            result=job.result,
+        )
+
+    def _job_to_read(self, job: AtomicToolJob) -> AtomicJobRead:
+        return AtomicJobRead(
+            **self._job_to_response(job).model_dump(),
+            tool_name=job.tool_name,
+            input_files=[AtomicStoredFileInfo(**item) for item in job.input_files],
+            artifact_count=len(self.list_artifacts(job.id)),
+            updated_at=job.updated_at,
+        )
+
+    def _job_to_detail(self, job: AtomicToolJob) -> AtomicJobDetail:
+        return AtomicJobDetail(
+            **self._job_to_read(job).model_dump(),
+            params=job.params,
+            artifacts=self.list_artifacts(job.id),
+        )
+
+    def _update_job(self, job_id: str, **values: Any) -> None:
+        with self._session() as session:
+            job = session.get(AtomicToolJob, job_id)
+            if job is None:
+                raise KeyError(job_id)
+            for key, value in values.items():
+                setattr(job, key, value)
+            job.updated_at = datetime.now()
+            session.add(job)
+            session.commit()
 
 
 job_manager = JobManager()

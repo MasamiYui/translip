@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .database import init_db
+from .atomic_tools.job_manager import job_manager
 from .routes.artifacts import router as artifacts_router
 from .routes.atomic_tools import router as atomic_tools_router
 from .routes.config import router as config_router
@@ -50,6 +51,7 @@ app.add_middleware(
 @app.on_event("startup")
 def startup_event():
     init_db()
+    job_manager.mark_interrupted_jobs()
     logger.info("Database initialized")
 
 

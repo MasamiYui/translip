@@ -1,5 +1,5 @@
 export type ToolCategory = 'audio' | 'speech' | 'video'
-export type AtomicJobStatus = 'pending' | 'running' | 'completed' | 'failed'
+export type AtomicJobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
 
 export interface ToolInfo {
   tool_id: string
@@ -33,6 +33,32 @@ export interface AtomicJob {
   elapsed_sec: number | null
   error_message: string | null
   result: Record<string, unknown> | null
+}
+
+export interface AtomicStoredFileInfo {
+  file_id: string
+  filename: string
+  size_bytes: number
+  content_type: string
+}
+
+export interface AtomicJobRead extends AtomicJob {
+  tool_name: string
+  input_files: AtomicStoredFileInfo[]
+  artifact_count: number
+  updated_at: string | null
+}
+
+export interface AtomicJobDetail extends AtomicJobRead {
+  params: Record<string, unknown>
+  artifacts: ArtifactInfo[]
+}
+
+export interface AtomicJobListResponse {
+  items: AtomicJobRead[]
+  total: number
+  page: number
+  size: number
 }
 
 export interface ArtifactInfo {

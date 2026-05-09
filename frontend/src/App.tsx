@@ -25,6 +25,12 @@ const DubbingEditorPage = lazy(() =>
 const ToolListPage = lazy(() =>
   import('./pages/ToolListPage').then(module => ({ default: module.ToolListPage })),
 )
+const AtomicJobListPage = lazy(() =>
+  import('./pages/AtomicJobListPage').then(module => ({ default: module.AtomicJobListPage })),
+)
+const AtomicJobDetailPage = lazy(() =>
+  import('./pages/AtomicJobDetailPage').then(module => ({ default: module.AtomicJobDetailPage })),
+)
 const ToolPage = lazy(() =>
   import('./pages/ToolPage').then(module => ({ default: module.ToolPage })),
 )
@@ -62,6 +68,8 @@ export default function App() {
                 <Route path="tasks/:id/dubbing-editor" element={<DubbingEditorPage />} />
                 <Route path="harness/speaker-review/:taskId" element={<SpeakerReviewHarnessPage />} />
                 <Route path="tools" element={<ToolListPage />} />
+                <Route path="tools/jobs" element={<AtomicJobListPage />} />
+                <Route path="tools/jobs/:jobId" element={<AtomicJobDetailPage />} />
                 <Route path="tools/:toolId" element={<ToolPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
