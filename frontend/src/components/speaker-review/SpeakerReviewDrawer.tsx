@@ -1,17 +1,21 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   ArrowLeft,
   Check,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
   Loader2,
   Pencil,
   Pause,
   Play,
+  Repeat,
   RotateCcw,
   ShieldCheck,
+  Undo2,
   UserRound,
   Users,
   Volume2,
@@ -45,6 +49,68 @@ function riskColor(risk?: string | null): string {
   if (risk === 'high') return 'border-rose-200 bg-rose-50 text-rose-700'
   if (risk === 'medium') return 'border-amber-200 bg-amber-50 text-amber-700'
   return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+}
+
+function riskLevelLabel(risk?: string | null): string {
+  if (risk === 'high') return '高风险'
+  if (risk === 'medium') return '中风险'
+  return '低风险'
+}
+
+function riskLevelDescription(risk?: string | null): string {
+  if (risk === 'high') return '需要优先核对，可能影响说话人归属或后续音色克隆'
+  if (risk === 'medium') return '存在可疑边界、样本或时长模式，建议检查'
+  return '未检测到明显异常'
+}
+
+function riskFlagTone(flag: string): 'slate' | 'amber' | 'rose' {
+  if (flag.includes('single') || flag.includes('very_long') || flag.includes('sandwiched')) {
+    return 'rose'
+  }
+  if (flag.includes('low') || flag.includes('short') || flag.includes('boundary')) {
+    return 'amber'
+  }
+  return 'slate'
+}
+
+function riskFlagLabel(flag: string): string {
+  const labels: Record<string, string> = {
+    single_segment_speaker: '单段说话人',
+    low_sample_speaker: '说话人样本不足',
+    mostly_short_segments: '短句偏多',
+    sparse_long_timing: '长时间戳稀疏',
+    no_reference_safe_segment: '无安全参考段',
+    single_segment_run: '单段连续块',
+    short_run: '短连续块',
+    sandwiched_run: '夹心孤岛',
+    rapid_turn_boundary: '快速切换边界',
+    short_segment: '短句',
+    long_timing_short_text: '长时长短文本',
+    very_long_segment: '超长片段',
+    speaker_boundary_risk: '边界风险',
+    speaker_sample_risk: '说话人样本风险',
+  }
+  return labels[flag] ?? flag
+}
+
+function riskFlagsLabel(flags: string[]): string {
+  if (flags.length === 0) return '无明显风险'
+  return flags.map(riskFlagLabel).join('、')
+}
+
+function actionLabel(action?: string | null): string {
+  const labels: Record<string, string> = {
+    keep_independent: '保持当前说话人',
+    relabel: '改说话人',
+    relabel_to_previous_speaker: '归到上一句说话人',
+    relabel_to_next_speaker: '归到下一句说话人',
+    merge_speaker: '合并说话人',
+    mark_non_cloneable: '标记为不可克隆',
+    merge_to_previous_speaker: '合并到上一句说话人',
+    merge_to_next_speaker: '合并到下一句说话人',
+    merge_to_surrounding_speaker: '合并到前后同一说话人',
+  }
+  return labels[action ?? ''] ?? action ?? '未知动作'
 }
 
 function speakerColor(label: string): string {
@@ -87,7 +153,7 @@ function decisionLabel(segment?: SpeakerReviewSegment | null): string | null {
   if (!decision) return null
   if (decision.decision === 'keep_independent') return '已确认'
   if (decision.target_speaker_label) return `已改为 ${decision.target_speaker_label}`
-  return `已决策：${decision.decision}`
+  return `已决策：${actionLabel(decision.decision)}`
 }
 
 function buildKeepDecision(segment: SpeakerReviewSegment): SpeakerReviewDecisionPayload {
@@ -134,6 +200,10 @@ export function SpeakerReviewDrawer({
   const [selectedSegmentId, setSelectedSegmentId] = useState<string | null>(null)
   const [renamingSpeaker, setRenamingSpeaker] = useState<string | null>(null)
   const [renameDraft, setRenameDraft] = useState('')
+  const [filterMode, setFilterMode] = useState<'all' | 'undecided' | 'risk' | 'decided'>('all')
+  const [autoAdvance, setAutoAdvance] = useState(true)
+  const [riskDetailsOpen, setRiskDetailsOpen] = useState(false)
+  const [loopActiveSegment, setLoopActiveSegment] = useState(false)
 
   const reviewQuery = useQuery({
     queryKey: ['speaker-review', taskId],
@@ -144,6 +214,13 @@ export function SpeakerReviewDrawer({
   const decisionMutation = useMutation({
     mutationFn: (payload: SpeakerReviewDecisionPayload) =>
       tasksApi.saveSpeakerReviewDecision(taskId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['speaker-review', taskId] })
+    },
+  })
+
+  const deleteDecisionMutation = useMutation({
+    mutationFn: (itemId: string) => tasksApi.deleteSpeakerReviewDecision(taskId, itemId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['speaker-review', taskId] })
     },
@@ -176,6 +253,39 @@ export function SpeakerReviewDrawer({
   const sortedSegments = useMemo(
     () => sortTranscriptSegments(reviewQuery.data?.segments ?? []),
     [reviewQuery.data?.segments],
+  )
+  const filterCounts = useMemo(() => {
+    let undecided = 0
+    let risk = 0
+    let decided = 0
+    for (const seg of sortedSegments) {
+      if (seg.decision) decided += 1
+      else undecided += 1
+      if ((seg.risk_level === 'high' || seg.risk_level === 'medium') || (seg.risk_flags && seg.risk_flags.length > 0)) {
+        risk += 1
+      }
+    }
+    return { all: sortedSegments.length, undecided, risk, decided }
+  }, [sortedSegments])
+  const matchesFilter = useCallback(
+    (segment: SpeakerReviewSegment, mode: typeof filterMode) => {
+      if (mode === 'all') return true
+      if (mode === 'undecided') return !segment.decision
+      if (mode === 'decided') return Boolean(segment.decision)
+      if (mode === 'risk') {
+        return (
+          segment.risk_level === 'high' ||
+          segment.risk_level === 'medium' ||
+          (segment.risk_flags?.length ?? 0) > 0
+        )
+      }
+      return true
+    },
+    [],
+  )
+  const filteredSegments = useMemo(
+    () => sortedSegments.filter(seg => matchesFilter(seg, filterMode)),
+    [sortedSegments, filterMode, matchesFilter],
   )
   const playheadSegment = useMemo(
     () => findActiveTranscriptSegment(sortedSegments, playheadSec),
@@ -227,6 +337,23 @@ export function SpeakerReviewDrawer({
     [activeIndex, seekToSegment, sortedSegments],
   )
 
+  const jumpToNextMatching = useCallback(
+    (mode: typeof filterMode) => {
+      if (!sortedSegments.length) return false
+      const startIdx = activeIndex < 0 ? -1 : activeIndex
+      for (let offset = 1; offset <= sortedSegments.length; offset += 1) {
+        const idx = (startIdx + offset) % sortedSegments.length
+        const candidate = sortedSegments[idx]
+        if (matchesFilter(candidate, mode)) {
+          seekToSegment(candidate)
+          return true
+        }
+      }
+      return false
+    },
+    [activeIndex, matchesFilter, seekToSegment, sortedSegments],
+  )
+
   const togglePlay = useCallback(() => {
     const video = videoRef.current
     if (!video) return
@@ -239,9 +366,24 @@ export function SpeakerReviewDrawer({
 
   const saveDecision = useCallback(
     (payload: SpeakerReviewDecisionPayload) => {
-      decisionMutation.mutate(payload)
+      decisionMutation.mutate(payload, {
+        onSuccess: () => {
+          if (autoAdvance) {
+            const advanced = jumpToNextMatching('undecided')
+            if (!advanced) jumpToNextMatching('risk')
+          }
+        },
+      })
     },
-    [decisionMutation],
+    [autoAdvance, decisionMutation, jumpToNextMatching],
+  )
+
+  const undoDecision = useCallback(
+    (segment: SpeakerReviewSegment) => {
+      if (!segment.decision) return
+      deleteDecisionMutation.mutate(segment.segment_id)
+    },
+    [deleteDecisionMutation],
   )
 
   const assignActiveSpeaker = useCallback(
@@ -309,6 +451,8 @@ export function SpeakerReviewDrawer({
         return
       }
       if (event.key === ' ') {
+        const target = event.target as HTMLElement | null
+        if (target && target.closest && target.closest('button')) return
         event.preventDefault()
         togglePlay()
         return
@@ -321,6 +465,20 @@ export function SpeakerReviewDrawer({
       if (event.key === 'k' || event.key === 'ArrowUp') {
         event.preventDefault()
         jumpBy(-1)
+        return
+      }
+      if (event.key === 'n' || event.key === 'N') {
+        event.preventDefault()
+        if (event.shiftKey) {
+          jumpToNextMatching('risk')
+        } else {
+          jumpToNextMatching('undecided')
+        }
+        return
+      }
+      if (event.key === 'l' || event.key === 'L') {
+        event.preventDefault()
+        setLoopActiveSegment(prev => !prev)
         return
       }
       if (event.key === '[') {
@@ -346,6 +504,7 @@ export function SpeakerReviewDrawer({
     assignActiveSpeaker,
     isOpen,
     jumpBy,
+    jumpToNextMatching,
     nextSegment,
     onClose,
     previousSegment,
@@ -439,6 +598,10 @@ export function SpeakerReviewDrawer({
                     const currentTime = event.currentTarget.currentTime
                     setPlayheadSec(currentTime)
                     const selected = activeSegmentRef.current
+                    if (loopActiveSegment && selected && currentTime >= selected.end) {
+                      event.currentTarget.currentTime = Math.max(0, selected.start + 0.01)
+                      return
+                    }
                     if (
                       event.currentTarget.paused &&
                       selected &&
@@ -513,13 +676,20 @@ export function SpeakerReviewDrawer({
 
               <TranscriptTimeline
                 data={reviewQuery.data}
-                segments={sortedSegments}
+                segments={filteredSegments}
+                totalSegments={sortedSegments.length}
+                filterMode={filterMode}
+                filterCounts={filterCounts}
+                onChangeFilter={setFilterMode}
+                autoAdvance={autoAdvance}
+                onToggleAutoAdvance={() => setAutoAdvance(v => !v)}
                 activeSegment={activeSegment}
                 playheadSec={playheadSec}
                 durationSec={durationSec}
                 rowRefs={rowRefs}
                 scrollRef={transcriptRef}
                 onSelect={segment => seekToSegment(segment)}
+                onUndoDecision={undoDecision}
               />
             </section>
 
@@ -538,8 +708,13 @@ export function SpeakerReviewDrawer({
                 }
                 renamingSpeaker={renamingSpeaker}
                 renameDraft={renameDraft}
+                riskDetailsOpen={riskDetailsOpen}
+                onToggleRiskDetails={() => setRiskDetailsOpen(v => !v)}
+                loopActiveSegment={loopActiveSegment}
+                onToggleLoop={() => setLoopActiveSegment(v => !v)}
                 onAssign={assignActiveSpeaker}
                 onKeep={() => activeSegment && saveDecision(buildKeepDecision(activeSegment))}
+                onUndoDecision={() => activeSegment && undoDecision(activeSegment)}
                 onStartRename={startRenameSpeaker}
                 onChangeRename={setRenameDraft}
                 onCommitRename={commitRenameSpeaker}
@@ -617,8 +792,74 @@ function VideoControls({
         </span>
         <div className="ml-auto flex items-center gap-2 text-xs text-slate-500">
           <Volume2 size={14} />
-          <span>空格播放 · J/K 跳句 · 1-7 快速改人 · [/] 归到上下句</span>
+          <span>空格 播放 · J/K 切句 · N 下一未决 · 1-7 改人 · L 循环 · [/] 归上下句</span>
         </div>
+      </div>
+    </div>
+  )
+}
+
+function RiskLevelBadge({ level }: { level?: string | null }) {
+  const label = riskLevelLabel(level)
+  return (
+    <span
+      className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${riskColor(level)}`}
+      title={`${label}：${riskLevelDescription(level)}`}
+    >
+      {label}
+    </span>
+  )
+}
+
+function RiskFlagPill({ flag }: { flag: string }) {
+  const tone = riskFlagTone(flag)
+  const cls = {
+    slate: 'border-slate-200 bg-slate-100 text-slate-600',
+    amber: 'border-amber-200 bg-amber-50 text-amber-700',
+    rose: 'border-rose-200 bg-rose-50 text-rose-700',
+  }[tone]
+  return (
+    <span className={`inline-flex whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${cls}`}>
+      {riskFlagLabel(flag)}
+    </span>
+  )
+}
+
+function RiskFlagList({
+  flags,
+  emptyCopy = '无明显风险',
+}: {
+  flags: string[]
+  emptyCopy?: ReactNode
+}) {
+  if (flags.length === 0) {
+    return <span className="text-xs text-slate-400">{emptyCopy}</span>
+  }
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {flags.map(flag => (
+        <RiskFlagPill key={flag} flag={flag} />
+      ))}
+    </div>
+  )
+}
+
+function ActiveRiskSummary({ segment }: { segment: SpeakerReviewSegment }) {
+  return (
+    <div
+      className="mt-3 rounded-md border border-slate-200 bg-white p-3 text-xs"
+      data-testid="active-risk-summary"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-semibold text-slate-900">风险等级</div>
+          <div className="mt-1 leading-5 text-slate-500">{riskLevelDescription(segment.risk_level)}</div>
+        </div>
+        <RiskLevelBadge level={segment.risk_level} />
+      </div>
+      <div className="mt-3">
+        <div className="mb-1.5 font-semibold text-slate-900">风险点</div>
+        <RiskFlagList flags={segment.risk_flags} />
       </div>
     </div>
   )
@@ -627,92 +868,191 @@ function VideoControls({
 function TranscriptTimeline({
   data,
   segments,
+  totalSegments,
+  filterMode,
+  filterCounts,
+  onChangeFilter,
+  autoAdvance,
+  onToggleAutoAdvance,
   activeSegment,
   playheadSec,
   durationSec,
   rowRefs,
   scrollRef,
   onSelect,
+  onUndoDecision,
 }: {
   data?: SpeakerReviewResponse
   segments: SpeakerReviewSegment[]
+  totalSegments: number
+  filterMode: 'all' | 'undecided' | 'risk' | 'decided'
+  filterCounts: { all: number; undecided: number; risk: number; decided: number }
+  onChangeFilter: (mode: 'all' | 'undecided' | 'risk' | 'decided') => void
+  autoAdvance: boolean
+  onToggleAutoAdvance: () => void
   activeSegment: SpeakerReviewSegment | null
   playheadSec: number
   durationSec: number
   rowRefs: MutableRefObject<Record<string, HTMLButtonElement | null>>
   scrollRef: MutableRefObject<HTMLDivElement | null>
   onSelect: (segment: SpeakerReviewSegment) => void
+  onUndoDecision: (segment: SpeakerReviewSegment) => void
 }) {
   const timelineDuration = Math.max(durationSec, ...segments.map(segment => segment.end), 1)
+  const filterTabs: Array<{ key: 'all' | 'undecided' | 'risk' | 'decided'; label: string; count: number }> = [
+    { key: 'all', label: '全部', count: filterCounts.all },
+    { key: 'undecided', label: '未决策', count: filterCounts.undecided },
+    { key: 'risk', label: '有风险', count: filterCounts.risk },
+    { key: 'decided', label: '已决策', count: filterCounts.decided },
+  ]
   return (
-    <div className="h-64 shrink-0 border-t border-slate-200 bg-slate-50">
-      <div className="flex h-9 items-center gap-2 border-b border-slate-200 bg-white px-4">
+    <div className="flex h-72 shrink-0 flex-col border-t border-slate-200 bg-slate-50">
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-1.5">
         <span className="text-xs font-semibold text-slate-900">同步台词轨</span>
-        <span className="text-xs text-slate-500">当前播放头会自动高亮对应台词</span>
-      </div>
-      <div ref={scrollRef} className="h-[calc(100%-36px)] overflow-y-auto" data-testid="transcript-track">
-        {segments.map(segment => {
-          const active = activeSegment?.segment_id === segment.segment_id
-          const left = (segment.start / timelineDuration) * 100
-          const width = Math.max(0.4, ((segment.end - segment.start) / timelineDuration) * 100)
-          const currentDecision = decisionLabel(segment)
-          return (
-            <button
-              key={segment.segment_id}
-              ref={el => {
-                rowRefs.current[segment.segment_id] = el
-              }}
-              type="button"
-              onPointerDown={() => onSelect(segment)}
-              onClick={() => onSelect(segment)}
-              className={`grid w-full grid-cols-[76px_minmax(120px,180px)_minmax(0,1fr)_88px] items-center gap-3 border-b border-slate-200 px-4 py-2 text-left text-xs transition ${
-                active ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : 'bg-white hover:bg-slate-50'
-              }`}
-              data-testid={`transcript-row-${segment.segment_id}`}
-            >
-              <span className="font-mono tabular-nums text-slate-500">
-                {formatTimeSec(segment.start)}
-              </span>
-              <span className="flex min-w-0 items-center gap-2">
+        <div
+          className="flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 p-0.5"
+          data-testid="transcript-filter-tabs"
+          role="tablist"
+          aria-label="台词过滤"
+        >
+          {filterTabs.map(tab => {
+            const active = filterMode === tab.key
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => onChangeFilter(tab.key)}
+                data-testid={`filter-tab-${tab.key}`}
+                className={`flex h-6 items-center gap-1 rounded px-2 text-[11px] font-medium transition ${
+                  active
+                    ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                {tab.label}
                 <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: speakerColor(segment.speaker_label) }}
-                />
-                <span className="truncate font-semibold text-slate-800">
-                  {displayLabel(data, segment.speaker_label)}
+                  className={`rounded-full px-1.5 py-0 text-[10px] tabular-nums ${
+                    active ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {tab.count}
                 </span>
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-slate-800">{segment.text}</span>
-                <span className="relative mt-1 block h-1 overflow-hidden rounded-full bg-slate-200">
-                  <span
-                    className="absolute inset-y-0 rounded-full bg-slate-400"
-                    style={{ left: `${left}%`, width: `${width}%` }}
-                  />
-                  {active && (
+              </button>
+            )
+          })}
+        </div>
+        <label
+          className="ml-auto flex items-center gap-1.5 text-[11px] text-slate-600"
+          title="决策保存后自动跳到下一个未决策的台词"
+        >
+          <input
+            type="checkbox"
+            checked={autoAdvance}
+            onChange={onToggleAutoAdvance}
+            className="h-3 w-3 cursor-pointer accent-blue-600"
+            data-testid="toggle-auto-advance"
+          />
+          保存后自动跳下一个
+        </label>
+      </div>
+      <div
+        ref={scrollRef}
+        className="flex-1 overflow-y-auto"
+        data-testid="transcript-track"
+      >
+        {segments.length === 0 ? (
+          <div className="flex h-full items-center justify-center px-4 py-8 text-center text-xs text-slate-400">
+            {totalSegments === 0 ? '暂无台词数据' : '当前筛选下没有台词，切换 Tab 查看其它类别'}
+          </div>
+        ) : (
+          segments.map(segment => {
+            const active = activeSegment?.segment_id === segment.segment_id
+            const left = (segment.start / timelineDuration) * 100
+            const width = Math.max(0.4, ((segment.end - segment.start) / timelineDuration) * 100)
+            const currentDecision = decisionLabel(segment)
+            return (
+              <div
+                key={segment.segment_id}
+                className={`relative border-b border-slate-200 ${
+                  active ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : 'bg-white hover:bg-slate-50'
+                }`}
+              >
+                <button
+                  ref={el => {
+                    rowRefs.current[segment.segment_id] = el
+                  }}
+                  type="button"
+                  onPointerDown={() => onSelect(segment)}
+                  onClick={() => onSelect(segment)}
+                  className="grid w-full grid-cols-[76px_minmax(120px,180px)_minmax(0,1fr)_132px] items-center gap-3 px-4 py-2 text-left text-xs transition"
+                  data-testid={`transcript-row-${segment.segment_id}`}
+                  title={
+                    segment.risk_flags.length > 0
+                      ? `风险等级：${riskLevelLabel(segment.risk_level)}；风险点：${riskFlagsLabel(segment.risk_flags)}`
+                      : undefined
+                  }
+                >
+                  <span className="font-mono tabular-nums text-slate-500">
+                    {formatTimeSec(segment.start)}
+                  </span>
+                  <span className="flex min-w-0 items-center gap-2">
                     <span
-                      className="absolute top-1/2 h-2 w-0.5 -translate-y-1/2 bg-blue-600"
-                      style={{ left: `${(playheadSec / timelineDuration) * 100}%` }}
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: speakerColor(segment.speaker_label) }}
                     />
-                  )}
-                </span>
-              </span>
-              <span className="flex justify-end">
-                {currentDecision ? (
-                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700">
-                    {currentDecision}
+                    <span className="truncate font-semibold text-slate-800">
+                      {displayLabel(data, segment.speaker_label)}
+                    </span>
                   </span>
-                ) : segment.risk_flags.length > 0 ? (
-                  <span className={`rounded-full border px-2 py-0.5 text-[11px] ${riskColor(segment.risk_level)}`}>
-                    {segment.risk_level}
+                  <span className="min-w-0">
+                    <span className="block truncate text-slate-800">{segment.text}</span>
+                    <span className="relative mt-1 block h-1 overflow-hidden rounded-full bg-slate-200">
+                      <span
+                        className="absolute inset-y-0 rounded-full bg-slate-400"
+                        style={{ left: `${left}%`, width: `${width}%` }}
+                      />
+                      {active && (
+                        <span
+                          className="absolute top-1/2 h-2 w-0.5 -translate-y-1/2 bg-blue-600"
+                          style={{ left: `${(playheadSec / timelineDuration) * 100}%` }}
+                        />
+                      )}
+                    </span>
                   </span>
-                ) : (
-                  <span className="text-[11px] text-slate-400">未决策</span>
+                  <span className="flex items-center justify-end gap-1">
+                    {currentDecision ? (
+                      <span className="flex items-center gap-1">
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700">
+                          {currentDecision}
+                        </span>
+                      </span>
+                    ) : segment.risk_flags.length > 0 ? (
+                      <RiskLevelBadge level={segment.risk_level} />
+                    ) : (
+                      <span className="text-[11px] text-slate-400">未决策</span>
+                    )}
+                  </span>
+                </button>
+                {currentDecision && (
+                  <button
+                    type="button"
+                    onClick={event => {
+                      event.stopPropagation()
+                      onUndoDecision(segment)
+                    }}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-rose-200 hover:text-rose-600"
+                    title="撤销此决策"
+                    data-testid={`undo-decision-${segment.segment_id}`}
+                  >
+                    <Undo2 size={12} />
+                  </button>
                 )}
-              </span>
-            </button>
-          )
-        })}
+              </div>
+            )
+          })
+        )}
       </div>
     </div>
   )
@@ -728,8 +1068,13 @@ function DecisionPanel({
   saving,
   renamingSpeaker,
   renameDraft,
+  riskDetailsOpen,
+  onToggleRiskDetails,
+  loopActiveSegment,
+  onToggleLoop,
   onAssign,
   onKeep,
+  onUndoDecision,
   onStartRename,
   onChangeRename,
   onCommitRename,
@@ -744,8 +1089,13 @@ function DecisionPanel({
   saving: boolean
   renamingSpeaker: string | null
   renameDraft: string
+  riskDetailsOpen: boolean
+  onToggleRiskDetails: () => void
+  loopActiveSegment: boolean
+  onToggleLoop: () => void
   onAssign: (speakerLabel: string) => void
   onKeep: () => void
+  onUndoDecision: () => void
   onStartRename: (speakerLabel: string) => void
   onChangeRename: (value: string) => void
   onCommitRename: () => void
@@ -758,6 +1108,8 @@ function DecisionPanel({
       </div>
     )
   }
+  const isLowRisk = activeSegment.risk_level !== 'high' && activeSegment.risk_level !== 'medium' && (activeSegment.risk_flags?.length ?? 0) === 0
+  const decisionText = decisionLabel(activeSegment)
 
   return (
     <>
@@ -804,20 +1156,65 @@ function DecisionPanel({
               改昵称
             </button>
           )}
-          <span className={`rounded-full border px-2 py-0.5 text-[11px] ${riskColor(activeSegment.risk_level)}`}>
-            {activeSegment.risk_level}
-          </span>
+          <RiskLevelBadge level={activeSegment.risk_level} />
         </div>
-        <div className="mt-2 font-mono text-xs text-slate-500">
-          {formatTimeSec(activeSegment.start)} - {formatTimeSec(activeSegment.end)}
+        <div className="mt-2 flex items-center gap-2 font-mono text-xs text-slate-500">
+          <span>
+            {formatTimeSec(activeSegment.start)} - {formatTimeSec(activeSegment.end)}
+          </span>
+          <button
+            type="button"
+            onClick={onToggleLoop}
+            className={`ml-auto inline-flex h-6 items-center gap-1 rounded-md border px-2 font-sans text-[11px] font-medium transition ${
+              loopActiveSegment
+                ? 'border-blue-300 bg-blue-50 text-blue-700'
+                : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+            title="按 L 切换：循环播放当前句"
+            data-testid="toggle-loop-active"
+            aria-pressed={loopActiveSegment}
+          >
+            <Repeat size={12} />
+            {loopActiveSegment ? '循环中' : '循环 (L)'}
+          </button>
         </div>
         <p className="mt-3 rounded-md border border-slate-200 bg-slate-50 p-3 text-sm leading-6 text-slate-800">
           {activeSegment.text}
         </p>
-        {decisionLabel(activeSegment) && (
-          <div className="mt-2 flex items-center gap-1 text-xs text-emerald-700">
+        {isLowRisk ? (
+          <button
+            type="button"
+            onClick={onToggleRiskDetails}
+            className="mt-3 flex w-full items-center justify-between rounded-md border border-slate-200 bg-white px-3 py-1.5 text-left text-xs text-slate-500 hover:bg-slate-50"
+            data-testid="toggle-risk-details"
+            aria-expanded={riskDetailsOpen}
+          >
+            <span className="flex items-center gap-1.5">
+              <ShieldCheck size={12} className="text-emerald-600" />
+              低风险，无明显异常
+            </span>
+            {riskDetailsOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          </button>
+        ) : null}
+        {(!isLowRisk || riskDetailsOpen) && <ActiveRiskSummary segment={activeSegment} />}
+        {decisionText && (
+          <div
+            className="mt-2 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700"
+            data-testid="active-decision-status"
+          >
             <ShieldCheck size={13} />
-            {decisionLabel(activeSegment)}
+            <span className="min-w-0 flex-1 truncate">{decisionText}</span>
+            <button
+              type="button"
+              onClick={onUndoDecision}
+              disabled={saving}
+              className="flex h-6 items-center gap-1 rounded border border-emerald-200 bg-white px-1.5 text-[11px] text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+              data-testid="undo-active-decision"
+              title="撤销该决策"
+            >
+              <Undo2 size={11} />
+              撤销
+            </button>
           </div>
         )}
       </div>
@@ -970,7 +1367,10 @@ function ContextBlock({
                     {displayLabel(data, row.segment.speaker_label)}
                   </span>
                   {row.segment.risk_flags.length > 0 && (
-                    <AlertTriangle className="h-3 w-3 shrink-0 text-amber-600" />
+                    <AlertTriangle
+                      className="h-3 w-3 shrink-0 text-amber-600"
+                      aria-label={`风险点：${riskFlagsLabel(row.segment.risk_flags)}`}
+                    />
                   )}
                 </>
               ) : (
@@ -978,15 +1378,25 @@ function ContextBlock({
               )}
             </div>
             {row.segment && (
-              <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-700">{row.segment.text}</p>
+              <>
+                <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-700">{row.segment.text}</p>
+                {row.segment.risk_flags.length > 0 && (
+                  <div className="mt-1 line-clamp-1 text-[11px] leading-4 text-amber-700">
+                    风险点：{riskFlagsLabel(row.segment.risk_flags)}
+                  </div>
+                )}
+              </>
             )}
           </div>
         ))}
       </div>
       {currentSegment.recommended_action && (
-        <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs leading-5 text-amber-800">
+        <div
+          className="mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs leading-5 text-amber-800"
+          data-testid="system-recommendation"
+        >
           <Wand2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          系统建议：{currentSegment.recommended_action}
+          系统建议：{actionLabel(currentSegment.recommended_action)}
         </div>
       )}
     </section>
