@@ -36,7 +36,11 @@ export function MainLayout() {
   const toggleSidebar = useCallback(() => setCollapsed((prev) => !prev), [])
 
   const sidebarWidth = collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
-  const sidebarOffsetStyle = { '--sidebar-offset': `${sidebarWidth}px` } as CSSProperties
+  const headerHeight = isWorkbench ? 48 : 60
+  const layoutChromeStyle = {
+    '--sidebar-offset': `${sidebarWidth}px`,
+    '--app-header-height': `${headerHeight}px`,
+  } as CSSProperties
 
   return (
     <div className="min-h-screen bg-[#f4f6fa]">
@@ -45,7 +49,7 @@ export function MainLayout() {
       </div>
       <Header workbench={isWorkbench} sidebarOffset={sidebarWidth} />
       <main
-        style={sidebarOffsetStyle}
+        style={layoutChromeStyle}
         className={
           isWorkbench
             ? 'ml-0 md:ml-[var(--sidebar-offset)] pt-12 h-screen overflow-hidden bg-[#f4f6fa] transition-[margin-left] duration-200 ease-out'

@@ -154,7 +154,33 @@ describe('TaskDetailPage export workflow', () => {
         },
       ],
       speaker_runs: [],
-      segments: [],
+      segments: [
+        {
+          segment_id: 'seg-0001',
+          index: 1,
+          speaker_label: 'SPEAKER_00',
+          start: 0,
+          end: 2,
+          duration: 2,
+          text: '上一句',
+          next_speaker_label: 'SPEAKER_01',
+          risk_flags: [],
+          risk_level: 'low',
+        },
+        {
+          segment_id: 'seg-0002',
+          index: 2,
+          speaker_label: 'SPEAKER_01',
+          start: 2.2,
+          end: 2.8,
+          duration: 0.6,
+          text: '单段 speaker',
+          previous_speaker_label: 'SPEAKER_00',
+          next_speaker_label: 'SPEAKER_00',
+          risk_flags: ['speaker_boundary_risk'],
+          risk_level: 'high',
+        },
+      ],
       review_plan: { items: [] },
       decisions: [],
       manifest: {},
@@ -166,17 +192,22 @@ describe('TaskDetailPage export workflow', () => {
     fireEvent.click(await screen.findByTestId('flow-step-speaker-review'))
 
     expect(await screen.findByText('说话人核对', { selector: 'h2' })).toBeInTheDocument()
-    expect((await screen.findAllByText('SPEAKER_01')).length).toBeGreaterThan(0)
-    expect(screen.getByText('单段 speaker')).toBeInTheDocument()
+    expect(await screen.findByTestId('speaker-review-video')).toHaveAttribute(
+      'src',
+      '/api/tasks/task-speaker/dubbing-editor/video-preview',
+    )
+    expect(screen.getByTestId('transcript-row-seg-0002')).toHaveTextContent('单段 speaker')
 
-    fireEvent.click(screen.getAllByRole('button', { name: '不克隆' })[0])
+    fireEvent.click(screen.getByTestId('transcript-row-seg-0002'))
+    fireEvent.click(screen.getByTestId('speaker-choice-SPEAKER_00'))
 
     await waitFor(() => {
       expect(tasksApi.saveSpeakerReviewDecision).toHaveBeenCalledWith('task-speaker', expect.objectContaining({
-        item_id: 'speaker:SPEAKER_01',
-        item_type: 'speaker_profile',
-        decision: 'mark_non_cloneable',
+        item_id: 'seg-0002',
+        item_type: 'segment',
+        decision: 'relabel',
         source_speaker_label: 'SPEAKER_01',
+        target_speaker_label: 'SPEAKER_00',
       }))
     })
   })
