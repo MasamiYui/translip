@@ -90,6 +90,18 @@ body {
   }
 }
 
+@keyframes speaker-review-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.55;
+    transform: scale(1.4);
+  }
+}
+
 .workflow-edge-active {
   stroke-dasharray: 10 10;
   animation: workflow-edge-dash 1.15s linear infinite;

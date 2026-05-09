@@ -409,6 +409,157 @@ export interface SpeakerReviewPlanItem {
   recommended_actions: string[]
 }
 
+export interface SpeakerPersona {
+  id: string
+  name: string
+  bindings: string[]
+  aliases?: string[]
+  color?: string | null
+  avatar_emoji?: string | null
+  gender?: string | null
+  age_hint?: string | null
+  note?: string | null
+  role?: string | null
+  pinned?: boolean
+  is_target?: boolean
+  confidence?: number | null
+  tts_skip?: boolean
+  tts_voice_id?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface SpeakerPersonaBrief {
+  persona_id?: string | null
+  name?: string | null
+  color?: string | null
+  avatar_emoji?: string | null
+}
+
+export interface SpeakerPersonasBundle {
+  items: SpeakerPersona[]
+  unassigned_bindings: string[]
+  by_speaker: Record<string, SpeakerPersonaBrief>
+  updated_at?: string
+}
+
+export interface PersonaSuggestCandidate {
+  name: string
+  confidence: number
+  source: string
+}
+
+export interface PersonaNameConflict {
+  code: 'persona_name_conflict'
+  existing_id: string
+  existing_name: string
+  message: string
+}
+
+export interface PersonaHistoryStatus {
+  total: number
+  cursor: number
+  can_undo: boolean
+  can_redo: boolean
+  last_undo_op?: string | null
+  next_redo_op?: string | null
+}
+
+export interface PersonaApplyPreviewChange {
+  segment_id?: string | number | null
+  start?: number | null
+  end?: number | null
+  original_speaker?: string
+  new_speaker?: string
+  original_persona?: string | null
+  new_persona?: string | null
+}
+
+export interface PersonaApplyPreviewResponse {
+  ok: boolean
+  summary: {
+    total_segments: number
+    changed_segments: number
+    unassigned_segments: number
+    personas_used: Record<string, number>
+    merges: Record<string, string>
+  }
+  sample_changes: PersonaApplyPreviewChange[]
+}
+
+export interface GlobalPersona {
+  id: string
+  name: string
+  aliases?: string[]
+  color?: string | null
+  avatar_emoji?: string | null
+  gender?: string | null
+  age_hint?: string | null
+  note?: string | null
+  role?: string | null
+  confidence?: number | null
+  tts_voice_id?: string | null
+  tts_skip?: boolean
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export interface GlobalPersonasListResponse {
+  ok: boolean
+  path: string
+  personas: GlobalPersona[]
+  updated_at?: string | null
+  version: number
+}
+
+export interface GlobalPersonaImportResponse {
+  ok: boolean
+  accepted: number
+  skipped: number
+  total: number
+  personas: GlobalPersona[]
+}
+
+export interface GlobalExportFromTaskResponse {
+  ok: boolean
+  exported: string[]
+  skipped: string[]
+  total: number
+}
+
+export interface ImportFromGlobalConflict {
+  persona_id: string
+  name: string
+  existing_id?: string
+}
+
+export interface ImportFromGlobalResponse {
+  ok: boolean
+  imported: SpeakerPersona[]
+  conflicts: ImportFromGlobalConflict[]
+  personas: SpeakerPersonasBundle
+}
+
+export interface SuggestFromGlobalCandidate {
+  persona_id: string
+  name: string
+  score: number
+  reason: string
+  role?: string | null
+  gender?: string | null
+  tts_voice_id?: string | null
+}
+
+export interface SuggestFromGlobalMatch {
+  speaker_label: string
+  candidates: SuggestFromGlobalCandidate[]
+}
+
+export interface SuggestFromGlobalResponse {
+  ok: boolean
+  matches: SuggestFromGlobalMatch[]
+}
+
 export interface SpeakerReviewResponse {
   task_id: string
   status: 'available' | 'missing'
@@ -422,6 +573,7 @@ export interface SpeakerReviewResponse {
     review_segment_count: number
     decision_count: number
     corrected_exists: boolean
+    unnamed_speaker_count?: number
   }
   artifact_paths: Record<string, string>
   speakers: SpeakerReviewSpeaker[]
@@ -434,6 +586,7 @@ export interface SpeakerReviewResponse {
   }
   decisions: SpeakerReviewDecision[]
   manifest: Record<string, unknown>
+  personas?: SpeakerPersonasBundle
 }
 
 export interface SpeakerReviewDecisionPayload {

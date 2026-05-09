@@ -108,12 +108,24 @@ def write_speaker_corrected_artifacts(
     output_segments_path: Path,
     output_srt_path: Path,
     manifest_path: Path,
+    persona_index: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     source_payload = load_json(source_segments_path)
     decisions_payload = load_json(decisions_path) if decisions_path.exists() else {}
     corrected_payload, review_meta = apply_speaker_decisions(source_payload, decisions_payload)
+    if persona_index:
+        for raw in corrected_payload.get("segments", []):
+            if not isinstance(raw, dict):
+                continue
+            label = str(raw.get("speaker_label") or "")
+            persona = persona_index.get(label)
+            if persona:
+                raw["persona_id"] = persona.get("persona_id")
+                raw["persona_name"] = persona.get("name")
+                if persona.get("color"):
+                    raw["persona_color"] = persona.get("color")
     write_json(corrected_payload, output_segments_path)
-    write_srt(corrected_payload, output_srt_path)
+    write_srt(corrected_payload, output_srt_path, persona_index=persona_index)
     manifest = {
         "version": 1,
         "algorithm_version": "speaker-review-apply-v1",
@@ -134,7 +146,12 @@ def write_speaker_corrected_artifacts(
     return manifest
 
 
-def write_srt(segments_payload: dict[str, Any], output_path: Path) -> Path:
+def write_srt(
+    segments_payload: dict[str, Any],
+    output_path: Path,
+    *,
+    persona_index: dict[str, dict[str, Any]] | None = None,
+) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     lines: list[str] = []
     for index, raw in enumerate(segments_payload.get("segments", []), start=1):
@@ -143,12 +160,17 @@ def write_srt(segments_payload: dict[str, Any], output_path: Path) -> Path:
         start = float(raw.get("start") or 0.0)
         end = float(raw.get("end") or 0.0)
         speaker_label = str(raw.get("speaker_label") or "UNKNOWN")
+        display = speaker_label
+        if persona_index:
+            persona = persona_index.get(speaker_label)
+            if persona and persona.get("name"):
+                display = str(persona["name"])
         text = str(raw.get("text") or raw.get("source_text") or "")
         lines.extend(
             [
                 str(index),
                 f"{_srt_timestamp(start)} --> {_srt_timestamp(end)}",
-                f"[{speaker_label}] {text}",
+                f"[{display}] {text}",
                 "",
             ]
         )

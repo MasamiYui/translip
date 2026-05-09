@@ -17,6 +17,10 @@ from sqlmodel import Session
 
 from ..database import get_session
 from ..models import Task
+from ...speaker_review.personas import (
+    build_by_speaker_index as _build_persona_by_speaker,
+    load_personas as _load_personas,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +120,7 @@ def _import_editor_project(task: Task) -> dict[str, Any]:
     timeline = _read_json(output_root / artifact_paths["timeline"])
 
     # Build characters from character ledger
-    characters = _build_characters(character_ledger, speaker_profiles, benchmark)
+    characters = _build_characters(character_ledger, speaker_profiles, benchmark, output_root=output_root)
 
     # Build dialogue units from translation + timeline
     units = _build_units(translation, timeline, character_ledger, output_root, target_lang, mix_report)
@@ -251,9 +255,24 @@ def _build_characters(
     character_ledger: dict,
     speaker_profiles: dict,
     benchmark: dict,
+    output_root: Path | None = None,
 ) -> list[dict]:
     characters = []
     char_entries = character_ledger.get("characters", []) or character_ledger.get("entries", [])
+
+    # Load personas (speaker -> persona mapping) so we can inject
+    # persona.tts_voice_id / tts_skip / name / avatar_emoji into character cards.
+    persona_by_speaker: dict[str, dict] = {}
+    if output_root is not None:
+        try:
+            review_dir = output_root / "task-a" / "voice" / "speaker-review"
+            if not review_dir.exists():
+                review_dir = output_root / "stage1" / "voice" / "speaker-review"
+            if review_dir.exists():
+                personas_payload = _load_personas(review_dir)
+                persona_by_speaker = _build_persona_by_speaker(personas_payload) or {}
+        except Exception:  # pragma: no cover - defensive
+            persona_by_speaker = {}
 
     # Build benchmark stats per character
     char_stats: dict[str, dict] = {}
@@ -329,9 +348,32 @@ def _build_characters(
             or (_classify_pitch(pitch_hz) if pitch_hz else "mid")
         )
 
-        characters.append({
+        # Resolve persona attached to any of this character's speaker_ids.
+        persona_attached: dict | None = None
+        for sid in entry.get("speaker_ids", []) or []:
+            p = persona_by_speaker.get(str(sid))
+            if p:
+                persona_attached = p
+                break
+
+        # Compute display_name: prefer persona.name to provide the friendly
+        # speaker nickname inside the dubbing editor.
+        display_name = entry.get("display_name") or entry.get("name") or char_id
+        if persona_attached and persona_attached.get("name"):
+            display_name = persona_attached["name"]
+
+        # default_voice: if persona has tts_voice_id, override the default
+        # voice's reference_path / preset_id so that the editor displays it.
+        default_voice = dict(entry.get("default_voice", {"backend": "inherit", "reference_path": None}))
+        if persona_attached:
+            voice_id = persona_attached.get("tts_voice_id")
+            if voice_id:
+                default_voice["preset_id"] = voice_id
+                default_voice["source"] = "persona"
+
+        char_card = {
             "character_id": char_id,
-            "display_name": entry.get("display_name") or entry.get("name") or char_id,
+            "display_name": display_name,
             "speaker_ids": entry.get("speaker_ids", []),
             "review_status": review_status,
             "risk_flags": risk_flags,
@@ -345,8 +387,20 @@ def _build_characters(
                 "speaker_failed_ratio": round(spk_ratio, 4),
             },
             "voice_lock": entry.get("voice_lock", False),
-            "default_voice": entry.get("default_voice", {"backend": "inherit", "reference_path": None}),
-        })
+            "default_voice": default_voice,
+        }
+        if persona_attached:
+            char_card["persona"] = {
+                "id": persona_attached.get("id"),
+                "name": persona_attached.get("name"),
+                "color": persona_attached.get("color"),
+                "avatar_emoji": persona_attached.get("avatar_emoji"),
+                "tts_voice_id": persona_attached.get("tts_voice_id"),
+                "tts_skip": bool(persona_attached.get("tts_skip")),
+                "role": persona_attached.get("role"),
+                "is_target": bool(persona_attached.get("is_target")),
+            }
+        characters.append(char_card)
 
     return characters
 

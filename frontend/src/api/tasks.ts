@@ -1,15 +1,62 @@
 import api from './client'
 import type {
   CreateTaskRequest,
+  GlobalExportFromTaskResponse,
+  GlobalPersona,
+  GlobalPersonaImportResponse,
+  GlobalPersonasListResponse,
+  ImportFromGlobalResponse,
+  PersonaApplyPreviewResponse,
+  PersonaHistoryStatus,
+  PersonaSuggestCandidate,
+  SpeakerPersona,
+  SpeakerPersonasBundle,
   SpeakerReferenceClip,
   SpeakerReviewApplyResponse,
   SpeakerReviewDecisionPayload,
   SpeakerReviewResponse,
   SpeakerSimilarityMatrix,
+  SuggestFromGlobalResponse,
   Task,
   TaskListResponse,
   WorkflowGraph,
 } from '../types'
+
+export type PersonaBulkTemplate = 'role_abc' | 'protagonist' | 'by_index'
+
+export type PersonaCreatePayload = {
+  name: string
+  bindings?: string[]
+  color?: string | null
+  avatar_emoji?: string | null
+  note?: string | null
+  role?: string | null
+  gender?: string | null
+  age_hint?: string | null
+  pinned?: boolean
+  is_target?: boolean
+  confidence?: number | null
+  tts_voice_id?: string | null
+  tts_skip?: boolean
+  force?: boolean
+}
+
+export type PersonaUpdatePayload = Partial<{
+  name: string
+  color: string | null
+  avatar_emoji: string | null
+  note: string | null
+  aliases: string[]
+  role: string | null
+  gender: string | null
+  age_hint: string | null
+  pinned: boolean
+  is_target: boolean
+  confidence: number | null
+  tts_voice_id: string | null
+  tts_skip: boolean
+  force: boolean
+}>
 
 export type SubtitlePreviewPayload = {
   input_video_path: string
@@ -109,6 +156,141 @@ export const tasksApi = {
     api
       .get<{ speaker_label: string; best_clip_id: string | null; clips: SpeakerReferenceClip[] }>(
         `/api/tasks/${id}/speaker-review/speakers/${encodeURIComponent(label)}/reference-clips`,
+      )
+      .then(r => r.data),
+
+  listSpeakerPersonas: (id: string) =>
+    api.get<SpeakerPersonasBundle>(`/api/tasks/${id}/speaker-review/personas`).then(r => r.data),
+
+  createSpeakerPersona: (id: string, payload: PersonaCreatePayload) =>
+    api
+      .post<{ ok: boolean; persona: SpeakerPersona; personas: SpeakerPersonasBundle }>(
+        `/api/tasks/${id}/speaker-review/personas`,
+        payload,
+      )
+      .then(r => r.data),
+
+  updateSpeakerPersona: (id: string, personaId: string, payload: PersonaUpdatePayload) =>
+    api
+      .patch<{ ok: boolean; persona: SpeakerPersona; personas: SpeakerPersonasBundle }>(
+        `/api/tasks/${id}/speaker-review/personas/${encodeURIComponent(personaId)}`,
+        payload,
+      )
+      .then(r => r.data),
+
+  deleteSpeakerPersona: (id: string, personaId: string) =>
+    api
+      .delete<{ ok: boolean; personas: SpeakerPersonasBundle }>(
+        `/api/tasks/${id}/speaker-review/personas/${encodeURIComponent(personaId)}`,
+      )
+      .then(r => r.data),
+
+  bindSpeakerPersona: (id: string, personaId: string, speaker: string) =>
+    api
+      .post<{ ok: boolean; persona: SpeakerPersona; personas: SpeakerPersonasBundle }>(
+        `/api/tasks/${id}/speaker-review/personas/${encodeURIComponent(personaId)}/bind`,
+        { speaker },
+      )
+      .then(r => r.data),
+
+  unbindSpeakerPersona: (id: string, personaId: string, speaker: string) =>
+    api
+      .post<{ ok: boolean; persona: SpeakerPersona; personas: SpeakerPersonasBundle }>(
+        `/api/tasks/${id}/speaker-review/personas/${encodeURIComponent(personaId)}/unbind`,
+        { speaker },
+      )
+      .then(r => r.data),
+
+  bulkCreateSpeakerPersonas: (id: string, template: PersonaBulkTemplate) =>
+    api
+      .post<{ ok: boolean; created: SpeakerPersona[]; personas: SpeakerPersonasBundle }>(
+        `/api/tasks/${id}/speaker-review/personas/bulk`,
+        { template },
+      )
+      .then(r => r.data),
+
+  suggestSpeakerPersonas: (id: string, speakers?: string[]) =>
+    api
+      .post<{ ok: boolean; suggestions: Record<string, PersonaSuggestCandidate[]> }>(
+        `/api/tasks/${id}/speaker-review/personas/suggest`,
+        { speakers: speakers ?? null },
+      )
+      .then(r => r.data),
+
+  undoSpeakerPersonas: (id: string) =>
+    api
+      .post<{
+        ok: boolean
+        reverted: Record<string, unknown> | null
+        personas: SpeakerPersonasBundle
+        history?: PersonaHistoryStatus
+      }>(`/api/tasks/${id}/speaker-review/personas/undo`)
+      .then(r => r.data),
+
+  redoSpeakerPersonas: (id: string) =>
+    api
+      .post<{
+        ok: boolean
+        replayed: Record<string, unknown> | null
+        personas: SpeakerPersonasBundle
+        history?: PersonaHistoryStatus
+      }>(`/api/tasks/${id}/speaker-review/personas/redo`)
+      .then(r => r.data),
+
+  getSpeakerPersonasHistory: (id: string) =>
+    api
+      .get<{ ok: boolean; history: PersonaHistoryStatus }>(
+        `/api/tasks/${id}/speaker-review/personas/history`,
+      )
+      .then(r => r.data),
+
+  previewSpeakerReviewApply: (id: string) =>
+    api
+      .post<PersonaApplyPreviewResponse>(`/api/tasks/${id}/speaker-review/apply-preview`)
+      .then(r => r.data),
+
+  listGlobalPersonas: () =>
+    api.get<GlobalPersonasListResponse>(`/api/global-personas`).then(r => r.data),
+
+  importGlobalPersonas: (payload: { personas: GlobalPersona[]; mode?: 'merge' | 'replace' }) =>
+    api
+      .post<GlobalPersonaImportResponse>(`/api/global-personas/import`, payload)
+      .then(r => r.data),
+
+  deleteGlobalPersona: (personaId: string) =>
+    api
+      .delete<{ ok: boolean; personas: GlobalPersona[] }>(
+        `/api/global-personas/${personaId}`,
+      )
+      .then(r => r.data),
+
+  exportTaskPersonasToGlobal: (id: string, payload: { overwrite?: boolean } = {}) =>
+    api
+      .post<GlobalExportFromTaskResponse>(
+        `/api/tasks/${id}/speaker-review/global-personas/export-from-task`,
+        { overwrite: payload.overwrite ?? true },
+      )
+      .then(r => r.data),
+
+  importPersonasFromGlobal: (
+    id: string,
+    payload: { persona_ids: string[]; bindings_by_id?: Record<string, string[]> },
+  ) =>
+    api
+      .post<ImportFromGlobalResponse>(
+        `/api/tasks/${id}/speaker-review/personas/import-from-global`,
+        payload,
+      )
+      .then(r => r.data),
+
+  suggestPersonasFromGlobal: (
+    id: string,
+    payload: { speakers?: Array<{ speaker_label: string; gender?: string | null; role?: string | null }> } = {},
+  ) =>
+    api
+      .post<SuggestFromGlobalResponse>(
+        `/api/tasks/${id}/speaker-review/personas/suggest-from-global`,
+        payload,
       )
       .then(r => r.data),
 
