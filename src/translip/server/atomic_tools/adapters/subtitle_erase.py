@@ -10,7 +10,7 @@ from typing import Any
 from ....orchestration.subprocess_runner import run_stage_command
 from ..registry import ToolSpec, register_tool
 from ..schemas import SubtitleErasePreset, SubtitleEraseToolRequest
-from . import ToolAdapter
+from . import ProgressCallback, ToolAdapter
 
 
 def _repo_root() -> Path:
@@ -208,8 +208,14 @@ class SubtitleEraseAdapter(ToolAdapter):
 
     def run(self, params, input_dir, output_dir, on_progress):
         input_file = self.first_input(input_dir, "file")
-        detection_file = self.first_input(input_dir, "detection_file")
-        on_progress(5.0, "preparing")
+        detection_file, detection_source = self._resolve_detection(
+            params=params,
+            input_dir=input_dir,
+            output_dir=output_dir,
+            original_video=input_file,
+            on_progress=on_progress,
+        )
+        on_progress(20.0, "preparing")
 
         resolved = resolve_preset_params(params)
 
@@ -226,7 +232,7 @@ class SubtitleEraseAdapter(ToolAdapter):
         )
         env = build_eraser_env()
 
-        on_progress(10.0, f"erasing_{resolved['backend']}")
+        on_progress(25.0, f"erasing_{resolved['backend']}")
         run_stage_command(cmd, log_path=log_path, env_overrides=env)
 
         if not erased_path.exists():
@@ -239,6 +245,7 @@ class SubtitleEraseAdapter(ToolAdapter):
             "preset": params.get("preset", "fast"),
             "resolved_parameters": resolved,
             "metrics": metrics,
+            "detection_source": detection_source,
         }
         report_path = output_dir / "report.json"
         self.write_json(report_path, report)
@@ -250,7 +257,57 @@ class SubtitleEraseAdapter(ToolAdapter):
             "preset": params.get("preset", "fast"),
             "backend": resolved["backend"],
             "metrics": metrics,
+            "detection_source": detection_source,
         }
+
+    def _resolve_detection(
+        self,
+        *,
+        params: dict,
+        input_dir: Path,
+        output_dir: Path,
+        original_video: Path,
+        on_progress: ProgressCallback,
+    ) -> tuple[Path, str]:
+        try:
+            detection_file = self.first_input(input_dir, "detection_file")
+            return detection_file, "uploaded"
+        except StopIteration:
+            pass
+
+        on_progress(6.0, "auto_detecting")
+        from .subtitle_detect import SubtitleDetectAdapter
+
+        auto_dir = output_dir / "auto_detect"
+        auto_input_dir = auto_dir / "input"
+        auto_output_dir = auto_dir / "output"
+        (auto_input_dir / "file").mkdir(parents=True, exist_ok=True)
+        auto_output_dir.mkdir(parents=True, exist_ok=True)
+
+        from shutil import copy2
+        copy2(original_video, auto_input_dir / "file" / original_video.name)
+
+        detect_adapter = SubtitleDetectAdapter()
+        detect_params = detect_adapter.validate_params(
+            {"file_id": "__auto__"}
+        )
+        detect_adapter.run(
+            params=detect_params,
+            input_dir=auto_input_dir,
+            output_dir=auto_output_dir,
+            on_progress=lambda pct, stage=None: on_progress(
+                6.0 + max(0.0, min(1.0, pct / 100.0)) * 12.0,
+                f"auto_detect_{stage}" if stage else "auto_detecting",
+            ),
+        )
+
+        detection_path = auto_output_dir / "detection.json"
+        if not detection_path.exists():
+            raise RuntimeError(
+                "Auto detection did not produce detection.json; "
+                "please upload a detection file explicitly."
+            )
+        return detection_path, "auto"
 
 
 def _quick_metrics(

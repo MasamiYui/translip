@@ -243,6 +243,8 @@ function renderUploadZones(
           accept=".json"
           value={fileRefs.detection_file ?? null}
           onFileSelected={file => onFileSelected('detection_file', file)}
+          optional
+          optionalLabel={hints.optionalBadge}
         />
       </>
     )
@@ -524,7 +526,9 @@ function buildRunPayload(
   if (toolId === 'subtitle-erase') {
     const cleaned: Record<string, unknown> = {
       file_id: fileRefs.file?.file_id,
-      detection_file_id: fileRefs.detection_file?.file_id,
+    }
+    if (fileRefs.detection_file?.file_id) {
+      cleaned.detection_file_id = fileRefs.detection_file.file_id
     }
     for (const [key, value] of Object.entries(params)) {
       if (value === '' || value === undefined) continue

@@ -468,7 +468,8 @@ const zhMessages = {
       audioLabel: '音频文件',
       audioHint: '上传要合并进视频的音频轨',
       detectionLabel: '字幕识别结果',
-      detectionHint: '上传字幕识别输出的 detection.json',
+      detectionHint: '留空将自动识别，已有 detection.json 可上传复用以节省时间',
+      optionalBadge: '可选',
     },
     actions: {
       run: '开始处理',
@@ -499,9 +500,9 @@ const zhMessages = {
       quality: '高质量',
     },
     presetHints: {
-      fast: 'TELEA 修复，速度最快，适合日常样片',
-      balanced: '光流引导修复，兼顾速度与稳定',
-      quality: 'LaMa 深度修复，macOS 默认 MPS 加速',
+      fast: '速度优先：使用 TELEA 算法，秒级出片，适合日常样片',
+      balanced: '均衡档：光流引导修复，质量与速度兼顾',
+      quality: '质量优先：LaMa 深度修复模型，macOS 自动启用 MPS GPU 加速，最慢但最干净',
     },
   },
   languageNames: {
@@ -1159,7 +1160,8 @@ const enMessages: LocaleMessages = {
       audioLabel: 'Audio File',
       audioHint: 'Upload the audio track to mux',
       detectionLabel: 'Detection JSON',
-      detectionHint: 'Upload the detection.json produced by subtitle detect',
+      detectionHint: 'Leave empty for auto-detect, or upload an existing detection.json to save time',
+      optionalBadge: 'Optional',
     },
     actions: {
       run: 'Run Tool',
@@ -1190,9 +1192,9 @@ const enMessages: LocaleMessages = {
       quality: 'Quality',
     },
     presetHints: {
-      fast: 'TELEA inpainting, fastest, ideal for daily drafts',
-      balanced: 'Flow-guided inpainting, balanced speed and stability',
-      quality: 'LaMa deep inpainting, defaults to MPS on macOS',
+      fast: 'Speed first: TELEA inpainting, seconds per minute, ideal for daily drafts',
+      balanced: 'Balanced: flow-guided inpainting with good quality-to-speed tradeoff',
+      quality: 'Quality first: LaMa deep inpainting (MPS on macOS), slowest but cleanest',
     },
   },
   languageNames: {

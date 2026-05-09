@@ -8,6 +8,8 @@ interface FileUploadZoneProps {
   value: FileUploadResponse | null
   onFileSelected: (file: File) => Promise<void> | void
   disabled?: boolean
+  optional?: boolean
+  optionalLabel?: string
 }
 
 export function FileUploadZone({
@@ -17,13 +19,20 @@ export function FileUploadZone({
   value,
   onFileSelected,
   disabled = false,
+  optional = false,
+  optionalLabel = 'Optional',
 }: FileUploadZoneProps) {
   const inputId = `upload-${label.replace(/\s+/g, '-').toLowerCase()}`
 
   return (
     <div className="space-y-2">
-      <label htmlFor={inputId} className="block text-sm font-semibold text-[#374151]">
-        {label}
+      <label htmlFor={inputId} className="flex items-center gap-2 text-sm font-semibold text-[#374151]">
+        <span>{label}</span>
+        {optional ? (
+          <span className="inline-flex items-center rounded-full border border-[#d1d5db] bg-white px-2 py-0.5 text-[11px] font-medium text-[#6b7280]">
+            {optionalLabel}
+          </span>
+        ) : null}
       </label>
       <label
         htmlFor={inputId}

@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import json
-from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-from fastapi.testclient import TestClient
+import pytest  # noqa: F401
 
 import translip.server.atomic_tools as _atomic_tools  # noqa: F401  (triggers adapter registration)
 from translip.server.atomic_tools.adapters.subtitle_erase import (
@@ -57,14 +55,19 @@ def test_resolve_preset_params_advanced_overrides_take_priority() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 2: schema validation - subtitle-erase requires detection_file_id
+# Test 2: schema validation - detection_file_id is now optional (auto-detect)
 # ---------------------------------------------------------------------------
 
 
-def test_subtitle_erase_request_requires_detection_file_id() -> None:
-    with pytest.raises(Exception):
-        SubtitleEraseToolRequest(file_id="abc")
+def test_subtitle_erase_request_allows_missing_detection_file_id() -> None:
+    request = SubtitleEraseToolRequest(file_id="abc")
+    assert request.detection_file_id is None
+    assert request.preset == "fast"
+
+
+def test_subtitle_erase_request_accepts_explicit_detection() -> None:
     request = SubtitleEraseToolRequest(file_id="abc", detection_file_id="det")
+    assert request.detection_file_id == "det"
     assert request.preset == "fast"
 
 
@@ -133,30 +136,60 @@ def test_build_eraser_command_appends_regions_and_auto_tune(tmp_path: Path) -> N
 
 
 # ---------------------------------------------------------------------------
-# Test 4: HTTP endpoint - subtitle-erase rejects requests without detection
+# Test 4: adapter run() auto-detects when detection_file_id is missing
 # ---------------------------------------------------------------------------
 
 
-def test_subtitle_erase_http_rejects_missing_detection_file_id(tmp_path: Path, monkeypatch) -> None:
-    from translip.server.app import app
-    from translip.server.atomic_tools.job_manager import JobManager
-    from translip.server.routes import atomic_tools as atomic_tools_route
+def test_subtitle_erase_adapter_run_auto_detects_when_detection_missing(
+    tmp_path: Path,
+) -> None:
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    file_dir = input_dir / "file"
+    file_dir.mkdir(parents=True)
+    video_path = file_dir / "in.mp4"
+    video_path.write_bytes(b"\x00" * 16)
+    # NOTE: no detection_file/ directory — adapter must auto-detect.
 
-    manager = JobManager(root=tmp_path / "atomic-tools")
-    monkeypatch.setattr(atomic_tools_route, "job_manager", manager)
+    captured: dict[str, object] = {}
 
-    client = TestClient(app)
-    upload_response = client.post(
-        "/api/atomic-tools/upload",
-        files={"file": ("demo.mp4", BytesIO(b"data"), "video/mp4")},
-    )
-    file_id = upload_response.json()["file_id"]
+    def fake_run_stage_command(cmd, *, log_path, env_overrides=None):
+        captured["cmd"] = list(cmd)
+        out_video = Path(cmd[cmd.index("--output") + 1])
+        out_video.parent.mkdir(parents=True, exist_ok=True)
+        out_video.write_bytes(b"\x00" * 16)
 
-    response = client.post(
-        "/api/atomic-tools/subtitle-erase/run",
-        json={"file_id": file_id},
-    )
-    assert response.status_code == 400
+    def fake_metrics(*_args, **_kwargs):
+        return {"sampled_frames": 0, "band_diff_mean": 0.0, "spill_mean": 0.0}
+
+    def fake_detect_run(self, params, input_dir, output_dir, on_progress):
+        captured["detect_video_name"] = next(
+            (input_dir / "file").iterdir()
+        ).name
+        detection_path = output_dir / "detection.json"
+        detection_path.parent.mkdir(parents=True, exist_ok=True)
+        detection_path.write_text(json.dumps({"events": []}), encoding="utf-8")
+        on_progress(100.0, "done")
+        return {"detection_file": detection_path.name}
+
+    adapter = SubtitleEraseAdapter()
+    params = adapter.validate_params({"file_id": "x", "preset": "fast"})
+    assert params["detection_file_id"] is None
+
+    with patch(
+        "translip.server.atomic_tools.adapters.subtitle_erase.run_stage_command",
+        side_effect=fake_run_stage_command,
+    ), patch(
+        "translip.server.atomic_tools.adapters.subtitle_erase._quick_metrics",
+        side_effect=fake_metrics,
+    ), patch.object(SubtitleDetectAdapter, "run", new=fake_detect_run):
+        result = adapter.run(params, input_dir, output_dir, _StubProgress())
+
+    assert result["detection_source"] == "auto"
+    assert captured["detect_video_name"] == "in.mp4"
+    report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
+    assert report["detection_source"] == "auto"
+    assert (output_dir / "auto_detect" / "output" / "detection.json").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -216,10 +249,12 @@ def test_subtitle_erase_adapter_run_invokes_command_and_writes_report(tmp_path: 
     assert result["erased_file"] == "erased.mp4"
     assert result["preset"] == "fast"
     assert result["backend"] == "telea"
+    assert result["detection_source"] == "uploaded"
     assert (output_dir / "report.json").exists()
     report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
     assert report["preset"] == "fast"
     assert report["resolved_parameters"]["backend"] == "telea"
+    assert report["detection_source"] == "uploaded"
     cmd = captured["cmd"]
     assert "--inpaint-backend" in cmd
     assert cmd[cmd.index("--inpaint-backend") + 1] == "telea"

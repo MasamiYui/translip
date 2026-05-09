@@ -130,7 +130,7 @@ class SubtitleDetectToolRequest(BaseModel):
 
 class SubtitleEraseToolRequest(BaseModel):
     file_id: str
-    detection_file_id: str
+    detection_file_id: str | None = None
     preset: SubtitleErasePreset = "fast"
     backend: Literal["telea", "flow-guided", "lama"] | None = None
     mode: Literal["auto", "manual"] = "auto"
