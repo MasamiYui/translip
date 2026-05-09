@@ -121,10 +121,7 @@ SubtitleErasePreset = Literal["fast", "balanced", "quality"]
 class SubtitleDetectToolRequest(BaseModel):
     file_id: str
     language: Literal["ch", "en", "ch_tra", "japan", "korean"] = "ch"
-    position_mode: Literal["auto", "bottom", "top", "full"] = "bottom"
-    roi_bottom_ratio: float = 0.34
     sample_interval: float = 0.4
-    merge_threshold: float = 0.78
     preview_frames: int = 3
 
 

@@ -378,29 +378,11 @@ function renderControls(
           options={['ch', 'en', 'ch_tra', 'japan', 'korean']}
           onChange={value => setField('language', value)}
         />
-        <SelectField
-          label={atomicTools.fields.positionMode}
-          value={String(params.position_mode ?? 'bottom')}
-          options={['auto', 'bottom', 'top', 'full']}
-          onChange={value => setField('position_mode', value)}
-        />
-        <TextField
-          label={atomicTools.fields.roiBottomRatio}
-          type="number"
-          value={String(params.roi_bottom_ratio ?? 0.34)}
-          onChange={value => setField('roi_bottom_ratio', Number(value))}
-        />
         <TextField
           label={atomicTools.fields.sampleInterval}
           type="number"
           value={String(params.sample_interval ?? 0.4)}
           onChange={value => setField('sample_interval', Number(value))}
-        />
-        <TextField
-          label={atomicTools.fields.mergeThreshold}
-          type="number"
-          value={String(params.merge_threshold ?? 0.78)}
-          onChange={value => setField('merge_threshold', Number(value))}
         />
         <TextField
           label={atomicTools.fields.previewFrames}
@@ -590,10 +572,7 @@ function getDefaultParams(toolId: string): Record<string, string | number | bool
     case 'subtitle-detect':
       return {
         language: 'ch',
-        position_mode: 'bottom',
-        roi_bottom_ratio: 0.34,
         sample_interval: 0.4,
-        merge_threshold: 0.78,
         preview_frames: 3,
       }
     case 'subtitle-erase':

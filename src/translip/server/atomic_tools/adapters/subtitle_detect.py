@@ -55,12 +55,6 @@ class SubtitleDetectAdapter(ToolAdapter):
             params.get("language", "ch"),
             "--sample-interval",
             str(params.get("sample_interval", 0.4)),
-            "--position-mode",
-            params.get("position_mode", "bottom"),
-            "--roi-bottom-ratio",
-            str(params.get("roi_bottom_ratio", 0.34)),
-            "--merge-threshold",
-            str(params.get("merge_threshold", 0.78)),
         ]
 
         on_progress(15.0, "running_ocr")
