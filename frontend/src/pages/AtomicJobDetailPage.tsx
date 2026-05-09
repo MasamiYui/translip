@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ExternalLink, RefreshCw, Trash2 } from 'lucide-react'
+import { ArrowLeft, CircleStop, ExternalLink, RefreshCw, Trash2 } from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { atomicToolsApi } from '../api/atomic-tools'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
@@ -36,6 +36,14 @@ export function AtomicJobDetailPage() {
     },
   })
 
+  const stopMutation = useMutation({
+    mutationFn: () => atomicToolsApi.stopJob(jobId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['atomic-tool-job-detail', jobId] })
+      queryClient.invalidateQueries({ queryKey: ['atomic-tool-jobs'] })
+    },
+  })
+
   if (!job) {
     return (
       <PageContainer className={APP_CONTENT_MAX_WIDTH}>
@@ -43,6 +51,8 @@ export function AtomicJobDetailPage() {
       </PageContainer>
     )
   }
+
+  const canStop = job.status === 'pending' || job.status === 'running'
 
   return (
     <PageContainer className={`${APP_CONTENT_MAX_WIDTH} space-y-5`}>
@@ -71,6 +81,17 @@ export function AtomicJobDetailPage() {
             <RefreshCw size={13} />
             {t.atomicJobs.rerun}
           </button>
+          {canStop ? (
+            <button
+              type="button"
+              onClick={() => stopMutation.mutate()}
+              disabled={stopMutation.isPending}
+              className="inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-white px-3.5 py-2 text-xs font-semibold text-amber-700 transition-all hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <CircleStop size={13} />
+              {t.atomicJobs.stop}
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => {

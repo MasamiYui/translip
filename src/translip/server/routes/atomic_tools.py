@@ -99,6 +99,17 @@ def rerun_job(job_id: str) -> JobResponse:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.post("/jobs/{job_id}/stop")
+def stop_job(job_id: str) -> dict[str, bool]:
+    try:
+        ok = job_manager.cancel_job(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail="Job not found") from exc
+    if not ok:
+        raise HTTPException(status_code=400, detail="Job cannot be stopped")
+    return {"ok": True}
+
+
 @router.post("/{tool_id}/run", response_model=JobResponse)
 async def run_tool(tool_id: str, params: dict) -> JobResponse:
     if tool_id not in TOOL_REGISTRY:

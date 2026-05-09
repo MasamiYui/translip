@@ -108,6 +108,41 @@ def test_atomic_tools_api_supports_upload_run_status_and_artifacts(tmp_path: Pat
     assert rerun_response.json()["tool_id"] == "probe"
 
 
+def test_atomic_tools_api_stops_pending_job(tmp_path: Path, monkeypatch) -> None:
+    import asyncio
+
+    import translip.server.atomic_tools as atomic_tools  # noqa: F401
+    from fastapi import UploadFile
+    from translip.server.app import app
+    from translip.server.atomic_tools.job_manager import JobManager
+    from translip.server.routes import atomic_tools as atomic_tools_route
+
+    manager = JobManager(root=tmp_path / "atomic-tools")
+    manager.register_adapter("probe", FakeProbeAdapter())
+    monkeypatch.setattr(atomic_tools_route, "job_manager", manager)
+
+    upload = asyncio.run(
+        manager.save_upload(
+            UploadFile(
+                filename="demo.mp4",
+                file=BytesIO(b"video bytes"),
+                headers={"content-type": "video/mp4"},
+            )
+        )
+    )
+    job = manager.create_job("probe", {"file_id": upload.file_id})
+
+    client = TestClient(app)
+    stop_response = client.post(f"/api/atomic-tools/jobs/{job.job_id}/stop")
+
+    assert stop_response.status_code == 200
+    assert stop_response.json() == {"ok": True}
+    detail_response = client.get(f"/api/atomic-tools/jobs/{job.job_id}")
+    assert detail_response.status_code == 200
+    assert detail_response.json()["status"] == "cancelled"
+    assert detail_response.json()["error_message"] == "Cancelled by user"
+
+
 def test_atomic_tools_api_returns_404_for_missing_or_mismatched_jobs(
     tmp_path: Path, monkeypatch
 ) -> None:

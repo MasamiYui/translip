@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -34,6 +34,7 @@ function createWrapper() {
 }
 
 afterEach(() => {
+  cleanup()
   vi.clearAllMocks()
 })
 
@@ -84,5 +85,32 @@ describe('AtomicJobListPage', () => {
     expect(await screen.findByRole('link', { name: /媒体信息探测/ })).toBeInTheDocument()
     expect(screen.getByText('demo.mp4')).toBeInTheDocument()
     expect(screen.getByText('共 1 条')).toBeInTheDocument()
+  })
+
+  it('uses the same top toolbar pattern as the pipeline task list', async () => {
+    apiMocks.listTools.mockResolvedValue([])
+    apiMocks.listJobs.mockResolvedValue({
+      items: [],
+      total: 0,
+      page: 1,
+      size: 50,
+    })
+
+    render(<AtomicJobListPage />, { wrapper: createWrapper() })
+
+    expect(await screen.findByRole('heading', { name: '原子任务' })).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('搜索 job、文件名或能力...')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '全部' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '运行中' })).toBeInTheDocument()
+    expect(screen.queryByRole('combobox', { name: '状态' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '运行中' }))
+
+    await waitFor(() => expect(apiMocks.listJobs).toHaveBeenLastCalledWith({
+      status: 'running',
+      tool_id: undefined,
+      search: undefined,
+      size: 50,
+    }))
   })
 })

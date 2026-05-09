@@ -34,6 +34,9 @@ export const atomicToolsApi = {
   rerunJob: (jobId: string) =>
     api.post<AtomicJob>(`/api/atomic-tools/jobs/${jobId}/rerun`).then(r => r.data),
 
+  stopJob: (jobId: string) =>
+    api.post<{ ok: boolean }>(`/api/atomic-tools/jobs/${jobId}/stop`).then(r => r.data),
+
   upload: (file: File, onProgress?: (percent: number) => void) => {
     const formData = new FormData()
     formData.append('file', file)

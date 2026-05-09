@@ -58,7 +58,11 @@ class SubtitleDetectAdapter(ToolAdapter):
         ]
 
         on_progress(15.0, "running_ocr")
-        run_stage_command(cmd, log_path=log_path)
+        run_stage_command(
+            cmd,
+            log_path=log_path,
+            should_cancel=getattr(on_progress, "is_cancelled", None),
+        )
 
         detection_path = stage_dir / "detection.json"
         if not detection_path.exists():

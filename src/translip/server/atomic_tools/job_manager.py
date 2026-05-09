@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import mimetypes
 import shutil
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -14,6 +15,7 @@ from sqlalchemy.engine import Engine
 from sqlmodel import SQLModel, Session, select
 
 from ...config import CACHE_ROOT
+from ...orchestration.subprocess_runner import StageSubprocessCancelled
 from ..database import engine as default_engine
 from ..models import AtomicToolArtifact, AtomicToolFile, AtomicToolJob
 from .registry import create_adapter, get_tool_spec
@@ -38,6 +40,10 @@ class StoredFile:
     created_at: datetime
 
 
+class AtomicJobCancelled(RuntimeError):
+    """Raised inside a running adapter when the user cancels the job."""
+
+
 class JobManager:
     def __init__(
         self,
@@ -53,6 +59,8 @@ class JobManager:
         self.db_engine = db_engine or default_engine
         SQLModel.metadata.create_all(self.db_engine)
         self._adapter_overrides: dict[str, Any] = {}
+        self._cancel_events: dict[str, threading.Event] = {}
+        self._cancel_events_lock = threading.Lock()
 
     def register_adapter(self, tool_id: str, adapter: Any) -> None:
         self._adapter_overrides[tool_id] = adapter
@@ -133,65 +141,86 @@ class JobManager:
         await asyncio.to_thread(self._execute_job_sync, job_id)
 
     def _execute_job_sync(self, job_id: str) -> None:
+        cancel_event = self._cancel_event_for(job_id)
         with self._session() as session:
             job = session.get(AtomicToolJob, job_id)
             if job is None:
                 raise KeyError(job_id)
+            if job.status == "cancelled" or cancel_event.is_set():
+                self._mark_job_cancelled(job_id)
+                self._drop_cancel_event(job_id)
+                return
             params = dict(job.normalized_params)
             tool_id = job.tool_id
-        adapter = self._get_adapter(tool_id)
-        job_dir = self.jobs_root / job_id
-        input_dir = job_dir / "input"
-        output_dir = job_dir / "output"
-        input_dir.mkdir(parents=True, exist_ok=True)
-        output_dir.mkdir(parents=True, exist_ok=True)
-        self._materialize_inputs(params, input_dir)
+        try:
+            adapter = self._get_adapter(tool_id)
+            job_dir = self.jobs_root / job_id
+            input_dir = job_dir / "input"
+            output_dir = job_dir / "output"
+            input_dir.mkdir(parents=True, exist_ok=True)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            self._materialize_inputs(params, input_dir)
 
-        started_at = datetime.now()
-        self._update_job(
-            job_id,
-            status="running",
-            started_at=started_at,
-            progress_percent=1.0,
-            current_step="starting",
-            error_message=None,
-        )
-
-        def on_progress(percent: float, step: str | None = None) -> None:
+            started_at = datetime.now()
             self._update_job(
                 job_id,
-                progress_percent=max(0.0, min(99.0, float(percent))),
-                current_step=step,
+                status="running",
+                started_at=started_at,
+                progress_percent=1.0,
+                current_step="starting",
+                error_message=None,
             )
 
-        try:
-            result = adapter.run(params, input_dir, output_dir, on_progress)
-        except Exception as exc:
+            def on_progress(percent: float, step: str | None = None) -> None:
+                if cancel_event.is_set():
+                    raise AtomicJobCancelled()
+                self._update_job(
+                    job_id,
+                    progress_percent=max(0.0, min(99.0, float(percent))),
+                    current_step=step,
+                )
+                if cancel_event.is_set():
+                    raise AtomicJobCancelled()
+
+            setattr(on_progress, "is_cancelled", cancel_event.is_set)
+
+            try:
+                result = adapter.run(params, input_dir, output_dir, on_progress)
+            except (AtomicJobCancelled, StageSubprocessCancelled):
+                self._mark_job_cancelled(job_id, started_at=started_at)
+                return
+            except Exception as exc:
+                finished_at = datetime.now()
+                with self._session() as session:
+                    job = session.get(AtomicToolJob, job_id)
+                    current_progress = job.progress_percent if job else 0.0
+                self._update_job(
+                    job_id,
+                    status="failed",
+                    error_message=str(exc),
+                    finished_at=finished_at,
+                    elapsed_sec=round((finished_at - started_at).total_seconds(), 3),
+                    progress_percent=min(current_progress or 0.0, 99.0),
+                )
+                return
+
+            if cancel_event.is_set():
+                self._mark_job_cancelled(job_id, started_at=started_at)
+                return
+
             finished_at = datetime.now()
-            with self._session() as session:
-                job = session.get(AtomicToolJob, job_id)
-                current_progress = job.progress_percent if job else 0.0
             self._update_job(
                 job_id,
-                status="failed",
-                error_message=str(exc),
+                status="completed",
+                result=result,
                 finished_at=finished_at,
                 elapsed_sec=round((finished_at - started_at).total_seconds(), 3),
-                progress_percent=min(current_progress or 0.0, 99.0),
+                progress_percent=100.0,
+                current_step="completed",
             )
-            return
-
-        finished_at = datetime.now()
-        self._update_job(
-            job_id,
-            status="completed",
-            result=result,
-            finished_at=finished_at,
-            elapsed_sec=round((finished_at - started_at).total_seconds(), 3),
-            progress_percent=100.0,
-            current_step="completed",
-        )
-        self._register_artifacts(job_id, tool_id)
+            self._register_artifacts(job_id, tool_id)
+        finally:
+            self._drop_cancel_event(job_id)
 
     def get_job(self, job_id: str) -> JobResponse:
         with self._session() as session:
@@ -305,6 +334,28 @@ class JobManager:
         if delete_artifacts:
             shutil.rmtree(self.jobs_root / job_id, ignore_errors=True)
 
+    def cancel_job(self, job_id: str) -> bool:
+        cancel_event = self._cancel_event_for(job_id)
+        with self._session() as session:
+            job = session.get(AtomicToolJob, job_id)
+            if job is None:
+                raise KeyError(job_id)
+            if not self._owns_job(job) or job.status not in ("pending", "running"):
+                self._drop_cancel_event(job_id)
+                return False
+            cancel_event.set()
+            now = datetime.now()
+            job.status = "cancelled"
+            job.error_message = "Cancelled by user"
+            job.finished_at = now
+            job.updated_at = now
+            job.current_step = "cancelled"
+            if job.started_at:
+                job.elapsed_sec = round((now - job.started_at).total_seconds(), 3)
+            session.add(job)
+            session.commit()
+        return True
+
     def mark_interrupted_jobs(self) -> int:
         count = 0
         now = datetime.now()
@@ -358,6 +409,40 @@ class JobManager:
 
     def _get_adapter(self, tool_id: str):
         return self._adapter_overrides.get(tool_id) or create_adapter(tool_id)
+
+    def _cancel_event_for(self, job_id: str) -> threading.Event:
+        with self._cancel_events_lock:
+            event = self._cancel_events.get(job_id)
+            if event is None:
+                event = threading.Event()
+                self._cancel_events[job_id] = event
+            return event
+
+    def _drop_cancel_event(self, job_id: str) -> None:
+        with self._cancel_events_lock:
+            self._cancel_events.pop(job_id, None)
+
+    def _mark_job_cancelled(
+        self,
+        job_id: str,
+        *,
+        started_at: datetime | None = None,
+    ) -> None:
+        finished_at = datetime.now()
+        with self._session() as session:
+            job = session.get(AtomicToolJob, job_id)
+            if job is None:
+                raise KeyError(job_id)
+            start = job.started_at or started_at
+            job.status = "cancelled"
+            job.error_message = "Cancelled by user"
+            job.finished_at = finished_at
+            job.current_step = "cancelled"
+            job.updated_at = finished_at
+            if start:
+                job.elapsed_sec = round((finished_at - start).total_seconds(), 3)
+            session.add(job)
+            session.commit()
 
     def _active_job_count(self) -> int:
         with self._session() as session:

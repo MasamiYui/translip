@@ -39,15 +39,17 @@ describe('atomicToolsApi job endpoints', () => {
     })
   })
 
-  it('loads, deletes, and reruns an atomic job', async () => {
+  it('loads, deletes, reruns, and stops an atomic job', async () => {
     await atomicToolsApi.getJobDetail('job-1')
     await atomicToolsApi.deleteJob('job-1', false)
     await atomicToolsApi.rerunJob('job-1')
+    await atomicToolsApi.stopJob('job-1')
 
     expect(api.get).toHaveBeenCalledWith('/api/atomic-tools/jobs/job-1')
     expect(api.delete).toHaveBeenCalledWith('/api/atomic-tools/jobs/job-1', {
       params: { delete_artifacts: false },
     })
     expect(api.post).toHaveBeenCalledWith('/api/atomic-tools/jobs/job-1/rerun')
+    expect(api.post).toHaveBeenCalledWith('/api/atomic-tools/jobs/job-1/stop')
   })
 })

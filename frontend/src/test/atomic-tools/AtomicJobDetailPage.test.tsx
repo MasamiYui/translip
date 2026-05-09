@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -10,13 +10,14 @@ const apiMocks = vi.hoisted(() => ({
   getJobDetail: vi.fn(),
   deleteJob: vi.fn(),
   rerunJob: vi.fn(),
+  stopJob: vi.fn(),
 }))
 
 vi.mock('../../api/atomic-tools', () => ({
   atomicToolsApi: apiMocks,
 }))
 
-function createWrapper() {
+function createWrapper(initialEntry = '/tools/jobs/job-probe-1') {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { retry: false },
@@ -27,7 +28,7 @@ function createWrapper() {
     return (
       <QueryClientProvider client={queryClient}>
         <I18nProvider>
-          <MemoryRouter initialEntries={['/tools/jobs/job-probe-1']}>{children}</MemoryRouter>
+          <MemoryRouter initialEntries={[initialEntry]}>{children}</MemoryRouter>
         </I18nProvider>
       </QueryClientProvider>
     )
@@ -80,5 +81,39 @@ describe('AtomicJobDetailPage', () => {
     expect(screen.getByText('demo.mp4')).toBeInTheDocument()
     expect(screen.getByText('probe.json')).toBeInTheDocument()
     expect(screen.getByText(/format_name/)).toBeInTheDocument()
+  })
+
+  it('allows stopping a running subtitle erase job', async () => {
+    apiMocks.getJobDetail.mockResolvedValue({
+      job_id: 'job-erase-1',
+      tool_id: 'subtitle-erase',
+      tool_name: '字幕擦除',
+      status: 'running',
+      progress_percent: 25,
+      current_step: 'erasing_lama',
+      created_at: '2026-05-09T08:00:00Z',
+      updated_at: '2026-05-09T08:00:05Z',
+      started_at: '2026-05-09T08:00:01Z',
+      finished_at: null,
+      elapsed_sec: null,
+      error_message: null,
+      params: { file_id: 'file-1' },
+      result: null,
+      input_files: [{ file_id: 'file-1', filename: 'demo.mp4', size_bytes: 10, content_type: 'video/mp4' }],
+      artifact_count: 0,
+      artifacts: [],
+    })
+    apiMocks.stopJob.mockResolvedValue({ ok: true })
+
+    render(
+      <Routes>
+        <Route path="/tools/jobs/:jobId" element={<AtomicJobDetailPage />} />
+      </Routes>,
+      { wrapper: createWrapper('/tools/jobs/job-erase-1') },
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: '停止任务' }))
+
+    await waitFor(() => expect(apiMocks.stopJob).toHaveBeenCalledWith('job-erase-1'))
   })
 })

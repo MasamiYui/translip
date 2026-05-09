@@ -289,6 +289,7 @@ class SubtitleEraseAdapter(ToolAdapter):
             log_path=log_path,
             env_overrides=env,
             on_stdout_line=progress_handler,
+            should_cancel=getattr(on_progress, "is_cancelled", None),
         )
 
         if not erased_path.exists():

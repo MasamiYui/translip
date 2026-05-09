@@ -9,8 +9,6 @@ import { StatusBadge } from '../components/shared/StatusBadge'
 import { useI18n } from '../i18n/useI18n'
 import type { AtomicJobRead } from '../types/atomic-tools'
 
-const STATUS_FILTERS = ['all', 'pending', 'running', 'completed', 'failed', 'cancelled', 'interrupted'] as const
-
 export function AtomicJobListPage() {
   const { t, formatDuration, formatRelativeTime } = useI18n()
   const [statusFilter, setStatusFilter] = useState('all')
@@ -39,51 +37,60 @@ export function AtomicJobListPage() {
   }, [tools])
 
   const jobs = data?.items ?? []
+  const statusOptions = [
+    { value: 'all', label: t.tasks.filters.all },
+    { value: 'running', label: t.status.running },
+    { value: 'pending', label: t.status.pending },
+    { value: 'completed', label: t.status.completed },
+    { value: 'failed', label: t.status.failed },
+    { value: 'cancelled', label: t.status.cancelled },
+    { value: 'interrupted', label: t.status.interrupted },
+  ]
 
   return (
     <PageContainer className={`${APP_CONTENT_MAX_WIDTH} space-y-5`}>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-bold text-[#111827]">{t.atomicJobs.title}</h1>
-          <p className="mt-1 text-sm leading-relaxed text-[#6b7280]">{t.atomicJobs.description}</p>
-        </div>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-bold text-[#111827]">{t.atomicJobs.title}</h1>
         <Link
           to="/tools"
-          className="inline-flex items-center gap-2 rounded-lg border border-[#e5e7eb] bg-white px-3.5 py-2 text-xs font-semibold text-[#3b5bdb] transition-all hover:bg-[#f0f3ff]"
+          className="flex items-center gap-2 rounded-lg bg-[#3b5bdb] px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7]"
         >
           {t.atomicJobs.library}
           <ArrowRight size={13} />
         </Link>
       </div>
 
-      <div className="grid gap-3 rounded-xl border border-[#e5e7eb] bg-white p-4 md:grid-cols-[1fr_180px_180px]">
-        <label className="relative block">
-          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9ca3af]" size={15} />
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="relative min-w-[200px] max-w-xs flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9ca3af]" size={13} />
           <input
             value={search}
             onChange={event => setSearch(event.target.value)}
             placeholder={t.atomicJobs.filters.searchPlaceholder}
-            className="h-10 w-full rounded-lg border border-[#e5e7eb] bg-white pl-9 pr-3 text-sm text-[#374151] outline-none transition-colors focus:border-[#3b5bdb]"
+            className="w-full rounded-lg border border-[#e5e7eb] bg-white py-2 pl-9 pr-3 text-sm text-[#374151] transition-all focus:border-[#3b5bdb] focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20"
           />
         </label>
-        <select
-          aria-label={t.atomicJobs.columns.status}
-          value={statusFilter}
-          onChange={event => setStatusFilter(event.target.value)}
-          className="h-10 rounded-lg border border-[#e5e7eb] bg-white px-3 text-sm text-[#374151] outline-none focus:border-[#3b5bdb]"
-        >
-          <option value="all">{t.atomicJobs.filters.allStatuses}</option>
-          {STATUS_FILTERS.filter(status => status !== 'all').map(status => (
-            <option key={status} value={status}>
-              {t.status[status]}
-            </option>
+        <div className="flex flex-wrap gap-1.5">
+          {statusOptions.map(option => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setStatusFilter(option.value)}
+              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                statusFilter === option.value
+                  ? 'bg-[#3b5bdb] text-white shadow-sm'
+                  : 'border border-[#e5e7eb] bg-white text-[#6b7280] hover:bg-[#f9fafb] hover:text-[#374151]'
+              }`}
+            >
+              {option.label}
+            </button>
           ))}
-        </select>
+        </div>
         <select
           aria-label={t.atomicJobs.columns.tool}
           value={toolFilter}
           onChange={event => setToolFilter(event.target.value)}
-          className="h-10 rounded-lg border border-[#e5e7eb] bg-white px-3 text-sm text-[#374151] outline-none focus:border-[#3b5bdb]"
+          className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-semibold text-[#6b7280] outline-none transition-all hover:bg-[#f9fafb] hover:text-[#374151] focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
         >
           <option value="all">{t.atomicJobs.filters.allTools}</option>
           {tools.map(tool => (

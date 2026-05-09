@@ -152,8 +152,9 @@ def test_subtitle_erase_adapter_run_auto_detects_when_detection_missing(
 
     captured: dict[str, object] = {}
 
-    def fake_run_stage_command(cmd, *, log_path, env_overrides=None, on_stdout_line=None):
+    def fake_run_stage_command(cmd, *, log_path, env_overrides=None, on_stdout_line=None, should_cancel=None):
         captured["cmd"] = list(cmd)
+        captured["should_cancel"] = should_cancel
         out_video = Path(cmd[cmd.index("--output") + 1])
         out_video.parent.mkdir(parents=True, exist_ok=True)
         out_video.write_bytes(b"\x00" * 16)
@@ -175,6 +176,9 @@ def test_subtitle_erase_adapter_run_auto_detects_when_detection_missing(
     params = adapter.validate_params({"file_id": "x", "preset": "fast"})
     assert params["detection_file_id"] is None
 
+    progress = _StubProgress()
+    progress.is_cancelled = lambda: False  # type: ignore[attr-defined]
+
     with patch(
         "translip.server.atomic_tools.adapters.subtitle_erase.run_stage_command",
         side_effect=fake_run_stage_command,
@@ -182,10 +186,11 @@ def test_subtitle_erase_adapter_run_auto_detects_when_detection_missing(
         "translip.server.atomic_tools.adapters.subtitle_erase._quick_metrics",
         side_effect=fake_metrics,
     ), patch.object(SubtitleDetectAdapter, "run", new=fake_detect_run):
-        result = adapter.run(params, input_dir, output_dir, _StubProgress())
+        result = adapter.run(params, input_dir, output_dir, progress)
 
     assert result["detection_source"] == "auto"
     assert captured["detect_video_name"] == "in.mp4"
+    assert captured["should_cancel"] is not None
     report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
     assert report["detection_source"] == "auto"
     assert (output_dir / "auto_detect" / "output" / "detection.json").exists()
@@ -218,9 +223,10 @@ def test_subtitle_erase_adapter_run_invokes_command_and_writes_report(tmp_path: 
 
     captured: dict[str, object] = {}
 
-    def fake_run_stage_command(cmd, *, log_path, env_overrides=None, on_stdout_line=None):
+    def fake_run_stage_command(cmd, *, log_path, env_overrides=None, on_stdout_line=None, should_cancel=None):
         captured["cmd"] = list(cmd)
         captured["env"] = dict(env_overrides or {})
+        captured["should_cancel"] = should_cancel
         # Simulate the eraser writing its output video.
         out_video = Path(cmd[cmd.index("--output") + 1])
         out_video.parent.mkdir(parents=True, exist_ok=True)
@@ -241,6 +247,9 @@ def test_subtitle_erase_adapter_run_invokes_command_and_writes_report(tmp_path: 
         "preset": "fast",
     })
 
+    progress = _StubProgress()
+    progress.is_cancelled = lambda: False  # type: ignore[attr-defined]
+
     with patch(
         "translip.server.atomic_tools.adapters.subtitle_erase.run_stage_command",
         side_effect=fake_run_stage_command,
@@ -248,7 +257,7 @@ def test_subtitle_erase_adapter_run_invokes_command_and_writes_report(tmp_path: 
         "translip.server.atomic_tools.adapters.subtitle_erase._quick_metrics",
         side_effect=fake_metrics,
     ):
-        result = adapter.run(params, input_dir, output_dir, _StubProgress())
+        result = adapter.run(params, input_dir, output_dir, progress)
 
     assert result["erased_file"] == "erased.mp4"
     assert result["preset"] == "fast"
@@ -262,6 +271,7 @@ def test_subtitle_erase_adapter_run_invokes_command_and_writes_report(tmp_path: 
     cmd = captured["cmd"]
     assert "--inpaint-backend" in cmd
     assert cmd[cmd.index("--inpaint-backend") + 1] == "telea"
+    assert captured["should_cancel"] is not None
 
 
 # ---------------------------------------------------------------------------

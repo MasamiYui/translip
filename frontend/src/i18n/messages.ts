@@ -542,6 +542,7 @@ const zhMessages = {
     history: '运行记录',
     openTool: '打开能力',
     rerun: '重新运行',
+    stop: '停止任务',
     delete: '删除记录',
     deleteConfirm: '确定删除此原子任务及其产物？',
     filters: {
@@ -1311,6 +1312,7 @@ const enMessages: LocaleMessages = {
     history: 'Run History',
     openTool: 'Open Tool',
     rerun: 'Rerun',
+    stop: 'Stop Task',
     delete: 'Delete Record',
     deleteConfirm: 'Delete this atomic job and its artifacts?',
     filters: {
