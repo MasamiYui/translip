@@ -65,6 +65,7 @@ export default function App() {
                 <Route path="tasks" element={<TaskListPage />} />
                 <Route path="tasks/new" element={<NewTaskPage />} />
                 <Route path="tasks/:id" element={<TaskDetailPage />} />
+                <Route path="tasks/:taskId/speaker-review" element={<SpeakerReviewHarnessPage />} />
                 <Route path="tasks/:id/dubbing-editor" element={<DubbingEditorPage />} />
                 <Route path="harness/speaker-review/:taskId" element={<SpeakerReviewHarnessPage />} />
                 <Route path="tools" element={<ToolListPage />} />

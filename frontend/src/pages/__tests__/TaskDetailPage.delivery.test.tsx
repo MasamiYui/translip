@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { tasksApi } from '../../api/tasks'
 import { I18nProvider } from '../../i18n/I18nProvider'
+import { SpeakerReviewHarnessPage } from '../SpeakerReviewHarnessPage'
 import { TaskDetailPage } from '../TaskDetailPage'
 
 vi.mock('../../api/tasks', () => ({
@@ -34,14 +35,21 @@ function createWrapper() {
       <QueryClientProvider client={queryClient}>
         <I18nProvider>
           <MemoryRouter initialEntries={['/tasks/task-1']}>
+            <LocationProbe />
             <Routes>
               <Route path="/tasks/:id" element={children} />
+              <Route path="/tasks/:taskId/speaker-review" element={<SpeakerReviewHarnessPage />} />
             </Routes>
           </MemoryRouter>
         </I18nProvider>
       </QueryClientProvider>
     )
   }
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <div data-testid="location-path">{location.pathname}</div>
 }
 
 function mockTask(id: string) {
@@ -191,6 +199,7 @@ describe('TaskDetailPage export workflow', () => {
 
     fireEvent.click(await screen.findByTestId('flow-step-speaker-review'))
 
+    expect(await screen.findByTestId('location-path')).toHaveTextContent('/tasks/task-speaker/speaker-review')
     expect(await screen.findByText('说话人核对', { selector: 'h2' })).toBeInTheDocument()
     expect(await screen.findByTestId('speaker-review-video')).toHaveAttribute(
       'src',

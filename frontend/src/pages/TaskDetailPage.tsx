@@ -1422,7 +1422,7 @@ function DeliveryFlowStrip({
   onRerunFromTaskB?: () => void
   isRerunPending?: boolean
 }) {
-  const stepOne = resolveStepOne(status, onOpenSpeakerReview, onRerunFromTaskB, isRerunPending ?? false)
+  const stepOne = resolveStepOne(taskId, status, onOpenSpeakerReview, onRerunFromTaskB, isRerunPending ?? false)
   const stepTwo = resolveStepTwo(taskId, status)
   const stepThree = resolveStepThree(canOpenExportDrawer, onOpenExport)
   const steps = [stepOne, stepTwo, stepThree]
@@ -1530,6 +1530,7 @@ interface FlowStepModel {
 }
 
 function resolveStepOne(
+  taskId: string,
   status: SpeakerReviewStatus,
   onOpen: () => void,
   onRerun: (() => void) | undefined,
@@ -1537,6 +1538,7 @@ function resolveStepOne(
 ): FlowStepModel {
   const testId = 'flow-step-speaker-review'
   const label = '说话人核对'
+  const to = `/tasks/${taskId}/speaker-review`
 
   if (status.state === 'unavailable') {
     return {
@@ -1546,6 +1548,7 @@ function resolveStepOne(
       sub: '完成 Task A 后会出现可审查的说话人产物',
       statusText: '等待 Task A',
       statusIcon: Mic2,
+      to,
       onClick: onOpen,
     }
   }
@@ -1557,6 +1560,7 @@ function resolveStepOne(
       sub: '未发现异常，可直接进入下一步',
       statusText: '已通过',
       statusIcon: CheckCircle2,
+      to,
       onClick: onOpen,
     }
   }
@@ -1568,6 +1572,7 @@ function resolveStepOne(
       sub: '修正已写入，需从 Task B 重跑才能生效',
       statusText: '待重跑',
       statusIcon: RotateCcw,
+      to,
       onClick: onOpen,
       actionLabel: '重跑 Task B',
       onAction: onRerun,
@@ -1582,6 +1587,7 @@ function resolveStepOne(
       sub: `已保存 ${status.decisionCount} 条决策，记得回到审查台点应用`,
       statusText: '待应用',
       statusIcon: AlertTriangle,
+      to,
       onClick: onOpen,
     }
   }
@@ -1593,6 +1599,7 @@ function resolveStepOne(
       sub: `检测到 ${status.highRiskSpeakers} 位高风险说话人，建议先处理再进入编辑台`,
       statusText: '需关注',
       statusIcon: AlertTriangle,
+      to,
       onClick: onOpen,
     }
   }
@@ -1603,6 +1610,7 @@ function resolveStepOne(
     sub: '确认每段话是谁说的，避免后续音色克隆出错',
     statusText: '建议核对',
     statusIcon: Mic2,
+    to,
     onClick: onOpen,
   }
 }
@@ -1645,6 +1653,7 @@ function FlowNodeButton({
   phase: StepPhase
 }) {
   const interactive = !step.disabled
+  const location = useLocation()
   const visual = resolveNodeVisual(step, phase)
   const baseClass = `group relative z-10 inline-flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all duration-150 ${visual.shape}`
   const interactiveClass = interactive
@@ -1658,6 +1667,7 @@ function FlowNodeButton({
     return (
       <Link
         to={step.to}
+        state={{ from: `${location.pathname}${location.search}` }}
         data-testid={step.testId}
         className={className}
         aria-label={step.label}
