@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -61,8 +61,22 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
   const navigate = useNavigate()
   const currentPath = normalizePathname(pathname)
   const isNewTaskRoute = currentPath === '/tasks/new' || currentPath.startsWith('/tasks/new/')
-  const isToolsRoute = currentPath === '/tools' || currentPath.startsWith('/tools/')
+  const isPipelineTaskRoute =
+    currentPath === '/tasks' || (currentPath.startsWith('/tasks/') && !isNewTaskRoute)
+  const isAtomicJobsRoute = currentPath === '/tools/jobs' || currentPath.startsWith('/tools/jobs/')
+  const isTaskCenterRoute = isPipelineTaskRoute || isNewTaskRoute || isAtomicJobsRoute
+  const isToolsRoute =
+    currentPath === '/tools' || (currentPath.startsWith('/tools/') && !isAtomicJobsRoute)
+  const [taskCenterExpanded, setTaskCenterExpanded] = useState(isTaskCenterRoute)
   const [toolsExpanded, setToolsExpanded] = useState(isToolsRoute)
+
+  useEffect(() => {
+    if (isTaskCenterRoute) setTaskCenterExpanded(true)
+  }, [isTaskCenterRoute])
+
+  useEffect(() => {
+    if (isToolsRoute) setToolsExpanded(true)
+  }, [isToolsRoute])
 
   const navItems = [
     {
@@ -70,19 +84,6 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
       label: t.nav.dashboard,
       icon: LayoutDashboard,
       isActive: currentPath === '/',
-    },
-    {
-      to: '/tasks',
-      label: t.nav.tasks,
-      icon: ListChecks,
-      isActive:
-        currentPath === '/tasks' || (currentPath.startsWith('/tasks/') && !isNewTaskRoute),
-    },
-    {
-      to: '/tasks/new',
-      label: t.nav.newTask,
-      icon: PlusCircle,
-      isActive: isNewTaskRoute,
     },
   ]
 
@@ -170,6 +171,94 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
           </Link>
         ))}
 
+        {/* Task center accordion */}
+        <button
+          type="button"
+          title={collapsed ? t.nav.taskCenter : undefined}
+          aria-label={collapsed ? t.nav.taskCenter : undefined}
+          onClick={() => {
+            if (collapsed) {
+              if (!isTaskCenterRoute) navigate('/tasks')
+              return
+            }
+            if (taskCenterExpanded) {
+              setTaskCenterExpanded(false)
+              return
+            }
+            setTaskCenterExpanded(true)
+            if (!isTaskCenterRoute) navigate('/tasks')
+          }}
+          className={navItemClass(isTaskCenterRoute)}
+        >
+          <ListChecks size={15} className="shrink-0" />
+          {!collapsed && (
+            <>
+              <span className="flex-1 truncate text-left">{t.nav.taskCenter}</span>
+              <ChevronDown
+                size={13}
+                className={cn(
+                  'shrink-0 transition-transform duration-200',
+                  taskCenterExpanded && 'rotate-180',
+                )}
+              />
+            </>
+          )}
+        </button>
+
+        {!collapsed && (
+          <div
+            aria-hidden={!taskCenterExpanded}
+            className={cn(
+              'grid transition-[grid-template-rows,opacity] duration-200 ease-out',
+              taskCenterExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0',
+            )}
+          >
+            <div className="overflow-hidden">
+              <div className="ml-[22px] mt-0.5 space-y-0.5 border-l border-[#e5e7eb] pl-3 pb-1">
+                <Link
+                  to="/tasks"
+                  aria-current={isPipelineTaskRoute ? 'page' : undefined}
+                  className={cn(
+                    'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-all',
+                    isPipelineTaskRoute
+                      ? 'bg-[#3b5bdb]/10 text-[#3b5bdb]'
+                      : 'text-[#9ca3af] hover:bg-[#f3f4f6] hover:text-[#374151]',
+                  )}
+                >
+                  <ListChecks size={13} className="shrink-0" />
+                  <span className="truncate">{t.nav.pipelineTasks}</span>
+                </Link>
+                <Link
+                  to="/tools/jobs"
+                  aria-current={isAtomicJobsRoute ? 'page' : undefined}
+                  className={cn(
+                    'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-all',
+                    isAtomicJobsRoute
+                      ? 'bg-[#3b5bdb]/10 text-[#3b5bdb]'
+                      : 'text-[#9ca3af] hover:bg-[#f3f4f6] hover:text-[#374151]',
+                  )}
+                >
+                  <ListChecks size={13} className="shrink-0" />
+                  <span className="truncate">{t.nav.atomicTasks}</span>
+                </Link>
+                <Link
+                  to="/tasks/new"
+                  aria-current={isNewTaskRoute ? 'page' : undefined}
+                  className={cn(
+                    'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-all',
+                    isNewTaskRoute
+                      ? 'bg-[#3b5bdb]/10 text-[#3b5bdb]'
+                      : 'text-[#9ca3af] hover:bg-[#f3f4f6] hover:text-[#374151]',
+                  )}
+                >
+                  <PlusCircle size={13} className="shrink-0" />
+                  <span className="truncate">{t.nav.newPipelineTask}</span>
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Tools accordion */}
         <button
           type="button"
@@ -187,7 +276,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
             setToolsExpanded(true)
             if (!isToolsRoute) navigate('/tools')
           }}
-          className={navItemClass(isToolsRoute && !toolsExpanded ? true : isToolsRoute)}
+          className={navItemClass(isToolsRoute)}
         >
           <Wrench size={15} className="shrink-0" />
           {!collapsed && (
@@ -223,19 +312,6 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
                   >
                     <Wrench size={13} className="shrink-0" />
                     <span className="truncate">{t.atomicJobs.library}</span>
-                  </Link>
-                  <Link
-                    to="/tools/jobs"
-                    aria-current={currentPath === '/tools/jobs' || currentPath.startsWith('/tools/jobs/') ? 'page' : undefined}
-                    className={cn(
-                      'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-all',
-                      currentPath === '/tools/jobs' || currentPath.startsWith('/tools/jobs/')
-                        ? 'bg-[#3b5bdb]/10 text-[#3b5bdb]'
-                        : 'text-[#9ca3af] hover:bg-[#f3f4f6] hover:text-[#374151]',
-                    )}
-                  >
-                    <ListChecks size={13} className="shrink-0" />
-                    <span className="truncate">{t.atomicJobs.history}</span>
                   </Link>
                   {toolNavItems.map(({ to, label, icon: Icon }) => {
                     const isActive = currentPath === to
@@ -303,4 +379,3 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
     </aside>
   )
 }
-
