@@ -21,6 +21,8 @@ import {
   MoreHorizontal,
   PanelLeftClose,
   PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
   Pause,
   Play,
   PenLine,
@@ -162,6 +164,123 @@ function IssueSeverityChart({ project }: { project: DubbingEditorProject }) {
 const TOPBAR_ICON_BTN =
   'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-30 disabled:hover:bg-transparent'
 
+const DUBBING_LAYOUT_STORAGE_KEY = 'translip:dubbing-editor-layout'
+const LEFT_PANEL_MIN = 260
+const LEFT_PANEL_MAX = 420
+const LEFT_PANEL_DEFAULT = 300
+const RIGHT_PANEL_MIN = 320
+const RIGHT_PANEL_MAX = 520
+const RIGHT_PANEL_DEFAULT = 380
+const PANEL_RESIZE_STEP = 24
+
+type WorkbenchLayoutPreset = 'review' | 'timeline' | 'voice' | 'preview'
+type StoredWorkbenchLayoutPreset = WorkbenchLayoutPreset | 'custom'
+
+interface DubbingWorkbenchLayout {
+  leftWidth: number
+  rightWidth: number
+  leftOpen: boolean
+  rightOpen: boolean
+  preset: StoredWorkbenchLayoutPreset
+}
+
+interface PanelResizeState {
+  side: 'left' | 'right'
+  startX: number
+  startWidth: number
+}
+
+const DEFAULT_WORKBENCH_LAYOUT: DubbingWorkbenchLayout = {
+  leftWidth: LEFT_PANEL_DEFAULT,
+  rightWidth: RIGHT_PANEL_DEFAULT,
+  leftOpen: true,
+  rightOpen: true,
+  preset: 'review',
+}
+
+function clampNumber(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function sanitizePanelWidth(value: unknown, fallback: number, min: number, max: number): number {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? clampNumber(Math.round(value), min, max)
+    : fallback
+}
+
+function isStoredPreset(value: unknown): value is StoredWorkbenchLayoutPreset {
+  return value === 'review' || value === 'timeline' || value === 'voice' || value === 'preview' || value === 'custom'
+}
+
+function readInitialWorkbenchLayout(): DubbingWorkbenchLayout {
+  if (typeof window === 'undefined') return DEFAULT_WORKBENCH_LAYOUT
+  try {
+    const raw = window.localStorage.getItem(DUBBING_LAYOUT_STORAGE_KEY)
+    if (!raw) return DEFAULT_WORKBENCH_LAYOUT
+    const parsed = JSON.parse(raw) as Partial<DubbingWorkbenchLayout>
+    return {
+      leftWidth: sanitizePanelWidth(parsed.leftWidth, LEFT_PANEL_DEFAULT, LEFT_PANEL_MIN, LEFT_PANEL_MAX),
+      rightWidth: sanitizePanelWidth(parsed.rightWidth, RIGHT_PANEL_DEFAULT, RIGHT_PANEL_MIN, RIGHT_PANEL_MAX),
+      leftOpen: typeof parsed.leftOpen === 'boolean' ? parsed.leftOpen : true,
+      rightOpen: typeof parsed.rightOpen === 'boolean' ? parsed.rightOpen : true,
+      preset: isStoredPreset(parsed.preset) ? parsed.preset : 'custom',
+    }
+  } catch {
+    return DEFAULT_WORKBENCH_LAYOUT
+  }
+}
+
+function layoutForPreset(preset: WorkbenchLayoutPreset): Pick<DubbingWorkbenchLayout, 'leftOpen' | 'rightOpen' | 'preset'> {
+  if (preset === 'timeline') return { leftOpen: false, rightOpen: false, preset }
+  if (preset === 'voice') return { leftOpen: false, rightOpen: true, preset }
+  return { leftOpen: true, rightOpen: true, preset }
+}
+
+function PanelResizeHandle({
+  side,
+  label,
+  value,
+  min,
+  max,
+  onMouseDown,
+  onKeyboardResize,
+}: {
+  side: 'left' | 'right'
+  label: string
+  value: number
+  min: number
+  max: number
+  onMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void
+  onKeyboardResize: (side: 'left' | 'right', delta: number) => void
+}) {
+  const testId = side === 'left' ? 'resize-issue-queue-panel' : 'resize-inspector-panel'
+
+  return (
+    <div
+      role="separator"
+      aria-label={label}
+      aria-orientation="vertical"
+      aria-valuemin={min}
+      aria-valuemax={max}
+      aria-valuenow={value}
+      tabIndex={0}
+      title={label}
+      data-testid={testId}
+      onMouseDown={onMouseDown}
+      onKeyDown={event => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+        event.preventDefault()
+        const direction = event.key === 'ArrowRight' ? 1 : -1
+        const delta = side === 'left' ? direction * PANEL_RESIZE_STEP : -direction * PANEL_RESIZE_STEP
+        onKeyboardResize(side, delta)
+      }}
+      className="group flex w-2 shrink-0 cursor-col-resize items-center justify-center bg-slate-50 transition-colors hover:bg-blue-50 focus:bg-blue-50 focus:outline-none"
+    >
+      <span className="h-14 w-1 rounded-full bg-slate-300 transition-colors group-hover:bg-blue-500 group-focus:bg-blue-500" />
+    </div>
+  )
+}
+
 function EditorTopBar({
   project,
   taskId,
@@ -175,6 +294,8 @@ function EditorTopBar({
   selectedUnit,
   mode,
   onModeToggle,
+  layoutPreset,
+  onLayoutPresetChange,
 }: {
   project: DubbingEditorProject
   taskId: string
@@ -188,6 +309,8 @@ function EditorTopBar({
   selectedUnit: DubbingEditorUnit | null
   mode: 'edit' | 'preview'
   onModeToggle: () => void
+  layoutPreset: WorkbenchLayoutPreset | 'custom'
+  onLayoutPresetChange: (preset: WorkbenchLayoutPreset) => void
 }) {
   const { t } = useI18n()
   const { summary, quality_benchmark } = project
@@ -282,6 +405,34 @@ function EditorTopBar({
 
         {/* Spacer */}
         <div className="flex-1" />
+
+        {/* Workbench layout presets */}
+        <div
+          className="hidden shrink-0 items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 p-0.5 xl:flex"
+          role="tablist"
+          aria-label={t.dubbingEditor.layoutPresetGroupLabel}
+        >
+          {(['review', 'timeline', 'voice', 'preview'] as WorkbenchLayoutPreset[]).map(preset => {
+            const active = layoutPreset === preset
+            return (
+              <button
+                key={preset}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                data-testid={`layout-preset-${preset}`}
+                onClick={() => onLayoutPresetChange(preset)}
+                className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                  active
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {t.dubbingEditor.layoutPresets[preset]}
+              </button>
+            )
+          })}
+        </div>
 
         {/* Tools — icon-only DAW-style toolbar */}
         <div className="flex shrink-0 items-center gap-0.5">
@@ -1330,12 +1481,6 @@ function SegmentInspector({
   const [showHistory, setShowHistory] = useState(false)
   const [showBacktranslate, setShowBacktranslate] = useState(false)
 
-  useEffect(() => {
-    setEditingText(unit.target_text)
-    setIsDirty(false)
-    setShowBacktranslate(false)
-  }, [unit.unit_id, unit.target_text])
-
   const char = project.characters.find(c => c.character_id === unit.character_id)
   const clip = unit.current_clip
 
@@ -1857,6 +2002,7 @@ function InspectorPanel({
   project,
   taskId,
   selectedUnit,
+  onTogglePanel,
   onApprove,
   onNeedsReview,
   onSaveText,
@@ -1867,6 +2013,7 @@ function InspectorPanel({
   project: DubbingEditorProject
   taskId: string
   selectedUnit: DubbingEditorUnit | null
+  onTogglePanel: () => void
   onApprove: (unitId: string) => void
   onNeedsReview: (unitId: string) => void
   onSaveText: (unitId: string, text: string) => void
@@ -1878,8 +2025,18 @@ function InspectorPanel({
   if (!selectedUnit) {
     return (
       <div className="flex h-full flex-col">
-        <div className="border-b border-slate-100 px-3 py-2">
+        <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.title}</div>
+          <button
+            type="button"
+            data-testid="toggle-inspector-panel"
+            onClick={onTogglePanel}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+            title={t.dubbingEditor.panels.collapseInspector}
+            aria-label={t.dubbingEditor.panels.collapseInspector}
+          >
+            <PanelRightClose size={13} />
+          </button>
         </div>
         <div className="flex flex-1 items-center justify-center text-sm text-slate-400">
           {t.dubbingEditor.inspector.empty}
@@ -1892,9 +2049,21 @@ function InspectorPanel({
 
   return (
     <div className="flex h-full flex-col overflow-y-auto">
-      <div className="border-b border-slate-100 px-3 py-2">
-        <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.title}</div>
-        <div className="mt-0.5 text-xs text-slate-600">{selectedUnit.unit_id}</div>
+      <div className="flex items-start justify-between gap-2 border-b border-slate-100 px-3 py-2">
+        <div className="min-w-0">
+          <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.title}</div>
+          <div className="mt-0.5 truncate text-xs text-slate-600">{selectedUnit.unit_id}</div>
+        </div>
+        <button
+          type="button"
+          data-testid="toggle-inspector-panel"
+          onClick={onTogglePanel}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+          title={t.dubbingEditor.panels.collapseInspector}
+          aria-label={t.dubbingEditor.panels.collapseInspector}
+        >
+          <PanelRightClose size={13} />
+        </button>
       </div>
 
       {/* Segment Inspector */}
@@ -1904,6 +2073,7 @@ function InspectorPanel({
           {t.dubbingEditor.inspector.segment}
         </div>
         <SegmentInspector
+          key={`${selectedUnit.unit_id}:${selectedUnit.target_text}`}
           unit={selectedUnit}
           project={project}
           taskId={taskId}
@@ -2218,10 +2388,104 @@ export function DubbingEditorPage() {
   const [opCursor, setOpCursor] = useState<number | null>(null)
   const [playheadSec, setPlayheadSec] = useState(0)
   const [editorMode, setEditorMode] = useState<'edit' | 'preview'>('edit')
-  const [issueQueueOpen, setIssueQueueOpen] = useState(true)
+  const [workbenchLayout, setWorkbenchLayout] = useState<DubbingWorkbenchLayout>(readInitialWorkbenchLayout)
+  const [resizeState, setResizeState] = useState<PanelResizeState | null>(null)
 
   // P0: ref for Space-key audio playback (clips)
   const clipAudioRef = useRef<HTMLAudioElement | null>(null)
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(DUBBING_LAYOUT_STORAGE_KEY, JSON.stringify(workbenchLayout))
+    } catch {
+      /* ignore private mode / quota errors */
+    }
+  }, [workbenchLayout])
+
+  useEffect(() => {
+    if (!resizeState) return
+
+    const previousCursor = document.body.style.cursor
+    const previousSelect = document.body.style.userSelect
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const rawWidth =
+        resizeState.side === 'left'
+          ? resizeState.startWidth + event.clientX - resizeState.startX
+          : resizeState.startWidth + resizeState.startX - event.clientX
+      const min = resizeState.side === 'left' ? LEFT_PANEL_MIN : RIGHT_PANEL_MIN
+      const max = resizeState.side === 'left' ? LEFT_PANEL_MAX : RIGHT_PANEL_MAX
+      const nextWidth = clampNumber(Math.round(rawWidth), min, max)
+
+      setWorkbenchLayout(prev => ({
+        ...prev,
+        preset: 'custom',
+        ...(resizeState.side === 'left' ? { leftWidth: nextWidth } : { rightWidth: nextWidth }),
+      }))
+    }
+
+    const handleMouseUp = () => setResizeState(null)
+
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+      document.body.style.cursor = previousCursor
+      document.body.style.userSelect = previousSelect
+    }
+  }, [resizeState])
+
+  const activeLayoutPreset: WorkbenchLayoutPreset | 'custom' =
+    editorMode === 'preview' ? 'preview' : workbenchLayout.preset === 'preview' ? 'review' : workbenchLayout.preset
+
+  const beginPanelResize = useCallback(
+    (side: 'left' | 'right', event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      setResizeState({
+        side,
+        startX: event.clientX,
+        startWidth: side === 'left' ? workbenchLayout.leftWidth : workbenchLayout.rightWidth,
+      })
+    },
+    [workbenchLayout.leftWidth, workbenchLayout.rightWidth],
+  )
+
+  const handleKeyboardResize = useCallback((side: 'left' | 'right', delta: number) => {
+    setWorkbenchLayout(prev => {
+      if (side === 'left') {
+        return {
+          ...prev,
+          preset: 'custom',
+          leftWidth: clampNumber(prev.leftWidth + delta, LEFT_PANEL_MIN, LEFT_PANEL_MAX),
+        }
+      }
+      return {
+        ...prev,
+        preset: 'custom',
+        rightWidth: clampNumber(prev.rightWidth + delta, RIGHT_PANEL_MIN, RIGHT_PANEL_MAX),
+      }
+    })
+  }, [])
+
+  const setIssueQueueOpen = useCallback((leftOpen: boolean) => {
+    setWorkbenchLayout(prev => ({ ...prev, leftOpen, preset: 'custom' }))
+  }, [])
+
+  const setInspectorOpen = useCallback((rightOpen: boolean) => {
+    setWorkbenchLayout(prev => ({ ...prev, rightOpen, preset: 'custom' }))
+  }, [])
+
+  const handleLayoutPresetChange = useCallback((preset: WorkbenchLayoutPreset) => {
+    if (preset === 'preview') {
+      setEditorMode('preview')
+      return
+    }
+    setEditorMode('edit')
+    setWorkbenchLayout(prev => ({ ...prev, ...layoutForPreset(preset) }))
+  }, [])
 
   // Phase 2: animate playhead from audio current time
   useEffect(() => {
@@ -2507,6 +2771,8 @@ export function DubbingEditorPage() {
         selectedUnit={selectedUnit}
         mode={editorMode}
         onModeToggle={() => setEditorMode(m => m === 'edit' ? 'preview' : 'edit')}
+        layoutPreset={activeLayoutPreset}
+        onLayoutPresetChange={handleLayoutPresetChange}
       />
 
       {/* Undo mode indicator */}
@@ -2518,10 +2784,15 @@ export function DubbingEditorPage() {
 
       {editorMode === 'edit' ? (
         /* ── Edit Mode: 3-column layout (collapsible left rail · timeline-first center · inspector) ── */
-        <div className="flex min-h-0 flex-1 overflow-hidden bg-white">
+        <div className="flex min-h-0 flex-1 overflow-hidden bg-white" data-testid="dubbing-editor-workbench">
           {/* Left: Issue Queue (collapsible) */}
-          {issueQueueOpen ? (
-            <div className="flex w-[300px] shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white">
+          {workbenchLayout.leftOpen ? (
+            <>
+            <div
+              className="flex shrink-0 flex-col overflow-hidden border-r border-slate-200 bg-white"
+              data-testid="issue-queue-panel"
+              style={{ width: `${workbenchLayout.leftWidth}px` }}
+            >
               <div className="flex h-9 shrink-0 items-center justify-between border-b border-slate-100 pl-3 pr-1">
                 <div className="flex items-center gap-1.5">
                   <AlertTriangle size={12} className="text-slate-400" />
@@ -2532,8 +2803,10 @@ export function DubbingEditorPage() {
                 <button
                   type="button"
                   onClick={() => setIssueQueueOpen(false)}
+                  data-testid="toggle-issue-queue-panel"
                   className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-                  title={t.dubbingEditor.issueQueue.title}
+                  title={t.dubbingEditor.panels.collapseIssueQueue}
+                  aria-label={t.dubbingEditor.panels.collapseIssueQueue}
                 >
                   <PanelLeftClose size={13} />
                 </button>
@@ -2547,13 +2820,28 @@ export function DubbingEditorPage() {
                 />
               </div>
             </div>
+            <PanelResizeHandle
+              side="left"
+              label={t.dubbingEditor.panels.resizeIssueQueue}
+              value={workbenchLayout.leftWidth}
+              min={LEFT_PANEL_MIN}
+              max={LEFT_PANEL_MAX}
+              onMouseDown={event => beginPanelResize('left', event)}
+              onKeyboardResize={handleKeyboardResize}
+            />
+            </>
           ) : (
-            <div className="flex w-9 shrink-0 flex-col items-center border-r border-slate-200 bg-white py-2">
+            <div
+              className="flex w-10 shrink-0 flex-col items-center border-r border-slate-200 bg-white py-2"
+              data-testid="issue-queue-rail"
+            >
               <button
                 type="button"
                 onClick={() => setIssueQueueOpen(true)}
+                data-testid="toggle-issue-queue-panel"
                 className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-                title={t.dubbingEditor.issueQueue.title}
+                title={t.dubbingEditor.panels.expandIssueQueue}
+                aria-label={t.dubbingEditor.panels.expandIssueQueue}
               >
                 <PanelLeftOpen size={14} />
               </button>
@@ -2587,19 +2875,53 @@ export function DubbingEditorPage() {
           </div>
 
           {/* Right: Inspector */}
-          <div className="flex w-[340px] shrink-0 flex-col overflow-hidden border-l border-slate-200 bg-white">
-            <InspectorPanel
-              project={project}
-              taskId={taskId}
-              selectedUnit={selectedUnit}
-              onApprove={handleApprove}
-              onNeedsReview={handleNeedsReview}
-              onSaveText={handleSaveText}
-              onResynthesize={handleResynthesize}
-              onAssignVoice={handleAssignVoice}
-              isSynthesizing={isSynthesizing}
+          {workbenchLayout.rightOpen ? (
+            <>
+            <PanelResizeHandle
+              side="right"
+              label={t.dubbingEditor.panels.resizeInspector}
+              value={workbenchLayout.rightWidth}
+              min={RIGHT_PANEL_MIN}
+              max={RIGHT_PANEL_MAX}
+              onMouseDown={event => beginPanelResize('right', event)}
+              onKeyboardResize={handleKeyboardResize}
             />
-          </div>
+            <div
+              className="flex shrink-0 flex-col overflow-hidden border-l border-slate-200 bg-white"
+              data-testid="inspector-panel-shell"
+              style={{ width: `${workbenchLayout.rightWidth}px` }}
+            >
+              <InspectorPanel
+                project={project}
+                taskId={taskId}
+                selectedUnit={selectedUnit}
+                onTogglePanel={() => setInspectorOpen(false)}
+                onApprove={handleApprove}
+                onNeedsReview={handleNeedsReview}
+                onSaveText={handleSaveText}
+                onResynthesize={handleResynthesize}
+                onAssignVoice={handleAssignVoice}
+                isSynthesizing={isSynthesizing}
+              />
+            </div>
+            </>
+          ) : (
+            <div
+              className="flex w-10 shrink-0 flex-col items-center border-l border-slate-200 bg-white py-2"
+              data-testid="inspector-panel-rail"
+            >
+              <button
+                type="button"
+                onClick={() => setInspectorOpen(true)}
+                data-testid="toggle-inspector-panel"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                title={t.dubbingEditor.panels.expandInspector}
+                aria-label={t.dubbingEditor.panels.expandInspector}
+              >
+                <PanelRightOpen size={14} />
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         /* ── Preview Mode: full-width video + synced timeline ── */
