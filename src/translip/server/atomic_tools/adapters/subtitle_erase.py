@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import platform
+import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -11,6 +13,49 @@ from ....orchestration.subprocess_runner import run_stage_command
 from ..registry import ToolSpec, register_tool
 from ..schemas import SubtitleErasePreset, SubtitleEraseToolRequest
 from . import ProgressCallback, ToolAdapter
+
+
+_TQDM_PERCENT_RE = re.compile(r"(\d{1,3})%\|")
+_LOG_STAGE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"detecting subtitles", re.IGNORECASE), "detecting_subtitles"),
+    (re.compile(r"reading detection", re.IGNORECASE), "reading_detection"),
+    (re.compile(r"building masks", re.IGNORECASE), "building_masks"),
+    (re.compile(r"loading LaMa", re.IGNORECASE), "loading_lama"),
+    (re.compile(r"downloading LaMa", re.IGNORECASE), "downloading_lama"),
+    (re.compile(r"auto[- ]tune", re.IGNORECASE), "auto_tuning"),
+)
+
+
+def _build_progress_line_handler(
+    *,
+    on_progress: ProgressCallback,
+    start_percent: float,
+    end_percent: float,
+    initial_step: str,
+) -> Callable[[str], None]:
+    state = {"step": initial_step, "last_percent": -1.0}
+
+    def _emit(percent: float, step: str) -> None:
+        clamped = max(start_percent, min(end_percent, percent))
+        if clamped <= state["last_percent"] and step == state["step"]:
+            return
+        state["last_percent"] = clamped
+        state["step"] = step
+        on_progress(clamped, step)
+
+    def _handle(line: str) -> None:
+        match = _TQDM_PERCENT_RE.search(line)
+        if match:
+            ratio = max(0.0, min(100.0, float(match.group(1)))) / 100.0
+            mapped = start_percent + (end_percent - start_percent) * ratio
+            _emit(mapped, state["step"])
+            return
+        for pattern, stage in _LOG_STAGE_PATTERNS:
+            if pattern.search(line):
+                _emit(state["last_percent"] if state["last_percent"] >= 0 else start_percent, stage)
+                return
+
+    return _handle
 
 
 def _repo_root() -> Path:
@@ -233,7 +278,18 @@ class SubtitleEraseAdapter(ToolAdapter):
         env = build_eraser_env()
 
         on_progress(25.0, f"erasing_{resolved['backend']}")
-        run_stage_command(cmd, log_path=log_path, env_overrides=env)
+        progress_handler = _build_progress_line_handler(
+            on_progress=on_progress,
+            start_percent=25.0,
+            end_percent=88.0,
+            initial_step=f"erasing_{resolved['backend']}",
+        )
+        run_stage_command(
+            cmd,
+            log_path=log_path,
+            env_overrides=env,
+            on_stdout_line=progress_handler,
+        )
 
         if not erased_path.exists():
             raise RuntimeError("Subtitle erasure did not produce an output video")

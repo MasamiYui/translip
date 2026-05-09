@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 from collections import deque
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -28,11 +29,26 @@ def _default_env() -> dict[str, str]:
     return env
 
 
+def _iter_stdout_segments(stream):
+    buffer: list[str] = []
+    while True:
+        ch = stream.read(1)
+        if not ch:
+            if buffer:
+                yield "".join(buffer)
+            return
+        buffer.append(ch)
+        if ch == "\n" or ch == "\r":
+            yield "".join(buffer)
+            buffer = []
+
+
 def run_stage_command(
     command: list[str],
     *,
     log_path: Path,
     env_overrides: dict[str, str] | None = None,
+    on_stdout_line: Callable[[str], None] | None = None,
 ) -> dict[str, Any]:
     ensure_directory(log_path.parent)
     outputs: dict[str, str] = {}
@@ -50,14 +66,21 @@ def run_stage_command(
             env=env,
         )
         assert process.stdout is not None
-        for line in process.stdout:
-            log_file.write(line)
+        for segment in _iter_stdout_segments(process.stdout):
+            log_file.write(segment)
             log_file.flush()
-            tail.append(line.rstrip("\n"))
-            stripped = line.strip()
+            stripped = segment.strip()
+            if not stripped:
+                continue
+            tail.append(stripped)
             if "=" in stripped and not stripped.startswith("["):
                 key, value = stripped.split("=", 1)
                 outputs[key] = value
+            if on_stdout_line is not None:
+                try:
+                    on_stdout_line(stripped)
+                except Exception:
+                    pass
         returncode = process.wait()
     if returncode != 0:
         raise StageSubprocessError(

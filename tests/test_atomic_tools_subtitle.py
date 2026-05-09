@@ -91,8 +91,7 @@ def test_subtitle_erase_request_accepts_advanced_overrides() -> None:
 def test_subtitle_detect_request_defaults() -> None:
     request = SubtitleDetectToolRequest(file_id="abc")
     assert request.language == "ch"
-    assert request.position_mode == "bottom"
-    assert request.roi_bottom_ratio == 0.34
+    assert request.sample_interval == 0.4
     assert request.preview_frames == 3
 
 
@@ -153,7 +152,7 @@ def test_subtitle_erase_adapter_run_auto_detects_when_detection_missing(
 
     captured: dict[str, object] = {}
 
-    def fake_run_stage_command(cmd, *, log_path, env_overrides=None):
+    def fake_run_stage_command(cmd, *, log_path, env_overrides=None, on_stdout_line=None):
         captured["cmd"] = list(cmd)
         out_video = Path(cmd[cmd.index("--output") + 1])
         out_video.parent.mkdir(parents=True, exist_ok=True)
@@ -219,13 +218,18 @@ def test_subtitle_erase_adapter_run_invokes_command_and_writes_report(tmp_path: 
 
     captured: dict[str, object] = {}
 
-    def fake_run_stage_command(cmd, *, log_path, env_overrides=None):
+    def fake_run_stage_command(cmd, *, log_path, env_overrides=None, on_stdout_line=None):
         captured["cmd"] = list(cmd)
         captured["env"] = dict(env_overrides or {})
         # Simulate the eraser writing its output video.
         out_video = Path(cmd[cmd.index("--output") + 1])
         out_video.parent.mkdir(parents=True, exist_ok=True)
         out_video.write_bytes(b"\x00" * 16)
+        # Simulate progress lines so the adapter's tqdm parser is exercised.
+        if on_stdout_line is not None:
+            on_stdout_line("Erasing subtitles:  10%|#         | 10/100 [00:01<00:09, 9.50frame/s]")
+            on_stdout_line("Erasing subtitles:  50%|#####     | 50/100 [00:05<00:05, 9.80frame/s]")
+            on_stdout_line("Erasing subtitles: 100%|##########| 100/100 [00:10<00:00, 9.90frame/s]")
 
     def fake_metrics(*_args, **_kwargs):
         return {"sampled_frames": 0, "band_diff_mean": 0.0, "spill_mean": 0.0}
