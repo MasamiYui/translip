@@ -159,18 +159,40 @@ def export_task_personas_to_global(
     }
 
 
+def _name_similarity(a: str, b: str) -> float:
+    """Return a fuzzy similarity score between two names (0.0–1.0).
+
+    Rules (checked in order, first match wins):
+      - Exact match (case-insensitive): 1.0
+      - One is a prefix/suffix of the other: 0.7
+      - One contains the other (len >= 1): 0.5
+    """
+    a = a.strip().lower()
+    b = b.strip().lower()
+    if not a or not b:
+        return 0.0
+    if a == b:
+        return 1.0
+    if a.startswith(b) or b.startswith(a) or a.endswith(b) or b.endswith(a):
+        return 0.7
+    if b in a or a in b:
+        return 0.5
+    return 0.0
+
+
 def smart_match_global(
     task_speakers: list[dict[str, Any]],
     global_payload: dict[str, Any] | None = None,
 ) -> list[dict[str, Any]]:
     """Propose global personas for each speaker based on heuristics.
 
-    Current heuristics (simple but effective):
-      - Match by role (if speaker has a role hint set)
-      - Match by gender (if speaker has gender hint)
-      - Fallback: return top-3 pinned / is_target first
+    Heuristics (additive scores):
+      - Name fuzzy match (task persona name vs global name/aliases): up to 0.8
+      - Match by role: +0.6
+      - Match by gender: +0.3
+      - Fallback: scores > 0 are included
 
-    Returns a list of {speaker_label, candidates: [{persona_id, name, score, reason}]}.
+    Returns a list of {speaker_label, candidates: [{persona_id, name, score, reason, color, avatar_emoji}]}.
     """
     if global_payload is None:
         global_payload = load_global_personas()
@@ -180,6 +202,7 @@ def smart_match_global(
         label = str(speaker.get("speaker_label") or speaker.get("label") or "")
         if not label:
             continue
+        name_hint = (speaker.get("name") or "").strip().lower()
         role_hint = (speaker.get("role") or "").strip().lower()
         gender_hint = (speaker.get("gender") or "").strip().lower()
         candidates: list[dict[str, Any]] = []
@@ -188,6 +211,19 @@ def smart_match_global(
             reasons: list[str] = []
             g_role = (g.get("role") or "").strip().lower()
             g_gender = (g.get("gender") or "").strip().lower()
+
+            # Name fuzzy matching: check against name + aliases
+            if name_hint:
+                g_name = (g.get("name") or "").strip().lower()
+                g_aliases = [(a or "").strip().lower() for a in (g.get("aliases") or [])]
+                name_scores = [_name_similarity(name_hint, g_name)] + [
+                    _name_similarity(name_hint, alias) for alias in g_aliases if alias
+                ]
+                best_name_score = max(name_scores, default=0.0)
+                if best_name_score > 0:
+                    score += best_name_score * 0.8
+                    reasons.append(f"name≈{g.get('name')}")
+
             if role_hint and g_role and role_hint == g_role:
                 score += 0.6
                 reasons.append(f"role={g_role}")
@@ -204,6 +240,8 @@ def smart_match_global(
                         "role": g.get("role"),
                         "gender": g.get("gender"),
                         "tts_voice_id": g.get("tts_voice_id"),
+                        "color": g.get("color"),
+                        "avatar_emoji": g.get("avatar_emoji"),
                     }
                 )
         candidates.sort(key=lambda c: -c["score"])

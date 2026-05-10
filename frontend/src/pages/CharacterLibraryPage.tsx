@@ -1,11 +1,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BookUser, PlusCircle, Search, Trash2, Pencil, X } from 'lucide-react'
+import { BookUser, Mic2, PlusCircle, Search, Trash2, Pencil, X } from 'lucide-react'
 import { tasksApi } from '../api/tasks'
 import { worksApi } from '../api/works'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { WorksSidebar, type WorkSelection } from '../components/character-library/WorksSidebar'
 import { WorkEditorDrawer } from '../components/character-library/WorkEditorDrawer'
+import { ChipInput } from '../components/character-library/ChipInput'
+import { AgeBandSelector } from '../components/character-library/pickers/AgeBandSelector'
+import { ColorSwatchPicker } from '../components/character-library/pickers/ColorSwatchPicker'
+import { EmojiAvatarPicker } from '../components/character-library/pickers/EmojiAvatarPicker'
+import {
+  DEFAULT_COLOR,
+  firstGlyphOf,
+  hexWithAlpha,
+  normalizeHex,
+  ROLE_PRESET_KEYS,
+} from '../components/character-library/pickers/presets'
 import { useI18n } from '../i18n/useI18n'
 import type { GlobalPersona, GlobalPersonasListResponse, Work } from '../types'
 
@@ -18,10 +29,11 @@ const EMPTY_FORM: PersonaFormState = {
   age_hint: '',
   avatar_emoji: '',
   color: '',
-  aliases: '',
-  tags: '',
+  aliases: [],
+  tags: [],
   tts_voice_id: '',
   note: '',
+  work_id: '',
 }
 
 interface PersonaFormState {
@@ -33,10 +45,11 @@ interface PersonaFormState {
   age_hint: string
   avatar_emoji: string
   color: string
-  aliases: string
-  tags: string
+  aliases: string[]
+  tags: string[]
   tts_voice_id: string
   note: string
+  work_id: string
 }
 
 function toFormState(persona: GlobalPersona): PersonaFormState {
@@ -49,18 +62,12 @@ function toFormState(persona: GlobalPersona): PersonaFormState {
     age_hint: persona.age_hint ?? '',
     avatar_emoji: persona.avatar_emoji ?? '',
     color: persona.color ?? '',
-    aliases: (persona.aliases ?? []).join(', '),
-    tags: (persona.tags ?? []).join(', '),
+    aliases: [...(persona.aliases ?? [])],
+    tags: [...(persona.tags ?? [])],
     tts_voice_id: persona.tts_voice_id ?? '',
     note: persona.note ?? '',
+    work_id: persona.work_id ?? '',
   }
-}
-
-function splitCsv(value: string): string[] {
-  return value
-    .split(/[,，]/)
-    .map(s => s.trim())
-    .filter(Boolean)
 }
 
 function toPersonaPayload(form: PersonaFormState, workId?: string | null): GlobalPersona {
@@ -74,13 +81,13 @@ function toPersonaPayload(form: PersonaFormState, workId?: string | null): Globa
   if (form.age_hint.trim()) payload.age_hint = form.age_hint.trim()
   if (form.avatar_emoji.trim()) payload.avatar_emoji = form.avatar_emoji.trim()
   if (form.color.trim()) payload.color = form.color.trim()
-  const aliases = splitCsv(form.aliases)
-  if (aliases.length) payload.aliases = aliases
-  const tags = splitCsv(form.tags)
-  if (tags.length) payload.tags = tags
+  if (form.aliases.length) payload.aliases = [...form.aliases]
+  if (form.tags.length) payload.tags = [...form.tags]
   if (form.tts_voice_id.trim()) payload.tts_voice_id = form.tts_voice_id.trim()
   if (form.note.trim()) payload.note = form.note.trim()
-  if (workId) payload.work_id = workId
+  // work_id: use the form value if set, else fall back to explicit workId arg
+  const resolvedWorkId = form.work_id.trim() || workId || null
+  if (resolvedWorkId) payload.work_id = resolvedWorkId
   return payload
 }
 
@@ -125,6 +132,17 @@ export function CharacterLibraryPage() {
     () => worksData?.unassigned_count ?? personas.filter(p => !p.work_id).length,
     [worksData, personas],
   )
+  const voiceIdHistory = useMemo(() => {
+    const seen = new Map<string, number>()
+    for (const p of personas) {
+      const v = (p.tts_voice_id ?? '').trim()
+      if (!v) continue
+      seen.set(v, (seen.get(v) ?? 0) + 1)
+    }
+    return Array.from(seen.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([v]) => v)
+  }, [personas])
 
   const upsertMutation = useMutation({
     mutationFn: (persona: GlobalPersona) =>
@@ -216,6 +234,8 @@ export function CharacterLibraryPage() {
         selectedWork === '__all__' || selectedWork === '__unassigned__'
           ? null
           : selectedWork
+      // For new personas, default work_id to the sidebar-selected work.
+      // For edits, use whatever the form says (allows reassignment).
       const payload = toPersonaPayload(form, editingId ? undefined : targetWorkId)
       await upsertMutation.mutateAsync(payload)
       const isCreate = !editingId
@@ -317,8 +337,8 @@ export function CharacterLibraryPage() {
           data-testid={`character-library-flash-${flash.type}`}
           className={
             flash.type === 'success'
-              ? 'mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700'
-              : 'mb-4 rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700'
+              ? 'mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700'
+              : 'mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700'
           }
         >
           {flash.text}
@@ -351,14 +371,14 @@ export function CharacterLibraryPage() {
                 value={search}
                 onChange={event => setSearch(event.target.value)}
                 placeholder={t.characterLibrary.placeholders.search}
-                className="h-9 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
+                className="w-full rounded-lg border border-[#e5e7eb] bg-white py-2 pl-9 pr-3 text-sm text-[#374151] transition-all focus:border-[#3b5bdb] focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20"
               />
             </div>
             <button
               type="button"
               data-testid="character-library-create"
               onClick={openCreate}
-              className="inline-flex h-9 items-center gap-2 rounded-md bg-[#3b5bdb] px-3 text-sm font-medium text-white transition hover:bg-[#3451c5]"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#3b5bdb] px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7]"
             >
               <PlusCircle size={14} />
               {t.characterLibrary.actions.create}
@@ -367,7 +387,7 @@ export function CharacterLibraryPage() {
 
           <div
             data-testid="character-library-list"
-            className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+            className="overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]"
           >
             {isLoading ? (
               <div className="px-6 py-10 text-center text-sm text-slate-400">
@@ -390,7 +410,7 @@ export function CharacterLibraryPage() {
                     type="button"
                     data-testid="character-library-empty-cta"
                     onClick={openCreate}
-                    className="mt-2 inline-flex h-9 items-center gap-2 rounded-md bg-[#3b5bdb] px-3 text-sm font-medium text-white transition hover:bg-[#3451c5]"
+                    className="mt-2 inline-flex items-center gap-2 rounded-lg bg-[#3b5bdb] px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7]"
                   >
                     <PlusCircle size={14} />
                     {t.characterLibrary.empty.cta}
@@ -427,7 +447,7 @@ export function CharacterLibraryPage() {
                       {t.characterLibrary.columns.tags}
                     </th>
                     <th className="px-4 py-2 text-left font-medium">
-                      {t.characterLibrary.columns.updatedAt}
+                      {t.characterLibrary.columns.ttsStatus}
                     </th>
                     <th className="px-4 py-2 text-right font-medium">
                       {t.characterLibrary.columns.actions}
@@ -435,21 +455,26 @@ export function CharacterLibraryPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(persona => (
+                  {filtered.map(persona => {
+                    const resolvedColor = normalizeHex(persona.color) || DEFAULT_COLOR
+                    const glyph = persona.avatar_emoji?.trim()
+                      ? persona.avatar_emoji
+                      : firstGlyphOf(persona.name || '?')
+                    return (
                     <tr
                       key={persona.id}
                       data-testid={`character-row-${persona.id}`}
-                      className="border-t border-slate-100 text-slate-700"
+                      className="border-t border-[#e5e7eb] text-slate-700 transition-colors hover:bg-[#f9fafb]"
                     >
                       <td className="px-4 py-3">
                         <span
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-lg"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-base font-semibold"
                           style={{
-                            backgroundColor: persona.color ? `${persona.color}22` : '#f1f5f9',
-                            color: persona.color ?? '#334155',
+                            backgroundColor: hexWithAlpha(resolvedColor, 0.15),
+                            color: resolvedColor,
                           }}
                         >
-                          {persona.avatar_emoji || '👤'}
+                          {glyph}
                         </span>
                       </td>
                       <td className="px-4 py-3 font-medium text-slate-800">
@@ -486,8 +511,24 @@ export function CharacterLibraryPage() {
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-[12px] text-slate-500">
-                        {formatUpdatedAt(persona.updated_at, '—')}
+                      <td className="px-4 py-3">
+                        {persona.tts_voice_id ? (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+                            title={persona.tts_voice_id}
+                            data-testid={`character-tts-ready-${persona.id}`}
+                          >
+                            <Mic2 size={10} />
+                            已绑定
+                          </span>
+                        ) : (
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-400"
+                            data-testid={`character-tts-missing-${persona.id}`}
+                          >
+                            未绑定
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex items-center gap-2">
@@ -495,7 +536,7 @@ export function CharacterLibraryPage() {
                             type="button"
                             data-testid={`character-edit-${persona.id}`}
                             onClick={() => openEdit(persona)}
-                            className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
+                            className="inline-flex items-center gap-1 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-semibold text-[#6b7280] transition-all hover:bg-[#f9fafb] hover:text-[#374151]"
                           >
                             <Pencil size={12} />
                             {t.characterLibrary.actions.edit}
@@ -504,7 +545,7 @@ export function CharacterLibraryPage() {
                             type="button"
                             data-testid={`character-delete-${persona.id}`}
                             onClick={() => handleDelete(persona)}
-                            className="inline-flex h-8 items-center gap-1 rounded-md border border-rose-200 bg-white px-2.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                            className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 transition-all hover:bg-rose-50"
                           >
                             <Trash2 size={12} />
                             {t.characterLibrary.actions.delete}
@@ -512,7 +553,8 @@ export function CharacterLibraryPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             )}
@@ -521,154 +563,234 @@ export function CharacterLibraryPage() {
       </div>
 
       {editorOpen && (
-        <div
-          data-testid="character-editor-backdrop"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
-          onClick={closeEditor}
-        >
-          <form
-            data-testid="character-editor"
-            onClick={event => event.stopPropagation()}
-            onSubmit={handleSubmit}
-            className="w-full max-w-lg overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
-          >
-            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-              <h2 className="text-base font-semibold text-slate-800">
-                {editingId
-                  ? t.characterLibrary.drawer.editTitle
-                  : t.characterLibrary.drawer.createTitle}
-              </h2>
-              <button
-                type="button"
-                data-testid="character-editor-close"
-                onClick={closeEditor}
-                className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <div className="grid max-h-[60vh] gap-4 overflow-y-auto px-5 py-4 sm:grid-cols-2">
-              <LabeledInput
-                label={t.characterLibrary.fields.name}
-                placeholder={t.characterLibrary.placeholders.name}
-                value={form.name}
-                onChange={v => setForm(f => ({ ...f, name: v }))}
-                dataTestId="character-field-name"
-                required
-              />
-              <LabeledInput
-                label={t.characterLibrary.fields.actor}
-                placeholder={t.characterLibrary.placeholders.actor}
-                value={form.actor_name}
-                onChange={v => setForm(f => ({ ...f, actor_name: v }))}
-                dataTestId="character-field-actor"
-              />
-              <LabeledInput
-                label={t.characterLibrary.fields.role}
-                placeholder={t.characterLibrary.placeholders.role}
-                value={form.role}
-                onChange={v => setForm(f => ({ ...f, role: v }))}
-                dataTestId="character-field-role"
-              />
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-slate-600">
-                  {t.characterLibrary.fields.gender}
-                </label>
-                <select
-                  data-testid="character-field-gender"
-                  value={form.gender}
-                  onChange={event => setForm(f => ({ ...f, gender: event.target.value }))}
-                  className="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
+        <>
+          <div
+            data-testid="character-editor-backdrop"
+            className="fixed inset-0 z-40 bg-slate-900/40"
+            onClick={closeEditor}
+          />
+          <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col border-l border-[#e5e7eb] bg-white shadow-2xl">
+            <form
+              data-testid="character-editor"
+              onSubmit={handleSubmit}
+              className="flex h-full flex-col"
+            >
+              <div className="flex items-center justify-between border-b border-[#e5e7eb] px-5 py-3">
+                <h2 className="text-base font-semibold text-slate-800">
+                  {editingId
+                    ? t.characterLibrary.drawer.editTitle
+                    : t.characterLibrary.drawer.createTitle}
+                </h2>
+                <button
+                  type="button"
+                  data-testid="character-editor-close"
+                  onClick={closeEditor}
+                  className="rounded-lg p-1.5 text-slate-400 transition-all hover:bg-[#f3f4f6] hover:text-[#374151]"
                 >
-                  <option value="">{t.characterLibrary.gender.none}</option>
-                  <option value="female">{t.characterLibrary.gender.female}</option>
-                  <option value="male">{t.characterLibrary.gender.male}</option>
-                  <option value="other">{t.characterLibrary.gender.other}</option>
-                </select>
+                  <X size={16} />
+                </button>
               </div>
-              <LabeledInput
-                label={t.characterLibrary.fields.ageHint}
-                placeholder={t.characterLibrary.placeholders.ageHint}
-                value={form.age_hint}
-                onChange={v => setForm(f => ({ ...f, age_hint: v }))}
-                dataTestId="character-field-age"
-              />
-              <LabeledInput
-                label={t.characterLibrary.fields.avatarEmoji}
-                placeholder={t.characterLibrary.placeholders.avatarEmoji}
-                value={form.avatar_emoji}
-                onChange={v => setForm(f => ({ ...f, avatar_emoji: v }))}
-                dataTestId="character-field-avatar"
-              />
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-slate-600">
-                  {t.characterLibrary.fields.color}
-                </label>
-                <input
-                  data-testid="character-field-color"
-                  type="color"
-                  value={form.color || '#94a3b8'}
-                  onChange={event => setForm(f => ({ ...f, color: event.target.value }))}
-                  className="h-9 w-full cursor-pointer rounded-md border border-slate-200 bg-white p-1"
+              <div className="grid flex-1 gap-4 overflow-y-auto px-5 py-4 sm:grid-cols-2">
+                <LabeledInput
+                  label={t.characterLibrary.fields.name}
+                  placeholder={t.characterLibrary.placeholders.name}
+                  value={form.name}
+                  onChange={v => setForm(f => ({ ...f, name: v }))}
+                  dataTestId="character-field-name"
+                  required
                 />
-              </div>
-              <LabeledInput
-                label={t.characterLibrary.fields.ttsVoiceId}
-                placeholder=""
-                value={form.tts_voice_id}
-                onChange={v => setForm(f => ({ ...f, tts_voice_id: v }))}
-                dataTestId="character-field-voice"
-              />
-              <LabeledInput
-                label={t.characterLibrary.fields.aliases}
-                placeholder={t.characterLibrary.placeholders.aliases}
-                value={form.aliases}
-                onChange={v => setForm(f => ({ ...f, aliases: v }))}
-                dataTestId="character-field-aliases"
-                className="sm:col-span-2"
-              />
-              <LabeledInput
-                label={t.characterLibrary.fields.tags}
-                placeholder={t.characterLibrary.placeholders.tags}
-                value={form.tags}
-                onChange={v => setForm(f => ({ ...f, tags: v }))}
-                dataTestId="character-field-tags"
-                className="sm:col-span-2"
-              />
-              <div className="flex flex-col gap-1.5 sm:col-span-2">
-                <label className="text-xs font-medium text-slate-600">
-                  {t.characterLibrary.fields.note}
-                </label>
-                <textarea
-                  data-testid="character-field-note"
-                  rows={3}
-                  value={form.note}
-                  onChange={event => setForm(f => ({ ...f, note: event.target.value }))}
-                  placeholder={t.characterLibrary.placeholders.note}
-                  className="rounded-md border border-slate-200 bg-white px-2.5 py-2 text-sm outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
+                <LabeledInput
+                  label={t.characterLibrary.fields.actor}
+                  placeholder={t.characterLibrary.placeholders.actor}
+                  value={form.actor_name}
+                  onChange={v => setForm(f => ({ ...f, actor_name: v }))}
+                  dataTestId="character-field-actor"
                 />
+                <div className="flex flex-col">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="character-field-role">
+                    {t.characterLibrary.fields.role}
+                  </label>
+                  <input
+                    id="character-field-role"
+                    list="character-role-presets"
+                    data-testid="character-field-role"
+                    type="text"
+                    value={form.role}
+                    onChange={event => setForm(f => ({ ...f, role: event.target.value }))}
+                    placeholder={t.characterLibrary.placeholders.role}
+                    className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
+                  />
+                  <datalist id="character-role-presets">
+                    {ROLE_PRESET_KEYS.map(key => (
+                      <option key={key} value={t.characterLibrary.rolePresets[key]} />
+                    ))}
+                  </datalist>
+                </div>
+                <div className="flex flex-col">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    {t.characterLibrary.fields.gender}
+                  </label>
+                  <select
+                    data-testid="character-field-gender"
+                    value={form.gender}
+                    onChange={event => setForm(f => ({ ...f, gender: event.target.value }))}
+                    className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
+                  >
+                    <option value="">{t.characterLibrary.gender.none}</option>
+                    <option value="female">{t.characterLibrary.gender.female}</option>
+                    <option value="male">{t.characterLibrary.gender.male}</option>
+                    <option value="other">{t.characterLibrary.gender.other}</option>
+                  </select>
+                </div>
+                <div className="flex flex-col sm:col-span-2">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    {t.characterLibrary.fields.ageHint}
+                  </label>
+                  <AgeBandSelector
+                    value={form.age_hint}
+                    onChange={v => setForm(f => ({ ...f, age_hint: v }))}
+                    dataTestId="character-field-age"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    {t.characterLibrary.fields.avatarEmoji}
+                  </label>
+                  <EmojiAvatarPicker
+                    value={form.avatar_emoji}
+                    onChange={v => setForm(f => ({ ...f, avatar_emoji: v }))}
+                    color={form.color}
+                    nameForFallback={form.name}
+                    dataTestId="character-field-avatar"
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    {t.characterLibrary.fields.color}
+                  </label>
+                  <ColorSwatchPicker
+                    value={form.color}
+                    onChange={v => setForm(f => ({ ...f, color: v }))}
+                    dataTestId="character-field-color"
+                  />
+                </div>
+                <div className="flex flex-col sm:col-span-2">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="character-field-voice">
+                    {t.characterLibrary.fields.ttsVoiceId}
+                  </label>
+                  <input
+                    id="character-field-voice"
+                    list="character-tts-voice-history"
+                    data-testid="character-field-voice"
+                    type="text"
+                    value={form.tts_voice_id}
+                    onChange={event => setForm(f => ({ ...f, tts_voice_id: event.target.value }))}
+                    placeholder={t.characterLibrary.placeholders.ttsVoiceId}
+                    className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
+                  />
+                  <datalist id="character-tts-voice-history">
+                    {voiceIdHistory.map(v => (
+                      <option key={v} value={v} />
+                    ))}
+                  </datalist>
+                  {voiceIdHistory.length > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1">
+                      <span className="text-[10px] uppercase tracking-wider text-slate-400">
+                        {t.characterLibrary.tts.recentLabel}
+                      </span>
+                      {voiceIdHistory.slice(0, 6).map(v => (
+                        <button
+                          key={v}
+                          type="button"
+                          data-testid={`character-tts-history-${v}`}
+                          onClick={() => setForm(f => ({ ...f, tts_voice_id: v }))}
+                          className="h-6 rounded-full border border-[#e5e7eb] bg-white px-2 text-[11px] font-mono text-slate-600 transition-all hover:border-[#3b5bdb]/40 hover:text-[#3b5bdb]"
+                        >
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {works.length > 0 && (
+                  <div className="flex flex-col sm:col-span-2">
+                    <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                      {t.characterLibrary.works.belongsTo}
+                    </label>
+                    <select
+                      data-testid="character-field-work"
+                      value={form.work_id}
+                      onChange={event => setForm(f => ({ ...f, work_id: event.target.value }))}
+                      className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
+                    >
+                      <option value="">{t.characterLibrary.works.belongsToNone}</option>
+                      {works.map(w => (
+                        <option key={w.id} value={w.id}>{w.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="flex flex-col sm:col-span-2">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    {t.characterLibrary.fields.aliases}
+                  </label>
+                  <ChipInput
+                    dataTestId="character-field-aliases"
+                    value={form.aliases}
+                    onChange={next => setForm(f => ({ ...f, aliases: next }))}
+                    placeholder={t.characterLibrary.placeholders.aliases}
+                    ariaLabel={t.characterLibrary.fields.aliases}
+                    removeLabel={t.characterLibrary.fields.aliases}
+                  />
+                </div>
+                <div className="flex flex-col sm:col-span-2">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    {t.characterLibrary.fields.tags}
+                  </label>
+                  <ChipInput
+                    dataTestId="character-field-tags"
+                    value={form.tags}
+                    onChange={next => setForm(f => ({ ...f, tags: next }))}
+                    placeholder={t.characterLibrary.placeholders.tags}
+                    ariaLabel={t.characterLibrary.fields.tags}
+                    removeLabel={t.characterLibrary.fields.tags}
+                  />
+                </div>
+                <div className="flex flex-col sm:col-span-2">
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    {t.characterLibrary.fields.note}
+                  </label>
+                  <textarea
+                    data-testid="character-field-note"
+                    rows={3}
+                    value={form.note}
+                    onChange={event => setForm(f => ({ ...f, note: event.target.value }))}
+                    placeholder={t.characterLibrary.placeholders.note}
+                    className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3">
-              <button
-                type="button"
-                data-testid="character-editor-cancel"
-                onClick={closeEditor}
-                className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
-              >
-                {t.characterLibrary.actions.cancel}
-              </button>
-              <button
-                type="submit"
-                data-testid="character-editor-save"
-                disabled={!form.name.trim() || upsertMutation.isPending}
-                className="h-9 rounded-md bg-[#3b5bdb] px-3 text-sm font-medium text-white transition hover:bg-[#3451c5] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {t.characterLibrary.actions.save}
-              </button>
-            </div>
-          </form>
-        </div>
+              <div className="flex items-center justify-end gap-2 border-t border-[#e5e7eb] px-5 py-3">
+                <button
+                  type="button"
+                  data-testid="character-editor-cancel"
+                  onClick={closeEditor}
+                  className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold text-[#6b7280] transition-all hover:bg-[#f9fafb] hover:text-[#374151]"
+                >
+                  {t.characterLibrary.actions.cancel}
+                </button>
+                <button
+                  type="submit"
+                  data-testid="character-editor-save"
+                  disabled={!form.name.trim() || upsertMutation.isPending}
+                  className="rounded-lg bg-[#3b5bdb] px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {t.characterLibrary.actions.save}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
       )}
 
       <WorkEditorDrawer
@@ -711,8 +833,8 @@ function LabeledInput({
   required = false,
 }: LabeledInputProps) {
   return (
-    <div className={`flex flex-col gap-1.5 ${className}`}>
-      <label className="text-xs font-medium text-slate-600">{label}</label>
+    <div className={`flex flex-col ${className}`}>
+      <label className="mb-1.5 block text-sm font-medium text-slate-700">{label}</label>
       <input
         data-testid={dataTestId}
         type="text"
@@ -720,7 +842,7 @@ function LabeledInput({
         required={required}
         onChange={event => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
+        className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
       />
     </div>
   )

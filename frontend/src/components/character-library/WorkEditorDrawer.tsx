@@ -4,6 +4,9 @@ import { X } from 'lucide-react'
 import { useI18n } from '../../i18n/useI18n'
 import { worksApi, type CreateWorkPayload } from '../../api/works'
 import type { Work, WorkType } from '../../types'
+import { ColorSwatchPicker } from './pickers/ColorSwatchPicker'
+import { CoverIconPicker } from './pickers/CoverIconPicker'
+import { ChipInput } from './ChipInput'
 
 export interface WorkEditorDrawerProps {
   open: boolean
@@ -18,22 +21,22 @@ interface WorkFormState {
   title: string
   type: string
   year: string
-  aliases: string
+  aliases: string[]
   cover_emoji: string
   color: string
   note: string
-  tags: string
+  tags: string[]
 }
 
 const EMPTY_FORM: WorkFormState = {
   title: '',
   type: 'tv',
   year: '',
-  aliases: '',
+  aliases: [],
   cover_emoji: '',
   color: '',
   note: '',
-  tags: '',
+  tags: [],
 }
 
 function toFormState(work: Work): WorkFormState {
@@ -41,19 +44,12 @@ function toFormState(work: Work): WorkFormState {
     title: work.title ?? '',
     type: work.type ?? 'tv',
     year: work.year != null ? String(work.year) : '',
-    aliases: (work.aliases ?? []).join(', '),
+    aliases: [...(work.aliases ?? [])],
     cover_emoji: work.cover_emoji ?? '',
     color: work.color ?? '',
     note: work.note ?? '',
-    tags: (work.tags ?? []).join(', '),
+    tags: [...(work.tags ?? [])],
   }
-}
-
-function splitCsv(value: string): string[] {
-  return value
-    .split(/[,，]/)
-    .map(s => s.trim())
-    .filter(Boolean)
 }
 
 function toPayload(form: WorkFormState): CreateWorkPayload {
@@ -66,13 +62,11 @@ function toPayload(form: WorkFormState): CreateWorkPayload {
     const n = Number.parseInt(year, 10)
     if (Number.isFinite(n)) payload.year = n
   }
-  const aliases = splitCsv(form.aliases)
-  if (aliases.length) payload.aliases = aliases
+  if (form.aliases.length) payload.aliases = [...form.aliases]
   if (form.cover_emoji.trim()) payload.cover_emoji = form.cover_emoji.trim()
   if (form.color.trim()) payload.color = form.color.trim()
   if (form.note.trim()) payload.note = form.note.trim()
-  const tags = splitCsv(form.tags)
-  if (tags.length) payload.tags = tags
+  if (form.tags.length) payload.tags = [...form.tags]
   return payload
 }
 
@@ -184,9 +178,9 @@ export function WorkEditorDrawer({
         data-testid="work-editor"
         onClick={event => event.stopPropagation()}
         onSubmit={handleSubmit}
-        className="w-full max-w-lg overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl"
+        className="w-full max-w-lg overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-[0_8px_24px_rgba(0,0,0,.12)]"
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
+        <div className="flex items-center justify-between border-b border-[#e5e7eb] px-5 py-3">
           <h2 className="text-base font-semibold text-slate-800">
             {isEditing
               ? t.characterLibrary.works.drawer.editTitle
@@ -196,15 +190,15 @@ export function WorkEditorDrawer({
             type="button"
             data-testid="work-editor-close"
             onClick={onClose}
-            className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="rounded-lg p-1.5 text-slate-400 transition-all hover:bg-[#f3f4f6] hover:text-[#374151]"
           >
             <X size={16} />
           </button>
         </div>
 
         <div className="grid max-h-[60vh] gap-4 overflow-y-auto px-5 py-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <label className="text-xs font-medium text-slate-600">
+          <div className="flex flex-col sm:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               {t.characterLibrary.works.fields.title}
             </label>
             <input
@@ -214,19 +208,19 @@ export function WorkEditorDrawer({
               value={form.title}
               onChange={event => setForm(f => ({ ...f, title: event.target.value }))}
               placeholder={t.characterLibrary.works.placeholders.title}
-              className="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
+              className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-slate-600">
+          <div className="flex flex-col">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               {t.characterLibrary.works.fields.type}
             </label>
             <select
               data-testid="work-field-type"
               value={form.type}
               onChange={event => handleTypeChange(event.target.value)}
-              className="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
+              className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
             >
               {types.map(wt => (
                 <option key={wt.key} value={wt.key}>
@@ -239,8 +233,8 @@ export function WorkEditorDrawer({
             </select>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-slate-600">
+          <div className="flex flex-col">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               {t.characterLibrary.works.fields.year}
             </label>
             <input
@@ -250,7 +244,7 @@ export function WorkEditorDrawer({
               value={form.year}
               onChange={event => setForm(f => ({ ...f, year: event.target.value }))}
               placeholder={t.characterLibrary.works.placeholders.year}
-              className="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
+              className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
             />
           </div>
 
@@ -268,7 +262,7 @@ export function WorkEditorDrawer({
                 value={customKey}
                 onChange={event => setCustomKey(event.target.value)}
                 placeholder={t.characterLibrary.works.customType.key}
-                className="h-8 rounded-md border border-slate-200 bg-white px-2.5 text-xs outline-none focus:border-[#3b5bdb]"
+                className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
               />
               <div className="grid gap-2 sm:grid-cols-2">
                 <input
@@ -277,7 +271,7 @@ export function WorkEditorDrawer({
                   value={customLabelZh}
                   onChange={event => setCustomLabelZh(event.target.value)}
                   placeholder={t.characterLibrary.works.customType.labelZh}
-                  className="h-8 rounded-md border border-slate-200 bg-white px-2.5 text-xs outline-none focus:border-[#3b5bdb]"
+                  className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
                 />
                 <input
                   data-testid="work-type-custom-label-en"
@@ -285,7 +279,7 @@ export function WorkEditorDrawer({
                   value={customLabelEn}
                   onChange={event => setCustomLabelEn(event.target.value)}
                   placeholder={t.characterLibrary.works.customType.labelEn}
-                  className="h-8 rounded-md border border-slate-200 bg-white px-2.5 text-xs outline-none focus:border-[#3b5bdb]"
+                  className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
                 />
               </div>
               <div className="flex items-center justify-end gap-2">
@@ -293,7 +287,7 @@ export function WorkEditorDrawer({
                   type="button"
                   data-testid="work-type-custom-cancel"
                   onClick={() => setCustomOpen(false)}
-                  className="h-7 rounded-md border border-slate-200 bg-white px-2 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                  className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1 text-[11px] font-semibold text-[#6b7280] transition-all hover:bg-[#f9fafb] hover:text-[#374151]"
                 >
                   {t.characterLibrary.works.customType.cancel}
                 </button>
@@ -302,7 +296,7 @@ export function WorkEditorDrawer({
                   data-testid="work-type-custom-save"
                   disabled={!customKey.trim() || addTypeMutation.isPending}
                   onClick={() => addTypeMutation.mutate()}
-                  className="h-7 rounded-md bg-[#3b5bdb] px-2 text-[11px] font-medium text-white hover:bg-[#3451c5] disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-lg bg-[#3b5bdb] px-3 py-1 text-[11px] font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {t.characterLibrary.works.customType.save}
                 </button>
@@ -310,62 +304,58 @@ export function WorkEditorDrawer({
             </div>
           )}
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-slate-600">
+          <div className="flex flex-col">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               {t.characterLibrary.works.fields.coverEmoji}
             </label>
-            <input
-              data-testid="work-field-cover-emoji"
-              type="text"
+            <CoverIconPicker
               value={form.cover_emoji}
-              onChange={event => setForm(f => ({ ...f, cover_emoji: event.target.value }))}
-              placeholder={t.characterLibrary.works.placeholders.coverEmoji}
-              className="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
+              onChange={v => setForm(f => ({ ...f, cover_emoji: v }))}
+              color={form.color}
+              dataTestId="work-field-cover-emoji"
             />
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-medium text-slate-600">
+          <div className="flex flex-col">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               {t.characterLibrary.works.fields.color}
             </label>
-            <input
-              data-testid="work-field-color"
-              type="color"
-              value={form.color || '#94a3b8'}
-              onChange={event => setForm(f => ({ ...f, color: event.target.value }))}
-              className="h-9 w-full cursor-pointer rounded-md border border-slate-200 bg-white p-1"
+            <ColorSwatchPicker
+              value={form.color}
+              onChange={v => setForm(f => ({ ...f, color: v }))}
+              dataTestId="work-field-color"
             />
           </div>
 
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <label className="text-xs font-medium text-slate-600">
+          <div className="flex flex-col sm:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               {t.characterLibrary.works.fields.aliases}
             </label>
-            <input
-              data-testid="work-field-aliases"
-              type="text"
+            <ChipInput
+              dataTestId="work-field-aliases"
               value={form.aliases}
-              onChange={event => setForm(f => ({ ...f, aliases: event.target.value }))}
+              onChange={next => setForm(f => ({ ...f, aliases: next }))}
               placeholder={t.characterLibrary.works.placeholders.aliases}
-              className="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
+              ariaLabel={t.characterLibrary.works.fields.aliases}
+              removeLabel={t.characterLibrary.works.fields.aliases}
             />
           </div>
 
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <label className="text-xs font-medium text-slate-600">
+          <div className="flex flex-col sm:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               {t.characterLibrary.works.fields.tags}
             </label>
-            <input
-              data-testid="work-field-tags"
-              type="text"
+            <ChipInput
+              dataTestId="work-field-tags"
               value={form.tags}
-              onChange={event => setForm(f => ({ ...f, tags: event.target.value }))}
-              className="h-9 rounded-md border border-slate-200 bg-white px-2.5 text-sm outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
+              onChange={next => setForm(f => ({ ...f, tags: next }))}
+              ariaLabel={t.characterLibrary.works.fields.tags}
+              removeLabel={t.characterLibrary.works.fields.tags}
             />
           </div>
 
-          <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <label className="text-xs font-medium text-slate-600">
+          <div className="flex flex-col sm:col-span-2">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               {t.characterLibrary.works.fields.note}
             </label>
             <textarea
@@ -374,17 +364,17 @@ export function WorkEditorDrawer({
               value={form.note}
               onChange={event => setForm(f => ({ ...f, note: event.target.value }))}
               placeholder={t.characterLibrary.works.placeholders.note}
-              className="rounded-md border border-slate-200 bg-white px-2.5 py-2 text-sm outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
+              className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
             />
           </div>
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-5 py-3">
+        <div className="flex items-center justify-end gap-2 border-t border-[#e5e7eb] px-5 py-3">
           <button
             type="button"
             data-testid="work-editor-cancel"
             onClick={onClose}
-            className="h-9 rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50"
+            className="rounded-lg border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold text-[#6b7280] transition-all hover:bg-[#f9fafb] hover:text-[#374151]"
           >
             {t.characterLibrary.works.actions.cancel}
           </button>
@@ -392,7 +382,7 @@ export function WorkEditorDrawer({
             type="submit"
             data-testid="work-editor-save"
             disabled={!form.title.trim() || saveMutation.isPending}
-            className="h-9 rounded-md bg-[#3b5bdb] px-3 text-sm font-medium text-white transition hover:bg-[#3451c5] disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-lg bg-[#3b5bdb] px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {t.characterLibrary.works.actions.save}
           </button>

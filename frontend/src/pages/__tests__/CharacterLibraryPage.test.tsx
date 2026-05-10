@@ -18,6 +18,14 @@ vi.mock('../../api/tasks', () => ({
   },
 }))
 
+vi.mock('../../api/works', () => ({
+  worksApi: {
+    list: () => Promise.resolve({ ok: true, path: '', works: [], unassigned_count: 0, version: 1 }),
+    remove: () => Promise.resolve({ ok: true }),
+    listTypes: () => Promise.resolve([]),
+  },
+}))
+
 function buildPersona(overrides: Partial<GlobalPersona> = {}): GlobalPersona {
   return {
     id: 'persona_amy',
@@ -150,7 +158,7 @@ describe('CharacterLibraryPage', () => {
     fireEvent.change(screen.getByTestId('character-field-actor'), {
       target: { value: '新演员' },
     })
-    fireEvent.change(screen.getByTestId('character-field-tags'), {
+    fireEvent.change(screen.getByTestId('character-field-tags-input'), {
       target: { value: '主线, 测试' },
     })
 
@@ -217,7 +225,8 @@ describe('CharacterLibraryPage', () => {
     expect(nameInput.value).toBe('艾米')
     const actorInput = screen.getByTestId('character-field-actor') as HTMLInputElement
     expect(actorInput.value).toBe('Anne')
-    const tagsInput = screen.getByTestId('character-field-tags') as HTMLInputElement
-    expect(tagsInput.value).toBe('主线')
+    const tagsContainer = screen.getByTestId('character-field-tags')
+    expect(tagsContainer).toHaveTextContent('主线')
+    expect(screen.getByTestId('character-field-tags-chip-0')).toHaveTextContent('主线')
   })
 })

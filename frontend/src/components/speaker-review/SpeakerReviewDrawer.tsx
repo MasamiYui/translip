@@ -504,11 +504,11 @@ export function SpeakerReviewDrawer({
       const result = await exportToGlobalMutation.mutateAsync()
       const exported = result.exported?.length ?? 0
       setExportFlash(
-        exported > 0 ? `已回灌 ${exported} 个角色到角色库` : '角色库已同步（无新增角色）',
+        exported > 0 ? `已保存 ${exported} 个角色到角色库` : '角色库已同步（无新增角色）',
       )
       fetchGlobalMatches()
     } catch {
-      setExportFlash('回灌到角色库失败，请稍后重试')
+      setExportFlash('保存到角色库失败，请稍后重试')
     }
   }, [exportToGlobalMutation, fetchGlobalMatches])
 
@@ -638,7 +638,7 @@ export function SpeakerReviewDrawer({
               onClick={pushToGlobalLibrary}
               disabled={exportToGlobalMutation.isPending}
               className="flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              title="把当前任务里的说话人回灌到全局角色库"
+              title="把当前任务里的角色保存到全局角色库"
               data-testid="push-to-character-library"
             >
               {exportToGlobalMutation.isPending ? (
@@ -646,7 +646,7 @@ export function SpeakerReviewDrawer({
               ) : (
                 <UploadCloud size={14} />
               )}
-              回灌到角色库
+              保存到角色库
             </button>
             <button
               type="button"
@@ -1546,6 +1546,17 @@ function CharacterLibraryMatchCard({
 }) {
   const activeMatch = matches.find(m => m.speaker_label === activeSpeakerLabel)
   const candidates = (activeMatch?.candidates ?? []).slice(0, 3)
+  const [boundPersonaId, setBoundPersonaId] = useState<string | null>(null)
+
+  // Reset bound state when switching speakers
+  useEffect(() => {
+    setBoundPersonaId(null)
+  }, [activeSpeakerLabel])
+
+  async function handleBind(candidate: SuggestFromGlobalCandidate, speakerLabel: string) {
+    await onBind(candidate, speakerLabel)
+    setBoundPersonaId(candidate.persona_id)
+  }
 
   return (
     <section className="mt-5" data-testid="character-library-match-card">
@@ -1571,55 +1582,81 @@ function CharacterLibraryMatchCard({
           className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-3 text-[11px] leading-5 text-slate-500"
           data-testid="character-library-empty"
         >
-          暂无匹配到的角色库候选，你可以先在上方"回灌到角色库"按钮沉淀当前任务里的人物。
+          暂无匹配到的角色库候选，你可以先点击上方「保存到角色库」沉淀当前任务里的人物。
         </div>
       ) : (
-        <ul className="space-y-1.5" data-testid="character-library-candidate-list">
-          {candidates.map(candidate => {
-            const binding = bindingPersonaId === candidate.persona_id
-            return (
-              <li
-                key={candidate.persona_id}
-                className="flex items-center gap-2 rounded-md border border-slate-200 bg-white p-2"
-                data-testid={`character-library-candidate-${candidate.persona_id}`}
-              >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm">
-                  🎭
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-1.5">
-                    <span className="truncate text-xs font-semibold text-slate-900">
-                      {candidate.name || '(未命名角色)'}
-                    </span>
-                    {candidate.role && (
-                      <span className="shrink-0 rounded bg-slate-100 px-1 text-[10px] text-slate-600">
-                        {candidate.role}
-                      </span>
-                    )}
-                    <span className="ml-auto shrink-0 text-[10px] text-indigo-600">
-                      {Math.round((candidate.score ?? 0) * 100)}%
-                    </span>
-                  </div>
-                  {candidate.reason && (
-                    <div className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">
-                      {candidate.reason}
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => onBind(candidate, activeSpeakerLabel)}
-                  disabled={binding}
-                  className="flex h-7 shrink-0 items-center gap-1 rounded-md bg-indigo-600 px-2 text-[11px] font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
-                  data-testid={`bind-character-library-${candidate.persona_id}`}
+        <>
+          <ul className="space-y-1.5" data-testid="character-library-candidate-list">
+            {candidates.map(candidate => {
+              const binding = bindingPersonaId === candidate.persona_id
+              const bound = boundPersonaId === candidate.persona_id
+              return (
+                <li
+                  key={candidate.persona_id}
+                  className={`flex items-center gap-2 rounded-md border p-2 ${bound ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200 bg-white'}`}
+                  data-testid={`character-library-candidate-${candidate.persona_id}`}
                 >
-                  {binding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                  绑定
-                </button>
-              </li>
-            )
-          })}
-        </ul>
+                  <span
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm"
+                    style={{
+                      backgroundColor: candidate.color ? `${candidate.color}22` : '#eef2ff',
+                      color: candidate.color ?? '#4f46e5',
+                    }}
+                  >
+                    {candidate.avatar_emoji || '🎭'}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="truncate text-xs font-semibold text-slate-900">
+                        {candidate.name || '(未命名角色)'}
+                      </span>
+                      {candidate.role && (
+                        <span className="shrink-0 rounded bg-slate-100 px-1 text-[10px] text-slate-600">
+                          {candidate.role}
+                        </span>
+                      )}
+                      {bound ? (
+                        <span className="ml-auto shrink-0 text-[10px] text-emerald-600 font-medium">已绑定</span>
+                      ) : (
+                        <span className="ml-auto shrink-0 text-[10px] text-indigo-600">
+                          {Math.round((candidate.score ?? 0) * 100)}%
+                        </span>
+                      )}
+                    </div>
+                    {candidate.reason && !bound && (
+                      <div className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">
+                        {candidate.reason}
+                      </div>
+                    )}
+                  </div>
+                  {!bound && (
+                    <button
+                      type="button"
+                      onClick={() => handleBind(candidate, activeSpeakerLabel)}
+                      disabled={binding || boundPersonaId !== null}
+                      className="flex h-7 shrink-0 items-center gap-1 rounded-md bg-indigo-600 px-2 text-[11px] font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                      data-testid={`bind-character-library-${candidate.persona_id}`}
+                    >
+                      {binding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                      绑定
+                    </button>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
+          <div className="mt-2 flex justify-end">
+            <a
+              href="/character-library"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] text-indigo-500 hover:underline"
+              data-testid="character-library-search-more"
+            >
+              搜索更多角色 →
+            </a>
+          </div>
+        </>
       )}
     </section>
   )

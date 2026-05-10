@@ -594,6 +594,8 @@ export interface SuggestFromGlobalCandidate {
   role?: string | null
   gender?: string | null
   tts_voice_id?: string | null
+  color?: string | null
+  avatar_emoji?: string | null
 }
 
 export interface SuggestFromGlobalMatch {

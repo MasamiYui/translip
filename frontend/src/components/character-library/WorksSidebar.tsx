@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Film, Layers, PlusCircle, Search, UserX, Pencil, Trash2 } from 'lucide-react'
 import { useI18n } from '../../i18n/useI18n'
 import type { Work } from '../../types'
+import { DEFAULT_COLOR, gradientBackground, normalizeHex } from './pickers/presets'
 
 export type WorkSelection = '__all__' | '__unassigned__' | string
 
@@ -45,9 +46,9 @@ export function WorksSidebar({
   return (
     <aside
       data-testid="works-sidebar"
-      className="flex h-full w-[260px] shrink-0 flex-col rounded-xl border border-slate-200 bg-white"
+      className="flex h-full w-[260px] shrink-0 flex-col rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]"
     >
-      <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2.5">
+      <div className="flex items-center justify-between border-b border-[#e5e7eb] px-3 py-2.5">
         <div className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
           <Film size={14} className="text-[#3b5bdb]" />
           {t.characterLibrary.works.sidebarTitle}
@@ -56,14 +57,14 @@ export function WorksSidebar({
           type="button"
           data-testid="works-sidebar-create"
           onClick={onCreate}
-          className="inline-flex h-7 items-center gap-1 rounded-md bg-[#3b5bdb] px-2 text-[11px] font-medium text-white transition hover:bg-[#3451c5]"
+          className="inline-flex items-center gap-1 rounded-lg bg-[#3b5bdb] px-2.5 py-1 text-[11px] font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7]"
         >
           <PlusCircle size={11} />
           {t.characterLibrary.works.createWork}
         </button>
       </div>
 
-      <div className="border-b border-slate-100 px-3 py-2">
+      <div className="border-b border-[#e5e7eb] px-3 py-2">
         <div className="relative">
           <Search
             size={12}
@@ -75,7 +76,7 @@ export function WorksSidebar({
             value={search}
             onChange={event => setSearch(event.target.value)}
             placeholder={t.characterLibrary.works.searchPlaceholder}
-            className="h-8 w-full rounded-md border border-slate-200 bg-white pl-7 pr-2 text-xs outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
+            className="w-full rounded-lg border border-[#e5e7eb] bg-white py-1.5 pl-7 pr-2 text-xs transition-all focus:border-[#3b5bdb] focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20"
           />
         </div>
       </div>
@@ -85,10 +86,10 @@ export function WorksSidebar({
           type="button"
           data-testid="works-sidebar-item-all"
           onClick={() => onSelect('__all__')}
-          className={`mb-1 flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm transition ${
+          className={`mb-1 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-all ${
             selected === '__all__'
               ? 'bg-[#3b5bdb]/10 text-[#3b5bdb]'
-              : 'text-slate-700 hover:bg-slate-50'
+              : 'text-slate-700 hover:bg-[#f9fafb]'
           }`}
         >
           <span className="flex items-center gap-2">
@@ -102,10 +103,10 @@ export function WorksSidebar({
           type="button"
           data-testid="works-sidebar-item-unassigned"
           onClick={() => onSelect('__unassigned__')}
-          className={`mb-2 flex w-full items-center justify-between gap-2 rounded-md px-2.5 py-2 text-left text-sm transition ${
+          className={`mb-2 flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition-all ${
             selected === '__unassigned__'
               ? 'bg-[#3b5bdb]/10 text-[#3b5bdb]'
-              : 'text-slate-700 hover:bg-slate-50'
+              : 'text-slate-700 hover:bg-[#f9fafb]'
           }`}
         >
           <span className="flex items-center gap-2">
@@ -115,7 +116,7 @@ export function WorksSidebar({
           <span className="text-[11px] text-slate-500">{unassignedCount}</span>
         </button>
 
-        <div className="my-1 border-t border-slate-100" />
+        <div className="my-1 border-t border-[#e5e7eb]" />
 
         {isLoading ? (
           <div className="px-2 py-3 text-xs text-slate-400">Loading…</div>
@@ -129,12 +130,13 @@ export function WorksSidebar({
         ) : (
           filtered.map(work => {
             const isActive = selected === work.id
+            const resolvedColor = normalizeHex(work.color) || DEFAULT_COLOR
             return (
               <div
                 key={work.id}
                 data-testid={`works-sidebar-item-${work.id}`}
-                className={`group mb-1 flex items-center justify-between gap-1 rounded-md px-2 py-1.5 text-sm transition ${
-                  isActive ? 'bg-[#3b5bdb]/10 text-[#3b5bdb]' : 'text-slate-700 hover:bg-slate-50'
+                className={`group mb-1 flex items-center justify-between gap-1 rounded-lg px-2 py-1.5 text-sm transition-all ${
+                  isActive ? 'bg-[#3b5bdb]/10 text-[#3b5bdb]' : 'text-slate-700 hover:bg-[#f9fafb]'
                 }`}
               >
                 <button
@@ -143,11 +145,8 @@ export function WorksSidebar({
                   className="flex min-w-0 flex-1 items-center gap-2 text-left"
                 >
                   <span
-                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-sm"
-                    style={{
-                      backgroundColor: work.color ? `${work.color}22` : '#f1f5f9',
-                      color: work.color ?? '#334155',
-                    }}
+                    className="inline-flex h-6 w-8 shrink-0 items-center justify-center rounded-md text-[13px]"
+                    style={{ background: gradientBackground(resolvedColor) }}
                   >
                     {work.cover_emoji || '🎬'}
                   </span>
@@ -156,12 +155,12 @@ export function WorksSidebar({
                     {work.persona_count ?? 0}
                   </span>
                 </button>
-                <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+                <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-all group-hover:opacity-100">
                   <button
                     type="button"
                     data-testid={`works-sidebar-edit-${work.id}`}
                     onClick={() => onEdit(work)}
-                    className="rounded p-1 text-slate-500 hover:bg-slate-200 hover:text-slate-700"
+                    className="rounded-md p-1 text-[#6b7280] transition-all hover:bg-[#f3f4f6] hover:text-[#374151]"
                     title={t.characterLibrary.works.actions.edit}
                   >
                     <Pencil size={11} />
@@ -170,7 +169,7 @@ export function WorksSidebar({
                     type="button"
                     data-testid={`works-sidebar-delete-${work.id}`}
                     onClick={() => onDelete(work)}
-                    className="rounded p-1 text-rose-500 hover:bg-rose-50 hover:text-rose-600"
+                    className="rounded-md p-1 text-rose-500 transition-all hover:bg-rose-50 hover:text-rose-600"
                     title={t.characterLibrary.works.actions.delete}
                   >
                     <Trash2 size={11} />

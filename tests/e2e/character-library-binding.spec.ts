@@ -221,8 +221,8 @@ async function setupRoutes(page: Page) {
   })
 }
 
-test.describe('角色库匹配卡片 & 回灌入口', () => {
-  test('在抽屉内展示候选并绑定，且头部回灌按钮能回灌到角色库', async ({ page }) => {
+test.describe('角色库匹配卡片 & 保存入口', () => {
+  test('在抽屉内展示候选并绑定，且头部保存按钮能保存到角色库', async ({ page }) => {
     await setupRoutes(page)
 
     await page.goto(PAGE_URL)
@@ -250,15 +250,21 @@ test.describe('角色库匹配卡片 & 回灌入口', () => {
     await page.getByTestId('bind-character-library-p-amy').click()
     await expect(page.getByTestId('character-library-flash')).toContainText('已绑定角色：艾米')
 
+    // 绑定后候选项应进入已绑定收敛态
+    await expect(page.getByTestId('character-library-candidate-p-amy')).toContainText('已绑定')
+
+    // 搜索更多链接可见
+    await expect(page.getByTestId('character-library-search-more')).toBeVisible()
+
     await page.screenshot({
       path: path.join(SCREENSHOTS_DIR, 'character-library-bound.png'),
       fullPage: true,
     })
 
-    // 触发回灌
+    // 触发保存
     await page.getByTestId('push-to-character-library').click()
     await expect(page.getByTestId('character-library-flash')).toContainText(
-      '已回灌 2 个角色到角色库',
+      '已保存 2 个角色到角色库',
     )
 
     await page.screenshot({
