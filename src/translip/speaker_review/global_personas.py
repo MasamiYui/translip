@@ -68,6 +68,8 @@ def _strip_for_global(persona: dict[str, Any]) -> dict[str, Any]:
         "age_hint",
         "note",
         "role",
+        "actor_name",
+        "tags",
         "tts_skip",
         "tts_voice_id",
         "confidence",

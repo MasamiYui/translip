@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AudioLines,
+  BookUser,
   Captions,
   ChevronDown,
   Clapperboard,
@@ -92,6 +93,13 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
     label: t.nav.settings,
     icon: Settings,
     isActive: currentPath === '/settings',
+  }
+
+  const characterLibraryNavItem = {
+    to: '/character-library',
+    label: t.nav.characterLibrary,
+    icon: BookUser,
+    isActive: currentPath === '/character-library',
   }
 
   const toolLabels = t.atomicTools.tools as Record<string, string | undefined>
@@ -336,6 +344,25 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
             </div>
           </div>
         )}
+
+        {/* Character library */}
+        {(() => {
+          const { to, label, icon: Icon, isActive } = characterLibraryNavItem
+          return (
+            <Link
+              key={to}
+              to={to}
+              data-testid="sidebar-link-character-library"
+              aria-current={isActive ? 'page' : undefined}
+              title={collapsed ? label : undefined}
+              aria-label={collapsed ? label : undefined}
+              className={navItemClass(isActive)}
+            >
+              <Icon size={15} className="shrink-0" />
+              {!collapsed && <span className="truncate">{label}</span>}
+            </Link>
+          )
+        })()}
 
         {/* Settings */}
         {(() => {

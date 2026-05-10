@@ -37,6 +37,9 @@ const ToolPage = lazy(() =>
 const SpeakerReviewHarnessPage = lazy(() =>
   import('./pages/SpeakerReviewHarnessPage').then(module => ({ default: module.SpeakerReviewHarnessPage })),
 )
+const CharacterLibraryPage = lazy(() =>
+  import('./pages/CharacterLibraryPage').then(module => ({ default: module.CharacterLibraryPage })),
+)
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -72,6 +75,7 @@ export default function App() {
                 <Route path="tools/jobs" element={<AtomicJobListPage />} />
                 <Route path="tools/jobs/:jobId" element={<AtomicJobDetailPage />} />
                 <Route path="tools/:toolId" element={<ToolPage />} />
+                <Route path="character-library" element={<CharacterLibraryPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
             </Routes>

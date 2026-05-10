@@ -497,6 +497,8 @@ export interface GlobalPersona {
   age_hint?: string | null
   note?: string | null
   role?: string | null
+  actor_name?: string | null
+  tags?: string[]
   confidence?: number | null
   tts_voice_id?: string | null
   tts_skip?: boolean
