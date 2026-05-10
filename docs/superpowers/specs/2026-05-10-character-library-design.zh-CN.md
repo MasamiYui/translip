@@ -385,3 +385,314 @@ src/translip/speaker_review/global_personas/
 > 后端补齐字段 + 资产 IO + voice_bank/ledger 双向连接，前端做"管理页 + 抽屉内嵌"双入口。
 > 第 1 阶段几乎零后端改动就能立刻拿下"核对智能匹配"这个最高 ROI 场景，
 > 后续阶段把它逐步抚养成贯穿"识别 → 配音 → 质检"全链路的核心资产。
+
+---
+
+# v3 增订：「作品（Work）+ 标签（Tag）」二级模型
+
+- 增订日期：2026-05-10
+- 状态：实施中（按 PR 拆分推进）
+- 上下文：阶段 1（抽屉内嵌匹配 + 回灌入口）✅ + 阶段 2（独立管理页 + 演员/标签字段）✅ 已完成；本节落地"打通全环节"的中长期方案。
+
+## V3.1 为什么要再升一级
+
+当前角色库是**扁平名册**：所有 persona 平铺在一张大表里。这在 50 人以下没问题，但出现两个真实场景就会失效：
+
+1. **同名歧义**：两部不同剧里都有"小青"，按姓名匹配会撞车。
+2. **同演员多剧**：Anne Hathaway 在不同电影里饰演不同角色，扁平表很难总览"她演过的角色"。
+
+要解决，但又不能简单地"按剧名硬分文件夹"——那会强迫每条角色都归属一部作品，提高使用门槛。
+
+**结论**：引入 **Work**（作品）作为结构化的一等公民 + 保留 **Tag** 作为自由的二等公民，二者互补不互斥。
+
+## V3.2 数据模型
+
+### V3.2.1 文件布局
+
+```
+~/.translip/
+├── personas.json           # 已存在，保留；persona 上增加可选 work_id 等字段
+└── works.json              # 新增：作品花名册
+```
+
+### V3.2.2 Work 实体（works.json）
+
+```jsonc
+{
+  "version": 1,
+  "updated_at": "...",
+  "works": [
+    {
+      "id": "work_<base32>_<hash>",
+      "title": "老友记",
+      "type": "tv",                       // 见 V3.2.4 类型枚举
+      "year": 1994,
+      "aliases": ["Friends", "六人行"],
+      "cover_emoji": "☕️",
+      "color": "#7c3aed",
+      "note": "Sitcom，10 季 236 集",
+      "tags": ["美剧", "情景喜剧"],          // 作品自身的 tag
+      "default_tts_voice_map": { ... },    // 可选，作品级默认音色映射
+      "created_at": "...",
+      "updated_at": "..."
+    }
+  ]
+}
+```
+
+### V3.2.3 Persona 扩展（向后兼容）
+
+每条 persona 增加 4 个**可选**字段：
+
+| 字段 | 类型 | 含义 |
+|---|---|---|
+| `work_id` | `string \| null` | 主作品归属。null 表示"通用/未归属" |
+| `guest_work_ids` | `string[]` | 客串/兼职过的其他作品 |
+| `episodes` | `string[]` | 出现过的具体集，如 `["S01E03"]` |
+| `external_refs` | `{ tmdb_id?, imdb_id? }` | 占位，未来对接外部库 |
+
+### V3.2.4 作品类型枚举（内置 + 用户可扩展）
+
+由用户决策：**内置常用类型，并允许手动添加自定义类型**。
+
+**内置类型**（保留中英显示名，存盘存英文 key）：
+
+| key | 中文 | 英文 |
+|---|---|---|
+| `tv` | 电视剧 | TV Series |
+| `movie` | 电影 | Movie |
+| `anime` | 动漫 | Anime |
+| `documentary` | 纪录片 | Documentary |
+| `short` | 短片 | Short |
+| `variety` | 综艺 | Variety |
+| `audiobook` | 有声书 | Audiobook |
+| `game` | 游戏 | Game |
+| `other` | 其他 | Other |
+
+**自定义类型**：作品创建/编辑时，"类型"下拉框最后一项是「+ 自定义」，点击后弹出输入框；用户输入的自定义类型 key 落到 `~/.translip/work_types.json` 单独文件保存（避免污染主数据），全 UI 共享。
+
+`work_types.json` 结构：
+
+```json
+{
+  "version": 1,
+  "custom_types": [
+    { "key": "podcast", "label_zh": "播客", "label_en": "Podcast" }
+  ]
+}
+```
+
+约束：
+- key 只允许小写字母 + 数字 + `_`
+- 不允许与内置 key 冲突
+- 删除自定义类型时，作品中已使用的 key 会保留为字符串，但下拉框不再展示该选项
+
+### V3.2.5 Task 扩展
+
+`Task` 表增加 2 列（Alembic add column with default null，幂等可回滚）：
+
+| 列 | 类型 | 含义 |
+|---|---|---|
+| `work_id` | `VARCHAR(64) NULL` | 任务关联的作品 |
+| `episode_label` | `VARCHAR(64) NULL` | 集数标签（"S01E01"、"第 3 集"） |
+
+> **本次确认**：保留 `episode_label` 字段，让推断算法更聪明、UI 更直观。
+
+## V3.3 后端 API
+
+### V3.3.1 Works 端点（新增）
+
+| Method | Path | 说明 |
+|---|---|---|
+| `GET` | `/api/works` | 列表，支持 `?q=` 搜索 title/alias |
+| `POST` | `/api/works` | 创建（body: `{ title, type, year?, aliases?, ... }`） |
+| `PATCH` | `/api/works/{work_id}` | 局部更新 |
+| `DELETE` | `/api/works/{work_id}` | 删除（带 `?reassign_to=null \| <work_id>`） |
+| `GET` | `/api/works/{work_id}/personas` | 该作品下角色 |
+| `POST` | `/api/works/{work_id}/personas/move` | 批量移动 personas |
+| `POST` | `/api/works/infer-from-task/{task_id}` | 启发式推断作品候选 top-3 |
+| `GET` | `/api/work-types` | 内置 + 自定义类型列表 |
+| `POST` | `/api/work-types` | 添加自定义类型 |
+| `DELETE` | `/api/work-types/{key}` | 删除自定义类型（不影响存量数据） |
+
+### V3.3.2 既有 personas 端点扩展
+
+| 端点 | 改动 |
+|---|---|
+| `GET /api/global-personas` | 新增 `?work_id=`、`?tags=`、`?q=` 过滤 |
+| `POST /api/global-personas/import` | body 可带 `work_id` 字段 |
+| `POST /api/tasks/{id}/speaker-review/personas/suggest-from-global` | 当 task 关联了 work_id 时，**优先**在 work 内匹配并加权；不足再降级到 cross-work；返回 `match_scope` |
+
+### V3.3.3 Task 端点扩展
+
+| 端点 | 改动 |
+|---|---|
+| `PATCH /api/tasks/{task_id}` | 新增 `work_id`、`episode_label` 可写字段 |
+| `GET /api/tasks/{task_id}` | 返回值增加 `work` 内嵌对象 |
+| `POST /api/tasks/{task_id}/work/auto-bind` | 服务端推断 + 自动落库 |
+
+### V3.3.4 删除策略（用户已确认）
+
+**默认行为**：删除 Work 时**保留旗下 personas 为"未归属"**（清空它们的 `work_id`）。
+
+提供三种模式（前端弹窗选择，后端通过 `?reassign_to=` 表达）：
+
+1. **保留旗下角色为"未归属"**（默认；`reassign_to=null` 或省略）
+2. **批量改归到另一个 Work**（`reassign_to=<other_work_id>`）
+3. **连同旗下角色一起删除**（`?cascade=true`，需二次确认 + 输入作品名）
+
+## V3.4 启发式推断 `infer_work_from_task`
+
+按以下顺序打分，返回 top-3：
+
+1. 任务名/源文件名包含**已存在 Work 的 title 或 alias**（最高分 0.9）
+2. 任务名与**已存在 Work 的 title 编辑距离 ≤2** 或子串重合 ≥70%（0.6）
+3. 文件名通用模式抽取：`<标题>.S\d+E\d+.*`、`<标题>\.\d{4}.*`，把抽出的"标题"再去 1/2 比对（0.5）
+
+返回结构：
+
+```jsonc
+[
+  { "work_id": "work_lyj", "title": "老友记", "score": 0.9, "reason": "title alias matched: Friends", "episode_label": "S01E01" },
+  { "work_id": null, "suggest_create": { "title": "Friends", "year": null }, "score": 0.6, "reason": "filename pattern S01E01" }
+]
+```
+
+UI 阈值：
+- `>= 0.85` → 自动绑定 + Toast 通知「已自动关联到：老友记 S01E01，可撤销」
+- `0.5 ~ 0.85` → 顶部 banner「为你识别到 ...，是否关联？[确认] [换一个] [关闭]」
+- `< 0.5` → 不打扰，仅在用户主动点"自动识别"时返回候选
+
+## V3.5 前端架构
+
+| 页面 | 改动 |
+|---|---|
+| `/character-library` | 改造成**双栏**：左侧 Works（含"全部 / 未归属"虚拟项 + 搜索），右侧角色表 |
+| `/character-library/works/:workId` | 单个作品详情 + 旗下角色 |
+| `TaskDetailPage` | 顶部新增"关联作品" chip + "自动识别"按钮 |
+| `SpeakerReviewDrawer` | 候选卡片显示 *本作品 N 个 · 全局 M 个*，可切 scope |
+
+新增组件：`WorksSidebar` / `WorkEditorDrawer` / `WorkChip`（Compact/Detailed）/ `WorkInferenceBanner` / `WorkTypeSelect`（含自定义入口）。
+
+## V3.6 智能匹配的 scope 切换
+
+```python
+def smart_match_with_work(task_speakers, task_work_id, global_payload):
+    for sp in task_speakers:
+        in_work = match(sp, scope=work_personas(task_work_id))
+        cross   = match(sp, scope=all_personas, exclude=in_work)
+        in_work = boost(in_work, +0.3)             # 同 work 加权
+        ranked  = (in_work + cross)[:5]
+    return { speaker_label: { "scope": "work" if task_work_id else "global", "candidates": ranked } }
+```
+
+要点：
+- `task_work_id` 为空时退化成阶段 1（保持兼容）
+- 同作品候选始终排在 cross-work 之前
+- UI 标记每个候选 `from_work_id` 是否等于当前任务
+
+## V3.7 Work 与 Tag 的关系
+
+- 每个 Work 自动派生只读虚拟 tag（`__work__:work_lyj`），仅 UI 内部使用，不写盘
+- 用户在 persona 编辑器输入 tag 时，模糊匹配 Works 列表，命中则提示「检测到这是作品名，要把它升格为关联作品吗？」
+- 反向：Work 重命名时，自动重写所有把旧 title 当 tag 的 personas（dry-run 报告 → 用户确认 → 写盘）
+
+## V3.8 测试矩阵
+
+### 后端 pytest
+
+| 测试 | 覆盖点 |
+|---|---|
+| `test_works_routes.py::test_create_list_update_delete` | CRUD 基本流 |
+| `test_works_routes.py::test_delete_with_reassign` | 三种删除模式 |
+| `test_works_routes.py::test_infer_from_task_filename_pattern` | S01E01 抽取 + alias 命中 |
+| `test_work_types_routes.py::test_custom_types_crud` | 自定义类型 CRUD |
+| `test_speaker_review_routes.py::test_suggest_with_work_scope` | scope=work 优先 |
+| `test_speaker_review_routes.py::test_suggest_falls_back_to_global` | 同 work 不足时降级 |
+
+### 前端 vitest
+
+| 测试 | 覆盖点 |
+|---|---|
+| `WorksSidebar.test.tsx` | 渲染、计数、搜索过滤、点击切换 |
+| `WorkEditorDrawer.test.tsx` | 创建/编辑/别名编辑 |
+| `WorkTypeSelect.test.tsx` | 内置类型 + 自定义类型添加 |
+| `CharacterLibraryPage.test.tsx`（升级） | 双栏交互、按 Work 过滤、未归属虚拟项 |
+
+### Playwright e2e
+
+| spec | 流程 |
+|---|---|
+| `tests/e2e/works.spec.ts` | 新建作品 → 创建角色挂到该作品 → 左栏切换 |
+| `tests/e2e/works-task-binding.spec.ts` | 任务详情页"自动识别" → 接受推荐 → 进入说话人核对 |
+| `tests/e2e/works-rename-cascade.spec.ts` | 重命名作品 → tags 自动 sweep |
+
+每个 e2e 严格沿用阶段 2 已验证的 LIFO + `route.fallback()` 模式。
+
+## V3.9 实施排期（按 PR 拆分）
+
+| PR | 内容 | 预估 |
+|---|---|---|
+| **PR-1** 数据底座 | works.json IO + Work CRUD + Persona/Task 扩展 + 后端 pytest | 0.5d |
+| **PR-2** 推断引擎 | infer_work_from_task + 接口 + 单测 | 0.5d |
+| **PR-3** 角色库双栏 UI | WorksSidebar + WorkEditorDrawer + 升级 CharacterLibraryPage + 自定义类型 + vitest + e2e | 1d |
+| **PR-4** 任务详情页关联 | WorkChip + 自动识别 banner + e2e | 0.5d |
+| **PR-5** Speaker Review work scope | smart_match_with_work + 抽屉 scope 切换 + e2e | 0.5d |
+| **PR-6** Tag 升格通道 | 输入检测同名 Work + 一键升格 + 重命名 sweep | 0.5d |
+| **PR-7** Onboarding & 迁移 | 高频 tag 升格引导 + 文档更新 | 0.5d |
+
+## V3.10 用户已确认项（2026-05-10）
+
+1. **作品类型**：内置常用枚举（tv/movie/anime/documentary/short/variety/audiobook/game/other），并支持用户在 UI 添加自定义类型
+2. **Work 删除时旗下 personas**：默认保留为"未归属"
+3. **集数字段**：保留 `episode_label`，让推断算法更聪明、UI 更直观
+
+## V3.11 风险与对策
+
+| 风险 | 对策 |
+|---|---|
+| 用户已有几百条无归属 personas，左栏首屏"未归属"很大 | 提供"批量归属"模式：勾选多个角色 → 选择目标 Work，单次写盘 |
+| 启发式推断把同名不同剧绑错 | 置信度 < 0.85 时**只 banner 提示**；提供"换一个候选" |
+| Work 删除后僵尸引用 | list/get personas 时做"work 不存在则视为 unassigned"容错 |
+| Tag 字符串和 Work title 撞名 | UI 上以图标区分（🏷 vs 🎬） |
+| 大库性能（>1万角色） | MVP in-memory；后续 `personas-by-work/` 分片 + 索引（已在文件布局预留） |
+
+## V3.12 一句话收尾
+
+> Work 给"角色库"装上骨架，Tag 给它装上自由的肌肉；二者各司其职，老数据无缝过渡，从此"角色库"才真正贯穿"任务 → 说话人核对 → 资产复用"全链路。
+
+## V3.13 实施踩坑记录（2026-05-10 PR-3 阶段）
+
+### 1. Playwright `page.route` glob 误匹配 Vite 源模块
+
+- **现象**：测试启动后浏览器报 `Failed to load module script: Expected a JavaScript-or-Wasm module script but the server responded with a MIME type of "application/json"`，React 卡在 `Loading…` 没挂载，`getByTestId('works-sidebar')` 永远找不到。
+- **根因**：在 `setupRoutes` 里写 `page.route('**/api/works**', ...)` 时，glob 中的 `**` 匹配任意字符（包括 `.ts?t=...`），于是 Vite 的 `/src/api/works.ts?t=xxx` 模块请求也被这条规则拦下来，被强制返回了 `application/json` 的 mock JSON，导致 ESM 模块加载失败。
+- **修复**：所有 `**/api/works**`、`**/api/work-types**` 一律改为正则 `/\/api\/works(\?|$)/`、`/\/api\/works\/[^/?#]+(\?|$)/`、`/\/api\/work-types(\?|$)/` 等明确收口的 pattern，避免吞掉 Vite dev server 的源码请求。
+- **教训**：Playwright 的 `page.route` 用 glob 时一定要确认 `**` 不会跨越 `?` / `.` 边界；只要前端 API 文件名（`api/<name>.ts`）和后端路由名（`/api/<name>`）撞名，就一定要切到正则。
+
+### 2. Playwright `baseURL` 与 Vite `--host` 主机名不一致
+
+- **现象**：`scripts/dev.sh` 里 Vite 通过 `--host 127.0.0.1` 启动，而 `playwright.config.ts` 里 `baseURL: 'http://localhost:5173'`，部分 macOS / Chromium 上下文会把 `localhost` 解析到 IPv6 `::1`，导致请求 `ERR_ABORTED`。
+- **修复**：`playwright.config.ts` 与 `dev.sh` 对齐为 `http://127.0.0.1:5173`，保证 IPv4 一致解析。
+- **教训**：dev 服务器和测试 baseURL 必须用同一个主机名字符串，避免 IPv4/IPv6 解析分裂。
+
+### 3. React 19 `react-hooks/set-state-in-effect` 新规
+
+- **现象**：`WorkEditorDrawer` 里用 `useEffect(() => setForm(toFormState(work)), [open, work])` 重置表单，被 ESLint 报 `react-hooks/set-state-in-effect` 错误。改用 `useRef + 渲染期赋值` 又触发"Cannot access refs during render"。
+- **最终修复**：采用"render 中按 reset key 派生状态"模式：
+
+  ```tsx
+  const resetKey = open ? `${work?.id ?? 'new'}` : '__closed__'
+  const [lastResetKey, setLastResetKey] = useState<string>('__closed__')
+  if (lastResetKey !== resetKey) {
+    setLastResetKey(resetKey)
+    if (open) {
+      setForm(work ? toFormState(work) : EMPTY_FORM)
+      // 重置自定义类型 inline 表单
+      setCustomOpen(false)
+    }
+  }
+  ```
+
+  这是 React 官方推荐的"在 render 阶段同步派生状态"写法，单次 re-render 就能完成 reset，不会引发死循环。
+

@@ -22,6 +22,7 @@ from .routes.speaker_review import (
 )
 from .routes.system import router as system_router
 from .routes.tasks import router as tasks_router
+from .routes.works import router as works_router, work_types_router
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,8 @@ app.include_router(delivery_router)
 app.include_router(dubbing_editor_router)
 app.include_router(speaker_review_router)
 app.include_router(global_personas_router)
+app.include_router(works_router)
+app.include_router(work_types_router)
 app.include_router(system_router)
 app.include_router(artifacts_router)
 app.include_router(atomic_tools_router)

@@ -138,6 +138,45 @@ async function setupRoutes(page: Page, state: { personas: PersonaRecord[] }) {
       body: JSON.stringify([]),
     })
   })
+
+  // works/work-types 最小存根，让 PR-3 双栏组件加载时不报错。
+  // 使用正则避免误命中 Vite 模块路径 /src/api/works.ts
+  await page.route(/\/api\/works(\?|$)/, async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          path: '/tmp/e2e-works.json',
+          works: [],
+          unassigned_count: state.personas.length,
+          updated_at: new Date().toISOString(),
+          version: 1,
+        }),
+      })
+      return
+    }
+    await route.fallback()
+  })
+
+  await page.route(/\/api\/work-types(\?|$)/, async route => {
+    if (route.request().method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          types: [
+            { key: 'tv', label_zh: '电视剧', label_en: 'TV Series', builtin: true },
+            { key: 'movie', label_zh: '电影', label_en: 'Movie', builtin: true },
+          ],
+        }),
+      })
+      return
+    }
+    await route.fallback()
+  })
 }
 
 test.describe('角色库管理页', () => {

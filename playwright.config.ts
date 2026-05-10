@@ -6,7 +6,7 @@ export default defineConfig({
   fullyParallel: false,
   reporter: 'line',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://127.0.0.1:5173',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },

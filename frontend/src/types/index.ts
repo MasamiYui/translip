@@ -499,11 +499,55 @@ export interface GlobalPersona {
   role?: string | null
   actor_name?: string | null
   tags?: string[]
+  work_id?: string | null
+  guest_work_ids?: string[]
+  episodes?: string[]
   confidence?: number | null
   tts_voice_id?: string | null
   tts_skip?: boolean
   created_at?: string | null
   updated_at?: string | null
+}
+
+export interface Work {
+  id: string
+  title: string
+  type: string
+  year?: number | null
+  aliases?: string[]
+  cover_emoji?: string | null
+  color?: string | null
+  note?: string | null
+  tags?: string[]
+  default_tts_voice_map?: Record<string, string>
+  persona_count?: number
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export interface WorkType {
+  key: string
+  label_zh: string
+  label_en: string
+  builtin: boolean
+}
+
+export interface WorksListResponse {
+  ok: boolean
+  path: string
+  works: Work[]
+  unassigned_count: number
+  updated_at?: string | null
+  version: number
+}
+
+export interface WorkInferCandidate {
+  work_id: string | null
+  title?: string
+  score: number
+  reason: string
+  episode_label?: string | null
+  suggest_create?: { title: string; year: number | null }
 }
 
 export interface GlobalPersonasListResponse {

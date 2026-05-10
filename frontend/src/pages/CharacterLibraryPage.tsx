@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BookUser, PlusCircle, Search, Trash2, Pencil, X } from 'lucide-react'
 import { tasksApi } from '../api/tasks'
+import { worksApi } from '../api/works'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
+import { WorksSidebar, type WorkSelection } from '../components/character-library/WorksSidebar'
+import { WorkEditorDrawer } from '../components/character-library/WorkEditorDrawer'
 import { useI18n } from '../i18n/useI18n'
-import type { GlobalPersona, GlobalPersonasListResponse } from '../types'
+import type { GlobalPersona, GlobalPersonasListResponse, Work } from '../types'
 
 const EMPTY_FORM: PersonaFormState = {
   id: '',
@@ -60,7 +63,7 @@ function splitCsv(value: string): string[] {
     .filter(Boolean)
 }
 
-function toPersonaPayload(form: PersonaFormState): GlobalPersona {
+function toPersonaPayload(form: PersonaFormState, workId?: string | null): GlobalPersona {
   const payload: GlobalPersona = {
     id: form.id || `persona_${Date.now().toString(36)}`,
     name: form.name.trim(),
@@ -77,6 +80,7 @@ function toPersonaPayload(form: PersonaFormState): GlobalPersona {
   if (tags.length) payload.tags = tags
   if (form.tts_voice_id.trim()) payload.tts_voice_id = form.tts_voice_id.trim()
   if (form.note.trim()) payload.note = form.note.trim()
+  if (workId) payload.work_id = workId
   return payload
 }
 
@@ -100,13 +104,27 @@ export function CharacterLibraryPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [flash, setFlash] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
+  const [selectedWork, setSelectedWork] = useState<WorkSelection>('__all__')
+  const [workEditorOpen, setWorkEditorOpen] = useState(false)
+  const [editingWork, setEditingWork] = useState<Work | null>(null)
+
   const { data, isLoading } = useQuery({
     queryKey: ['global-personas'],
     queryFn: tasksApi.listGlobalPersonas,
   })
 
+  const { data: worksData, isLoading: isWorksLoading } = useQuery({
+    queryKey: ['works'],
+    queryFn: () => worksApi.list(),
+  })
+
   const personas = useMemo(() => data?.personas ?? [], [data])
   const storagePath = data?.path ?? ''
+  const works: Work[] = useMemo(() => worksData?.works ?? [], [worksData])
+  const unassignedCount = useMemo(
+    () => worksData?.unassigned_count ?? personas.filter(p => !p.work_id).length,
+    [worksData, personas],
+  )
 
   const upsertMutation = useMutation({
     mutationFn: (persona: GlobalPersona) =>
@@ -117,6 +135,7 @@ export function CharacterLibraryPage() {
         prev => (prev ? { ...prev, personas: response.personas, updated_at: new Date().toISOString() } : prev),
       )
       queryClient.invalidateQueries({ queryKey: ['global-personas'] })
+      queryClient.invalidateQueries({ queryKey: ['works'] })
     },
   })
 
@@ -128,6 +147,15 @@ export function CharacterLibraryPage() {
         prev => (prev ? { ...prev, personas: response.personas, updated_at: new Date().toISOString() } : prev),
       )
       queryClient.invalidateQueries({ queryKey: ['global-personas'] })
+      queryClient.invalidateQueries({ queryKey: ['works'] })
+    },
+  })
+
+  const deleteWorkMutation = useMutation({
+    mutationFn: (workId: string) => worksApi.remove(workId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['works'] })
+      queryClient.invalidateQueries({ queryKey: ['global-personas'] })
     },
   })
 
@@ -137,10 +165,16 @@ export function CharacterLibraryPage() {
     return () => window.clearTimeout(timer)
   }, [flash])
 
+  const scopedPersonas = useMemo(() => {
+    if (selectedWork === '__all__') return personas
+    if (selectedWork === '__unassigned__') return personas.filter(p => !p.work_id)
+    return personas.filter(p => p.work_id === selectedWork)
+  }, [personas, selectedWork])
+
   const filtered = useMemo(() => {
     const kw = search.trim().toLowerCase()
-    if (!kw) return personas
-    return personas.filter(p => {
+    if (!kw) return scopedPersonas
+    return scopedPersonas.filter(p => {
       const name = (p.name ?? '').toLowerCase()
       const actor = (p.actor_name ?? '').toLowerCase()
       const role = (p.role ?? '').toLowerCase()
@@ -154,7 +188,7 @@ export function CharacterLibraryPage() {
         tags.includes(kw)
       )
     })
-  }, [personas, search])
+  }, [scopedPersonas, search])
 
   function openCreate() {
     setForm(EMPTY_FORM)
@@ -178,7 +212,11 @@ export function CharacterLibraryPage() {
     event.preventDefault()
     if (!form.name.trim()) return
     try {
-      const payload = toPersonaPayload(form)
+      const targetWorkId =
+        selectedWork === '__all__' || selectedWork === '__unassigned__'
+          ? null
+          : selectedWork
+      const payload = toPersonaPayload(form, editingId ? undefined : targetWorkId)
       await upsertMutation.mutateAsync(payload)
       const isCreate = !editingId
       setFlash({
@@ -206,6 +244,44 @@ export function CharacterLibraryPage() {
       console.error(err)
       setFlash({ type: 'error', text: t.characterLibrary.flash.deleteFailed })
     }
+  }
+
+  function openCreateWork() {
+    setEditingWork(null)
+    setWorkEditorOpen(true)
+  }
+
+  function openEditWork(work: Work) {
+    setEditingWork(work)
+    setWorkEditorOpen(true)
+  }
+
+  async function handleDeleteWork(work: Work) {
+    const count = work.persona_count ?? 0
+    if (!window.confirm(t.characterLibrary.works.deleteConfirm(work.title, count))) return
+    try {
+      await deleteWorkMutation.mutateAsync(work.id)
+      setFlash({
+        type: 'success',
+        text: t.characterLibrary.works.flash.deleted(work.title),
+      })
+      if (selectedWork === work.id) setSelectedWork('__all__')
+    } catch (err) {
+      console.error(err)
+      setFlash({ type: 'error', text: t.characterLibrary.works.flash.deleteFailed })
+    }
+  }
+
+  function handleWorkSaved(work: Work, isCreate: boolean) {
+    setFlash({
+      type: 'success',
+      text: isCreate
+        ? t.characterLibrary.works.flash.created(work.title)
+        : t.characterLibrary.works.flash.updated(work.title),
+    })
+    setWorkEditorOpen(false)
+    setEditingWork(null)
+    if (isCreate) setSelectedWork(work.id)
   }
 
   const noKeyword = search.trim().length === 0
@@ -249,183 +325,199 @@ export function CharacterLibraryPage() {
         </div>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search
-            size={14}
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            data-testid="character-library-search"
-            type="search"
-            value={search}
-            onChange={event => setSearch(event.target.value)}
-            placeholder={t.characterLibrary.placeholders.search}
-            className="h-9 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
-          />
-        </div>
-        <button
-          type="button"
-          data-testid="character-library-create"
-          onClick={openCreate}
-          className="inline-flex h-9 items-center gap-2 rounded-md bg-[#3b5bdb] px-3 text-sm font-medium text-white transition hover:bg-[#3451c5]"
-        >
-          <PlusCircle size={14} />
-          {t.characterLibrary.actions.create}
-        </button>
-      </div>
+      <div className="flex gap-4">
+        <WorksSidebar
+          works={works}
+          selected={selectedWork}
+          onSelect={setSelectedWork}
+          onCreate={openCreateWork}
+          onEdit={openEditWork}
+          onDelete={handleDeleteWork}
+          totalPersonas={personas.length}
+          unassignedCount={unassignedCount}
+          isLoading={isWorksLoading}
+        />
 
-      <div
-        data-testid="character-library-list"
-        className="overflow-hidden rounded-xl border border-slate-200 bg-white"
-      >
-        {isLoading ? (
-          <div className="px-6 py-10 text-center text-sm text-slate-400">
-            Loading…
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div className="mb-4 flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search
+                size={14}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                data-testid="character-library-search"
+                type="search"
+                value={search}
+                onChange={event => setSearch(event.target.value)}
+                placeholder={t.characterLibrary.placeholders.search}
+                className="h-9 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none transition focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
+              />
+            </div>
+            <button
+              type="button"
+              data-testid="character-library-create"
+              onClick={openCreate}
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-[#3b5bdb] px-3 text-sm font-medium text-white transition hover:bg-[#3451c5]"
+            >
+              <PlusCircle size={14} />
+              {t.characterLibrary.actions.create}
+            </button>
           </div>
-        ) : filtered.length === 0 ? (
-          noKeyword ? (
-            <div
-              data-testid="character-library-page-empty"
-              className="flex flex-col items-center gap-3 px-6 py-12 text-center"
-            >
-              <BookUser size={28} className="text-slate-300" />
-              <div className="text-base font-medium text-slate-700">
-                {t.characterLibrary.empty.title}
+
+          <div
+            data-testid="character-library-list"
+            className="overflow-hidden rounded-xl border border-slate-200 bg-white"
+          >
+            {isLoading ? (
+              <div className="px-6 py-10 text-center text-sm text-slate-400">
+                Loading…
               </div>
-              <div className="max-w-sm text-sm text-slate-500">
-                {t.characterLibrary.empty.description}
-              </div>
-              <button
-                type="button"
-                data-testid="character-library-empty-cta"
-                onClick={openCreate}
-                className="mt-2 inline-flex h-9 items-center gap-2 rounded-md bg-[#3b5bdb] px-3 text-sm font-medium text-white transition hover:bg-[#3451c5]"
-              >
-                <PlusCircle size={14} />
-                {t.characterLibrary.empty.cta}
-              </button>
-            </div>
-          ) : (
-            <div
-              data-testid="character-library-empty-filtered"
-              className="px-6 py-12 text-center text-sm text-slate-400"
-            >
-              {t.characterLibrary.emptyFiltered}
-            </div>
-          )
-        ) : (
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
-                <th className="px-4 py-2 text-left font-medium">
-                  {t.characterLibrary.columns.avatar}
-                </th>
-                <th className="px-4 py-2 text-left font-medium">
-                  {t.characterLibrary.columns.name}
-                </th>
-                <th className="px-4 py-2 text-left font-medium">
-                  {t.characterLibrary.columns.actor}
-                </th>
-                <th className="px-4 py-2 text-left font-medium">
-                  {t.characterLibrary.columns.role}
-                </th>
-                <th className="px-4 py-2 text-left font-medium">
-                  {t.characterLibrary.columns.gender}
-                </th>
-                <th className="px-4 py-2 text-left font-medium">
-                  {t.characterLibrary.columns.tags}
-                </th>
-                <th className="px-4 py-2 text-left font-medium">
-                  {t.characterLibrary.columns.updatedAt}
-                </th>
-                <th className="px-4 py-2 text-right font-medium">
-                  {t.characterLibrary.columns.actions}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(persona => (
-                <tr
-                  key={persona.id}
-                  data-testid={`character-row-${persona.id}`}
-                  className="border-t border-slate-100 text-slate-700"
+            ) : filtered.length === 0 ? (
+              noKeyword ? (
+                <div
+                  data-testid="character-library-page-empty"
+                  className="flex flex-col items-center gap-3 px-6 py-12 text-center"
                 >
-                  <td className="px-4 py-3">
-                    <span
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-full text-lg"
-                      style={{
-                        backgroundColor: persona.color ? `${persona.color}22` : '#f1f5f9',
-                        color: persona.color ?? '#334155',
-                      }}
+                  <BookUser size={28} className="text-slate-300" />
+                  <div className="text-base font-medium text-slate-700">
+                    {t.characterLibrary.empty.title}
+                  </div>
+                  <div className="max-w-sm text-sm text-slate-500">
+                    {t.characterLibrary.empty.description}
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="character-library-empty-cta"
+                    onClick={openCreate}
+                    className="mt-2 inline-flex h-9 items-center gap-2 rounded-md bg-[#3b5bdb] px-3 text-sm font-medium text-white transition hover:bg-[#3451c5]"
+                  >
+                    <PlusCircle size={14} />
+                    {t.characterLibrary.empty.cta}
+                  </button>
+                </div>
+              ) : (
+                <div
+                  data-testid="character-library-empty-filtered"
+                  className="px-6 py-12 text-center text-sm text-slate-400"
+                >
+                  {t.characterLibrary.emptyFiltered}
+                </div>
+              )
+            ) : (
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-500">
+                    <th className="px-4 py-2 text-left font-medium">
+                      {t.characterLibrary.columns.avatar}
+                    </th>
+                    <th className="px-4 py-2 text-left font-medium">
+                      {t.characterLibrary.columns.name}
+                    </th>
+                    <th className="px-4 py-2 text-left font-medium">
+                      {t.characterLibrary.columns.actor}
+                    </th>
+                    <th className="px-4 py-2 text-left font-medium">
+                      {t.characterLibrary.columns.role}
+                    </th>
+                    <th className="px-4 py-2 text-left font-medium">
+                      {t.characterLibrary.columns.gender}
+                    </th>
+                    <th className="px-4 py-2 text-left font-medium">
+                      {t.characterLibrary.columns.tags}
+                    </th>
+                    <th className="px-4 py-2 text-left font-medium">
+                      {t.characterLibrary.columns.updatedAt}
+                    </th>
+                    <th className="px-4 py-2 text-right font-medium">
+                      {t.characterLibrary.columns.actions}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(persona => (
+                    <tr
+                      key={persona.id}
+                      data-testid={`character-row-${persona.id}`}
+                      className="border-t border-slate-100 text-slate-700"
                     >
-                      {persona.avatar_emoji || '👤'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 font-medium text-slate-800">
-                    <div>{persona.name}</div>
-                    {persona.aliases && persona.aliases.length > 0 && (
-                      <div className="mt-0.5 text-[11px] text-slate-400">
-                        {persona.aliases.join(' · ')}
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {persona.actor_name || '—'}
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{persona.role || '—'}</td>
-                  <td className="px-4 py-3 text-slate-600">
-                    {persona.gender
-                      ? (t.characterLibrary.gender as Record<string, string>)[persona.gender] ??
-                        persona.gender
-                      : '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    {persona.tags && persona.tags.length > 0 ? (
-                      <div className="flex flex-wrap gap-1">
-                        {persona.tags.map(tag => (
-                          <span
-                            key={tag}
-                            className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600"
+                      <td className="px-4 py-3">
+                        <span
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-lg"
+                          style={{
+                            backgroundColor: persona.color ? `${persona.color}22` : '#f1f5f9',
+                            color: persona.color ?? '#334155',
+                          }}
+                        >
+                          {persona.avatar_emoji || '👤'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 font-medium text-slate-800">
+                        <div>{persona.name}</div>
+                        {persona.aliases && persona.aliases.length > 0 && (
+                          <div className="mt-0.5 text-[11px] text-slate-400">
+                            {persona.aliases.join(' · ')}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {persona.actor_name || '—'}
+                      </td>
+                      <td className="px-4 py-3 text-slate-600">{persona.role || '—'}</td>
+                      <td className="px-4 py-3 text-slate-600">
+                        {persona.gender
+                          ? (t.characterLibrary.gender as Record<string, string>)[persona.gender] ??
+                            persona.gender
+                          : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {persona.tags && persona.tags.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {persona.tags.map(tag => (
+                              <span
+                                key={tag}
+                                className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600"
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-[12px] text-slate-500">
+                        {formatUpdatedAt(persona.updated_at, '—')}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            data-testid={`character-edit-${persona.id}`}
+                            onClick={() => openEdit(persona)}
+                            className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
                           >
-                            {tag}
-                          </span>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-slate-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-[12px] text-slate-500">
-                    {formatUpdatedAt(persona.updated_at, '—')}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="inline-flex items-center gap-2">
-                      <button
-                        type="button"
-                        data-testid={`character-edit-${persona.id}`}
-                        onClick={() => openEdit(persona)}
-                        className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
-                      >
-                        <Pencil size={12} />
-                        {t.characterLibrary.actions.edit}
-                      </button>
-                      <button
-                        type="button"
-                        data-testid={`character-delete-${persona.id}`}
-                        onClick={() => handleDelete(persona)}
-                        className="inline-flex h-8 items-center gap-1 rounded-md border border-rose-200 bg-white px-2.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
-                      >
-                        <Trash2 size={12} />
-                        {t.characterLibrary.actions.delete}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+                            <Pencil size={12} />
+                            {t.characterLibrary.actions.edit}
+                          </button>
+                          <button
+                            type="button"
+                            data-testid={`character-delete-${persona.id}`}
+                            onClick={() => handleDelete(persona)}
+                            className="inline-flex h-8 items-center gap-1 rounded-md border border-rose-200 bg-white px-2.5 text-xs font-medium text-rose-600 transition hover:bg-rose-50"
+                          >
+                            <Trash2 size={12} />
+                            {t.characterLibrary.actions.delete}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
       </div>
 
       {editorOpen && (
@@ -578,6 +670,23 @@ export function CharacterLibraryPage() {
           </form>
         </div>
       )}
+
+      <WorkEditorDrawer
+        open={workEditorOpen}
+        work={editingWork}
+        onClose={() => {
+          setWorkEditorOpen(false)
+          setEditingWork(null)
+        }}
+        onSaved={handleWorkSaved}
+        onError={text => setFlash({ type: 'error', text })}
+        onTypeAdded={key =>
+          setFlash({
+            type: 'success',
+            text: t.characterLibrary.works.flash.typeAdded(key),
+          })
+        }
+      />
     </PageContainer>
   )
 }

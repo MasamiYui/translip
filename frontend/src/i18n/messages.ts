@@ -831,6 +831,65 @@ const zhMessages = {
       createTitle: '新建角色',
       editTitle: '编辑角色',
     },
+    works: {
+      sidebarTitle: '作品',
+      allWorks: '全部角色',
+      unassigned: '未归属',
+      searchPlaceholder: '搜索作品…',
+      createWork: '新建作品',
+      empty: '还没有作品',
+      personaCount: (n: number) => `${n} 个角色`,
+      actions: {
+        edit: '编辑作品',
+        delete: '删除作品',
+        addType: '+ 自定义类型',
+        cancel: '取消',
+        save: '保存',
+      },
+      fields: {
+        title: '作品名 *',
+        type: '类型',
+        year: '年份',
+        aliases: '别名（逗号分隔）',
+        coverEmoji: '封面 emoji',
+        color: '主题色',
+        note: '备注',
+        tags: '标签（逗号分隔）',
+      },
+      placeholders: {
+        title: '例如：老友记',
+        year: '例如：1994',
+        aliases: '例如：Friends, 六人行',
+        coverEmoji: '例如：☕️',
+        note: '可选的作品描述',
+      },
+      customType: {
+        title: '添加自定义类型',
+        key: 'key（小写字母/数字/下划线）',
+        labelZh: '中文名',
+        labelEn: 'English label',
+        save: '保存类型',
+        cancel: '取消',
+      },
+      drawer: {
+        createTitle: '新建作品',
+        editTitle: '编辑作品',
+      },
+      flash: {
+        created: (title: string) => `已新建作品「${title}」`,
+        updated: (title: string) => `已更新作品「${title}」`,
+        deleted: (title: string) => `已删除作品「${title}」`,
+        saveFailed: '保存失败，请稍后重试',
+        deleteFailed: '删除失败，请稍后重试',
+        typeAdded: (key: string) => `已添加自定义类型「${key}」`,
+      },
+      deleteConfirm: (title: string, count: number) =>
+        count > 0
+          ? `删除作品「${title}」将把旗下 ${count} 个角色置为「未归属」，确认删除？`
+          : `确认删除作品「${title}」吗？`,
+      belongsTo: '归属作品',
+      belongsToNone: '未归属',
+    },
   },
 } as const
 
@@ -1673,6 +1732,65 @@ const enMessages: LocaleMessages = {
     drawer: {
       createTitle: 'New character',
       editTitle: 'Edit character',
+    },
+    works: {
+      sidebarTitle: 'Works',
+      allWorks: 'All characters',
+      unassigned: 'Unassigned',
+      searchPlaceholder: 'Search works…',
+      createWork: 'New work',
+      empty: 'No works yet',
+      personaCount: (n: number) => `${n} characters`,
+      actions: {
+        edit: 'Edit work',
+        delete: 'Delete work',
+        addType: '+ Custom type',
+        cancel: 'Cancel',
+        save: 'Save',
+      },
+      fields: {
+        title: 'Title *',
+        type: 'Type',
+        year: 'Year',
+        aliases: 'Aliases (comma separated)',
+        coverEmoji: 'Cover emoji',
+        color: 'Theme color',
+        note: 'Note',
+        tags: 'Tags (comma separated)',
+      },
+      placeholders: {
+        title: 'e.g. Friends',
+        year: 'e.g. 1994',
+        aliases: 'e.g. 老友记, Six of Us',
+        coverEmoji: 'e.g. ☕️',
+        note: 'Optional description',
+      },
+      customType: {
+        title: 'Add custom type',
+        key: 'key (lowercase letters/digits/underscore)',
+        labelZh: '中文名',
+        labelEn: 'English label',
+        save: 'Save type',
+        cancel: 'Cancel',
+      },
+      drawer: {
+        createTitle: 'New work',
+        editTitle: 'Edit work',
+      },
+      flash: {
+        created: (title: string) => `Created work “${title}”`,
+        updated: (title: string) => `Updated work “${title}”`,
+        deleted: (title: string) => `Deleted work “${title}”`,
+        saveFailed: 'Failed to save, please retry',
+        deleteFailed: 'Failed to delete, please retry',
+        typeAdded: (key: string) => `Custom type “${key}” added`,
+      },
+      deleteConfirm: (title: string, count: number) =>
+        count > 0
+          ? `Deleting “${title}” will unassign ${count} characters. Continue?`
+          : `Delete work “${title}”?`,
+      belongsTo: 'Belongs to',
+      belongsToNone: 'Unassigned',
     },
   },
 }

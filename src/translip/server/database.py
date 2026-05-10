@@ -30,6 +30,26 @@ def init_db() -> None:
         conn.execute(text("PRAGMA foreign_keys=ON"))
         conn.commit()
     SQLModel.metadata.create_all(engine)
+    _ensure_columns()
+
+
+def _ensure_columns() -> None:
+    """Idempotent column additions for existing databases (runtime migration).
+
+    Each entry: (table_name, column_name, ddl_fragment).
+    """
+    additions = [
+        ("tasks", "work_id", "VARCHAR"),
+        ("tasks", "episode_label", "VARCHAR"),
+    ]
+    with engine.connect() as conn:
+        for table, column, ddl in additions:
+            existing = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
+            cols = {row[1] for row in existing}
+            if column in cols:
+                continue
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}"))
+        conn.commit()
 
 
 def get_session():

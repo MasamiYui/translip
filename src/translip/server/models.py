@@ -34,6 +34,9 @@ class Task(SQLModel, table=True):
     manifest_path: Optional[str] = Field(default=None)
     parent_task_id: Optional[str] = Field(default=None, index=True)
 
+    work_id: Optional[str] = Field(default=None, index=True)
+    episode_label: Optional[str] = Field(default=None)
+
 
 class TaskStage(SQLModel, table=True):
     """Stage table — records status of each pipeline stage."""
