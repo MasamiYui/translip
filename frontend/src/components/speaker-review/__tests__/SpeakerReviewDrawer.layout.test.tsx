@@ -15,6 +15,9 @@ vi.mock('../../../api/tasks', () => ({
     applySpeakerReviewDecisions: vi.fn(),
     createSpeakerPersona: vi.fn(),
     updateSpeakerPersona: vi.fn(),
+    suggestPersonasFromGlobal: vi.fn(),
+    importPersonasFromGlobal: vi.fn(),
+    exportTaskPersonasToGlobal: vi.fn(),
   },
 }))
 
@@ -184,6 +187,22 @@ describe('SpeakerReviewDrawer video review workbench', () => {
       },
     })
     vi.mocked(tasksApi.deleteSpeakerReviewDecision).mockResolvedValue({ ok: true })
+    vi.mocked(tasksApi.suggestPersonasFromGlobal).mockResolvedValue({
+      ok: true,
+      matches: [],
+    })
+    vi.mocked(tasksApi.importPersonasFromGlobal).mockResolvedValue({
+      ok: true,
+      imported: [],
+      conflicts: [],
+      personas: { items: [], unassigned_bindings: [], by_speaker: {} },
+    })
+    vi.mocked(tasksApi.exportTaskPersonasToGlobal).mockResolvedValue({
+      ok: true,
+      exported: [],
+      skipped: [],
+      total: 0,
+    })
   })
 
   afterEach(() => {
@@ -421,5 +440,83 @@ describe('SpeakerReviewDrawer video review workbench', () => {
 
     fireEvent.click(screen.getByTestId('toggle-risk-details'))
     expect(screen.getByTestId('active-risk-summary')).toBeInTheDocument()
+  })
+
+  it('renders the character library match card with empty placeholder when no match', async () => {
+    render(<SpeakerReviewDrawer taskId="task-speaker-video" isOpen onClose={vi.fn()} />, {
+      wrapper: createWrapper(),
+    })
+
+    await screen.findByTestId('speaker-review-video')
+    fireEvent.click(screen.getByTestId('transcript-row-seg-2'))
+
+    expect(await screen.findByTestId('character-library-match-card')).toBeInTheDocument()
+    expect(screen.getByTestId('character-library-empty')).toBeInTheDocument()
+    expect(screen.getByTestId('refresh-character-library')).toBeInTheDocument()
+    expect(screen.getByTestId('push-to-character-library')).toBeInTheDocument()
+  })
+
+  it('lists top global persona candidates and binds the selected one to the active speaker', async () => {
+    vi.mocked(tasksApi.suggestPersonasFromGlobal).mockResolvedValue({
+      ok: true,
+      matches: [
+        {
+          speaker_label: 'SPEAKER_01',
+          candidates: [
+            { persona_id: 'p-amy', name: '艾米', score: 0.92, reason: '名字相似', role: '女主' },
+            { persona_id: 'p-bob', name: '鲍勃', score: 0.71, reason: '历史绑定', role: '男配' },
+          ],
+        },
+      ],
+    })
+
+    render(<SpeakerReviewDrawer taskId="task-speaker-video" isOpen onClose={vi.fn()} />, {
+      wrapper: createWrapper(),
+    })
+
+    await screen.findByTestId('speaker-review-video')
+    fireEvent.click(screen.getByTestId('transcript-row-seg-2'))
+
+    const candidate = await screen.findByTestId('character-library-candidate-p-amy')
+    expect(candidate).toHaveTextContent('艾米')
+    expect(candidate).toHaveTextContent('女主')
+    expect(candidate).toHaveTextContent('92%')
+
+    fireEvent.click(screen.getByTestId('bind-character-library-p-amy'))
+
+    await waitFor(() => {
+      expect(tasksApi.importPersonasFromGlobal).toHaveBeenCalledWith('task-speaker-video', {
+        persona_ids: ['p-amy'],
+        bindings_by_id: { 'p-amy': ['SPEAKER_01'] },
+      })
+    })
+    expect(await screen.findByTestId('character-library-flash')).toHaveTextContent('已绑定角色：艾米')
+  })
+
+  it('triggers task → global library export when push button clicked', async () => {
+    vi.mocked(tasksApi.exportTaskPersonasToGlobal).mockResolvedValue({
+      ok: true,
+      exported: ['艾米', '鲍勃'],
+      skipped: [],
+      total: 2,
+    })
+
+    render(<SpeakerReviewDrawer taskId="task-speaker-video" isOpen onClose={vi.fn()} />, {
+      wrapper: createWrapper(),
+    })
+
+    await screen.findByTestId('speaker-review-video')
+    fireEvent.click(screen.getByTestId('transcript-row-seg-1'))
+
+    fireEvent.click(screen.getByTestId('push-to-character-library'))
+
+    await waitFor(() => {
+      expect(tasksApi.exportTaskPersonasToGlobal).toHaveBeenCalledWith('task-speaker-video', {
+        overwrite: true,
+      })
+    })
+    expect(await screen.findByTestId('character-library-flash')).toHaveTextContent(
+      '已回灌 2 个角色到角色库',
+    )
   })
 })

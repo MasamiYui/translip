@@ -6,6 +6,7 @@ import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
@@ -374,6 +375,7 @@ def stream_speaker_review_audio(
         )
 
     file_size = audio_path.stat().st_size
+    media_type = _audio_media_type(audio_path)
     range_header = request.headers.get("range") or request.headers.get("Range")
     range_match = re.match(r"bytes=(\d+)-(\d*)", range_header or "")
     if range_match:
@@ -399,9 +401,9 @@ def stream_speaker_review_audio(
             "Content-Range": f"bytes {range_start}-{range_end}/{file_size}",
             "Accept-Ranges": "bytes",
             "Content-Length": str(length),
-            "X-Audio-Path": _relative_path(audio_path, root),
+            "X-Audio-Path": _header_safe_path(audio_path, root),
         }
-        return StreamingResponse(_iter_range(), status_code=206, media_type="audio/wav", headers=headers)
+        return StreamingResponse(_iter_range(), status_code=206, media_type=media_type, headers=headers)
 
     def _iter_full():
         with audio_path.open("rb") as handle:
@@ -414,9 +416,9 @@ def stream_speaker_review_audio(
     headers = {
         "Accept-Ranges": "bytes",
         "Content-Length": str(file_size),
-        "X-Audio-Path": _relative_path(audio_path, root),
+        "X-Audio-Path": _header_safe_path(audio_path, root),
     }
-    return StreamingResponse(_iter_full(), media_type="audio/wav", headers=headers)
+    return StreamingResponse(_iter_full(), media_type=media_type, headers=headers)
 
 
 # ---------- Persona endpoints ----------
@@ -997,14 +999,33 @@ def suggest_personas_from_global_route(
 
 
 def _resolve_audio_path(root: Path) -> Path | None:
+    supported_exts = ("wav", "mp3", "flac", "aac", "opus")
     candidates = [
-        root / "stage1" / "voice" / "voice.wav",
-        root / "task-a" / "voice" / "voice.wav",
+        *(root / "stage1" / "voice" / f"voice.{ext}" for ext in supported_exts),
+        *(root / "task-a" / "voice" / f"voice.{ext}" for ext in supported_exts),
     ]
     for candidate in candidates:
         if candidate.exists():
             return candidate
+    for ext in supported_exts:
+        for candidate in sorted((root / "stage1").glob(f"*/voice.{ext}")):
+            if candidate.exists():
+                return candidate
     return None
+
+
+def _audio_media_type(path: Path) -> str:
+    return {
+        ".aac": "audio/aac",
+        ".flac": "audio/flac",
+        ".mp3": "audio/mpeg",
+        ".opus": "audio/ogg",
+        ".wav": "audio/wav",
+    }.get(path.suffix.lower(), "application/octet-stream")
+
+
+def _header_safe_path(path: Path, root: Path) -> str:
+    return quote(_relative_path(path, root), safe="/._-")
 
 
 def _audio_stream_url(task_id: str, start: float, end: float) -> str:

@@ -138,6 +138,66 @@ def test_speaker_review_new_endpoints(tmp_path: Path) -> None:
         app.dependency_overrides.clear()
 
 
+def test_speaker_review_audio_uses_nested_stage1_mp3(tmp_path: Path) -> None:
+    engine = _test_engine(tmp_path, "speaker-review-audio.db")
+    output_root = tmp_path / "output"
+    _write_segments_fixture(output_root)
+    voice_path = output_root / "stage1" / "input" / "voice.mp3"
+    voice_path.parent.mkdir(parents=True, exist_ok=True)
+    voice_path.write_bytes(b"real-mp3-bytes")
+    _insert_task(engine, output_root)
+
+    def override_session():
+        with Session(engine) as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        client = TestClient(app)
+        audio = client.get(
+            "/api/tasks/task-speaker-review/speaker-review/audio",
+            params={"start": 0.0, "end": 1.0},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert audio.status_code == 200
+    assert audio.headers.get("content-type", "").startswith("audio/mpeg")
+    assert audio.headers.get("x-audio-path") == "stage1/input/voice.mp3"
+    assert audio.headers.get("x-audio-source") != "synthesized-silence"
+    assert audio.content == b"real-mp3-bytes"
+
+
+def test_speaker_review_audio_header_handles_non_ascii_stage1_path(tmp_path: Path) -> None:
+    engine = _test_engine(tmp_path, "speaker-review-unicode-audio.db")
+    output_root = tmp_path / "output"
+    _write_segments_fixture(output_root)
+    voice_path = output_root / "stage1" / "哪吒预告片" / "voice.mp3"
+    voice_path.parent.mkdir(parents=True, exist_ok=True)
+    voice_path.write_bytes(b"real-mp3-bytes")
+    _insert_task(engine, output_root)
+
+    def override_session():
+        with Session(engine) as session:
+            yield session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        client = TestClient(app)
+        audio = client.get(
+            "/api/tasks/task-speaker-review/speaker-review/audio",
+            params={"start": 0.0, "end": 1.0},
+            headers={"Range": "bytes=0-3"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert audio.status_code == 206
+    assert audio.headers.get("content-type", "").startswith("audio/mpeg")
+    assert audio.headers.get("x-audio-path") == "stage1/%E5%93%AA%E5%90%92%E9%A2%84%E5%91%8A%E7%89%87/voice.mp3"
+    assert audio.content == b"real"
+
+
 def _test_engine(tmp_path: Path, name: str):
     engine = create_engine(
         f"sqlite:///{tmp_path / name}",

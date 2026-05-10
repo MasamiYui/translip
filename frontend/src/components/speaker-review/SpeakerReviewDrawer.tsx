@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   ArrowLeft,
+  BookUser,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -15,7 +16,9 @@ import {
   Repeat,
   RotateCcw,
   ShieldCheck,
+  Sparkles,
   Undo2,
+  UploadCloud,
   UserRound,
   Users,
   Volume2,
@@ -30,6 +33,8 @@ import type {
   SpeakerReviewResponse,
   SpeakerReviewSegment,
   SpeakerReviewSpeaker,
+  SuggestFromGlobalCandidate,
+  SuggestFromGlobalMatch,
 } from '../../types'
 import {
   buildSegmentRelabelDecision,
@@ -250,6 +255,26 @@ export function SpeakerReviewDrawer({
     },
   })
 
+  const suggestFromGlobalMutation = useMutation({
+    mutationFn: () => tasksApi.suggestPersonasFromGlobal(taskId, {}),
+  })
+
+  const importFromGlobalMutation = useMutation({
+    mutationFn: (payload: { persona_ids: string[]; bindings_by_id?: Record<string, string[]> }) =>
+      tasksApi.importPersonasFromGlobal(taskId, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['speaker-review', taskId] })
+    },
+  })
+
+  const exportToGlobalMutation = useMutation({
+    mutationFn: () => tasksApi.exportTaskPersonasToGlobal(taskId, { overwrite: true }),
+  })
+
+  const [globalMatches, setGlobalMatches] = useState<SuggestFromGlobalMatch[]>([])
+  const [exportFlash, setExportFlash] = useState<string | null>(null)
+  const [bindingPersonaId, setBindingPersonaId] = useState<string | null>(null)
+
   const sortedSegments = useMemo(
     () => sortTranscriptSegments(reviewQuery.data?.segments ?? []),
     [reviewQuery.data?.segments],
@@ -442,6 +467,57 @@ export function SpeakerReviewDrawer({
     row?.scrollIntoView?.({ block: 'center', behavior: 'smooth' })
   }, [activeSegment])
 
+  const fetchGlobalMatches = useCallback(async () => {
+    try {
+      const result = await suggestFromGlobalMutation.mutateAsync()
+      setGlobalMatches(result.matches ?? [])
+    } catch {
+      setGlobalMatches([])
+    }
+  }, [suggestFromGlobalMutation])
+
+  useEffect(() => {
+    if (!isOpen) return
+    if (reviewQuery.data?.status !== 'available') return
+    fetchGlobalMatches()
+  }, [isOpen, reviewQuery.data?.status, fetchGlobalMatches])
+
+  const bindGlobalPersona = useCallback(
+    async (candidate: SuggestFromGlobalCandidate, speakerLabel: string) => {
+      if (!candidate.persona_id) return
+      setBindingPersonaId(candidate.persona_id)
+      try {
+        await importFromGlobalMutation.mutateAsync({
+          persona_ids: [candidate.persona_id],
+          bindings_by_id: { [candidate.persona_id]: [speakerLabel] },
+        })
+        setExportFlash(`已绑定角色：${candidate.name}`)
+      } finally {
+        setBindingPersonaId(null)
+      }
+    },
+    [importFromGlobalMutation],
+  )
+
+  const pushToGlobalLibrary = useCallback(async () => {
+    try {
+      const result = await exportToGlobalMutation.mutateAsync()
+      const exported = result.exported?.length ?? 0
+      setExportFlash(
+        exported > 0 ? `已回灌 ${exported} 个角色到角色库` : '角色库已同步（无新增角色）',
+      )
+      fetchGlobalMatches()
+    } catch {
+      setExportFlash('回灌到角色库失败，请稍后重试')
+    }
+  }, [exportToGlobalMutation, fetchGlobalMatches])
+
+  useEffect(() => {
+    if (!exportFlash) return
+    const timer = window.setTimeout(() => setExportFlash(null), 3500)
+    return () => window.clearTimeout(timer)
+  }, [exportFlash])
+
   useEffect(() => {
     if (!isOpen) return
     const handler = (event: KeyboardEvent) => {
@@ -535,6 +611,14 @@ export function SpeakerReviewDrawer({
             <div className="truncate text-xs text-slate-500">{statusCopy(reviewQuery.data)}</div>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            {exportFlash && (
+              <span
+                className="max-w-72 truncate rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700"
+                data-testid="character-library-flash"
+              >
+                {exportFlash}
+              </span>
+            )}
             {applyResult && (
               <span className="max-w-80 truncate text-xs text-emerald-700" data-testid="apply-result">
                 {applyResult}
@@ -549,6 +633,21 @@ export function SpeakerReviewDrawer({
                 <RotateCcw size={14} /> 从 Task B 重跑
               </button>
             )}
+            <button
+              type="button"
+              onClick={pushToGlobalLibrary}
+              disabled={exportToGlobalMutation.isPending}
+              className="flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-2 text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              title="把当前任务里的说话人回灌到全局角色库"
+              data-testid="push-to-character-library"
+            >
+              {exportToGlobalMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <UploadCloud size={14} />
+              )}
+              回灌到角色库
+            </button>
             <button
               type="button"
               onClick={() => applyMutation.mutate()}
@@ -719,6 +818,11 @@ export function SpeakerReviewDrawer({
                 onChangeRename={setRenameDraft}
                 onCommitRename={commitRenameSpeaker}
                 onCancelRename={cancelRenameSpeaker}
+                globalMatches={globalMatches}
+                onBindGlobalCandidate={bindGlobalPersona}
+                onRefreshGlobalMatches={fetchGlobalMatches}
+                bindingPersonaId={bindingPersonaId}
+                globalMatchesLoading={suggestFromGlobalMutation.isPending}
               />
             </aside>
           </main>
@@ -1079,6 +1183,11 @@ function DecisionPanel({
   onChangeRename,
   onCommitRename,
   onCancelRename,
+  globalMatches,
+  onBindGlobalCandidate,
+  onRefreshGlobalMatches,
+  bindingPersonaId,
+  globalMatchesLoading,
 }: {
   data?: SpeakerReviewResponse
   activeSegment: SpeakerReviewSegment | null
@@ -1100,6 +1209,14 @@ function DecisionPanel({
   onChangeRename: (value: string) => void
   onCommitRename: () => void
   onCancelRename: () => void
+  globalMatches: SuggestFromGlobalMatch[]
+  onBindGlobalCandidate: (
+    candidate: SuggestFromGlobalCandidate,
+    speakerLabel: string,
+  ) => Promise<void>
+  onRefreshGlobalMatches: () => void
+  bindingPersonaId: string | null
+  globalMatchesLoading: boolean
 }) {
   if (!activeSegment) {
     return (
@@ -1225,6 +1342,15 @@ function DecisionPanel({
           previousSegment={previousSegment}
           currentSegment={activeSegment}
           nextSegment={nextSegment}
+        />
+
+        <CharacterLibraryMatchCard
+          activeSpeakerLabel={activeSegment.speaker_label}
+          matches={globalMatches}
+          onBind={onBindGlobalCandidate}
+          onRefresh={onRefreshGlobalMatches}
+          bindingPersonaId={bindingPersonaId}
+          loading={globalMatchesLoading}
         />
 
         <section className="mt-5">
@@ -1398,6 +1524,102 @@ function ContextBlock({
           <Wand2 className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           系统建议：{actionLabel(currentSegment.recommended_action)}
         </div>
+      )}
+    </section>
+  )
+}
+
+function CharacterLibraryMatchCard({
+  activeSpeakerLabel,
+  matches,
+  onBind,
+  onRefresh,
+  bindingPersonaId,
+  loading,
+}: {
+  activeSpeakerLabel: string
+  matches: SuggestFromGlobalMatch[]
+  onBind: (candidate: SuggestFromGlobalCandidate, speakerLabel: string) => Promise<void>
+  onRefresh: () => void
+  bindingPersonaId: string | null
+  loading: boolean
+}) {
+  const activeMatch = matches.find(m => m.speaker_label === activeSpeakerLabel)
+  const candidates = (activeMatch?.candidates ?? []).slice(0, 3)
+
+  return (
+    <section className="mt-5" data-testid="character-library-match-card">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <BookUser className="h-3.5 w-3.5 text-indigo-600" />
+          <h4 className="text-xs font-semibold text-slate-900">角色库匹配</h4>
+          {loading && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+        </div>
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={loading}
+          className="flex h-6 items-center gap-1 rounded border border-slate-200 px-1.5 text-[11px] text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          data-testid="refresh-character-library"
+        >
+          <Sparkles className="h-3 w-3" /> 重新匹配
+        </button>
+      </div>
+
+      {candidates.length === 0 ? (
+        <div
+          className="rounded-md border border-dashed border-slate-200 bg-slate-50 p-3 text-[11px] leading-5 text-slate-500"
+          data-testid="character-library-empty"
+        >
+          暂无匹配到的角色库候选，你可以先在上方"回灌到角色库"按钮沉淀当前任务里的人物。
+        </div>
+      ) : (
+        <ul className="space-y-1.5" data-testid="character-library-candidate-list">
+          {candidates.map(candidate => {
+            const binding = bindingPersonaId === candidate.persona_id
+            return (
+              <li
+                key={candidate.persona_id}
+                className="flex items-center gap-2 rounded-md border border-slate-200 bg-white p-2"
+                data-testid={`character-library-candidate-${candidate.persona_id}`}
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm">
+                  🎭
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-xs font-semibold text-slate-900">
+                      {candidate.name || '(未命名角色)'}
+                    </span>
+                    {candidate.role && (
+                      <span className="shrink-0 rounded bg-slate-100 px-1 text-[10px] text-slate-600">
+                        {candidate.role}
+                      </span>
+                    )}
+                    <span className="ml-auto shrink-0 text-[10px] text-indigo-600">
+                      {Math.round((candidate.score ?? 0) * 100)}%
+                    </span>
+                  </div>
+                  {candidate.reason && (
+                    <div className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">
+                      {candidate.reason}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onBind(candidate, activeSpeakerLabel)}
+                  disabled={binding}
+                  className="flex h-7 shrink-0 items-center gap-1 rounded-md bg-indigo-600 px-2 text-[11px] font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  data-testid={`bind-character-library-${candidate.persona_id}`}
+                >
+                  {binding ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                  绑定
+                </button>
+              </li>
+            )
+          })}
+        </ul>
       )}
     </section>
   )
