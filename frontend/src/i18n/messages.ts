@@ -24,6 +24,7 @@ const zhMessages = {
     newPipelineTask: '新建流水线任务',
     tools: '原子工具集',
     characterLibrary: '角色库',
+    worksLibrary: '作品库',
     settings: '全局设置',
     subtitle: 'Pipeline Manager',
     collapseSidebar: '收起侧边栏',
@@ -968,6 +969,43 @@ const zhMessages = {
       belongsToNone: '未归属',
     },
   },
+  worksLibrary: {
+    title: '作品库',
+    subtitle: '跨任务沉淀的作品花名册（电视剧 / 电影 / 动漫 / …），海报与简介可从 TMDb 同步。',
+    countHint: (n: number) => `共 ${n} 部作品`,
+    storageHint: (path: string) => `存储位置：${path}`,
+    actions: {
+      create: '新建作品',
+      refresh: '刷新',
+      edit: '编辑',
+      delete: '删除',
+      openCharacters: '查看角色',
+    },
+    filters: {
+      searchPlaceholder: '搜索作品标题 / 别名 / 标签…',
+      all: '全部类型',
+    },
+    empty: {
+      title: '还没有作品',
+      description: '从这里开始创建作品；之后可以绑定 TMDb 拉取海报 / 剧情简介 / 演员表。',
+      cta: '新建第一个作品',
+    },
+    emptyFiltered: '没有匹配当前筛选条件的作品',
+    card: {
+      posterAlt: (title: string) => `${title} 海报`,
+      personaCount: (n: number) => `${n} 个角色`,
+      yearFallback: '年份未定',
+      overviewFallback: '暂无剧情简介',
+      fromTmdb: 'TMDb 同步',
+    },
+    flash: {
+      created: (title: string) => `已新建作品「${title}」`,
+      updated: (title: string) => `已更新作品「${title}」`,
+      deleted: (title: string) => `已删除作品「${title}」`,
+      saveFailed: '保存失败，请稍后重试',
+      deleteFailed: '删除失败，请稍后重试',
+    },
+  },
 } as const
 
 type MessageShape<T> =
@@ -998,6 +1036,7 @@ const enMessages: LocaleMessages = {
     newPipelineTask: 'Create Pipeline Task',
     tools: 'Atomic Tools',
     characterLibrary: 'Character Library',
+    worksLibrary: 'Works Library',
     settings: 'Settings',
     subtitle: 'Pipeline Manager',
     collapseSidebar: 'Collapse sidebar',
@@ -1945,6 +1984,45 @@ const enMessages: LocaleMessages = {
           : `Delete work “${title}”?`,
       belongsTo: 'Belongs to',
       belongsToNone: 'Unassigned',
+    },
+  },
+  worksLibrary: {
+    title: 'Works Library',
+    subtitle:
+      'Cross-task roster of works (TV / Movies / Anime / …); posters and synopses can be synced from TMDb.',
+    countHint: (n: number) => `${n} works in total`,
+    storageHint: (path: string) => `Stored at: ${path}`,
+    actions: {
+      create: 'New Work',
+      refresh: 'Refresh',
+      edit: 'Edit',
+      delete: 'Delete',
+      openCharacters: 'View Characters',
+    },
+    filters: {
+      searchPlaceholder: 'Search title / aliases / tags…',
+      all: 'All types',
+    },
+    empty: {
+      title: 'No works yet',
+      description:
+        'Start by creating a work; you can then connect it to TMDb to pull posters, synopses, and cast.',
+      cta: 'Create your first work',
+    },
+    emptyFiltered: 'No works match the current filters',
+    card: {
+      posterAlt: (title: string) => `Poster for ${title}`,
+      personaCount: (n: number) => `${n} characters`,
+      yearFallback: 'Year TBD',
+      overviewFallback: 'No synopsis yet',
+      fromTmdb: 'Synced from TMDb',
+    },
+    flash: {
+      created: (title: string) => `Created work “${title}”`,
+      updated: (title: string) => `Updated work “${title}”`,
+      deleted: (title: string) => `Deleted work “${title}”`,
+      saveFailed: 'Failed to save, please retry',
+      deleteFailed: 'Failed to delete, please retry',
     },
   },
 }

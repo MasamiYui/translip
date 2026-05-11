@@ -509,6 +509,53 @@ export interface GlobalPersona {
   updated_at?: string | null
 }
 
+export interface WorkCastSnapshotEntry {
+  external_person_id?: string | null
+  actor_name?: string
+  character_name?: string
+  profile_url?: string | null
+  gender?: string | null
+  order?: number
+  source?: string
+  actor_aliases?: string[]
+  character_aliases?: string[]
+  key?: string
+  credit_id?: string
+  episode_count?: number
+}
+
+export interface WorkMetadata {
+  poster_url?: string | null
+  backdrop_url?: string | null
+  overview?: string | null
+  overview_lang?: string | null
+  original_title?: string | null
+  origin_country?: string[]
+  genres?: string[]
+  release_date?: string | null
+  first_air_date?: string | null
+  last_air_date?: string | null
+  vote_average?: number
+  vote_count?: number
+  runtime?: number
+  episode_run_time?: number[]
+  number_of_seasons?: number
+  number_of_episodes?: number
+  status?: string
+  tagline?: string
+  source?: string
+  last_synced_at?: string
+  [key: string]: unknown
+}
+
+export interface WorkExternalRefs {
+  tmdb_id?: number | string
+  tmdb_media_type?: 'movie' | 'tv' | string
+  tmdb_external_id?: string
+  imdb_id?: string
+  wikidata_id?: string
+}
+
 export interface Work {
   id: string
   title: string
@@ -523,6 +570,9 @@ export interface Work {
   persona_count?: number
   created_at?: string | null
   updated_at?: string | null
+  external_refs?: WorkExternalRefs | null
+  metadata?: WorkMetadata | null
+  cast_snapshot?: WorkCastSnapshotEntry[] | null
 }
 
 export interface WorkType {

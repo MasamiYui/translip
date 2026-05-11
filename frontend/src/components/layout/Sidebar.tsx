@@ -102,6 +102,13 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
     isActive: currentPath === '/character-library',
   }
 
+  const worksLibraryNavItem = {
+    to: '/works',
+    label: t.nav.worksLibrary,
+    icon: Clapperboard,
+    isActive: currentPath === '/works',
+  }
+
   const toolLabels = t.atomicTools.tools as Record<string, string | undefined>
   const { data: tools } = useQuery({
     queryKey: ['atomic-tools'],
@@ -344,6 +351,26 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
             </div>
           </div>
         )}
+
+        {/* Works library (before Character library to reflect data flow:
+            create / curate works first, then characters belong to them). */}
+        {(() => {
+          const { to, label, icon: Icon, isActive } = worksLibraryNavItem
+          return (
+            <Link
+              key={to}
+              to={to}
+              data-testid="sidebar-link-works-library"
+              aria-current={isActive ? 'page' : undefined}
+              title={collapsed ? label : undefined}
+              aria-label={collapsed ? label : undefined}
+              className={navItemClass(isActive)}
+            >
+              <Icon size={15} className="shrink-0" />
+              {!collapsed && <span className="truncate">{label}</span>}
+            </Link>
+          )
+        })()}
 
         {/* Character library */}
         {(() => {
