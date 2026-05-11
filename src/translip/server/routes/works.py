@@ -304,6 +304,73 @@ def auto_bind_task_route(
     return {"ok": True, "bound": False, "candidates": candidates}
 
 
+# ---- TMDb Integration ----
+
+
+class TMDbSearchRequest(BaseModel):
+    query: str
+    media_type: Optional[str] = None
+
+
+class TMDbImportRequest(BaseModel):
+    tmdb_id: int
+    media_type: str
+
+
+@router.get("/tmdb/search")
+def tmdb_search(q: str, media_type: Optional[str] = Query(default=None)) -> dict[str, Any]:
+    from ...speaker_review.works_providers.tmdb import get_tmdb_provider
+
+    provider = get_tmdb_provider()
+    if not provider.config.has_credentials():
+        return {"ok": False, "error": "TMDb API key not configured", "results": []}
+    
+    results = provider.search(q, media_type)
+    return {"ok": True, "results": results}
+
+
+@router.get("/tmdb/{tmdb_id}")
+def tmdb_get_details(
+    tmdb_id: int,
+    media_type: str = Query(default="movie"),
+) -> dict[str, Any]:
+    from ...speaker_review.works_providers.tmdb import get_tmdb_provider
+
+    provider = get_tmdb_provider()
+    if not provider.config.has_credentials():
+        return {"ok": False, "error": "TMDb API key not configured"}
+    
+    details = provider.get_details(tmdb_id, media_type)
+    if not details:
+        return {"ok": False, "error": "Failed to fetch details"}
+    
+    return {"ok": True, "details": details}
+
+
+@router.post("/from-tmdb")
+def create_work_from_tmdb(req: TMDbImportRequest) -> dict[str, Any]:
+    from ...speaker_review.works_providers.tmdb import get_tmdb_provider
+
+    provider = get_tmdb_provider()
+    if not provider.config.has_credentials():
+        return {"ok": False, "error": "TMDb API key not configured"}
+    
+    details = provider.get_details(req.tmdb_id, req.media_type)
+    if not details:
+        return {"ok": False, "error": "Failed to fetch TMDb details"}
+    
+    work_data = provider.tmdb_to_work(details)
+    payload = load_works()
+    
+    try:
+        work = create_work(payload, work_data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    
+    save_works(payload)
+    return {"ok": True, "work": work}
+
+
 # ---- Helpers ----
 
 
