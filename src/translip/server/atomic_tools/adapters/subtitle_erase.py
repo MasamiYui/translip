@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ....orchestration.subprocess_runner import run_stage_command
+from ....orchestration.subtitle_erase_detection import prepare_subtitle_erase_detection
 from ..registry import ToolSpec, register_tool
 from ..schemas import SubtitleErasePreset, SubtitleEraseToolRequest
 from . import ProgressCallback, ToolAdapter
@@ -263,6 +264,13 @@ class SubtitleEraseAdapter(ToolAdapter):
         on_progress(20.0, "preparing")
 
         resolved = resolve_preset_params(params)
+        prepared_detection_file = prepare_subtitle_erase_detection(
+            detection_file,
+            output_dir / "reuse_detection.expanded.json",
+            lead_frames=int(resolved["event_lead_frames"]),
+            trail_frames=int(resolved["event_trail_frames"]),
+            video_path=input_file,
+        )
 
         erased_path = output_dir / "erased.mp4"
         debug_dir = output_dir / "debug"
@@ -271,7 +279,7 @@ class SubtitleEraseAdapter(ToolAdapter):
         cmd = build_eraser_command(
             input_video=input_file,
             output_video=erased_path,
-            detection_json=detection_file,
+            detection_json=prepared_detection_file,
             debug_dir=debug_dir,
             resolved=resolved,
         )
@@ -296,13 +304,14 @@ class SubtitleEraseAdapter(ToolAdapter):
             raise RuntimeError("Subtitle erasure did not produce an output video")
 
         on_progress(90.0, "evaluating")
-        metrics = _quick_metrics(input_file, erased_path, detection_file)
+        metrics = _quick_metrics(input_file, erased_path, prepared_detection_file)
 
         report = {
             "preset": params.get("preset", "fast"),
             "resolved_parameters": resolved,
             "metrics": metrics,
             "detection_source": detection_source,
+            "reuse_detection_file": prepared_detection_file.name,
         }
         report_path = output_dir / "report.json"
         self.write_json(report_path, report)
@@ -346,7 +355,10 @@ class SubtitleEraseAdapter(ToolAdapter):
 
         detect_adapter = SubtitleDetectAdapter()
         detect_params = detect_adapter.validate_params(
-            {"file_id": "__auto__"}
+            {
+                "file_id": "__auto__",
+                "sample_interval": params.get("sample_interval") or 0.25,
+            }
         )
         detect_adapter.run(
             params=detect_params,

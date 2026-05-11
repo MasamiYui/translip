@@ -7,6 +7,7 @@ from pathlib import Path
 from ..types import PipelineRequest
 from .ocr_bridge import ocr_detection_path, resolve_ocr_project_root
 from .subprocess_runner import run_stage_command
+from .subtitle_erase_detection import prepare_subtitle_erase_detection
 
 
 def _repo_root() -> Path:
@@ -38,7 +39,16 @@ def subtitle_erase_manifest_path(request: PipelineRequest) -> Path:
     return request.output_root / "subtitle-erase" / "subtitle-erase-manifest.json"
 
 
-def build_subtitle_erase_command(request: PipelineRequest) -> list[str]:
+def subtitle_erase_reuse_detection_path(request: PipelineRequest) -> Path:
+    return request.output_root / "subtitle-erase" / "reuse_detection.expanded.json"
+
+
+def build_subtitle_erase_command(
+    request: PipelineRequest,
+    *,
+    reuse_detection_path: Path | None = None,
+) -> list[str]:
+    detection_path = reuse_detection_path or ocr_detection_path(request)
     cmd: list[str] = [
         str(resolve_erase_python(request)),
         "-m",
@@ -50,7 +60,7 @@ def build_subtitle_erase_command(request: PipelineRequest) -> list[str]:
         "--subtitle-ocr-project",
         str(resolve_ocr_project_root(request)),
         "--reuse-detection",
-        str(ocr_detection_path(request)),
+        str(detection_path),
         "--debug-dir",
         str(request.output_root / "subtitle-erase" / "debug"),
         "--inpaint-backend",
@@ -101,8 +111,15 @@ def build_subtitle_erase_env(request: PipelineRequest) -> dict[str, str]:
 
 
 def run_subtitle_erase(request: PipelineRequest, *, log_path: Path) -> dict[str, object]:
+    prepared_detection_path = prepare_subtitle_erase_detection(
+        ocr_detection_path(request),
+        subtitle_erase_reuse_detection_path(request),
+        lead_frames=request.erase_event_lead_frames,
+        trail_frames=request.erase_event_trail_frames,
+        video_path=Path(request.input_path),
+    )
     run_stage_command(
-        build_subtitle_erase_command(request),
+        build_subtitle_erase_command(request, reuse_detection_path=prepared_detection_path),
         log_path=log_path,
         env_overrides=build_subtitle_erase_env(request),
     )
@@ -114,7 +131,8 @@ def run_subtitle_erase(request: PipelineRequest, *, log_path: Path) -> dict[str,
                 "status": "succeeded",
                 "artifacts": {
                     "clean_video": str(subtitle_erase_output_path(request)),
-                    "detection_json": str(ocr_detection_path(request)),
+                    "detection_json": str(prepared_detection_path),
+                    "source_detection_json": str(ocr_detection_path(request)),
                     "debug_dir": str(request.output_root / "subtitle-erase" / "debug"),
                 },
             },
@@ -126,6 +144,10 @@ def run_subtitle_erase(request: PipelineRequest, *, log_path: Path) -> dict[str,
     )
     return {
         "manifest_path": str(manifest_path),
-        "artifact_paths": [str(subtitle_erase_output_path(request)), str(manifest_path)],
+        "artifact_paths": [
+            str(subtitle_erase_output_path(request)),
+            str(prepared_detection_path),
+            str(manifest_path),
+        ],
         "log_path": str(log_path),
     }
