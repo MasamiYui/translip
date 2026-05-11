@@ -245,6 +245,63 @@ def test_stage1_command_uses_python_module_cli(tmp_path: Path) -> None:
     assert command[3] == "run"
 
 
+def test_run_subtitle_erase_expands_ocr_detection_before_reuse(tmp_path: Path, monkeypatch) -> None:
+    from translip.orchestration.erase_bridge import run_subtitle_erase
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(
+        input_path=tmp_path / "sample.mp4",
+        output_root=tmp_path / "out",
+        erase_event_lead_frames=4,
+        erase_event_trail_frames=11,
+    )
+    request.input_path.write_bytes(b"\x00" * 16)
+    detection_path = request.output_root / "ocr-detect" / "detection.json"
+    detection_path.parent.mkdir(parents=True)
+    detection_path.write_text(
+        json.dumps(
+            {
+                "video": {"fps": 20.0, "total_frames": 60, "width": 960, "height": 416, "duration": 3.0},
+                "mode": "auto",
+                "events": [
+                    {
+                        "index": 1,
+                        "start_time": 0.5,
+                        "end_time": 1.0,
+                        "start_frame": 10,
+                        "end_frame": 20,
+                        "text": "测试字幕",
+                        "confidence": 0.9,
+                        "box": [100, 300, 340, 360],
+                        "polygon": None,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    captured: dict[str, object] = {}
+
+    def fake_run_stage_command(command, *, log_path, env_overrides=None):
+        captured["command"] = list(command)
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        log_path.write_text("ok", encoding="utf-8")
+
+    monkeypatch.setattr("translip.orchestration.erase_bridge.run_stage_command", fake_run_stage_command)
+
+    run_subtitle_erase(request, log_path=request.output_root / "logs" / "subtitle-erase.log")
+
+    command = captured["command"]
+    assert isinstance(command, list)
+    reuse_path = Path(command[command.index("--reuse-detection") + 1])
+    assert reuse_path != detection_path
+    expanded = json.loads(reuse_path.read_text(encoding="utf-8"))
+    assert expanded["events"][0]["start_frame"] == 6
+    assert expanded["events"][0]["end_frame"] == 31
+    assert expanded["events"][0]["start_time"] == 6 / 20.0
+    assert expanded["events"][0]["end_time"] == 31 / 20.0
+
+
 def test_effective_task_a_segments_prefers_speaker_corrected_segments(tmp_path: Path) -> None:
     from translip.orchestration.commands import (
         effective_task_a_segments_path,

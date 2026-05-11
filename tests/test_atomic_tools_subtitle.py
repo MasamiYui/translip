@@ -134,6 +134,287 @@ def test_build_eraser_command_appends_regions_and_auto_tune(tmp_path: Path) -> N
     assert cmd[region_index + 1] == "0.0000,0.7000,1.0000,0.9500"
 
 
+def test_subtitle_erase_adapter_expands_reused_detection_before_command(tmp_path: Path) -> None:
+    input_dir = tmp_path / "input"
+    output_dir = tmp_path / "output"
+    file_dir = input_dir / "file"
+    detection_dir = input_dir / "detection_file"
+    file_dir.mkdir(parents=True)
+    detection_dir.mkdir(parents=True)
+    video_path = file_dir / "in.mp4"
+    video_path.write_bytes(b"\x00" * 16)
+    detection_path = detection_dir / "detection.json"
+    detection_path.write_text(
+        json.dumps(
+            {
+                "video": {"fps": 25.0, "total_frames": 100, "width": 960, "height": 416, "duration": 4.0},
+                "mode": "auto",
+                "events": [
+                    {
+                        "index": 1,
+                        "start_time": 1.0,
+                        "end_time": 1.8,
+                        "start_frame": 25,
+                        "end_frame": 45,
+                        "text": "测试字幕",
+                        "confidence": 0.9,
+                        "box": [100, 300, 340, 360],
+                        "polygon": None,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    captured: dict[str, object] = {}
+
+    def fake_run_stage_command(cmd, *, log_path, env_overrides=None, on_stdout_line=None, should_cancel=None):
+        captured["cmd"] = list(cmd)
+        out_video = Path(cmd[cmd.index("--output") + 1])
+        out_video.parent.mkdir(parents=True, exist_ok=True)
+        out_video.write_bytes(b"\x00" * 16)
+
+    adapter = SubtitleEraseAdapter()
+    params = adapter.validate_params({"file_id": "x", "detection_file_id": "y", "preset": "fast"})
+    progress = _StubProgress()
+    progress.is_cancelled = lambda: False  # type: ignore[attr-defined]
+
+    with patch(
+        "translip.server.atomic_tools.adapters.subtitle_erase.run_stage_command",
+        side_effect=fake_run_stage_command,
+    ), patch(
+        "translip.server.atomic_tools.adapters.subtitle_erase._quick_metrics",
+        return_value={"sampled_frames": 0},
+    ):
+        adapter.run(params, input_dir, output_dir, progress)
+
+    cmd = captured["cmd"]
+    assert isinstance(cmd, list)
+    reuse_path = Path(cmd[cmd.index("--reuse-detection") + 1])
+    assert reuse_path != detection_path
+    expanded = json.loads(reuse_path.read_text(encoding="utf-8"))
+    assert expanded["events"][0]["start_frame"] == 22
+    assert expanded["events"][0]["end_frame"] == 53
+    assert expanded["events"][0]["start_time"] == 22 / 25.0
+    assert expanded["events"][0]["end_time"] == 53 / 25.0
+
+
+def test_prepare_subtitle_erase_detection_adds_uncovered_visual_fallback_event(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from translip.orchestration import subtitle_erase_detection
+    from translip.orchestration.subtitle_erase_detection import (
+        VisualFallbackEvent,
+        prepare_subtitle_erase_detection,
+    )
+
+    source_path = tmp_path / "detection.json"
+    output_path = tmp_path / "reuse_detection.expanded.json"
+    video_path = tmp_path / "input.mp4"
+    video_path.write_bytes(b"\x00" * 16)
+    source_path.write_text(
+        json.dumps(
+            {
+                "video": {"fps": 25.0, "total_frames": 100, "width": 960, "height": 416, "duration": 4.0},
+                "events": [
+                    {
+                        "index": 1,
+                        "start_time": 0.4,
+                        "end_time": 0.8,
+                        "start_frame": 10,
+                        "end_frame": 20,
+                        "text": "OCR 字幕",
+                        "confidence": 0.9,
+                        "box": [100, 300, 340, 360],
+                        "polygon": None,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        subtitle_erase_detection,
+        "_detect_visual_fallback_events",
+        lambda **_kwargs: [
+            VisualFallbackEvent(start_frame=29, end_frame=36, box=(120, 318, 820, 390), confidence=0.72)
+        ],
+    )
+
+    prepare_subtitle_erase_detection(
+        source_path,
+        output_path,
+        lead_frames=3,
+        trail_frames=8,
+        video_path=video_path,
+    )
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert len(payload["events"]) == 2
+    assert payload["events"][1]["source"] == "visual_fallback"
+    assert payload["events"][1]["start_frame"] == 29
+    assert payload["events"][1]["end_frame"] == 36
+    assert payload["events"][1]["box"] == [100, 300, 340, 360]
+    assert payload["subtitle_erase_preprocess"]["visual_fallback_events"] == 1
+
+
+def test_prepare_subtitle_erase_detection_skips_isolated_visual_fallback_event(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from translip.orchestration import subtitle_erase_detection
+    from translip.orchestration.subtitle_erase_detection import (
+        VisualFallbackEvent,
+        prepare_subtitle_erase_detection,
+    )
+
+    source_path = tmp_path / "detection.json"
+    output_path = tmp_path / "reuse_detection.expanded.json"
+    video_path = tmp_path / "input.mp4"
+    video_path.write_bytes(b"\x00" * 16)
+    source_path.write_text(
+        json.dumps(
+            {
+                "video": {"fps": 25.0, "total_frames": 120, "width": 960, "height": 416, "duration": 4.8},
+                "events": [
+                    {
+                        "index": 1,
+                        "start_time": 0.4,
+                        "end_time": 0.8,
+                        "start_frame": 10,
+                        "end_frame": 20,
+                        "text": "OCR 字幕",
+                        "confidence": 0.9,
+                        "box": [100, 300, 340, 360],
+                        "polygon": None,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        subtitle_erase_detection,
+        "_detect_visual_fallback_events",
+        lambda **_kwargs: [
+            VisualFallbackEvent(start_frame=80, end_frame=88, box=(120, 318, 820, 390), confidence=0.72)
+        ],
+    )
+
+    prepare_subtitle_erase_detection(
+        source_path,
+        output_path,
+        lead_frames=3,
+        trail_frames=8,
+        video_path=video_path,
+    )
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert len(payload["events"]) == 1
+    assert payload["subtitle_erase_preprocess"]["visual_fallback_events"] == 0
+
+
+def test_prepare_subtitle_erase_detection_skips_covered_visual_fallback_event(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from translip.orchestration import subtitle_erase_detection
+    from translip.orchestration.subtitle_erase_detection import (
+        VisualFallbackEvent,
+        prepare_subtitle_erase_detection,
+    )
+
+    source_path = tmp_path / "detection.json"
+    output_path = tmp_path / "reuse_detection.expanded.json"
+    video_path = tmp_path / "input.mp4"
+    video_path.write_bytes(b"\x00" * 16)
+    source_path.write_text(
+        json.dumps(
+            {
+                "video": {"fps": 25.0, "total_frames": 100, "width": 960, "height": 416, "duration": 4.0},
+                "events": [
+                    {
+                        "index": 1,
+                        "start_time": 0.4,
+                        "end_time": 0.8,
+                        "start_frame": 10,
+                        "end_frame": 20,
+                        "text": "OCR 字幕",
+                        "confidence": 0.9,
+                        "box": [100, 300, 340, 360],
+                        "polygon": None,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(
+        subtitle_erase_detection,
+        "_detect_visual_fallback_events",
+        lambda **_kwargs: [
+            VisualFallbackEvent(start_frame=12, end_frame=19, box=(100, 300, 340, 360), confidence=0.72)
+        ],
+    )
+
+    prepare_subtitle_erase_detection(
+        source_path,
+        output_path,
+        lead_frames=3,
+        trail_frames=8,
+        video_path=video_path,
+    )
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert len(payload["events"]) == 1
+    assert payload["subtitle_erase_preprocess"]["visual_fallback_events"] == 0
+
+
+def test_numpy_visual_subtitle_detector_finds_bright_text_like_pixels() -> None:
+    import numpy as np
+    from translip.orchestration.subtitle_erase_detection import _detect_subtitle_like_box_numpy
+
+    frame = np.zeros((160, 320, 3), dtype=np.uint8)
+    frame[118:124, 86:134] = [245, 245, 245]
+    frame[118:124, 150:208] = [245, 245, 245]
+    frame[116:126, 84:136] = np.maximum(frame[116:126, 84:136], [35, 35, 35])
+    frame[116:126, 148:210] = np.maximum(frame[116:126, 148:210], [35, 35, 35])
+
+    result = _detect_subtitle_like_box_numpy(frame, band=(0, 96, 320, 152))
+
+    assert result is not None
+    box, confidence = result
+    assert box[0] <= 86
+    assert box[1] <= 118
+    assert box[2] >= 208
+    assert box[3] >= 124
+    assert confidence > 0.45
+
+
+def test_numpy_visual_subtitle_detector_ignores_blank_frame() -> None:
+    import numpy as np
+    from translip.orchestration.subtitle_erase_detection import _detect_subtitle_like_box_numpy
+
+    frame = np.zeros((160, 320, 3), dtype=np.uint8)
+
+    assert _detect_subtitle_like_box_numpy(frame, band=(0, 96, 320, 152)) is None
+
+
+def test_numpy_visual_subtitle_detector_rejects_full_width_band() -> None:
+    import numpy as np
+    from translip.orchestration.subtitle_erase_detection import _detect_subtitle_like_box_numpy
+
+    frame = np.zeros((160, 320, 3), dtype=np.uint8)
+    frame[112:126, 0:320] = [245, 245, 245]
+
+    assert _detect_subtitle_like_box_numpy(frame, band=(0, 96, 320, 152)) is None
+
+
 # ---------------------------------------------------------------------------
 # Test 4: adapter run() auto-detects when detection_file_id is missing
 # ---------------------------------------------------------------------------
@@ -163,6 +444,7 @@ def test_subtitle_erase_adapter_run_auto_detects_when_detection_missing(
         return {"sampled_frames": 0, "band_diff_mean": 0.0, "spill_mean": 0.0}
 
     def fake_detect_run(self, params, input_dir, output_dir, on_progress):
+        captured["detect_sample_interval"] = params["sample_interval"]
         captured["detect_video_name"] = next(
             (input_dir / "file").iterdir()
         ).name
@@ -190,6 +472,7 @@ def test_subtitle_erase_adapter_run_auto_detects_when_detection_missing(
 
     assert result["detection_source"] == "auto"
     assert captured["detect_video_name"] == "in.mp4"
+    assert captured["detect_sample_interval"] == 0.25
     assert captured["should_cancel"] is not None
     report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
     assert report["detection_source"] == "auto"

@@ -157,6 +157,7 @@ class SubtitleEraseToolRequest(BaseModel):
     preset: SubtitleErasePreset = "fast"
     backend: Literal["telea", "flow-guided", "lama"] | None = None
     mode: Literal["auto", "manual"] = "auto"
+    sample_interval: float | None = None
     regions: list[tuple[float, float, float, float]] | None = None
     mask_dilate_x: int | None = None
     mask_dilate_y: int | None = None
