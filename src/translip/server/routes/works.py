@@ -371,6 +371,121 @@ def create_work_from_tmdb(req: TMDbImportRequest) -> dict[str, Any]:
     return {"ok": True, "work": work}
 
 
+# ---- Cast Import from TMDb ----
+
+
+class CastImportRequest(BaseModel):
+    tmdb_ids: list[int]
+
+
+class CastPreviewRequest(BaseModel):
+    tmdb_id: int
+    media_type: str
+
+
+@router.get("/{work_id}/cast-preview")
+def get_cast_preview(work_id: str, tmdb_id: int = Query(), media_type: str = Query(default="movie")) -> dict[str, Any]:
+    """Preview cast members from TMDb before importing."""
+    from ...speaker_review.works_providers.tmdb import get_tmdb_provider
+
+    provider = get_tmdb_provider()
+    if not provider.config.has_credentials():
+        return {"ok": False, "error": "TMDb API key not configured"}
+    
+    details = provider.get_details(tmdb_id, media_type)
+    if not details:
+        return {"ok": False, "error": "Failed to fetch cast details"}
+    
+    payload = load_works()
+    work = find_work(payload, work_id)
+    if not work:
+        raise HTTPException(status_code=404, detail="Work not found")
+    
+    cast = []
+    for member in details.get("cast", []):
+        cast.append({
+            "tmdb_id": member.get("id"),
+            "actor_name": member.get("actor_name", ""),
+            "character_name": member.get("character_name", ""),
+            "profile_path": member.get("profile_path"),
+            "profile_url": provider.get_poster_url(member.get("profile_path", "")),
+            "order": member.get("order", 0),
+        })
+    
+    return {"ok": True, "cast": cast[:30]}
+
+
+@router.post("/{work_id}/import-cast")
+def import_cast_to_character_library(work_id: str, req: CastImportRequest) -> dict[str, Any]:
+    """Import selected cast members from TMDb to character library."""
+    from ...speaker_review.global_personas import create_persona, save_global_personas, load_global_personas
+    from ...speaker_review.works_providers.tmdb import get_tmdb_provider
+
+    provider = get_tmdb_provider()
+    if not provider.config.has_credentials():
+        return {"ok": False, "error": "TMDb API key not configured"}
+    
+    payload = load_works()
+    work = find_work(payload, work_id)
+    if not work:
+        raise HTTPException(status_code=404, detail="Work not found")
+    
+    external_refs = work.get("external_refs", {})
+    tmdb_type = external_refs.get("tmdb_type", "movie")
+    
+    details = provider.get_details(int(external_refs.get("tmdb_id", 0)), tmdb_type)
+    if not details:
+        return {"ok": False, "error": "Failed to fetch cast details"}
+    
+    global_payload = load_global_personas()
+    
+    imported = []
+    skipped = []
+    cast_by_id = {str(m.get("id")): m for m in details.get("cast", [])}
+    
+    for tmdb_id in req.tmdb_ids:
+        member = cast_by_id.get(str(tmdb_id))
+        if not member:
+            skipped.append({"tmdb_id": tmdb_id, "reason": "not found in cast"})
+            continue
+        
+        actor_name = member.get("actor_name", "")
+        character_name = member.get("character_name", "")
+        
+        if not actor_name and not character_name:
+            skipped.append({"tmdb_id": tmdb_id, "reason": "no name provided"})
+            continue
+        
+        persona_data = {
+            "name": character_name or actor_name,
+            "work_id": work_id,
+            "actor_name": actor_name if actor_name != character_name else None,
+            "role": None,
+            "gender": None,
+            "avatar_emoji": None,
+            "color": None,
+        }
+        
+        try:
+            persona = create_persona(global_payload, persona_data)
+            imported.append({
+                "persona_id": persona["id"],
+                "name": persona["name"],
+                "actor_name": persona.get("actor_name"),
+            })
+        except ValueError as exc:
+            skipped.append({"tmdb_id": tmdb_id, "reason": str(exc)})
+    
+    save_global_personas(global_payload)
+    
+    return {
+        "ok": True,
+        "imported": imported,
+        "skipped": skipped,
+        "work_id": work_id,
+    }
+
+
 # ---- Helpers ----
 
 

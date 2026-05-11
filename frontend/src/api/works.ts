@@ -56,6 +56,14 @@ export interface TMDbSearchResult {
   number_of_seasons?: number
 }
 
+export interface TMDbCastMember {
+  id: number
+  actor_name: string
+  character_name: string
+  profile_path: string | null
+  order: number
+}
+
 export interface TMDbDetails extends TMDbSearchResult {
   release_date?: string
   first_air_date?: string
@@ -63,14 +71,6 @@ export interface TMDbDetails extends TMDbSearchResult {
   genres: string[]
   origin_country: string[]
   cast: TMDbCastMember[]
-}
-
-export interface TMDbCastMember {
-  id: number
-  actor_name: string
-  character_name: string
-  profile_path: string | null
-  order: number
 }
 
 export interface TMDbConfigResponse {
@@ -95,6 +95,30 @@ export interface TMDbDetailsResponse {
 export interface TMDbImportResponse {
   ok: boolean
   work?: Work
+  error?: string
+}
+
+// Cast Import Types
+export interface CastPreviewMember {
+  tmdb_id: number
+  actor_name: string
+  character_name: string
+  profile_path: string | null
+  profile_url: string
+  order: number
+}
+
+export interface CastPreviewResponse {
+  ok: boolean
+  cast: CastPreviewMember[]
+  error?: string
+}
+
+export interface CastImportResponse {
+  ok: boolean
+  imported: { persona_id: string; name: string; actor_name?: string }[]
+  skipped: { tmdb_id: number; reason: string }[]
+  work_id: string
   error?: string
 }
 
@@ -183,4 +207,17 @@ export const worksApi = {
 
   tmdbSaveConfig: (payload: { api_key_v3?: string; api_key_v4?: string; default_language?: string }) =>
     api.post<{ ok: boolean; message: string }>('/api/config/tmdb', payload).then(r => r.data),
+
+  // Cast Import
+  getCastPreview: (workId: string, tmdbId: number, mediaType: 'movie' | 'tv') =>
+    api
+      .get<CastPreviewResponse>(`/api/works/${workId}/cast-preview`, {
+        params: { tmdb_id: tmdbId, media_type: mediaType },
+      })
+      .then(r => r.data),
+
+  importCast: (workId: string, tmdbIds: number[]) =>
+    api
+      .post<CastImportResponse>(`/api/works/${workId}/import-cast`, { tmdb_ids: tmdbIds })
+      .then(r => r.data),
 }

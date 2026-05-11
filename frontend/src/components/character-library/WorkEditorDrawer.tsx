@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { X, Film } from 'lucide-react'
+import { X, Film, Users } from 'lucide-react'
 import { useI18n } from '../../i18n/useI18n'
 import { worksApi, type CreateWorkPayload } from '../../api/works'
 import type { Work, WorkType } from '../../types'
@@ -8,6 +8,7 @@ import { ColorSwatchPicker } from './pickers/ColorSwatchPicker'
 import { CoverIconPicker } from './pickers/CoverIconPicker'
 import { ChipInput } from './ChipInput'
 import { TMDbSearchPanel } from './TMDbSearchPanel'
+import { CastImportPanel } from './CastImportPanel'
 
 export interface WorkEditorDrawerProps {
   open: boolean
@@ -89,6 +90,7 @@ export function WorkEditorDrawer({
   const [customLabelZh, setCustomLabelZh] = useState('')
   const [customLabelEn, setCustomLabelEn] = useState('')
   const [showTmdbPanel, setShowTmdbPanel] = useState(false)
+  const [showCastPanel, setShowCastPanel] = useState(false)
 
   const isEditing = !!work
 
@@ -217,6 +219,25 @@ export function WorkEditorDrawer({
           </div>
         )}
 
+        {isEditing && work && (
+          <div className="border-b border-[#e5e7eb] px-5 py-3">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowCastPanel(!showCastPanel)}
+                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+                  showCastPanel
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <Users size={16} />
+                {t.worksLibrary.castImport.title}
+              </button>
+            </div>
+          </div>
+        )}
+
         {showTmdbPanel && !isEditing && (
           <div className="border-b border-[#e5e7eb] px-5 py-4">
             <TMDbSearchPanel
@@ -233,6 +254,21 @@ export function WorkEditorDrawer({
                 onSaved(importedWork, true)
               }}
               onCancel={() => setShowTmdbPanel(false)}
+            />
+          </div>
+        )}
+
+        {showCastPanel && isEditing && work && (
+          <div className="border-b border-[#e5e7eb] px-5 py-4">
+            <CastImportPanel
+              workId={work.id}
+              tmdbId={work.external_refs?.tmdb_id || null}
+              mediaType={(work.external_refs?.tmdb_type || 'movie') as 'movie' | 'tv'}
+              onImported={() => {
+                setShowCastPanel(false)
+                queryClient.invalidateQueries({ queryKey: ['personas'] })
+              }}
+              onClose={() => setShowCastPanel(false)}
             />
           </div>
         )}
