@@ -1005,6 +1005,21 @@ const zhMessages = {
       saveFailed: '保存失败，请稍后重试',
       deleteFailed: '删除失败，请稍后重试',
     },
+    tmdb: {
+      apiKeyMissing: 'TMDb API 密钥未配置',
+      apiKeyHint: '请在设置页面配置 TMDb API 密钥以使用此功能。',
+      search: {
+        title: '从 TMDb 导入',
+        placeholder: '搜索电影或电视剧名称…',
+        movie: '电影',
+        tv: '剧集',
+        all: '全部',
+        noResults: '没有找到匹配的结果',
+        error: '搜索失败，请稍后重试',
+        castCount: '位演员',
+        importButton: '导入作品',
+      },
+    },
   },
 } as const
 
@@ -2023,6 +2038,21 @@ const enMessages: LocaleMessages = {
       deleted: (title: string) => `Deleted work “${title}”`,
       saveFailed: 'Failed to save, please retry',
       deleteFailed: 'Failed to delete, please retry',
+    },
+    tmdb: {
+      apiKeyMissing: 'TMDb API key not configured',
+      apiKeyHint: 'Please configure TMDb API key in Settings to use this feature.',
+      search: {
+        title: 'Import from TMDb',
+        placeholder: 'Search movies or TV shows…',
+        movie: 'Movie',
+        tv: 'TV',
+        all: 'All',
+        noResults: 'No results found',
+        error: 'Search failed, please retry',
+        castCount: 'cast members',
+        importButton: 'Import Work',
+      },
     },
   },
 }

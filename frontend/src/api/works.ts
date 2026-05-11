@@ -39,6 +39,65 @@ export interface AutoBindWorkResponse {
   candidates: WorkInferCandidate[]
 }
 
+// TMDb Types
+export interface TMDbSearchResult {
+  id: string
+  tmdb_id: number
+  type: string
+  title: string
+  original_title: string
+  year: string | null
+  poster_path: string | null
+  backdrop_path: string | null
+  overview: string
+  popularity: number
+  vote_average: number
+  media_type: 'movie' | 'tv'
+  number_of_seasons?: number
+}
+
+export interface TMDbDetails extends TMDbSearchResult {
+  release_date?: string
+  first_air_date?: string
+  runtime?: number
+  genres: string[]
+  origin_country: string[]
+  cast: TMDbCastMember[]
+}
+
+export interface TMDbCastMember {
+  id: number
+  actor_name: string
+  character_name: string
+  profile_path: string | null
+  order: number
+}
+
+export interface TMDbConfigResponse {
+  ok: boolean
+  api_key_v3_set: boolean
+  api_key_v4_set: boolean
+  default_language: string
+}
+
+export interface TMDbSearchResponse {
+  ok: boolean
+  results: TMDbSearchResult[]
+  error?: string
+}
+
+export interface TMDbDetailsResponse {
+  ok: boolean
+  details?: TMDbDetails
+  error?: string
+}
+
+export interface TMDbImportResponse {
+  ok: boolean
+  work?: Work
+  error?: string
+}
+
 export const worksApi = {
   list: (q?: string) =>
     api
@@ -101,4 +160,27 @@ export const worksApi = {
 
   removeCustomType: (key: string) =>
     api.delete<{ ok: boolean; types: WorkType[] }>(`/api/work-types/${key}`).then(r => r.data),
+
+  // TMDb Integration
+  tmdbSearch: (query: string, mediaType?: 'movie' | 'tv') =>
+    api
+      .get<TMDbSearchResponse>('/api/works/tmdb/search', {
+        params: { q: query, media_type: mediaType },
+      })
+      .then(r => r.data),
+
+  tmdbDetails: (tmdbId: number, mediaType: 'movie' | 'tv') =>
+    api
+      .get<TMDbDetailsResponse>(`/api/works/tmdb/${tmdbId}`, { params: { media_type: mediaType } })
+      .then(r => r.data),
+
+  tmdbImport: (tmdbId: number, mediaType: 'movie' | 'tv') =>
+    api
+      .post<TMDbImportResponse>('/api/works/from-tmdb', { tmdb_id: tmdbId, media_type: mediaType })
+      .then(r => r.data),
+
+  tmdbGetConfig: () => api.get<TMDbConfigResponse>('/api/config/tmdb').then(r => r.data),
+
+  tmdbSaveConfig: (payload: { api_key_v3?: string; api_key_v4?: string; default_language?: string }) =>
+    api.post<{ ok: boolean; message: string }>('/api/config/tmdb', payload).then(r => r.data),
 }

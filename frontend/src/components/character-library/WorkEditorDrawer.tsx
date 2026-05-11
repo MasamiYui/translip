@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { X } from 'lucide-react'
+import { X, Film } from 'lucide-react'
 import { useI18n } from '../../i18n/useI18n'
 import { worksApi, type CreateWorkPayload } from '../../api/works'
 import type { Work, WorkType } from '../../types'
 import { ColorSwatchPicker } from './pickers/ColorSwatchPicker'
 import { CoverIconPicker } from './pickers/CoverIconPicker'
 import { ChipInput } from './ChipInput'
+import { TMDbSearchPanel } from './TMDbSearchPanel'
 
 export interface WorkEditorDrawerProps {
   open: boolean
@@ -87,6 +88,7 @@ export function WorkEditorDrawer({
   const [customKey, setCustomKey] = useState('')
   const [customLabelZh, setCustomLabelZh] = useState('')
   const [customLabelEn, setCustomLabelEn] = useState('')
+  const [showTmdbPanel, setShowTmdbPanel] = useState(false)
 
   const isEditing = !!work
 
@@ -195,6 +197,45 @@ export function WorkEditorDrawer({
             <X size={16} />
           </button>
         </div>
+
+        {!isEditing && (
+          <div className="border-b border-[#e5e7eb] px-5 py-3">
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowTmdbPanel(!showTmdbPanel)}
+                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+                  showTmdbPanel
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                <Film size={16} />
+                {t.worksLibrary.tmdb.search.title}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showTmdbPanel && !isEditing && (
+          <div className="border-b border-[#e5e7eb] px-5 py-4">
+            <TMDbSearchPanel
+              onImport={(importedWork) => {
+                if (importedWork.title) {
+                  setForm({
+                    ...EMPTY_FORM,
+                    title: importedWork.title,
+                    type: importedWork.type || 'movie',
+                    year: importedWork.year ? String(importedWork.year) : '',
+                  })
+                }
+                setShowTmdbPanel(false)
+                onSaved(importedWork, true)
+              }}
+              onCancel={() => setShowTmdbPanel(false)}
+            />
+          </div>
+        )}
 
         <div className="grid max-h-[60vh] gap-4 overflow-y-auto px-5 py-4 sm:grid-cols-2">
           <div className="flex flex-col sm:col-span-2">
