@@ -317,8 +317,8 @@ test.describe('角色库 · 作品双栏', () => {
     await expect(page.getByTestId('work-editor')).toBeVisible()
     await page.getByTestId('work-field-title').fill('老友记')
     await page.getByTestId('work-field-year').fill('1994')
-    await page.getByTestId('work-field-aliases').fill('Friends, 六人行')
-    await page.getByTestId('work-field-cover-emoji').fill('☕')
+    await page.getByTestId('work-field-aliases-input').fill('Friends, 六人行')
+    await page.getByTestId('work-field-aliases-input').press('Enter')
     await page.getByTestId('work-editor-save').click()
 
     await expect(page.getByTestId('character-library-flash-success')).toContainText('老友记')

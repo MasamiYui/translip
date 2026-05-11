@@ -45,6 +45,18 @@ class WorkCreateRequest(BaseModel):
     note: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
     default_tts_voice_map: dict[str, Any] = Field(default_factory=dict)
+    # External-source fields (optional, set when importing from TMDb / Wikidata)
+    external_refs: Optional[dict[str, Any]] = None
+    metadata: Optional[dict[str, Any]] = None
+    poster_path: Optional[str] = None
+    backdrop_path: Optional[str] = None
+    synopsis: Optional[str] = None
+    synopsis_lang: Optional[str] = None
+    origin_country: Optional[list[str]] = None
+    original_title: Optional[str] = None
+    cast_snapshot: Optional[list[dict[str, Any]]] = None
+    external_synced_at: Optional[str] = None
+    external_source: Optional[str] = None
 
 
 class WorkPatchRequest(BaseModel):
@@ -57,6 +69,17 @@ class WorkPatchRequest(BaseModel):
     note: Optional[str] = None
     tags: Optional[list[str]] = None
     default_tts_voice_map: Optional[dict[str, Any]] = None
+    external_refs: Optional[dict[str, Any]] = None
+    metadata: Optional[dict[str, Any]] = None
+    poster_path: Optional[str] = None
+    backdrop_path: Optional[str] = None
+    synopsis: Optional[str] = None
+    synopsis_lang: Optional[str] = None
+    origin_country: Optional[list[str]] = None
+    original_title: Optional[str] = None
+    cast_snapshot: Optional[list[dict[str, Any]]] = None
+    external_synced_at: Optional[str] = None
+    external_source: Optional[str] = None
 
 
 class CustomTypeRequest(BaseModel):

@@ -201,6 +201,155 @@ def find_work_by_title_or_alias(payload: dict[str, Any], title: str) -> dict[str
     return None
 
 
+EXTERNAL_FIELDS: tuple[str, ...] = (
+    "external_refs",
+    "metadata",
+    "cast_snapshot",
+)
+
+# Recognised top-level external-source keys we accept on input. The canonical
+# storage shape is `external_refs` + `metadata` (matching the existing
+# `~/.translip/works.json` layout written by earlier syncs). For ergonomics we
+# also accept a few synonyms used by the design draft and gracefully migrate
+# them at write time:
+#   poster_path / poster_url        -> metadata.poster_url
+#   backdrop_path / backdrop_url    -> metadata.backdrop_url
+#   synopsis / overview             -> metadata.overview
+#   synopsis_lang                   -> metadata.overview_lang
+#   origin_country (top-level)      -> metadata.origin_country
+#   original_title (top-level)      -> metadata.original_title
+#   external_source                 -> metadata.source
+#   external_synced_at              -> metadata.last_synced_at
+
+_METADATA_SYNONYMS: dict[str, str] = {
+    "poster_path": "poster_url",
+    "poster_url": "poster_url",
+    "backdrop_path": "backdrop_url",
+    "backdrop_url": "backdrop_url",
+    "synopsis": "overview",
+    "overview": "overview",
+    "synopsis_lang": "overview_lang",
+    "overview_lang": "overview_lang",
+    "original_title": "original_title",
+    "external_source": "source",
+    "external_synced_at": "last_synced_at",
+}
+
+
+def _clean_optional_string(value: Any) -> str | None:
+    if isinstance(value, str):
+        v = value.strip()
+        return v or None
+    return value if value is not None else None
+
+
+def _normalize_cast_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    """Accept both the canonical shape (actor_name / character_name / profile_url)
+    and the design-draft shape (actor / character / profile_path), normalising
+    both into the canonical shape.
+    """
+    actor_name = (
+        str(entry.get("actor_name") or entry.get("actor") or "").strip()
+    )
+    character_name = (
+        str(entry.get("character_name") or entry.get("character") or "").strip()
+    )
+    profile_url = entry.get("profile_url") or entry.get("profile_path") or None
+    cleaned: dict[str, Any] = {
+        "external_person_id": str(entry.get("external_person_id") or "").strip() or None,
+        "actor_name": actor_name,
+        "character_name": character_name,
+        "profile_url": profile_url,
+        "gender": entry.get("gender") or None,
+        "order": int(entry.get("order") or 0),
+        "source": (entry.get("source") or "tmdb"),
+    }
+    if entry.get("key"):
+        cleaned["key"] = str(entry["key"])
+    if entry.get("credit_id"):
+        cleaned["credit_id"] = str(entry["credit_id"])
+    if "episode_count" in entry:
+        cleaned["episode_count"] = entry.get("episode_count")
+    actor_aliases = entry.get("actor_aliases") or []
+    if isinstance(actor_aliases, list) and actor_aliases:
+        cleaned["actor_aliases"] = [str(a).strip() for a in actor_aliases if str(a).strip()]
+    character_aliases = entry.get("character_aliases") or []
+    if isinstance(character_aliases, list) and character_aliases:
+        cleaned["character_aliases"] = [
+            str(a).strip() for a in character_aliases if str(a).strip()
+        ]
+    return cleaned
+
+
+def _normalize_external_fields(data: dict[str, Any]) -> dict[str, Any]:
+    """Map any of the accepted external-source keys onto the canonical
+    `external_refs` + `metadata` + `cast_snapshot` storage shape.
+
+    Returns only the keys present in `data`; callers should `dict.update`.
+    """
+    out: dict[str, Any] = {}
+
+    # external_refs (passes through as-is, lightly cleaned)
+    if "external_refs" in data and data.get("external_refs") is not None:
+        refs = data.get("external_refs") or {}
+        if isinstance(refs, dict):
+            cleaned_refs: dict[str, Any] = {}
+            for key in (
+                "tmdb_id",
+                "tmdb_media_type",
+                "tmdb_external_id",
+                "imdb_id",
+                "wikidata_id",
+            ):
+                v = refs.get(key)
+                if v not in (None, "", []):
+                    cleaned_refs[key] = v
+            out["external_refs"] = cleaned_refs
+
+    # metadata: merge top-level synonyms + nested `metadata` object
+    incoming_meta: dict[str, Any] = {}
+    nested_meta = data.get("metadata")
+    if isinstance(nested_meta, dict):
+        for k, v in nested_meta.items():
+            if v is None:
+                continue
+            incoming_meta[k] = v
+    for top_key, meta_key in _METADATA_SYNONYMS.items():
+        if top_key in data:
+            v = data.get(top_key)
+            if isinstance(v, str):
+                v = v.strip() or None
+            if v is not None:
+                incoming_meta[meta_key] = v
+    if "origin_country" in data:
+        v = data.get("origin_country")
+        if isinstance(v, list):
+            cleaned = [str(x).strip() for x in v if str(x).strip()]
+            if cleaned:
+                incoming_meta["origin_country"] = cleaned
+    if incoming_meta:
+        out["metadata"] = incoming_meta
+
+    # cast_snapshot — only surface when non-empty list provided
+    if "cast_snapshot" in data:
+        cs = data.get("cast_snapshot")
+        if isinstance(cs, list) and cs:
+            normalized = [_normalize_cast_entry(e) for e in cs if isinstance(e, dict)]
+            if normalized:
+                out["cast_snapshot"] = normalized
+    return out
+
+
+def _merge_metadata(existing: dict[str, Any] | None, patch: dict[str, Any]) -> dict[str, Any]:
+    """Merge incoming metadata patch over existing, preserving fields not in the
+    patch (e.g. user-set `genres` shouldn't be wiped by a sync that only carries
+    `overview`)."""
+    base = dict(existing or {})
+    for k, v in patch.items():
+        base[k] = v
+    return base
+
+
 def create_work(payload: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
     title = (data.get("title") or "").strip()
     if not title:
@@ -226,6 +375,8 @@ def create_work(payload: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
+    external = _normalize_external_fields(data)
+    work.update(external)
     works.append(work)
     return work
 
@@ -265,6 +416,19 @@ def update_work(payload: dict[str, Any], work_id: str, patch: dict[str, Any]) ->
         work["tags"] = list(patch.get("tags") or [])
     if "default_tts_voice_map" in patch:
         work["default_tts_voice_map"] = dict(patch.get("default_tts_voice_map") or {})
+    external = _normalize_external_fields(patch)
+    if external:
+        # `metadata` must be deep-merged so a partial sync (e.g. only `overview`)
+        # never wipes earlier fields like `genres` / `release_date`.
+        if "metadata" in external:
+            work["metadata"] = _merge_metadata(work.get("metadata"), external.pop("metadata"))
+        # `external_refs` is shallow-merged so a partial update (e.g. adding
+        # `imdb_id`) doesn't lose `tmdb_id`.
+        if "external_refs" in external:
+            base_refs = dict(work.get("external_refs") or {})
+            base_refs.update(external.pop("external_refs"))
+            work["external_refs"] = base_refs
+        work.update(external)
     work["updated_at"] = now_iso()
     return work
 

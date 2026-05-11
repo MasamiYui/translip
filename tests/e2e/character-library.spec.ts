@@ -212,7 +212,8 @@ test.describe('角色库管理页', () => {
     const nameField = page.getByTestId('character-field-name')
     await expect(nameField).toHaveValue('艾米')
     await page.getByTestId('character-field-actor').fill('Anne H.')
-    await page.getByTestId('character-field-tags').fill('主线, 女主角')
+    await page.getByTestId('character-field-tags-input').fill('主线, 女主角')
+    await page.getByTestId('character-field-tags-input').press('Enter')
     await page.getByTestId('character-editor-save').click()
 
     await expect(page.getByTestId('character-library-flash-success')).toContainText('艾米')
@@ -246,7 +247,8 @@ test.describe('角色库管理页', () => {
     await page.getByTestId('character-field-actor').fill('张三')
     await page.getByTestId('character-field-role').fill('学生')
     await page.getByTestId('character-field-gender').selectOption('male')
-    await page.getByTestId('character-field-tags').fill('学生, 主角')
+    await page.getByTestId('character-field-tags-input').fill('学生, 主角')
+    await page.getByTestId('character-field-tags-input').press('Enter')
     await page.getByTestId('character-editor-save').click()
 
     await expect(page.getByTestId('character-library-flash-success')).toContainText('李雷')
