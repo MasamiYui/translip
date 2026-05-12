@@ -128,13 +128,13 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
     if (isActive) {
       return cn(
         'flex items-center rounded-lg text-sm font-medium transition-all',
-        collapsed ? 'h-9 w-9 justify-center' : 'gap-3 px-3 py-2',
+        collapsed ? 'h-9 w-9 justify-center' : 'w-full gap-3 px-3 py-2',
         'bg-[#3b5bdb]/10 text-[#3b5bdb]',
       )
     }
     return cn(
       'flex items-center rounded-lg text-sm font-medium transition-all',
-      collapsed ? 'h-9 w-9 justify-center' : 'gap-3 px-3 py-2',
+      collapsed ? 'h-9 w-9 justify-center' : 'w-full gap-3 px-3 py-2',
       'text-[#6b7280] hover:bg-[#f3f4f6] hover:text-[#111827]',
     )
   }

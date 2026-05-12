@@ -65,6 +65,13 @@ describe('Sidebar', () => {
     expect(screen.getByRole('link', { name: '新建流水线任务' })).toHaveAttribute('href', '/tasks/new')
   })
 
+  it('keeps expandable nav rows full width so their chevrons align to the right edge', () => {
+    renderSidebar('/tasks')
+
+    expect(screen.getByRole('button', { name: /任务中心/ })).toHaveClass('w-full')
+    expect(screen.getByRole('button', { name: /原子工具集/ })).toHaveClass('w-full')
+  })
+
   it('highlights only the new pipeline task entry on the new task page', () => {
     const { container } = renderSidebar('/tasks/new')
 
