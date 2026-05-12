@@ -301,16 +301,19 @@ async function setupRoutes(page: Page, state: State) {
   })
 }
 
-test.describe('角色库 · 作品双栏', () => {
-  test('新建作品 → 左栏出现 → 切换筛选 → 编辑/删除 → 自定义类型', async ({ page }) => {
+test.describe('角色库 · 作品下拉', () => {
+  test('新建作品 → 下拉出现 → 切换筛选 → 删除 → 自定义类型', async ({ page }) => {
     const state = seedState()
     await setupRoutes(page, state)
 
     await page.goto('/character-library')
 
     await expect(page.getByTestId('works-sidebar')).toBeVisible()
-    await expect(page.getByTestId('works-sidebar-item-all')).toContainText('全部角色')
-    await expect(page.getByTestId('works-sidebar-item-unassigned')).toContainText('未归属')
+    const workSelect = page.getByTestId('works-sidebar-select')
+    await expect(workSelect).toBeVisible()
+    await expect(workSelect).toHaveValue('__all__')
+    await expect(workSelect).toContainText('全部角色')
+    await expect(workSelect).toContainText('未归属')
 
     // 新建一部作品
     await page.getByTestId('works-sidebar-create').click()
@@ -323,13 +326,14 @@ test.describe('角色库 · 作品双栏', () => {
 
     await expect(page.getByTestId('character-library-flash-success')).toContainText('老友记')
 
-    // 左栏出现作品
-    const row = page.locator('[data-testid^="works-sidebar-item-work_"]').first()
-    await expect(row).toBeVisible()
-    await expect(row).toContainText('老友记')
+    // 下拉出现作品，并自动切换到该作品
+    const friendsWork = state.works.find(work => work.title === '老友记')
+    expect(friendsWork).toBeTruthy()
+    await expect(workSelect).toHaveValue(friendsWork!.id)
+    await expect(workSelect).toContainText('老友记')
 
     await page.screenshot({
-      path: path.join(SCREENSHOTS_DIR, 'works-sidebar-after-create.png'),
+      path: path.join(SCREENSHOTS_DIR, 'works-dropdown-after-create.png'),
       fullPage: true,
     })
 
@@ -337,11 +341,11 @@ test.describe('角色库 · 作品双栏', () => {
     await expect(page.getByTestId('character-library-list')).toBeVisible()
 
     // 切回"全部"
-    await page.getByTestId('works-sidebar-item-all').click()
+    await workSelect.selectOption('__all__')
     await expect(page.getByTestId('character-row-persona_amy')).toBeVisible()
 
     // 切到"未归属"
-    await page.getByTestId('works-sidebar-item-unassigned').click()
+    await workSelect.selectOption('__unassigned__')
     await expect(page.getByTestId('character-row-persona_amy')).toBeVisible()
 
     // 添加自定义类型
@@ -365,18 +369,17 @@ test.describe('角色库 · 作品双栏', () => {
     await expect(page.getByTestId('character-library-flash-success')).toContainText('测试作品A')
 
     // 删除一部作品（未归属保留）
+    const workToDelete = friendsWork ?? state.works[0]
+    await workSelect.selectOption(workToDelete.id)
+    await expect(page.getByTestId(`works-sidebar-delete-${workToDelete.id}`)).toBeVisible()
     page.once('dialog', dialog => dialog.accept())
-    const firstWorkRow = page.locator('[data-testid^="works-sidebar-item-work_"]').first()
-    const wid = await firstWorkRow.getAttribute('data-testid')
-    const workId = wid?.replace('works-sidebar-item-', '')
-    await firstWorkRow.hover()
-    await page.getByTestId(`works-sidebar-delete-${workId}`).click()
+    await page.getByTestId(`works-sidebar-delete-${workToDelete.id}`).click()
 
     await expect(page.getByTestId('character-library-flash-success')).toContainText('已删除作品')
-    await expect(page.getByTestId(`works-sidebar-item-${workId}`)).toHaveCount(0)
+    await expect(workSelect).not.toContainText(workToDelete.title)
 
     // 艾米仍然存在（未归属保留策略）
-    await page.getByTestId('works-sidebar-item-unassigned').click()
+    await workSelect.selectOption('__unassigned__')
     await expect(page.getByTestId('character-row-persona_amy')).toBeVisible()
   })
 })

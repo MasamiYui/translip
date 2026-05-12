@@ -9,6 +9,7 @@ import { CharacterLibraryPage } from '../CharacterLibraryPage'
 const listGlobalPersonas = vi.fn()
 const importGlobalPersonas = vi.fn()
 const deleteGlobalPersona = vi.fn()
+const listWorks = vi.fn()
 
 vi.mock('../../api/tasks', () => ({
   tasksApi: {
@@ -20,7 +21,7 @@ vi.mock('../../api/tasks', () => ({
 
 vi.mock('../../api/works', () => ({
   worksApi: {
-    list: () => Promise.resolve({ ok: true, path: '', works: [], unassigned_count: 0, version: 1 }),
+    list: (...args: unknown[]) => listWorks(...args),
     remove: () => Promise.resolve({ ok: true }),
     listTypes: () => Promise.resolve([]),
   },
@@ -61,6 +62,8 @@ beforeEach(() => {
   listGlobalPersonas.mockReset()
   importGlobalPersonas.mockReset()
   deleteGlobalPersona.mockReset()
+  listWorks.mockReset()
+  listWorks.mockResolvedValue({ ok: true, path: '', works: [], unassigned_count: 0, version: 1 })
 })
 
 afterEach(() => {
@@ -113,6 +116,54 @@ describe('CharacterLibraryPage', () => {
     const avatar = screen.getByTestId('character-avatar-image-persona_amy') as HTMLImageElement
     expect(avatar).toHaveAttribute('src', 'https://image.tmdb.org/t/p/w185/amy.jpg')
     expect(avatar).toHaveAttribute('alt', '艾米')
+  })
+
+  it('uses a work scope dropdown inside the primary character toolbar', async () => {
+    listGlobalPersonas.mockResolvedValue({
+      ok: true,
+      path: '/tmp/personas.json',
+      personas: [buildPersona()],
+      version: 1,
+    })
+    listWorks.mockResolvedValue({
+      ok: true,
+      path: '/tmp/works.json',
+      works: [
+        {
+          id: 'work_nezha',
+          title: '哪吒之魔童闹海',
+          cover_emoji: '🎬',
+          color: '#ef4444',
+          persona_count: 24,
+          aliases: [],
+          tags: [],
+        },
+      ],
+      unassigned_count: 1,
+      version: 1,
+    })
+
+    renderPage()
+
+    expect(await screen.findByTestId('character-row-persona_amy')).toBeInTheDocument()
+    const worksPanel = screen.getByTestId('works-sidebar')
+    const toolbar = screen.getByTestId('character-library-toolbar')
+    const searchInput = screen.getByTestId('character-library-search')
+    const select = screen.getByTestId('works-sidebar-select') as HTMLSelectElement
+
+    expect(toolbar.firstElementChild).toBe(worksPanel)
+    expect(worksPanel.parentElement).toBe(toolbar)
+    expect(worksPanel.compareDocumentPosition(searchInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    )
+    expect(worksPanel).toHaveAttribute('aria-label', '作品筛选')
+    expect(worksPanel).not.toHaveClass('w-[260px]')
+    expect(worksPanel).not.toHaveClass('rounded-xl')
+    expect(worksPanel).not.toHaveClass('shadow-[0_1px_3px_rgba(0,0,0,.04)]')
+    expect(select.value).toBe('__all__')
+    expect(screen.getByTestId('works-sidebar-item-work_nezha')).toHaveTextContent(
+      '哪吒之魔童闹海 · 24',
+    )
   })
 
   it('filters personas by search keyword', async () => {
