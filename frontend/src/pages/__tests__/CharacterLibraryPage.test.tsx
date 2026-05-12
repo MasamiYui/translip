@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { I18nProvider } from '../../i18n/I18nProvider'
@@ -83,12 +83,12 @@ describe('CharacterLibraryPage', () => {
 
     expect(await screen.findByTestId('character-library-page-empty')).toBeInTheDocument()
     expect(screen.getByTestId('character-library-empty-cta')).toBeInTheDocument()
-    expect(screen.getByTestId('character-library-storage')).toHaveTextContent(
-      '/tmp/personas.json',
-    )
+    expect(screen.queryByTestId('character-library-count')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('character-library-storage')).not.toBeInTheDocument()
+    expect(screen.queryByText('/tmp/personas.json')).not.toBeInTheDocument()
   })
 
-  it('renders the personas table with actor/role/tags columns', async () => {
+  it('renders a compact personas table without role/tags columns', async () => {
     listGlobalPersonas.mockResolvedValue({
       ok: true,
       path: '/tmp/personas.json',
@@ -110,9 +110,13 @@ describe('CharacterLibraryPage', () => {
 
     expect(await screen.findByTestId('character-row-persona_amy')).toBeInTheDocument()
     expect(screen.getByTestId('character-row-persona_bob')).toBeInTheDocument()
-    expect(screen.getByText('Anne')).toBeInTheDocument()
-    expect(screen.getByText('主线')).toBeInTheDocument()
-    expect(screen.getByText('配角')).toBeInTheDocument()
+    const list = screen.getByTestId('character-library-list')
+    expect(within(list).getByText('Anne')).toBeInTheDocument()
+    expect(within(list).queryByText('剧中身份')).not.toBeInTheDocument()
+    expect(within(list).queryByText('标签')).not.toBeInTheDocument()
+    expect(within(list).queryByText('主线')).not.toBeInTheDocument()
+    expect(within(list).queryByText('配角')).not.toBeInTheDocument()
+    expect(screen.getByTestId('character-tts-missing-persona_amy')).toHaveTextContent('—')
     const avatar = screen.getByTestId('character-avatar-image-persona_amy') as HTMLImageElement
     expect(avatar).toHaveAttribute('src', 'https://image.tmdb.org/t/p/w185/amy.jpg')
     expect(avatar).toHaveAttribute('alt', '艾米')
@@ -147,15 +151,14 @@ describe('CharacterLibraryPage', () => {
 
     expect(await screen.findByTestId('character-row-persona_amy')).toBeInTheDocument()
     const worksPanel = screen.getByTestId('works-sidebar')
+    const filters = screen.getByTestId('character-library-filters')
     const toolbar = screen.getByTestId('character-library-toolbar')
     const searchInput = screen.getByTestId('character-library-search')
     const select = screen.getByTestId('works-sidebar-select') as HTMLSelectElement
 
-    expect(toolbar.firstElementChild).toBe(worksPanel)
-    expect(worksPanel.parentElement).toBe(toolbar)
-    expect(worksPanel.compareDocumentPosition(searchInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    )
+    expect(filters.firstElementChild).toBe(worksPanel)
+    expect(worksPanel.parentElement).toBe(filters)
+    expect(toolbar).toContainElement(searchInput)
     expect(worksPanel).toHaveAttribute('aria-label', '作品筛选')
     expect(worksPanel).not.toHaveClass('w-[260px]')
     expect(worksPanel).not.toHaveClass('rounded-xl')
@@ -164,6 +167,45 @@ describe('CharacterLibraryPage', () => {
     expect(screen.getByTestId('works-sidebar-item-work_nezha')).toHaveTextContent(
       '哪吒之魔童闹海 · 24',
     )
+    expect(screen.queryByTestId('works-sidebar-create')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('works-sidebar-edit-work_nezha')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('works-sidebar-delete-work_nezha')).not.toBeInTheDocument()
+  })
+
+  it('shows a filtered empty state when the selected work scope has no personas', async () => {
+    listGlobalPersonas.mockResolvedValue({
+      ok: true,
+      path: '/tmp/personas.json',
+      personas: [buildPersona({ work_id: 'work_nezha' })],
+      version: 1,
+    })
+    listWorks.mockResolvedValue({
+      ok: true,
+      path: '/tmp/works.json',
+      works: [
+        {
+          id: 'work_nezha',
+          title: '哪吒之魔童闹海',
+          cover_emoji: '🎬',
+          color: '#ef4444',
+          persona_count: 1,
+          aliases: [],
+          tags: [],
+        },
+      ],
+      unassigned_count: 0,
+      version: 1,
+    })
+
+    renderPage()
+
+    await screen.findByTestId('character-row-persona_amy')
+    fireEvent.change(screen.getByTestId('works-sidebar-select'), {
+      target: { value: '__unassigned__' },
+    })
+
+    expect(await screen.findByTestId('character-library-empty-filtered')).toBeInTheDocument()
+    expect(screen.queryByTestId('character-library-page-empty')).not.toBeInTheDocument()
   })
 
   it('filters personas by search keyword', async () => {

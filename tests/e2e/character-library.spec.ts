@@ -196,7 +196,8 @@ test.describe('角色库管理页', () => {
     await expect(page.getByTestId('character-row-persona_amy')).toContainText('Anne Hathaway')
     await expect(page.getByTestId('character-avatar-image-persona_amy')).toBeVisible()
     await expect(page.getByTestId('character-row-persona_bob')).toContainText('鲍勃')
-    await expect(page.getByTestId('character-library-count')).toContainText('2')
+    await expect(page.getByTestId('works-sidebar-select')).toContainText('全部角色 · 2')
+    await expect(page.getByTestId('character-library-storage')).toHaveCount(0)
 
     await page.screenshot({
       path: path.join(SCREENSHOTS_DIR, 'character-library-list.png'),
@@ -223,7 +224,8 @@ test.describe('角色库管理页', () => {
 
     await expect(page.getByTestId('character-library-flash-success')).toContainText('艾米')
     await expect(page.getByTestId('character-row-persona_amy')).toContainText('Anne H.')
-    await expect(page.getByTestId('character-row-persona_amy')).toContainText('女主角')
+    await expect(page.getByTestId('character-row-persona_amy')).not.toContainText('女主角')
+    expect(state.personas.find(p => p.id === 'persona_amy')?.tags).toContain('女主角')
 
     await page.screenshot({
       path: path.join(SCREENSHOTS_DIR, 'character-library-edited.png'),
@@ -235,7 +237,7 @@ test.describe('角色库管理页', () => {
     await page.getByTestId('character-delete-persona_bob').click()
     await expect(page.getByTestId('character-library-flash-success')).toContainText('鲍勃')
     await expect(page.getByTestId('character-row-persona_bob')).toHaveCount(0)
-    await expect(page.getByTestId('character-library-count')).toContainText('1')
+    await expect(page.getByTestId('works-sidebar-select')).toContainText('全部角色 · 1')
   })
 
   test('从空态创建第一个角色', async ({ page }) => {
@@ -257,7 +259,7 @@ test.describe('角色库管理页', () => {
     await page.getByTestId('character-editor-save').click()
 
     await expect(page.getByTestId('character-library-flash-success')).toContainText('李雷')
-    await expect(page.getByTestId('character-library-count')).toContainText('1')
+    await expect(page.getByTestId('works-sidebar-select')).toContainText('全部角色 · 1')
     await expect(page.getByText('李雷', { exact: true })).toBeVisible()
     await expect(page.getByText('张三')).toBeVisible()
 

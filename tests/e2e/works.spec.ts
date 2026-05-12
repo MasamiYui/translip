@@ -67,8 +67,34 @@ function seedState(): State {
         updated_at: now,
         created_at: now,
       },
+      {
+        id: 'persona_rachel',
+        name: '瑞秋',
+        actor_name: 'Jennifer Aniston',
+        role: '女主',
+        gender: 'female',
+        avatar_emoji: '👱',
+        color: '#3b5bdb',
+        work_id: 'work_friends',
+        updated_at: now,
+        created_at: now,
+      },
     ],
-    works: [],
+    works: [
+      {
+        id: 'work_friends',
+        title: '老友记',
+        type: 'tv',
+        year: 1994,
+        aliases: ['Friends', '六人行'],
+        cover_emoji: '🎬',
+        color: '#3b5bdb',
+        note: null,
+        tags: [],
+        updated_at: now,
+        created_at: now,
+      },
+    ],
     types: [
       { key: 'tv', label_zh: '电视剧', label_en: 'TV Series', builtin: true },
       { key: 'movie', label_zh: '电影', label_en: 'Movie', builtin: true },
@@ -302,7 +328,7 @@ async function setupRoutes(page: Page, state: State) {
 }
 
 test.describe('角色库 · 作品下拉', () => {
-  test('新建作品 → 下拉出现 → 切换筛选 → 删除 → 自定义类型', async ({ page }) => {
+  test('作品下拉筛选角色，不展示作品管理入口', async ({ page }) => {
     const state = seedState()
     await setupRoutes(page, state)
 
@@ -314,72 +340,29 @@ test.describe('角色库 · 作品下拉', () => {
     await expect(workSelect).toHaveValue('__all__')
     await expect(workSelect).toContainText('全部角色')
     await expect(workSelect).toContainText('未归属')
-
-    // 新建一部作品
-    await page.getByTestId('works-sidebar-create').click()
-    await expect(page.getByTestId('work-editor')).toBeVisible()
-    await page.getByTestId('work-field-title').fill('老友记')
-    await page.getByTestId('work-field-year').fill('1994')
-    await page.getByTestId('work-field-aliases-input').fill('Friends, 六人行')
-    await page.getByTestId('work-field-aliases-input').press('Enter')
-    await page.getByTestId('work-editor-save').click()
-
-    await expect(page.getByTestId('character-library-flash-success')).toContainText('老友记')
-
-    // 下拉出现作品，并自动切换到该作品
-    const friendsWork = state.works.find(work => work.title === '老友记')
-    expect(friendsWork).toBeTruthy()
-    await expect(workSelect).toHaveValue(friendsWork!.id)
     await expect(workSelect).toContainText('老友记')
+    await expect(page.getByTestId('works-sidebar-create')).toHaveCount(0)
+    await expect(page.locator('[data-testid^="works-sidebar-edit-"]')).toHaveCount(0)
+    await expect(page.locator('[data-testid^="works-sidebar-delete-"]')).toHaveCount(0)
 
     await page.screenshot({
-      path: path.join(SCREENSHOTS_DIR, 'works-dropdown-after-create.png'),
+      path: path.join(SCREENSHOTS_DIR, 'works-dropdown-filter.png'),
       fullPage: true,
     })
 
-    // 自动切换到该作品：右栏应展示 0 角色（work_id 过滤）的空态 or 空列表
-    await expect(page.getByTestId('character-library-list')).toBeVisible()
+    await expect(page.getByTestId('character-row-persona_amy')).toBeVisible()
+    await expect(page.getByTestId('character-row-persona_rachel')).toBeVisible()
 
-    // 切回"全部"
+    await workSelect.selectOption('work_friends')
+    await expect(page.getByTestId('character-row-persona_rachel')).toBeVisible()
+    await expect(page.getByTestId('character-row-persona_amy')).toHaveCount(0)
+
+    await workSelect.selectOption('__unassigned__')
+    await expect(page.getByTestId('character-row-persona_amy')).toBeVisible()
+    await expect(page.getByTestId('character-row-persona_rachel')).toHaveCount(0)
+
     await workSelect.selectOption('__all__')
     await expect(page.getByTestId('character-row-persona_amy')).toBeVisible()
-
-    // 切到"未归属"
-    await workSelect.selectOption('__unassigned__')
-    await expect(page.getByTestId('character-row-persona_amy')).toBeVisible()
-
-    // 添加自定义类型
-    await page.getByTestId('works-sidebar-create').click()
-    await expect(page.getByTestId('work-editor')).toBeVisible()
-    await page.getByTestId('work-field-title').fill('测试作品A')
-    await page.getByTestId('work-field-type').selectOption('__add_custom__')
-    await expect(page.getByTestId('work-type-add-custom')).toBeVisible()
-    await page.getByTestId('work-type-custom-key').fill('mini_series')
-    await page.getByTestId('work-type-custom-label-zh').fill('迷你剧')
-    await page.getByTestId('work-type-custom-label-en').fill('Mini Series')
-    await page.getByTestId('work-type-custom-save').click()
-
-    await expect(page.getByTestId('character-library-flash-success')).toContainText('mini_series')
-
-    // 新类型已选中
-    await expect(page.getByTestId('work-field-type')).toHaveValue('mini_series')
-
-    // 保存作品
-    await page.getByTestId('work-editor-save').click()
-    await expect(page.getByTestId('character-library-flash-success')).toContainText('测试作品A')
-
-    // 删除一部作品（未归属保留）
-    const workToDelete = friendsWork ?? state.works[0]
-    await workSelect.selectOption(workToDelete.id)
-    await expect(page.getByTestId(`works-sidebar-delete-${workToDelete.id}`)).toBeVisible()
-    page.once('dialog', dialog => dialog.accept())
-    await page.getByTestId(`works-sidebar-delete-${workToDelete.id}`).click()
-
-    await expect(page.getByTestId('character-library-flash-success')).toContainText('已删除作品')
-    await expect(workSelect).not.toContainText(workToDelete.title)
-
-    // 艾米仍然存在（未归属保留策略）
-    await workSelect.selectOption('__unassigned__')
-    await expect(page.getByTestId('character-row-persona_amy')).toBeVisible()
+    await expect(page.getByTestId('character-row-persona_rachel')).toBeVisible()
   })
 })
