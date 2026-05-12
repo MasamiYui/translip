@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { BookUser, Mic2, PlusCircle, Search, Trash2, Pencil, X } from 'lucide-react'
+import { BookUser, PlusCircle, Search, Trash2, Pencil, X } from 'lucide-react'
 import { tasksApi } from '../api/tasks'
 import { worksApi } from '../api/works'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
@@ -31,7 +31,6 @@ const EMPTY_FORM: PersonaFormState = {
   color: '',
   aliases: [],
   tags: [],
-  tts_voice_id: '',
   note: '',
   work_id: '',
 }
@@ -48,7 +47,6 @@ interface PersonaFormState {
   color: string
   aliases: string[]
   tags: string[]
-  tts_voice_id: string
   note: string
   work_id: string
 }
@@ -66,7 +64,6 @@ function toFormState(persona: GlobalPersona): PersonaFormState {
     color: persona.color ?? '',
     aliases: [...(persona.aliases ?? [])],
     tags: [...(persona.tags ?? [])],
-    tts_voice_id: persona.tts_voice_id ?? '',
     note: persona.note ?? '',
     work_id: persona.work_id ?? '',
   }
@@ -86,7 +83,6 @@ function toPersonaPayload(form: PersonaFormState, workId?: string | null): Globa
   if (form.color.trim()) payload.color = form.color.trim()
   if (form.aliases.length) payload.aliases = [...form.aliases]
   if (form.tags.length) payload.tags = [...form.tags]
-  if (form.tts_voice_id.trim()) payload.tts_voice_id = form.tts_voice_id.trim()
   if (form.note.trim()) payload.note = form.note.trim()
   // work_id: use the form value if set, else fall back to explicit workId arg
   const resolvedWorkId = form.work_id.trim() || workId || null
@@ -163,17 +159,6 @@ export function CharacterLibraryPage() {
     () => worksData?.unassigned_count ?? personas.filter(p => !p.work_id).length,
     [worksData, personas],
   )
-  const voiceIdHistory = useMemo(() => {
-    const seen = new Map<string, number>()
-    for (const p of personas) {
-      const v = (p.tts_voice_id ?? '').trim()
-      if (!v) continue
-      seen.set(v, (seen.get(v) ?? 0) + 1)
-    }
-    return Array.from(seen.entries())
-      .sort((a, b) => b[1] - a[1])
-      .map(([v]) => v)
-  }, [personas])
 
   const upsertMutation = useMutation({
     mutationFn: (persona: GlobalPersona) =>
@@ -412,9 +397,6 @@ export function CharacterLibraryPage() {
                     <th className="px-4 py-2 text-left font-medium">
                       {t.characterLibrary.columns.gender}
                     </th>
-                    <th className="px-4 py-2 text-left font-medium">
-                      {t.characterLibrary.columns.ttsStatus}
-                    </th>
                     <th className="px-4 py-2 text-right font-medium">
                       {t.characterLibrary.columns.actions}
                     </th>
@@ -448,25 +430,6 @@ export function CharacterLibraryPage() {
                           ? (t.characterLibrary.gender as Record<string, string>)[persona.gender] ??
                             persona.gender
                           : '—'}
-                      </td>
-                      <td className="px-4 py-3">
-                        {persona.tts_voice_id ? (
-                          <span
-                            className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
-                            title={persona.tts_voice_id}
-                            data-testid={`character-tts-ready-${persona.id}`}
-                          >
-                            <Mic2 size={10} />
-                            已绑定
-                          </span>
-                        ) : (
-                          <span
-                            className="text-slate-300"
-                            data-testid={`character-tts-missing-${persona.id}`}
-                          >
-                            —
-                          </span>
-                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex items-center gap-2">
@@ -617,44 +580,6 @@ export function CharacterLibraryPage() {
                     onChange={v => setForm(f => ({ ...f, color: v }))}
                     dataTestId="character-field-color"
                   />
-                </div>
-                <div className="flex flex-col sm:col-span-2">
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700" htmlFor="character-field-voice">
-                    {t.characterLibrary.fields.ttsVoiceId}
-                  </label>
-                  <input
-                    id="character-field-voice"
-                    list="character-tts-voice-history"
-                    data-testid="character-field-voice"
-                    type="text"
-                    value={form.tts_voice_id}
-                    onChange={event => setForm(f => ({ ...f, tts_voice_id: event.target.value }))}
-                    placeholder={t.characterLibrary.placeholders.ttsVoiceId}
-                    className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
-                  />
-                  <datalist id="character-tts-voice-history">
-                    {voiceIdHistory.map(v => (
-                      <option key={v} value={v} />
-                    ))}
-                  </datalist>
-                  {voiceIdHistory.length > 0 && (
-                    <div className="mt-2 flex flex-wrap items-center gap-1">
-                      <span className="text-[10px] uppercase tracking-wider text-slate-400">
-                        {t.characterLibrary.tts.recentLabel}
-                      </span>
-                      {voiceIdHistory.slice(0, 6).map(v => (
-                        <button
-                          key={v}
-                          type="button"
-                          data-testid={`character-tts-history-${v}`}
-                          onClick={() => setForm(f => ({ ...f, tts_voice_id: v }))}
-                          className="h-6 rounded-full border border-[#e5e7eb] bg-white px-2 text-[11px] font-mono text-slate-600 transition-all hover:border-[#3b5bdb]/40 hover:text-[#3b5bdb]"
-                        >
-                          {v}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 </div>
                 {works.length > 0 && (
                   <div className="flex flex-col sm:col-span-2">

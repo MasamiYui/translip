@@ -1664,11 +1664,6 @@ function CharacterLibraryMatchCard({
                         {candidate.reason}
                       </div>
                     )}
-                    {candidate.tts_voice_id && (
-                      <div className="mt-0.5 line-clamp-1 font-mono text-[10px] text-emerald-700">
-                        {candidate.tts_voice_id}
-                      </div>
-                    )}
                   </div>
                   {!bound && (
                     <button

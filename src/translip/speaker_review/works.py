@@ -373,7 +373,6 @@ def create_work(payload: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]
         "color": (data.get("color") or "").strip() or None,
         "note": (data.get("note") or "").strip() or None,
         "tags": list(data.get("tags") or []),
-        "default_tts_voice_map": dict(data.get("default_tts_voice_map") or {}),
         "created_at": now_iso(),
         "updated_at": now_iso(),
     }
@@ -416,8 +415,6 @@ def update_work(payload: dict[str, Any], work_id: str, patch: dict[str, Any]) ->
         work["note"] = v or None
     if "tags" in patch:
         work["tags"] = list(patch.get("tags") or [])
-    if "default_tts_voice_map" in patch:
-        work["default_tts_voice_map"] = dict(patch.get("default_tts_voice_map") or {})
     external = _normalize_external_fields(patch)
     if external:
         # `metadata` must be deep-merged so a partial sync (e.g. only `overview`)

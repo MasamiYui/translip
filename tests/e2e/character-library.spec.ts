@@ -20,7 +20,6 @@ type PersonaRecord = {
   avatar_emoji?: string | null
   avatar_url?: string | null
   color?: string | null
-  tts_voice_id?: string | null
   note?: string | null
   created_at?: string
   updated_at?: string

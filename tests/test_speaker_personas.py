@@ -393,21 +393,18 @@ def test_persona_tts_voice_fields_round_trip(tmp_path: Path) -> None:
             json={
                 "name": "配音员A",
                 "bindings": ["SPEAKER_00"],
-                "tts_voice_id": "voice-xyz",
                 "tts_skip": False,
                 "gender": "female",
                 "role": "narrator",
             },
         ).json()["persona"]
-        assert created["tts_voice_id"] == "voice-xyz"
         assert created.get("gender") == "female"
         assert created.get("role") == "narrator"
 
         updated = client.patch(
             f"/api/tasks/{TASK_ID}/speaker-review/personas/{created['id']}",
-            json={"tts_voice_id": "", "tts_skip": True},
+            json={"tts_skip": True},
         ).json()["persona"]
-        assert updated.get("tts_voice_id") in (None, "")
         assert updated.get("tts_skip") is True
     finally:
         app.dependency_overrides.clear()
@@ -595,7 +592,6 @@ def test_bound_work_prioritizes_same_work_global_personas(
                         "work_id": work["id"],
                         "role": "主角",
                         "gender": "female",
-                        "tts_voice_id": "voice-nezha",
                     },
                     {
                         "id": "g-youth-nezha",
@@ -637,7 +633,6 @@ def test_bound_work_prioritizes_same_work_global_personas(
         candidates = matches["SPEAKER_00"]["candidates"]
         assert candidates[0]["persona_id"] == "g-young-nezha"
         assert candidates[0]["work_id"] == work["id"]
-        assert candidates[0]["tts_voice_id"] == "voice-nezha"
         candidate_ids = {c["persona_id"] for c in candidates}
         assert {"g-youth-nezha", "g-ao-bing", "g-li-jing"}.issubset(candidate_ids)
         assert all(c["persona_id"] != "g-cobb" for c in candidates)
@@ -665,7 +660,6 @@ def test_import_from_global_preserves_work_and_source_link(
                         "work_id": work["id"],
                         "role": "主角",
                         "gender": "female",
-                        "tts_voice_id": "voice-nezha",
                         "avatar_url": "https://example.test/nezha.jpg",
                         "actor_name": "吕艳婷",
                     }
@@ -684,7 +678,6 @@ def test_import_from_global_preserves_work_and_source_link(
         persona = resp.json()["imported"][0]
         assert persona["source_global_persona_id"] == "g-young-nezha"
         assert persona["work_id"] == work["id"]
-        assert persona["tts_voice_id"] == "voice-nezha"
         assert persona["avatar_url"] == "https://example.test/nezha.jpg"
         assert persona["actor_name"] == "吕艳婷"
     finally:

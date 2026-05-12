@@ -439,7 +439,6 @@ class PersonaCreateRequest(BaseModel):
     pinned: bool | None = None
     is_target: bool | None = None
     confidence: float | None = None
-    tts_voice_id: str | None = None
     tts_skip: bool | None = None
     force: bool = False
 
@@ -456,7 +455,6 @@ class PersonaUpdateRequest(BaseModel):
     pinned: bool | None = None
     is_target: bool | None = None
     confidence: float | None = None
-    tts_voice_id: str | None = None
     tts_skip: bool | None = None
     force: bool = False
 
@@ -610,7 +608,6 @@ def create_speaker_persona(
         pinned=bool(req.pinned),
         is_target=bool(req.is_target),
         confidence=req.confidence,
-        tts_voice_id=req.tts_voice_id,
         tts_skip=bool(req.tts_skip),
     )
     save_personas(review_dir, payload)
@@ -996,7 +993,6 @@ def import_personas_from_global_route(
             pinned=bool(g.get("pinned", False)),
             is_target=bool(g.get("is_target", False)),
             confidence=g.get("confidence"),
-            tts_voice_id=g.get("tts_voice_id"),
             tts_skip=bool(g.get("tts_skip", False)),
         )
         persona["source_global_persona_id"] = str(g.get("id") or pid)

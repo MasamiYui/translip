@@ -37,7 +37,6 @@ export type PersonaCreatePayload = {
   pinned?: boolean
   is_target?: boolean
   confidence?: number | null
-  tts_voice_id?: string | null
   tts_skip?: boolean
   force?: boolean
 }
@@ -55,7 +54,6 @@ export type PersonaUpdatePayload = Partial<{
   pinned: boolean
   is_target: boolean
   confidence: number | null
-  tts_voice_id: string | null
   tts_skip: boolean
   force: boolean
 }>

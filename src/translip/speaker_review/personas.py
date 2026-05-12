@@ -52,7 +52,6 @@ class Persona:
     is_target: bool = False
     confidence: float | None = None
     tts_skip: bool = False
-    tts_voice_id: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
 
@@ -69,7 +68,6 @@ class Persona:
             "gender",
             "age_hint",
             "note",
-            "tts_voice_id",
             "role",
         ):
             value = getattr(self, key)
@@ -224,7 +222,6 @@ def create_persona(
     pinned: bool = False,
     is_target: bool = False,
     confidence: float | None = None,
-    tts_voice_id: str | None = None,
     tts_skip: bool = False,
 ) -> dict[str, Any]:
     persona_id = f"persona_{uuid.uuid4().hex[:10]}"
@@ -240,7 +237,6 @@ def create_persona(
         "role": role,
         "gender": gender,
         "age_hint": age_hint,
-        "tts_voice_id": tts_voice_id,
         "created_at": now,
         "updated_at": now,
     }
@@ -252,7 +248,7 @@ def create_persona(
         persona["tts_skip"] = True
     if confidence is not None:
         persona["confidence"] = float(confidence)
-    for empty_key in ("avatar_emoji", "note", "role", "gender", "age_hint", "tts_voice_id"):
+    for empty_key in ("avatar_emoji", "note", "role", "gender", "age_hint"):
         if not persona.get(empty_key):
             persona.pop(empty_key, None)
     payload.setdefault("personas", []).append(persona)
@@ -284,7 +280,6 @@ def update_persona(
             "note",
             "gender",
             "age_hint",
-            "tts_voice_id",
             "role",
         }:
             persona[key] = value

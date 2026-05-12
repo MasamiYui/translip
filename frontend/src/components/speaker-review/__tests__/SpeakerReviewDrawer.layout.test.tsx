@@ -485,7 +485,6 @@ describe('SpeakerReviewDrawer video review workbench', () => {
               reason: '当前作品',
               role: '主角',
               work_id: 'work_nezha',
-              tts_voice_id: 'voice-nezha',
             } satisfies SuggestFromGlobalCandidate,
           ],
         },
@@ -505,7 +504,6 @@ describe('SpeakerReviewDrawer video review workbench', () => {
     const candidate = await screen.findByTestId('character-library-candidate-p-nezha')
     expect(candidate).toHaveTextContent('Young Nezha')
     expect(candidate).toHaveTextContent('当前作品')
-    expect(candidate).toHaveTextContent('voice-nezha')
   })
 
   it('does not keep rematching global personas after the initial candidate load', async () => {

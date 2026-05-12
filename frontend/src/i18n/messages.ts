@@ -782,7 +782,6 @@ const zhMessages = {
       role: '剧中身份',
       gender: '性别',
       tags: '标签',
-      ttsStatus: '音色',
       actions: '操作',
     },
     fields: {
@@ -796,7 +795,6 @@ const zhMessages = {
       color: '主题色',
       aliases: '别名',
       tags: '标签',
-      ttsVoiceId: 'TTS 音色 ID',
       note: '备注',
     },
     placeholders: {
@@ -810,7 +808,6 @@ const zhMessages = {
       tags: '输入后回车添加，例如：主线',
       note: '可选的角色描述、记忆点',
       search: '搜索角色名 / 演员 / 标签…',
-      ttsVoiceId: '例如：qwen3_alice / f0_female_bright',
     },
     gender: {
       none: '未设置',
@@ -890,9 +887,6 @@ const zhMessages = {
       villain: '反派',
       narrator: '旁白',
       cameo: '客串',
-    },
-    tts: {
-      recentLabel: '最近用过',
     },
     empty: {
       title: '角色库还是空的',
@@ -1841,7 +1835,6 @@ const enMessages: LocaleMessages = {
       role: 'Role',
       gender: 'Gender',
       tags: 'Tags',
-      ttsStatus: 'Voice',
       actions: 'Actions',
     },
     fields: {
@@ -1855,7 +1848,6 @@ const enMessages: LocaleMessages = {
       color: 'Theme color',
       aliases: 'Aliases',
       tags: 'Tags',
-      ttsVoiceId: 'TTS voice ID',
       note: 'Note',
     },
     placeholders: {
@@ -1869,7 +1861,6 @@ const enMessages: LocaleMessages = {
       tags: 'Press Enter to add, e.g. mainline',
       note: 'Optional description / memo',
       search: 'Search by name / actor / tag…',
-      ttsVoiceId: 'e.g. qwen3_alice / f0_female_bright',
     },
     gender: {
       none: 'Unset',
@@ -1949,9 +1940,6 @@ const enMessages: LocaleMessages = {
       villain: 'Villain',
       narrator: 'Narrator',
       cameo: 'Cameo',
-    },
-    tts: {
-      recentLabel: 'Recently used',
     },
     empty: {
       title: 'Your library is empty',

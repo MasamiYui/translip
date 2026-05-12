@@ -116,7 +116,6 @@ describe('CharacterLibraryPage', () => {
     expect(within(list).queryByText('标签')).not.toBeInTheDocument()
     expect(within(list).queryByText('主线')).not.toBeInTheDocument()
     expect(within(list).queryByText('配角')).not.toBeInTheDocument()
-    expect(screen.getByTestId('character-tts-missing-persona_amy')).toHaveTextContent('—')
     const avatar = screen.getByTestId('character-avatar-image-persona_amy') as HTMLImageElement
     expect(avatar).toHaveAttribute('src', 'https://image.tmdb.org/t/p/w185/amy.jpg')
     expect(avatar).toHaveAttribute('alt', '艾米')

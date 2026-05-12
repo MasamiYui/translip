@@ -37,7 +37,6 @@ type PersonaRecord = {
   color: string | null
   avatar_emoji: string | null
   tts_skip: boolean
-  tts_voice_id: string | null
   created_at: string
   updated_at: string
 }
@@ -343,7 +342,6 @@ async function setupRoutes(page: Page) {
           color: pickColor(),
           avatar_emoji: null,
           tts_skip: false,
-          tts_voice_id: null,
           created_at: nowIso(),
           updated_at: nowIso(),
         }
@@ -494,7 +492,6 @@ async function setupRoutes(page: Page) {
         color?: string | null
         avatar_emoji?: string | null
         force?: boolean
-        tts_voice_id?: string | null
         tts_skip?: boolean
       }
       if (!payload.force) {
@@ -527,7 +524,6 @@ async function setupRoutes(page: Page) {
         color: payload.color ?? pickColor(),
         avatar_emoji: payload.avatar_emoji ?? null,
         tts_skip: payload.tts_skip ?? false,
-        tts_voice_id: payload.tts_voice_id ?? null,
         created_at: nowIso(),
         updated_at: nowIso(),
       }
@@ -596,7 +592,6 @@ async function setupRoutes(page: Page) {
       color: '#f59e0b',
       avatar_emoji: null,
       tts_skip: false,
-      tts_voice_id: null,
       created_at: nowIso(),
       updated_at: nowIso(),
     }))
@@ -631,7 +626,6 @@ async function setupRoutes(page: Page) {
               gender: 'male',
               avatar_emoji: '👴',
               color: '#f59e0b',
-              tts_voice_id: 'voice-abc',
             },
             {
               id: 'g-2',
@@ -908,41 +902,6 @@ test.describe('Speaker Review v2 drawer', () => {
     await expect(page.locator('[data-testid="onboarding-guide"]')).toHaveCount(0)
   })
 
-  test('Persona：voice 编辑按钮触发 PATCH tts_voice_id', async ({ page }) => {
-    await openDrawer(page)
-    const onboarding = page.locator('[data-testid="onboarding-guide"]')
-    if (await onboarding.isVisible().catch(() => false)) {
-      await page.locator('[data-testid="onboarding-dismiss"]').click()
-    }
-    // 先命名 speakerA 以便出现 voice 编辑按钮
-    await page.locator('[data-testid="rename-speakerA"]').click()
-    await page.locator('[data-testid="rename-input-speakerA"]').fill('艾米')
-    await page.locator('[data-testid="rename-input-speakerA"]').press('Enter')
-    await expect(page.locator('[data-testid="speaker-display-speakerA"]')).toHaveText('艾米', { timeout: 5000 })
-
-    await page.evaluate(() => {
-      const orig = window.prompt
-      ;(window as unknown as { __origPrompt?: typeof window.prompt }).__origPrompt = orig
-      window.prompt = () => 'voice-test-001'
-    })
-
-    const patchWaiter = page.waitForRequest(
-      req =>
-        req.url().includes('/speaker-review/personas/') &&
-        req.method() === 'PATCH' &&
-        (req.postData() || '').includes('tts_voice_id'),
-      { timeout: 5000 },
-    )
-
-    await page.locator('[data-testid="voice-edit-speakerA"]').click()
-    await patchWaiter
-
-    await page.evaluate(() => {
-      const saved = (window as unknown as { __origPrompt?: typeof window.prompt }).__origPrompt
-      if (saved) window.prompt = saved
-    })
-  })
-
   test('GlobalPersona：打开角色库 Modal 并列出全局人设', async ({ page }) => {
     await openDrawer(page)
     await page.locator('[data-testid="global-personas-button"]').click()
@@ -1015,7 +974,6 @@ test.describe('Speaker Review v2 drawer', () => {
                     reason: 'role+gender',
                     role: 'narrator',
                     gender: 'male',
-                    tts_voice_id: 'voice-abc',
                   },
                 ],
               },

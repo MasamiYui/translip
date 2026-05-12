@@ -426,7 +426,6 @@ export interface SpeakerPersona {
   is_target?: boolean
   confidence?: number | null
   tts_skip?: boolean
-  tts_voice_id?: string | null
   created_at?: string
   updated_at?: string
 }
@@ -506,7 +505,6 @@ export interface GlobalPersona {
   guest_work_ids?: string[]
   episodes?: string[]
   confidence?: number | null
-  tts_voice_id?: string | null
   tts_skip?: boolean
   created_at?: string | null
   updated_at?: string | null
@@ -569,7 +567,6 @@ export interface Work {
   color?: string | null
   note?: string | null
   tags?: string[]
-  default_tts_voice_map?: Record<string, string>
   persona_count?: number
   created_at?: string | null
   updated_at?: string | null
@@ -647,7 +644,6 @@ export interface SuggestFromGlobalCandidate {
   role?: string | null
   gender?: string | null
   work_id?: string | null
-  tts_voice_id?: string | null
   actor_name?: string | null
   avatar_url?: string | null
   color?: string | null

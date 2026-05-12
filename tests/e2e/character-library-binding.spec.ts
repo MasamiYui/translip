@@ -177,7 +177,6 @@ async function setupRoutes(page: Page) {
                 color: null,
                 avatar_emoji: null,
                 tts_skip: false,
-                tts_voice_id: null,
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString(),
               },

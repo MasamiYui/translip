@@ -261,7 +261,7 @@ def _build_characters(
     char_entries = character_ledger.get("characters", []) or character_ledger.get("entries", [])
 
     # Load personas (speaker -> persona mapping) so we can inject
-    # persona.tts_voice_id / tts_skip / name / avatar_emoji into character cards.
+    # persona.tts_skip / name / avatar_emoji into character cards.
     persona_by_speaker: dict[str, dict] = {}
     if output_root is not None:
         try:
@@ -362,14 +362,8 @@ def _build_characters(
         if persona_attached and persona_attached.get("name"):
             display_name = persona_attached["name"]
 
-        # default_voice: if persona has tts_voice_id, override the default
-        # voice's reference_path / preset_id so that the editor displays it.
+        # default_voice: carries the editor's current reference path.
         default_voice = dict(entry.get("default_voice", {"backend": "inherit", "reference_path": None}))
-        if persona_attached:
-            voice_id = persona_attached.get("tts_voice_id")
-            if voice_id:
-                default_voice["preset_id"] = voice_id
-                default_voice["source"] = "persona"
 
         char_card = {
             "character_id": char_id,
@@ -395,7 +389,6 @@ def _build_characters(
                 "name": persona_attached.get("name"),
                 "color": persona_attached.get("color"),
                 "avatar_emoji": persona_attached.get("avatar_emoji"),
-                "tts_voice_id": persona_attached.get("tts_voice_id"),
                 "tts_skip": bool(persona_attached.get("tts_skip")),
                 "role": persona_attached.get("role"),
                 "is_target": bool(persona_attached.get("is_target")),
