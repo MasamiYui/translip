@@ -294,9 +294,11 @@ def _normalize_external_fields(data: dict[str, Any]) -> dict[str, Any]:
         refs = data.get("external_refs") or {}
         if isinstance(refs, dict):
             cleaned_refs: dict[str, Any] = {}
+            tmdb_media_type = refs.get("tmdb_media_type") or refs.get("tmdb_type")
+            if tmdb_media_type not in (None, "", []):
+                cleaned_refs["tmdb_media_type"] = tmdb_media_type
             for key in (
                 "tmdb_id",
-                "tmdb_media_type",
                 "tmdb_external_id",
                 "imdb_id",
                 "wikidata_id",

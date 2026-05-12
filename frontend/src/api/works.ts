@@ -95,6 +95,8 @@ export interface TMDbDetailsResponse {
 export interface TMDbImportResponse {
   ok: boolean
   work?: Work
+  imported_cast?: { persona_id: string; name: string; actor_name?: string; avatar_url?: string | null }[]
+  skipped_cast?: { tmdb_id: number | string | null; reason: string }[]
   error?: string
 }
 
@@ -116,7 +118,7 @@ export interface CastPreviewResponse {
 
 export interface CastImportResponse {
   ok: boolean
-  imported: { persona_id: string; name: string; actor_name?: string }[]
+  imported: { persona_id: string; name: string; actor_name?: string; avatar_url?: string | null }[]
   skipped: { tmdb_id: number; reason: string }[]
   work_id: string
   error?: string

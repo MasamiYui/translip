@@ -306,10 +306,14 @@ class TMDbProvider:
         
         cast_snapshot = []
         for member in tmdb_data.get("cast", []):
+            external_person_id = member.get("id")
             cast_snapshot.append({
+                "external_person_id": f"tmdb:{external_person_id}" if external_person_id else None,
                 "actor_name": member.get("actor_name", ""),
                 "character_name": member.get("character_name", ""),
                 "profile_url": self.get_poster_url(member.get("profile_path", "")),
+                "order": member.get("order", 0),
+                "source": "tmdb",
             })
         
         return {
@@ -318,7 +322,7 @@ class TMDbProvider:
             "year": tmdb_data.get("year"),
             "external_refs": {
                 "tmdb_id": tmdb_data.get("tmdb_id"),
-                "tmdb_type": media_type,
+                "tmdb_media_type": media_type,
             },
             "metadata": metadata,
             "cast_snapshot": cast_snapshot,

@@ -2,10 +2,11 @@ import { useState, useMemo } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Search, Film, Tv, Download, AlertCircle } from 'lucide-react'
 import { useI18n } from '../../i18n/useI18n'
-import { worksApi, type TMDbSearchResult, type TMDbDetails } from '../../api/works'
+import { worksApi, type TMDbSearchResult } from '../../api/works'
+import type { Work } from '../../types'
 
 export interface TMDbSearchPanelProps {
-  onImport: (work: any) => void
+  onImport: (work: Work) => void
   onCancel: () => void
 }
 
@@ -42,10 +43,7 @@ export function TMDbSearchPanel({ onImport, onCancel }: TMDbSearchPanelProps) {
 
   const { data: selectedDetails } = useQuery({
     queryKey: ['tmdb-details', selectedResult?.tmdb_id, selectedResult?.media_type],
-    queryFn: () => {
-      if (!selectedResult) return Promise.resolve({ ok: false })
-      return worksApi.tmdbDetails(selectedResult.tmdb_id, selectedResult.media_type)
-    },
+    queryFn: () => worksApi.tmdbDetails(selectedResult!.tmdb_id, selectedResult!.media_type),
     enabled: !!selectedResult,
   })
 

@@ -90,7 +90,9 @@ describe('CharacterLibraryPage', () => {
       ok: true,
       path: '/tmp/personas.json',
       personas: [
-        buildPersona(),
+        buildPersona({
+          avatar_url: 'https://image.tmdb.org/t/p/w185/amy.jpg',
+        } as Partial<GlobalPersona> & { avatar_url: string }),
         buildPersona({
           id: 'persona_bob',
           name: '鲍勃',
@@ -108,6 +110,9 @@ describe('CharacterLibraryPage', () => {
     expect(screen.getByText('Anne')).toBeInTheDocument()
     expect(screen.getByText('主线')).toBeInTheDocument()
     expect(screen.getByText('配角')).toBeInTheDocument()
+    const avatar = screen.getByTestId('character-avatar-image-persona_amy') as HTMLImageElement
+    expect(avatar).toHaveAttribute('src', 'https://image.tmdb.org/t/p/w185/amy.jpg')
+    expect(avatar).toHaveAttribute('alt', '艾米')
   })
 
   it('filters personas by search keyword', async () => {

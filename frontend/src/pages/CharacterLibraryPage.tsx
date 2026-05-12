@@ -28,6 +28,7 @@ const EMPTY_FORM: PersonaFormState = {
   gender: '',
   age_hint: '',
   avatar_emoji: '',
+  avatar_url: '',
   color: '',
   aliases: [],
   tags: [],
@@ -44,6 +45,7 @@ interface PersonaFormState {
   gender: string
   age_hint: string
   avatar_emoji: string
+  avatar_url: string
   color: string
   aliases: string[]
   tags: string[]
@@ -61,6 +63,7 @@ function toFormState(persona: GlobalPersona): PersonaFormState {
     gender: persona.gender ?? '',
     age_hint: persona.age_hint ?? '',
     avatar_emoji: persona.avatar_emoji ?? '',
+    avatar_url: persona.avatar_url ?? '',
     color: persona.color ?? '',
     aliases: [...(persona.aliases ?? [])],
     tags: [...(persona.tags ?? [])],
@@ -80,6 +83,7 @@ function toPersonaPayload(form: PersonaFormState, workId?: string | null): Globa
   if (form.gender.trim()) payload.gender = form.gender.trim()
   if (form.age_hint.trim()) payload.age_hint = form.age_hint.trim()
   if (form.avatar_emoji.trim()) payload.avatar_emoji = form.avatar_emoji.trim()
+  if (form.avatar_url.trim()) payload.avatar_url = form.avatar_url.trim()
   if (form.color.trim()) payload.color = form.color.trim()
   if (form.aliases.length) payload.aliases = [...form.aliases]
   if (form.tags.length) payload.tags = [...form.tags]
@@ -91,15 +95,46 @@ function toPersonaPayload(form: PersonaFormState, workId?: string | null): Globa
   return payload
 }
 
-function formatUpdatedAt(value: string | null | undefined, fallback: string): string {
-  if (!value) return fallback
-  try {
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) return value
-    return date.toLocaleString()
-  } catch {
-    return value
+function PersonaAvatar({
+  persona,
+  resolvedColor,
+}: {
+  persona: Pick<GlobalPersona, 'id' | 'name' | 'avatar_emoji' | 'avatar_url'>
+  resolvedColor: string
+}) {
+  const avatarUrl = (persona.avatar_url ?? '').trim()
+  const [failedAvatarUrl, setFailedAvatarUrl] = useState<string | null>(null)
+
+  if (avatarUrl && failedAvatarUrl !== avatarUrl) {
+    return (
+      <img
+        data-testid={`character-avatar-image-${persona.id}`}
+        src={avatarUrl}
+        alt={persona.name || ''}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        onError={() => setFailedAvatarUrl(avatarUrl)}
+        className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200"
+      />
+    )
   }
+
+  const glyph = persona.avatar_emoji?.trim()
+    ? persona.avatar_emoji
+    : firstGlyphOf(persona.name || '?')
+
+  return (
+    <span
+      data-testid={`character-avatar-fallback-${persona.id}`}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-full text-base font-semibold"
+      style={{
+        backgroundColor: hexWithAlpha(resolvedColor, 0.15),
+        color: resolvedColor,
+      }}
+    >
+      {glyph}
+    </span>
+  )
 }
 
 export function CharacterLibraryPage() {
@@ -457,9 +492,6 @@ export function CharacterLibraryPage() {
                 <tbody>
                   {filtered.map(persona => {
                     const resolvedColor = normalizeHex(persona.color) || DEFAULT_COLOR
-                    const glyph = persona.avatar_emoji?.trim()
-                      ? persona.avatar_emoji
-                      : firstGlyphOf(persona.name || '?')
                     return (
                     <tr
                       key={persona.id}
@@ -467,15 +499,7 @@ export function CharacterLibraryPage() {
                       className="border-t border-[#e5e7eb] text-slate-700 transition-colors hover:bg-[#f9fafb]"
                     >
                       <td className="px-4 py-3">
-                        <span
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-full text-base font-semibold"
-                          style={{
-                            backgroundColor: hexWithAlpha(resolvedColor, 0.15),
-                            color: resolvedColor,
-                          }}
-                        >
-                          {glyph}
-                        </span>
+                        <PersonaAvatar persona={persona} resolvedColor={resolvedColor} />
                       </td>
                       <td className="px-4 py-3 font-medium text-slate-800">
                         <div>{persona.name}</div>
@@ -664,6 +688,13 @@ export function CharacterLibraryPage() {
                     dataTestId="character-field-avatar"
                   />
                 </div>
+                <LabeledInput
+                  label={t.characterLibrary.fields.avatarUrl}
+                  placeholder={t.characterLibrary.placeholders.avatarUrl}
+                  value={form.avatar_url}
+                  onChange={v => setForm(f => ({ ...f, avatar_url: v }))}
+                  dataTestId="character-field-avatar-url"
+                />
                 <div className="flex flex-col">
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
                     {t.characterLibrary.fields.color}

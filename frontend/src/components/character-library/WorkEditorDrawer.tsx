@@ -1,18 +1,21 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { X, Film, Users } from 'lucide-react'
+import { Download, PenLine, X, Users } from 'lucide-react'
 import { useI18n } from '../../i18n/useI18n'
 import { worksApi, type CreateWorkPayload } from '../../api/works'
-import type { Work, WorkType } from '../../types'
+import type { Work, WorkExternalRefs, WorkType } from '../../types'
 import { ColorSwatchPicker } from './pickers/ColorSwatchPicker'
 import { CoverIconPicker } from './pickers/CoverIconPicker'
 import { ChipInput } from './ChipInput'
-import { TMDbSearchPanel } from './TMDbSearchPanel'
 import { CastImportPanel } from './CastImportPanel'
+import { TMDbImportPanel } from './TMDbImportPanel'
+
+export type WorkCreateMode = 'manual' | 'tmdb'
 
 export interface WorkEditorDrawerProps {
   open: boolean
   work: Work | null
+  initialMode?: WorkCreateMode
   onClose: () => void
   onSaved: (work: Work, isCreate: boolean) => void
   onError?: (message: string) => void
@@ -72,11 +75,27 @@ function toPayload(form: WorkFormState): CreateWorkPayload {
   return payload
 }
 
+function normalizeTmdbId(value: WorkExternalRefs['tmdb_id'] | undefined): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string') {
+    const parsed = Number.parseInt(value, 10)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
+function normalizeTmdbMediaType(
+  value: WorkExternalRefs['tmdb_media_type'] | undefined,
+): 'movie' | 'tv' {
+  return value === 'tv' ? 'tv' : 'movie'
+}
+
 const ADD_CUSTOM_SENTINEL = '__add_custom__'
 
 export function WorkEditorDrawer({
   open,
   work,
+  initialMode = 'manual',
   onClose,
   onSaved,
   onError,
@@ -89,8 +108,8 @@ export function WorkEditorDrawer({
   const [customKey, setCustomKey] = useState('')
   const [customLabelZh, setCustomLabelZh] = useState('')
   const [customLabelEn, setCustomLabelEn] = useState('')
-  const [showTmdbPanel, setShowTmdbPanel] = useState(false)
   const [showCastPanel, setShowCastPanel] = useState(false)
+  const [createMode, setCreateMode] = useState<WorkCreateMode>(initialMode)
 
   const isEditing = !!work
 
@@ -102,16 +121,18 @@ export function WorkEditorDrawer({
   const types: WorkType[] = useMemo(() => typesData?.types ?? [], [typesData])
 
   // Derive form from props using the "reset when key changes" pattern.
-  const resetKey = open ? `${work?.id ?? 'new'}` : '__closed__'
+  const resetKey = open ? `${work?.id ?? 'new'}:${initialMode}` : '__closed__'
   const [lastResetKey, setLastResetKey] = useState<string>('__closed__')
   if (lastResetKey !== resetKey) {
     setLastResetKey(resetKey)
     if (open) {
       setForm(work ? toFormState(work) : EMPTY_FORM)
+      setCreateMode(work ? 'manual' : initialMode)
       setCustomOpen(false)
       setCustomKey('')
       setCustomLabelZh('')
       setCustomLabelEn('')
+      setShowCastPanel(false)
     }
   }
 
@@ -172,6 +193,14 @@ export function WorkEditorDrawer({
     await saveMutation.mutateAsync()
   }
 
+  function handleTmdbImported(importedWork: Work) {
+    queryClient.invalidateQueries({ queryKey: ['works'] })
+    queryClient.invalidateQueries({ queryKey: ['global-personas'] })
+    onSaved(importedWork, true)
+  }
+
+  const showManualForm = isEditing || createMode === 'manual'
+
   return (
     <div
       data-testid="work-editor-backdrop"
@@ -182,7 +211,7 @@ export function WorkEditorDrawer({
         data-testid="work-editor"
         onClick={event => event.stopPropagation()}
         onSubmit={handleSubmit}
-        className="w-full max-w-lg overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-[0_8px_24px_rgba(0,0,0,.12)]"
+        className="w-full max-w-3xl overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-[0_8px_24px_rgba(0,0,0,.12)]"
       >
         <div className="flex items-center justify-between border-b border-[#e5e7eb] px-5 py-3">
           <h2 className="text-base font-semibold text-slate-800">
@@ -202,18 +231,34 @@ export function WorkEditorDrawer({
 
         {!isEditing && (
           <div className="border-b border-[#e5e7eb] px-5 py-3">
-            <div className="flex items-center justify-between">
+            <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-[#e5e7eb] bg-[#f8fafc] p-1">
               <button
                 type="button"
-                onClick={() => setShowTmdbPanel(!showTmdbPanel)}
-                className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
-                  showTmdbPanel
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-slate-600 hover:bg-slate-50'
+                data-testid="work-create-mode-tmdb"
+                aria-pressed={createMode === 'tmdb'}
+                onClick={() => setCreateMode('tmdb')}
+                className={`inline-flex h-9 items-center justify-center gap-2 rounded-md text-sm font-semibold transition-all ${
+                  createMode === 'tmdb'
+                    ? 'bg-white text-[#3b5bdb] shadow-[0_1px_2px_rgba(15,23,42,.08)]'
+                    : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
                 }`}
               >
-                <Film size={16} />
-                {t.worksLibrary.tmdb.search.title}
+                <Download size={15} />
+                {t.worksLibrary.actions.importFromTmdb}
+              </button>
+              <button
+                type="button"
+                data-testid="work-create-mode-manual"
+                aria-pressed={createMode === 'manual'}
+                onClick={() => setCreateMode('manual')}
+                className={`inline-flex h-9 items-center justify-center gap-2 rounded-md text-sm font-semibold transition-all ${
+                  createMode === 'manual'
+                    ? 'bg-white text-[#3b5bdb] shadow-[0_1px_2px_rgba(15,23,42,.08)]'
+                    : 'text-slate-500 hover:bg-white/70 hover:text-slate-800'
+                }`}
+              >
+                <PenLine size={15} />
+                {t.characterLibrary.works.drawer.manualCreate}
               </button>
             </div>
           </div>
@@ -238,32 +283,12 @@ export function WorkEditorDrawer({
           </div>
         )}
 
-        {showTmdbPanel && !isEditing && (
-          <div className="border-b border-[#e5e7eb] px-5 py-4">
-            <TMDbSearchPanel
-              onImport={(importedWork) => {
-                if (importedWork.title) {
-                  setForm({
-                    ...EMPTY_FORM,
-                    title: importedWork.title,
-                    type: importedWork.type || 'movie',
-                    year: importedWork.year ? String(importedWork.year) : '',
-                  })
-                }
-                setShowTmdbPanel(false)
-                onSaved(importedWork, true)
-              }}
-              onCancel={() => setShowTmdbPanel(false)}
-            />
-          </div>
-        )}
-
         {showCastPanel && isEditing && work && (
           <div className="border-b border-[#e5e7eb] px-5 py-4">
             <CastImportPanel
               workId={work.id}
-              tmdbId={work.external_refs?.tmdb_id || null}
-              mediaType={(work.external_refs?.tmdb_type || 'movie') as 'movie' | 'tv'}
+              tmdbId={normalizeTmdbId(work.external_refs?.tmdb_id)}
+              mediaType={normalizeTmdbMediaType(work.external_refs?.tmdb_media_type)}
               onImported={() => {
                 setShowCastPanel(false)
                 queryClient.invalidateQueries({ queryKey: ['personas'] })
@@ -273,6 +298,7 @@ export function WorkEditorDrawer({
           </div>
         )}
 
+        {showManualForm ? (
         <div className="grid max-h-[60vh] gap-4 overflow-y-auto px-5 py-4 sm:grid-cols-2">
           <div className="flex flex-col sm:col-span-2">
             <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -445,6 +471,14 @@ export function WorkEditorDrawer({
             />
           </div>
         </div>
+        ) : (
+          <div className="max-h-[68vh] overflow-y-auto px-5 py-4">
+            <TMDbImportPanel
+              onImported={handleTmdbImported}
+              onError={() => onError?.(t.worksLibrary.flash.saveFailed)}
+            />
+          </div>
+        )}
 
         <div className="flex items-center justify-end gap-2 border-t border-[#e5e7eb] px-5 py-3">
           <button
@@ -455,14 +489,16 @@ export function WorkEditorDrawer({
           >
             {t.characterLibrary.works.actions.cancel}
           </button>
-          <button
-            type="submit"
-            data-testid="work-editor-save"
-            disabled={!form.title.trim() || saveMutation.isPending}
-            className="rounded-lg bg-[#3b5bdb] px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {t.characterLibrary.works.actions.save}
-          </button>
+          {showManualForm && (
+            <button
+              type="submit"
+              data-testid="work-editor-save"
+              disabled={!form.title.trim() || saveMutation.isPending}
+              className="rounded-lg bg-[#3b5bdb] px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {t.characterLibrary.works.actions.save}
+            </button>
+          )}
         </div>
       </form>
     </div>

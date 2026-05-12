@@ -54,6 +54,10 @@ interface State {
   types: WorkTypeRecord[]
 }
 
+interface SetupOptions {
+  tmdbEnabled?: boolean
+}
+
 function seedState(): State {
   const now = new Date().toISOString()
   return {
@@ -127,7 +131,7 @@ function worksWithCount(state: State) {
   return state.works.map(w => ({ ...w, persona_count: map.get(w.id) ?? 0 }))
 }
 
-async function setupRoutes(page: Page, state: State) {
+async function setupRoutes(page: Page, state: State, options: SetupOptions = {}) {
   await page.route('**/api/global-personas', async route => {
     if (route.request().method() === 'GET') {
       await route.fulfill({
@@ -202,6 +206,111 @@ async function setupRoutes(page: Page, state: State) {
       return
     }
     await route.fallback()
+  })
+
+  await page.route('**/api/works/tmdb/search**', async route => {
+    const url = new URL(route.request().url())
+    const query = url.searchParams.get('q') ?? ''
+    const mediaType = url.searchParams.get('media_type')
+    const shouldReturn =
+      options.tmdbEnabled &&
+      query.includes('流浪') &&
+      (!mediaType || mediaType === 'movie')
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        results: shouldReturn
+          ? [
+              {
+                id: 'tmdb_movie_399566',
+                tmdb_id: 399566,
+                type: 'movie',
+                title: '流浪地球',
+                original_title: 'The Wandering Earth',
+                year: '2019',
+                poster_path: null,
+                backdrop_path: null,
+                overview: '太阳即将毁灭，人类推动地球逃离太阳系。',
+                popularity: 22.4,
+                vote_average: 7.1,
+                media_type: 'movie',
+              },
+            ]
+          : [],
+      }),
+    })
+  })
+
+  await page.route('**/api/works/from-tmdb', async route => {
+    if (route.request().method() !== 'POST') {
+      await route.fallback()
+      return
+    }
+    const body = route.request().postDataJSON() as { tmdb_id: number; media_type: 'movie' | 'tv' }
+    const now = new Date().toISOString()
+    const work: WorkRecord = {
+      id: `work_tmdb_${body.tmdb_id}`,
+      title: body.tmdb_id === 399566 ? '流浪地球' : `TMDb ${body.tmdb_id}`,
+      type: body.media_type,
+      year: body.tmdb_id === 399566 ? 2019 : null,
+      aliases: body.tmdb_id === 399566 ? ['The Wandering Earth'] : [],
+      cover_emoji: null,
+      color: '#3b5bdb',
+      note: null,
+      tags: ['tmdb'],
+      external_refs: { tmdb_id: body.tmdb_id, tmdb_media_type: body.media_type },
+      metadata: {
+        overview: body.tmdb_id === 399566 ? '太阳即将毁灭，人类推动地球逃离太阳系。' : '',
+        source: 'tmdb',
+      },
+      cast_snapshot: [],
+      created_at: now,
+      updated_at: now,
+    }
+    const importedCast: PersonaRecord[] =
+      body.tmdb_id === 399566
+        ? [
+            {
+              id: `persona_tmdb_${body.tmdb_id}_liuqi`,
+              name: '刘启',
+              actor_name: '屈楚萧',
+              color: '#3b5bdb',
+              work_id: work.id,
+              created_at: now,
+              updated_at: now,
+            },
+            {
+              id: `persona_tmdb_${body.tmdb_id}_duoduo`,
+              name: '韩朵朵',
+              actor_name: '赵今麦',
+              color: '#ef4444',
+              work_id: work.id,
+              created_at: now,
+              updated_at: now,
+            },
+          ]
+        : []
+    state.works = state.works.filter(w => w.id !== work.id).concat(work)
+    state.personas = state.personas
+      .filter(p => !importedCast.some(next => next.id === p.id))
+      .concat(importedCast)
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        work,
+        imported_cast: importedCast.map(persona => ({
+          persona_id: persona.id,
+          name: persona.name,
+          actor_name: persona.actor_name,
+        })),
+        skipped_cast: [],
+      }),
+    })
   })
 
   await page.route(/\/api\/works\/[^/]+\/personas(\?|$)/, async route => {
@@ -302,6 +411,19 @@ async function setupRoutes(page: Page, state: State) {
     }
     await route.fallback()
   })
+
+  await page.route('**/api/config/tmdb', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        api_key_v3_set: Boolean(options.tmdbEnabled),
+        api_key_v4_set: false,
+        default_language: 'zh-CN',
+      }),
+    })
+  })
 }
 
 test.describe('作品库 · 独立页面', () => {
@@ -339,6 +461,7 @@ test.describe('作品库 · 独立页面', () => {
     // 通过顶部 "新建" 按钮创建第二部作品
     await page.getByTestId('works-library-create').click()
     await expect(page.getByTestId('work-editor')).toBeVisible()
+    await expect(page.getByTestId('work-create-mode-manual')).toHaveAttribute('aria-pressed', 'true')
     await page.getByTestId('work-field-title').fill('流浪地球')
     await page.getByTestId('work-field-year').fill('2019')
     await page.getByTestId('work-editor-save').click()
@@ -394,5 +517,42 @@ test.describe('作品库 · 独立页面', () => {
     await page.getByTestId('work-editor-save').click()
 
     await expect(page.getByTestId('works-library-grid')).toContainText('First Work')
+  })
+
+  test('TMDb 导入面板可搜索并导入候选作品', async ({ page }) => {
+    const state = seedState()
+    await setupRoutes(page, state, { tmdbEnabled: true })
+
+    const tmdbConfigWait = page.waitForResponse(response =>
+      response.url().includes('/api/config/tmdb') && response.status() === 200,
+    )
+    await page.goto('/works')
+    await tmdbConfigWait
+
+    await expect(page.getByTestId('works-library-tmdb-search')).toHaveCount(0)
+    await page.getByTestId('works-library-create').click()
+    await expect(page.getByTestId('work-editor')).toBeVisible()
+    await expect(page.getByTestId('work-create-mode-manual')).toHaveAttribute('aria-pressed', 'true')
+    await page.getByTestId('work-create-mode-tmdb').click()
+    await expect(page.getByTestId('work-create-mode-tmdb')).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.getByTestId('works-tmdb-panel')).toBeVisible()
+    await expect(page.getByTestId('works-tmdb-error')).toHaveCount(0)
+
+    await page.getByTestId('works-tmdb-query').fill('流浪地球')
+    await page.getByTestId('works-tmdb-submit').click()
+
+    const tmdbResult = page.getByTestId('works-tmdb-result-movie-399566')
+    await expect(tmdbResult).toBeVisible()
+    await expect(tmdbResult).toContainText('流浪地球')
+
+    await page.getByTestId('works-tmdb-import-movie-399566').click()
+    await expect(page.getByTestId('works-tmdb-panel')).toHaveCount(0)
+    await expect(page.getByTestId('works-library-grid')).toContainText('流浪地球')
+    await expect(page.getByTestId('works-card-work_tmdb_399566')).toContainText('2 个角色')
+
+    await page.screenshot({
+      path: path.join(SCREENSHOTS_DIR, 'works-library-tmdb-imported.png'),
+      fullPage: true,
+    })
   })
 })

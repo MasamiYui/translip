@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Clapperboard, ExternalLink, Pencil, PlusCircle, RefreshCw, Search, Trash2 } from 'lucide-react'
+import { Clapperboard, Download, ExternalLink, Pencil, PlusCircle, RefreshCw, Search, Trash2 } from 'lucide-react'
 import { worksApi } from '../api/works'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
-import { WorkEditorDrawer } from '../components/character-library/WorkEditorDrawer'
+import { WorkEditorDrawer, type WorkCreateMode } from '../components/character-library/WorkEditorDrawer'
 import { useI18n } from '../i18n/useI18n'
 import { DEFAULT_COLOR, gradientBackground, normalizeHex } from '../components/character-library/pickers/presets'
 import type { Work, WorkType } from '../types'
@@ -35,6 +35,7 @@ export function WorksPage() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [editingWork, setEditingWork] = useState<Work | null>(null)
   const [flash, setFlash] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [createMode, setCreateMode] = useState<WorkCreateMode>('manual')
 
   const { data: worksData, isLoading, refetch, isFetching } = useQuery({
     queryKey: ['works'],
@@ -46,6 +47,13 @@ export function WorksPage() {
     queryFn: () => worksApi.listTypes(),
     staleTime: 60_000,
   })
+
+  const { data: tmdbConfig } = useQuery({
+    queryKey: ['tmdb-config'],
+    queryFn: worksApi.tmdbGetConfig,
+  })
+
+  const hasTmdbKey = tmdbConfig?.ok && (tmdbConfig.api_key_v3_set || tmdbConfig.api_key_v4_set)
 
   const works: Work[] = useMemo(() => worksData?.works ?? [], [worksData])
   const types: WorkType[] = useMemo(() => typesData?.types ?? [], [typesData])
@@ -83,12 +91,14 @@ export function WorksPage() {
     })
   }, [works, search, typeFilter])
 
-  function openCreate() {
+  function openCreate(mode: WorkCreateMode = 'manual') {
+    setCreateMode(mode)
     setEditingWork(null)
     setDrawerOpen(true)
   }
 
   function openEdit(work: Work) {
+    setCreateMode('manual')
     setEditingWork(work)
     setDrawerOpen(true)
   }
@@ -197,7 +207,7 @@ export function WorksPage() {
         <button
           type="button"
           data-testid="works-library-create"
-          onClick={openCreate}
+          onClick={() => openCreate('manual')}
           className="inline-flex items-center gap-2 rounded-lg bg-[#3b5bdb] px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7]"
         >
           <PlusCircle size={14} />
@@ -223,15 +233,27 @@ export function WorksPage() {
               <div className="max-w-md text-sm text-slate-500">
                 {t.worksLibrary.empty.description}
               </div>
-              <button
-                type="button"
-                data-testid="works-library-empty-cta"
-                onClick={openCreate}
-                className="mt-2 inline-flex items-center gap-2 rounded-lg bg-[#3b5bdb] px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7]"
-              >
-                <PlusCircle size={14} />
-                {t.worksLibrary.empty.cta}
-              </button>
+              {hasTmdbKey ? (
+                <button
+                  type="button"
+                  data-testid="works-library-empty-cta"
+                  onClick={() => openCreate('tmdb')}
+                  className="mt-2 inline-flex items-center gap-2 rounded-lg bg-[#3b5bdb] px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7]"
+                >
+                  <Download size={14} />
+                  {t.worksLibrary.actions.importFromTmdb}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  data-testid="works-library-empty-cta"
+                  onClick={() => openCreate('manual')}
+                  className="mt-2 inline-flex items-center gap-2 rounded-lg bg-[#3b5bdb] px-4 py-2 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7]"
+                >
+                  <PlusCircle size={14} />
+                  {t.worksLibrary.empty.cta}
+                </button>
+              )}
             </div>
           ) : (
             <div
@@ -268,6 +290,7 @@ export function WorksPage() {
       <WorkEditorDrawer
         open={drawerOpen}
         work={editingWork}
+        initialMode={createMode}
         onClose={() => {
           setDrawerOpen(false)
           setEditingWork(null)
@@ -326,7 +349,6 @@ function WorkCard({
         style={{ background: gradientBackground(accent) }}
       >
         {posterUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img
             data-testid={`works-card-poster-${work.id}`}
             src={posterUrl}

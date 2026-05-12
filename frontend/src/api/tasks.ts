@@ -29,6 +29,7 @@ export type PersonaCreatePayload = {
   bindings?: string[]
   color?: string | null
   avatar_emoji?: string | null
+  avatar_url?: string | null
   note?: string | null
   role?: string | null
   gender?: string | null
@@ -45,6 +46,7 @@ export type PersonaUpdatePayload = Partial<{
   name: string
   color: string | null
   avatar_emoji: string | null
+  avatar_url: string | null
   note: string | null
   aliases: string[]
   role: string | null

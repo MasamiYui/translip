@@ -431,6 +431,124 @@ def test_create_work_persists_external_fields(isolated_env: Path) -> None:
     assert (fetched.get("metadata") or {}).get("overview", "").startswith("六个")
 
 
+def test_list_works_backfills_tmdb_cast_snapshot_into_global_personas(
+    isolated_env: Path,
+) -> None:
+    """Older TMDb imports may have cast_snapshot but no global personas.
+    Listing works should migrate that snapshot once so the card count is correct.
+    """
+    client = TestClient(app)
+    create = client.post(
+        "/api/works",
+        json={
+            "title": "盗梦空间",
+            "type": "movie",
+            "year": 2010,
+            "external_refs": {"tmdb_id": 27205, "tmdb_media_type": "movie"},
+            "metadata": {"source": "tmdb", "overview": "梦境盗窃。"},
+            "cast_snapshot": [
+                {
+                    "external_person_id": "tmdb:6193",
+                    "actor_name": "Leonardo DiCaprio",
+                    "character_name": "道姆·柯布",
+                    "profile_url": "https://image.tmdb.org/t/p/w185/leo.jpg",
+                    "order": 0,
+                    "source": "tmdb",
+                },
+                {
+                    "external_person_id": "tmdb:24045",
+                    "actor_name": "Joseph Gordon-Levitt",
+                    "character_name": "亚瑟",
+                    "profile_url": "https://image.tmdb.org/t/p/w185/jgl.jpg",
+                    "order": 1,
+                    "source": "tmdb",
+                },
+            ],
+        },
+    )
+    assert create.status_code == 200, create.text
+    work_id = create.json()["work"]["id"]
+
+    listing = client.get("/api/works").json()
+    imported_work = next(w for w in listing["works"] if w["id"] == work_id)
+    assert imported_work["persona_count"] == 2
+    assert imported_work["metadata"]["cast_auto_imported_count"] == 2
+
+    personas = client.get("/api/global-personas").json()["personas"]
+    assert {p["name"] for p in personas} == {"道姆·柯布", "亚瑟"}
+    assert all(p.get("work_id") == work_id for p in personas)
+    assert any(
+        p["name"] == "道姆·柯布"
+        and p["avatar_url"] == "https://image.tmdb.org/t/p/w185/leo.jpg"
+        for p in personas
+    )
+
+    client.get("/api/works")
+    assert len(client.get("/api/global-personas").json()["personas"]) == 2
+
+
+def test_list_works_enriches_existing_tmdb_personas_with_avatar_url(
+    isolated_env: Path,
+) -> None:
+    """Already-imported TMDb personas should get avatars from cast_snapshot
+    without recreating missing/deleted cast members.
+    """
+    client = TestClient(app)
+    create = client.post(
+        "/api/works",
+        json={
+            "title": "盗梦空间 已导入",
+            "type": "movie",
+            "external_refs": {"tmdb_id": 27205, "tmdb_media_type": "movie"},
+            "metadata": {
+                "source": "tmdb",
+                "cast_auto_imported_at": "2026-05-12T09:00:00+08:00",
+                "cast_auto_imported_count": 2,
+            },
+            "cast_snapshot": [
+                {
+                    "external_person_id": "tmdb:6193",
+                    "actor_name": "Leonardo DiCaprio",
+                    "character_name": "道姆·柯布",
+                    "profile_url": "https://image.tmdb.org/t/p/w185/leo.jpg",
+                    "order": 0,
+                    "source": "tmdb",
+                },
+                {
+                    "external_person_id": "tmdb:24045",
+                    "actor_name": "Joseph Gordon-Levitt",
+                    "character_name": "亚瑟",
+                    "profile_url": "https://image.tmdb.org/t/p/w185/jgl.jpg",
+                    "order": 1,
+                    "source": "tmdb",
+                },
+            ],
+        },
+    )
+    work_id = create.json()["work"]["id"]
+    client.post(
+        "/api/global-personas/import",
+        json={
+            "mode": "merge",
+            "personas": [
+                {
+                    "id": "persona_cobb",
+                    "name": "道姆·柯布",
+                    "actor_name": "Leonardo DiCaprio",
+                    "work_id": work_id,
+                    "external_refs": {"tmdb_person_id": "6193"},
+                }
+            ],
+        },
+    )
+
+    client.get("/api/works")
+    personas = client.get("/api/global-personas").json()["personas"]
+    assert len(personas) == 1
+    assert personas[0]["name"] == "道姆·柯布"
+    assert personas[0]["avatar_url"] == "https://image.tmdb.org/t/p/w185/leo.jpg"
+
+
 def test_patch_work_merges_external_fields_without_clobbering_user_fields(
     isolated_env: Path,
 ) -> None:

@@ -18,6 +18,7 @@ type PersonaRecord = {
   age_hint?: string | null
   tags?: string[]
   avatar_emoji?: string | null
+  avatar_url?: string | null
   color?: string | null
   tts_voice_id?: string | null
   note?: string | null
@@ -36,6 +37,8 @@ function seedPersonas(): PersonaRecord[] {
       gender: 'female',
       age_hint: '青年',
       avatar_emoji: '👩',
+      avatar_url:
+        'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 80"%3E%3Crect width="80" height="80" fill="%23ef4444"/%3E%3Ccircle cx="40" cy="32" r="16" fill="white"/%3E%3Cpath d="M16 76c6-18 42-18 48 0" fill="white"/%3E%3C/svg%3E',
       color: '#ef4444',
       tags: ['主线'],
       note: '第一女主角',
@@ -191,6 +194,7 @@ test.describe('角色库管理页', () => {
     await expect(page.getByTestId('character-library-list')).toBeVisible()
     await expect(page.getByTestId('character-row-persona_amy')).toContainText('艾米')
     await expect(page.getByTestId('character-row-persona_amy')).toContainText('Anne Hathaway')
+    await expect(page.getByTestId('character-avatar-image-persona_amy')).toBeVisible()
     await expect(page.getByTestId('character-row-persona_bob')).toContainText('鲍勃')
     await expect(page.getByTestId('character-library-count')).toContainText('2')
 
@@ -211,6 +215,7 @@ test.describe('角色库管理页', () => {
     await expect(page.getByTestId('character-editor')).toBeVisible()
     const nameField = page.getByTestId('character-field-name')
     await expect(nameField).toHaveValue('艾米')
+    await expect(page.getByTestId('character-field-avatar-url')).toHaveValue(/data:image\/svg\+xml/)
     await page.getByTestId('character-field-actor').fill('Anne H.')
     await page.getByTestId('character-field-tags-input').fill('主线, 女主角')
     await page.getByTestId('character-field-tags-input').press('Enter')

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Users, Check, UserPlus, AlertCircle, ArrowRight } from 'lucide-react'
 import { useI18n } from '../../i18n/useI18n'
@@ -11,8 +11,6 @@ export interface CastImportPanelProps {
   onImported: () => void
   onClose: () => void
 }
-
-const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p'
 
 export function CastImportPanel({ workId, tmdbId, mediaType, onImported, onClose }: CastImportPanelProps) {
   const { t } = useI18n()

@@ -12,6 +12,9 @@ const zhMessages = {
     loading: '加载中...',
     yes: '是',
     no: '否',
+    cancel: '取消',
+    close: '关闭',
+    retry: '重试',
     notAvailable: '—',
   },
   nav: {
@@ -789,6 +792,7 @@ const zhMessages = {
       gender: '性别',
       ageHint: '年龄段',
       avatarEmoji: '头像',
+      avatarUrl: '头像图片 URL',
       color: '主题色',
       aliases: '别名',
       tags: '标签',
@@ -801,6 +805,7 @@ const zhMessages = {
       role: '例如：女主、反派',
       ageHint: '例如：青年 / 中年',
       avatarEmoji: '例如：👩',
+      avatarUrl: '例如：https://image.tmdb.org/t/p/w185/xxx.jpg',
       aliases: '输入后回车添加，例如：Amy',
       tags: '输入后回车添加，例如：主线',
       note: '可选的角色描述、记忆点',
@@ -952,6 +957,7 @@ const zhMessages = {
       drawer: {
         createTitle: '新建作品',
         editTitle: '编辑作品',
+        manualCreate: '手动创建',
       },
       flash: {
         created: (title: string) => `已新建作品「${title}」`,
@@ -976,6 +982,7 @@ const zhMessages = {
     storageHint: (path: string) => `存储位置：${path}`,
     actions: {
       create: '新建作品',
+      importFromTmdb: '从 TMDb 导入',
       refresh: '刷新',
       edit: '编辑',
       delete: '删除',
@@ -1014,6 +1021,9 @@ const zhMessages = {
         movie: '电影',
         tv: '剧集',
         all: '全部',
+        searchButton: '搜索',
+        syncHint: 'The Movie Database',
+        readyState: '等待搜索结果',
         noResults: '没有找到匹配的结果',
         error: '搜索失败，请稍后重试',
         castCount: '位演员',
@@ -1056,6 +1066,9 @@ const enMessages: LocaleMessages = {
     loading: 'Loading...',
     yes: 'Yes',
     no: 'No',
+    cancel: 'Cancel',
+    close: 'Close',
+    retry: 'Retry',
     notAvailable: '—',
   },
   nav: {
@@ -1838,6 +1851,7 @@ const enMessages: LocaleMessages = {
       gender: 'Gender',
       ageHint: 'Age',
       avatarEmoji: 'Avatar',
+      avatarUrl: 'Avatar image URL',
       color: 'Theme color',
       aliases: 'Aliases',
       tags: 'Tags',
@@ -1850,6 +1864,7 @@ const enMessages: LocaleMessages = {
       role: 'e.g. lead, villain',
       ageHint: 'e.g. young adult',
       avatarEmoji: 'e.g. 👩',
+      avatarUrl: 'e.g. https://image.tmdb.org/t/p/w185/xxx.jpg',
       aliases: 'Press Enter to add, e.g. Amy',
       tags: 'Press Enter to add, e.g. mainline',
       note: 'Optional description / memo',
@@ -2001,6 +2016,7 @@ const enMessages: LocaleMessages = {
       drawer: {
         createTitle: 'New work',
         editTitle: 'Edit work',
+        manualCreate: 'Manual Entry',
       },
       flash: {
         created: (title: string) => `Created work “${title}”`,
@@ -2026,6 +2042,7 @@ const enMessages: LocaleMessages = {
     storageHint: (path: string) => `Stored at: ${path}`,
     actions: {
       create: 'New Work',
+      importFromTmdb: 'Import from TMDb',
       refresh: 'Refresh',
       edit: 'Edit',
       delete: 'Delete',
@@ -2065,6 +2082,9 @@ const enMessages: LocaleMessages = {
         movie: 'Movie',
         tv: 'TV',
         all: 'All',
+        searchButton: 'Search',
+        syncHint: 'The Movie Database',
+        readyState: 'Waiting for search results',
         noResults: 'No results found',
         error: 'Search failed, please retry',
         castCount: 'cast members',

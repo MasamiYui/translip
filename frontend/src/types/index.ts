@@ -498,6 +498,7 @@ export interface GlobalPersona {
   note?: string | null
   role?: string | null
   actor_name?: string | null
+  avatar_url?: string | null
   tags?: string[]
   work_id?: string | null
   guest_work_ids?: string[]
