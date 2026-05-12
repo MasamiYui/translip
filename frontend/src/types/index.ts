@@ -103,6 +103,8 @@ export interface Task {
   status: TaskStatus
   input_path: string
   output_root: string
+  work_id?: string | null
+  episode_label?: string | null
   source_lang: string
   target_lang: string
   output_intent: TaskOutputIntent
@@ -644,7 +646,10 @@ export interface SuggestFromGlobalCandidate {
   reason: string
   role?: string | null
   gender?: string | null
+  work_id?: string | null
   tts_voice_id?: string | null
+  actor_name?: string | null
+  avatar_url?: string | null
   color?: string | null
   avatar_emoji?: string | null
 }
@@ -659,9 +664,17 @@ export interface SuggestFromGlobalResponse {
   matches: SuggestFromGlobalMatch[]
 }
 
+export interface SpeakerReviewWorkBinding {
+  work_id?: string | null
+  episode_label?: string | null
+  work?: Work | null
+  candidates?: WorkInferCandidate[]
+}
+
 export interface SpeakerReviewResponse {
   task_id: string
   status: 'available' | 'missing'
+  work_binding?: SpeakerReviewWorkBinding | null
   summary: {
     segment_count: number
     speaker_count: number

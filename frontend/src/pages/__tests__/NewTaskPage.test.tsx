@@ -1,10 +1,11 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { configApi } from '../../api/config'
 import { tasksApi } from '../../api/tasks'
+import { worksApi } from '../../api/works'
 import { I18nProvider } from '../../i18n/I18nProvider'
 import { NewTaskPage } from '../NewTaskPage'
 
@@ -24,6 +25,12 @@ vi.mock('../../api/config', () => ({
 vi.mock('../../api/tasks', () => ({
   tasksApi: {
     create: vi.fn(),
+  },
+}))
+
+vi.mock('../../api/works', () => ({
+  worksApi: {
+    autoBindTask: vi.fn(),
   },
 }))
 
@@ -69,6 +76,26 @@ afterEach(() => {
 })
 
 describe('NewTaskPage redesigned flow', () => {
+  it('auto-detects and binds a work after creating a pipeline task', async () => {
+    vi.mocked(configApi.getPresets).mockResolvedValue([])
+    vi.mocked(tasksApi.create).mockResolvedValue({ id: 'task-auto-work' } as never)
+    vi.mocked(worksApi.autoBindTask).mockResolvedValue({
+      ok: true,
+      bound: true,
+      work_id: 'work_nezha',
+      episode_label: 'E03',
+      candidates: [],
+    } as never)
+
+    renderReviewStep()
+
+    fireEvent.click(screen.getByRole('button', { name: '创建任务' }))
+
+    await waitFor(() => {
+      expect(worksApi.autoBindTask).toHaveBeenCalledWith('task-auto-work')
+    })
+  })
+
   it('shows output intent cards and updates the summary based on the selected result', async () => {
     vi.mocked(configApi.getPresets).mockResolvedValue([])
     vi.mocked(tasksApi.create).mockResolvedValue({ id: 'task-1' } as never)

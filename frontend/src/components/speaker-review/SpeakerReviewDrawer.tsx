@@ -27,6 +27,7 @@ import {
 } from 'lucide-react'
 
 import { tasksApi } from '../../api/tasks'
+import { TaskWorkBindingControl } from '../task-work-binding/TaskWorkBindingControl'
 import type {
   SpeakerPersonaBrief,
   SpeakerReviewDecisionPayload,
@@ -181,6 +182,22 @@ function statusCopy(data?: SpeakerReviewResponse): string {
   return `${summary.segment_count} 句台词 · ${summary.speaker_count} 位说话人 · ${summary.decision_count} 个决策`
 }
 
+function workBindingCopy(data?: SpeakerReviewResponse): string | null {
+  const binding = data?.work_binding
+  if (!binding) return null
+  const title = binding.work?.title
+  if (title) {
+    return binding.episode_label ? `${title} · ${binding.episode_label}` : title
+  }
+  const candidate = binding.candidates?.[0]
+  if (candidate?.title) {
+    return candidate.episode_label
+      ? `可能作品：${candidate.title} · ${candidate.episode_label}`
+      : `可能作品：${candidate.title}`
+  }
+  return null
+}
+
 export function SpeakerReviewDrawer({
   taskId,
   isOpen,
@@ -255,10 +272,6 @@ export function SpeakerReviewDrawer({
     },
   })
 
-  const suggestFromGlobalMutation = useMutation({
-    mutationFn: () => tasksApi.suggestPersonasFromGlobal(taskId, {}),
-  })
-
   const importFromGlobalMutation = useMutation({
     mutationFn: (payload: { persona_ids: string[]; bindings_by_id?: Record<string, string[]> }) =>
       tasksApi.importPersonasFromGlobal(taskId, payload),
@@ -272,6 +285,7 @@ export function SpeakerReviewDrawer({
   })
 
   const [globalMatches, setGlobalMatches] = useState<SuggestFromGlobalMatch[]>([])
+  const [globalMatchesLoading, setGlobalMatchesLoading] = useState(false)
   const [exportFlash, setExportFlash] = useState<string | null>(null)
   const [bindingPersonaId, setBindingPersonaId] = useState<string | null>(null)
 
@@ -468,13 +482,16 @@ export function SpeakerReviewDrawer({
   }, [activeSegment])
 
   const fetchGlobalMatches = useCallback(async () => {
+    setGlobalMatchesLoading(true)
     try {
-      const result = await suggestFromGlobalMutation.mutateAsync()
+      const result = await tasksApi.suggestPersonasFromGlobal(taskId, {})
       setGlobalMatches(result.matches ?? [])
     } catch {
       setGlobalMatches([])
+    } finally {
+      setGlobalMatchesLoading(false)
     }
-  }, [suggestFromGlobalMutation])
+  }, [taskId])
 
   useEffect(() => {
     if (!isOpen) return
@@ -607,7 +624,24 @@ export function SpeakerReviewDrawer({
             <ArrowLeft size={16} />
           </button>
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold text-slate-950">说话人核对</h2>
+            <div className="flex min-w-0 items-center gap-2">
+              <h2 className="truncate text-sm font-semibold text-slate-950">说话人核对</h2>
+              {reviewQuery.data && (
+                <TaskWorkBindingControl
+                  taskId={taskId}
+                  workId={reviewQuery.data.work_binding?.work_id}
+                  episodeLabel={reviewQuery.data.work_binding?.episode_label}
+                  currentWorkTitle={reviewQuery.data.work_binding?.work?.title}
+                  fallbackLabel={workBindingCopy(reviewQuery.data)}
+                  compact
+                  triggerTestId="speaker-review-work-binding"
+                  onSaved={() => {
+                    reviewQuery.refetch()
+                    fetchGlobalMatches()
+                  }}
+                />
+              )}
+            </div>
             <div className="truncate text-xs text-slate-500">{statusCopy(reviewQuery.data)}</div>
           </div>
           <div className="ml-auto flex items-center gap-2">
@@ -822,7 +856,7 @@ export function SpeakerReviewDrawer({
                 onBindGlobalCandidate={bindGlobalPersona}
                 onRefreshGlobalMatches={fetchGlobalMatches}
                 bindingPersonaId={bindingPersonaId}
-                globalMatchesLoading={suggestFromGlobalMutation.isPending}
+                globalMatchesLoading={globalMatchesLoading}
               />
             </aside>
           </main>
@@ -1545,17 +1579,17 @@ function CharacterLibraryMatchCard({
   loading: boolean
 }) {
   const activeMatch = matches.find(m => m.speaker_label === activeSpeakerLabel)
-  const candidates = (activeMatch?.candidates ?? []).slice(0, 3)
-  const [boundPersonaId, setBoundPersonaId] = useState<string | null>(null)
-
-  // Reset bound state when switching speakers
-  useEffect(() => {
-    setBoundPersonaId(null)
-  }, [activeSpeakerLabel])
+  const candidates = activeMatch?.candidates ?? []
+  const [boundState, setBoundState] = useState<{ speakerLabel: string; personaId: string | null }>({
+    speakerLabel: activeSpeakerLabel,
+    personaId: null,
+  })
+  const boundPersonaId =
+    boundState.speakerLabel === activeSpeakerLabel ? boundState.personaId : null
 
   async function handleBind(candidate: SuggestFromGlobalCandidate, speakerLabel: string) {
     await onBind(candidate, speakerLabel)
-    setBoundPersonaId(candidate.persona_id)
+    setBoundState({ speakerLabel, personaId: candidate.persona_id })
   }
 
   return (
@@ -1563,7 +1597,9 @@ function CharacterLibraryMatchCard({
       <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <BookUser className="h-3.5 w-3.5 text-indigo-600" />
-          <h4 className="text-xs font-semibold text-slate-900">角色库匹配</h4>
+          <h4 className="text-xs font-semibold text-slate-900">
+            {candidates.some(candidate => candidate.work_id) ? '作品角色候选' : '角色库匹配'}
+          </h4>
           {loading && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
         </div>
         <button
@@ -1626,6 +1662,11 @@ function CharacterLibraryMatchCard({
                     {candidate.reason && !bound && (
                       <div className="mt-0.5 line-clamp-1 text-[11px] text-slate-500">
                         {candidate.reason}
+                      </div>
+                    )}
+                    {candidate.tts_voice_id && (
+                      <div className="mt-0.5 line-clamp-1 font-mono text-[10px] text-emerald-700">
+                        {candidate.tts_voice_id}
                       </div>
                     )}
                   </div>

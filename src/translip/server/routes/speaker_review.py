@@ -55,6 +55,8 @@ from ...speaker_review.global_personas import (
     save_global_personas,
     smart_match_global,
 )
+from ...speaker_review.work_inference import infer_work_from_task
+from ...speaker_review.works import find_work, list_works, load_works
 from ..database import get_session
 from ..models import Task
 
@@ -125,6 +127,7 @@ def get_speaker_review(task_id: str, session: Session = Depends(get_session)) ->
     return {
         "task_id": task_id,
         "status": "available",
+        "work_binding": _work_binding_payload(task),
         "summary": {
             **diagnostics.get("summary", {}),
             "decision_count": len(decisions),
@@ -511,6 +514,52 @@ def _persona_response(payload: dict[str, Any]) -> dict[str, Any]:
         "by_speaker": build_by_speaker_index(payload),
         "updated_at": payload.get("updated_at"),
     }
+
+
+def _work_binding_payload(task: Task) -> dict[str, Any]:
+    works_payload = load_works()
+    work = find_work(works_payload, task.work_id) if task.work_id else None
+    candidates = infer_work_from_task(
+        task_name=task.name or "",
+        input_path=task.input_path,
+        works=list_works(works_payload),
+    )
+    return {
+        "work_id": task.work_id,
+        "episode_label": task.episode_label,
+        "work": work,
+        "candidates": candidates,
+    }
+
+
+def _task_personas_by_speaker(payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    by_speaker: dict[str, dict[str, Any]] = {}
+    for persona in payload.get("personas", []):
+        if not isinstance(persona, dict):
+            continue
+        for binding in persona.get("bindings", []):
+            label = str(binding or "")
+            if label:
+                by_speaker[label] = persona
+    return by_speaker
+
+
+def _speaker_hint(
+    speaker: dict[str, Any],
+    *,
+    task: Task,
+    task_persona_by_speaker: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    label = str(speaker.get("speaker_label") or speaker.get("label") or "")
+    persona = task_persona_by_speaker.get(label) or {}
+    hint = dict(speaker)
+    hint["speaker_label"] = label
+    if task.work_id and not hint.get("work_id"):
+        hint["work_id"] = task.work_id
+    for key in ("name", "role", "gender"):
+        if persona.get(key) and not hint.get(key):
+            hint[key] = persona.get(key)
+    return hint
 
 
 def _clone(value: Any) -> Any:
@@ -950,6 +999,17 @@ def import_personas_from_global_route(
             tts_voice_id=g.get("tts_voice_id"),
             tts_skip=bool(g.get("tts_skip", False)),
         )
+        persona["source_global_persona_id"] = str(g.get("id") or pid)
+        for key in (
+            "work_id",
+            "actor_name",
+            "avatar_url",
+            "external_refs",
+            "guest_work_ids",
+            "episodes",
+        ):
+            if g.get(key) is not None:
+                persona[key] = g.get(key)
         imported.append(persona)
     if imported:
         save_personas(review_dir, payload)
@@ -973,9 +1033,15 @@ def suggest_personas_from_global_route(
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     """Return global-persona candidates per speaker in the current task."""
-    _task, root, paths, _review_dir, _payload = _persona_context(session, task_id)
+    task, root, paths, _review_dir, payload = _persona_context(session, task_id)
+    task_persona_by_speaker = _task_personas_by_speaker(payload)
     speakers = req.speakers or []
-    if not speakers:
+    if speakers:
+        speakers = [
+            _speaker_hint(speaker, task=task, task_persona_by_speaker=task_persona_by_speaker)
+            for speaker in speakers
+        ]
+    else:
         source_segments_path = _source_segments_path(paths)
         if source_segments_path is not None:
             diagnostics = build_speaker_diagnostics(
@@ -983,11 +1049,15 @@ def suggest_personas_from_global_route(
                 source_path=_relative_path(source_segments_path, root),
             )
             speakers = [
-                {
-                    "speaker_label": str(sp.get("speaker_label") or ""),
-                    "gender": sp.get("gender"),
-                    "role": sp.get("role"),
-                }
+                _speaker_hint(
+                    {
+                        "speaker_label": str(sp.get("speaker_label") or ""),
+                        "gender": sp.get("gender"),
+                        "role": sp.get("role"),
+                    },
+                    task=task,
+                    task_persona_by_speaker=task_persona_by_speaker,
+                )
                 for sp in diagnostics.get("speakers", [])
                 if sp.get("speaker_label")
             ]

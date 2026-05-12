@@ -25,6 +25,8 @@ class TaskRead(BaseModel):
     status: str
     input_path: str
     output_root: str
+    work_id: Optional[str] = None
+    episode_label: Optional[str] = None
     source_lang: str
     target_lang: str
     output_intent: str = "dub_final"

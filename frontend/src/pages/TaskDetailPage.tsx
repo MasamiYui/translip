@@ -31,6 +31,7 @@ import { SpeakerReviewDrawer } from '../components/speaker-review/SpeakerReviewD
 import { PipelineGraph } from '../components/pipeline/PipelineGraph'
 import { ProgressBar } from '../components/shared/ProgressBar'
 import { StatusBadge } from '../components/shared/StatusBadge'
+import { TaskWorkBindingControl } from '../components/task-work-binding/TaskWorkBindingControl'
 import { WorkflowNodeDrawer } from '../components/workflow/WorkflowNodeDrawer'
 import { useWorkflowGraph } from '../hooks/useWorkflowGraph'
 import { useWorkflowRuntimeUpdates } from '../hooks/useWorkflowRuntimeUpdates'
@@ -183,6 +184,7 @@ export function TaskDetailPage() {
     setSpeakerReviewUserClosed(true)
   }
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (!id || !task || task.status !== 'running') {
       return
@@ -296,6 +298,7 @@ export function TaskDetailPage() {
       setSubtitleSource(subtitleOptions[0].value)
     }
   }, [subtitleOptions, subtitleSource])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const selectedSubtitleOption = subtitleOptions.find(option => option.value === subtitleSource) ?? null
   const previewArtifact = artifacts.find(artifact => artifact.path.endsWith('subtitle-preview.mp4')) ?? null
@@ -379,7 +382,14 @@ export function TaskDetailPage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight text-slate-900">{task.name}</h1>
-              <div className="mt-1 font-mono text-xs text-slate-400">{task.id}</div>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <div className="font-mono text-xs text-slate-400">{task.id}</div>
+                <TaskWorkBindingControl
+                  taskId={task.id}
+                  workId={task.work_id}
+                  episodeLabel={task.episode_label}
+                />
+              </div>
             </div>
             <div className="flex items-center gap-2.5">
               <StatusBadge status={task.status} />

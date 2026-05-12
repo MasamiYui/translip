@@ -61,6 +61,8 @@ def _task_to_read(task: Task, stages: list[TaskStage]) -> TaskRead:
         status=task.status,
         input_path=task.input_path,
         output_root=task.output_root,
+        work_id=task.work_id,
+        episode_label=task.episode_label,
         source_lang=task.source_lang,
         target_lang=task.target_lang,
         output_intent=output_intent,

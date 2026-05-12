@@ -188,6 +188,7 @@ def smart_match_global(
     """Propose global personas for each speaker based on heuristics.
 
     Heuristics (additive scores):
+      - Same task-bound work: +0.45
       - Name fuzzy match (task persona name vs global name/aliases): up to 0.8
       - Match by role: +0.6
       - Match by gender: +0.3
@@ -206,12 +207,20 @@ def smart_match_global(
         name_hint = (speaker.get("name") or "").strip().lower()
         role_hint = (speaker.get("role") or "").strip().lower()
         gender_hint = (speaker.get("gender") or "").strip().lower()
+        work_hint = str(speaker.get("work_id") or "").strip()
         candidates: list[dict[str, Any]] = []
         for g in globals_list:
+            g_work_id = str(g.get("work_id") or "").strip()
+            if work_hint and g_work_id and g_work_id != work_hint:
+                continue
             score = 0.0
             reasons: list[str] = []
             g_role = (g.get("role") or "").strip().lower()
             g_gender = (g.get("gender") or "").strip().lower()
+
+            if work_hint and g_work_id == work_hint:
+                score += 0.45
+                reasons.append("当前作品")
 
             # Name fuzzy matching: check against name + aliases
             if name_hint:
@@ -240,13 +249,16 @@ def smart_match_global(
                         "reason": ", ".join(reasons) or "heuristic",
                         "role": g.get("role"),
                         "gender": g.get("gender"),
+                        "work_id": g.get("work_id"),
                         "tts_voice_id": g.get("tts_voice_id"),
+                        "actor_name": g.get("actor_name"),
+                        "avatar_url": g.get("avatar_url"),
                         "color": g.get("color"),
                         "avatar_emoji": g.get("avatar_emoji"),
                     }
                 )
         candidates.sort(key=lambda c: -c["score"])
-        results.append({"speaker_label": label, "candidates": candidates[:3]})
+        results.append({"speaker_label": label, "candidates": candidates})
     return results
 
 

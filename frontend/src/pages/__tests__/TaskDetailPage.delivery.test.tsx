@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { tasksApi } from '../../api/tasks'
+import { worksApi } from '../../api/works'
 import { I18nProvider } from '../../i18n/I18nProvider'
 import { SpeakerReviewHarnessPage } from '../SpeakerReviewHarnessPage'
 import { TaskDetailPage } from '../TaskDetailPage'
@@ -26,6 +27,14 @@ vi.mock('../../api/tasks', () => ({
 
 vi.mock('../../api/progress', () => ({
   subscribeToProgress: vi.fn(() => () => {}),
+}))
+
+vi.mock('../../api/works', () => ({
+  worksApi: {
+    list: vi.fn(),
+    bindTask: vi.fn(),
+    inferFromTask: vi.fn(),
+  },
 }))
 
 function createWrapper() {
@@ -111,6 +120,60 @@ describe('TaskDetailPage export workflow', () => {
 
   afterEach(() => {
     cleanup()
+  })
+
+  it('lets users bind the pipeline task to an existing work from the task header', async () => {
+    vi.mocked(tasksApi.get).mockResolvedValue({
+      ...mockTask('task-works-ui'),
+      work_id: null,
+      episode_label: null,
+    } as never)
+    vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
+    vi.mocked(tasksApi.getGraph).mockResolvedValue({
+      workflow: { template_id: 'asr-dub-basic', status: 'succeeded' },
+      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      edges: [],
+    } as never)
+    vi.mocked(tasksApi.getSpeakerReview).mockResolvedValue({ task_id: 'task-works-ui', status: 'missing' } as never)
+    vi.mocked(worksApi.list).mockResolvedValue({
+      ok: true,
+      path: '/tmp/works.json',
+      works: [
+        {
+          id: 'work_nezha',
+          title: '哪吒之魔童闹海',
+          type: 'movie',
+          aliases: [],
+          tags: [],
+          persona_count: 24,
+        },
+      ],
+      unassigned_count: 0,
+      version: 1,
+    } as never)
+    vi.mocked(worksApi.bindTask).mockResolvedValue({
+      ok: true,
+      task: { id: 'task-works-ui', work_id: 'work_nezha', episode_label: 'E03' },
+    } as never)
+
+    render(<TaskDetailPage />, { wrapper: createWrapper() })
+
+    fireEvent.click(await screen.findByTestId('task-work-binding-trigger'))
+    await screen.findByRole('option', { name: '哪吒之魔童闹海' })
+    fireEvent.change(await screen.findByTestId('task-work-select'), {
+      target: { value: 'work_nezha' },
+    })
+    fireEvent.change(screen.getByTestId('task-work-episode-input'), {
+      target: { value: 'E03' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: '保存绑定' }))
+
+    await waitFor(() => {
+      expect(worksApi.bindTask).toHaveBeenCalledWith('task-works-ui', {
+        work_id: 'work_nezha',
+        episode_label: 'E03',
+      })
+    })
   })
 
   it('opens speaker review drawer and saves speaker decisions', async () => {

@@ -564,3 +564,128 @@ def test_global_personas_smart_match(tmp_path: Path, monkeypatch) -> None:
         assert matches_by_label["SPEAKER_02"]["candidates"] == []
     finally:
         app.dependency_overrides.clear()
+
+
+def test_bound_work_prioritizes_same_work_global_personas(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("TRANSLIP_GLOBAL_PERSONAS_DIR", str(tmp_path / "global"))
+    client, _ = _bootstrap(tmp_path, "global-work-match.db")
+    try:
+        work = client.post(
+            "/api/works",
+            json={"title": "哪吒之魔童闹海", "type": "movie"},
+        ).json()["work"]
+        other_work = client.post(
+            "/api/works",
+            json={"title": "盗梦空间", "type": "movie"},
+        ).json()["work"]
+        bind = client.post(
+            f"/api/works/bind-task/{TASK_ID}",
+            json={"work_id": work["id"], "episode_label": "E03"},
+        )
+        assert bind.status_code == 200, bind.text
+        client.post(
+            "/api/global-personas/import",
+            json={
+                "personas": [
+                    {
+                        "id": "g-young-nezha",
+                        "name": "Young Nezha",
+                        "work_id": work["id"],
+                        "role": "主角",
+                        "gender": "female",
+                        "tts_voice_id": "voice-nezha",
+                    },
+                    {
+                        "id": "g-youth-nezha",
+                        "name": "Youth Nezha / Jie Jie Shou Left",
+                        "work_id": work["id"],
+                    },
+                    {
+                        "id": "g-ao-bing",
+                        "name": "Ao Bing",
+                        "work_id": work["id"],
+                    },
+                    {
+                        "id": "g-li-jing",
+                        "name": "Li Jing",
+                        "work_id": work["id"],
+                    },
+                    {
+                        "id": "g-cobb",
+                        "name": "Cobb",
+                        "work_id": other_work["id"],
+                        "role": "主角",
+                        "gender": "male",
+                    },
+                ]
+            },
+        )
+
+        review = client.get(f"/api/tasks/{TASK_ID}/speaker-review").json()
+        assert review["work_binding"]["work_id"] == work["id"]
+        assert review["work_binding"]["episode_label"] == "E03"
+        assert review["work_binding"]["work"]["title"] == "哪吒之魔童闹海"
+
+        resp = client.post(
+            f"/api/tasks/{TASK_ID}/speaker-review/personas/suggest-from-global",
+            json={"speakers": [{"speaker_label": "SPEAKER_00"}]},
+        )
+        assert resp.status_code == 200, resp.text
+        matches = {m["speaker_label"]: m for m in resp.json()["matches"]}
+        candidates = matches["SPEAKER_00"]["candidates"]
+        assert candidates[0]["persona_id"] == "g-young-nezha"
+        assert candidates[0]["work_id"] == work["id"]
+        assert candidates[0]["tts_voice_id"] == "voice-nezha"
+        candidate_ids = {c["persona_id"] for c in candidates}
+        assert {"g-youth-nezha", "g-ao-bing", "g-li-jing"}.issubset(candidate_ids)
+        assert all(c["persona_id"] != "g-cobb" for c in candidates)
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_import_from_global_preserves_work_and_source_link(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("TRANSLIP_GLOBAL_PERSONAS_DIR", str(tmp_path / "global"))
+    client, _ = _bootstrap(tmp_path, "global-work-import.db")
+    try:
+        work = client.post(
+            "/api/works",
+            json={"title": "哪吒之魔童闹海", "type": "movie"},
+        ).json()["work"]
+        client.post(
+            "/api/global-personas/import",
+            json={
+                "personas": [
+                    {
+                        "id": "g-young-nezha",
+                        "name": "Young Nezha",
+                        "work_id": work["id"],
+                        "role": "主角",
+                        "gender": "female",
+                        "tts_voice_id": "voice-nezha",
+                        "avatar_url": "https://example.test/nezha.jpg",
+                        "actor_name": "吕艳婷",
+                    }
+                ]
+            },
+        )
+
+        resp = client.post(
+            f"/api/tasks/{TASK_ID}/speaker-review/personas/import-from-global",
+            json={
+                "persona_ids": ["g-young-nezha"],
+                "bindings_by_id": {"g-young-nezha": ["SPEAKER_00"]},
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        persona = resp.json()["imported"][0]
+        assert persona["source_global_persona_id"] == "g-young-nezha"
+        assert persona["work_id"] == work["id"]
+        assert persona["tts_voice_id"] == "voice-nezha"
+        assert persona["avatar_url"] == "https://example.test/nezha.jpg"
+        assert persona["actor_name"] == "吕艳婷"
+    finally:
+        app.dependency_overrides.clear()

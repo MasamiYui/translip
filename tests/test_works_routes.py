@@ -275,6 +275,12 @@ def test_bind_task_to_work(tmp_path: Path, isolated_env: Path) -> None:
         assert data["work_id"] == wid
         assert data["episode_label"] == "S01E01"
 
+        task_resp = client.get("/api/tasks/task-works-bind")
+        assert task_resp.status_code == 200
+        task_data = task_resp.json()
+        assert task_data["work_id"] == wid
+        assert task_data["episode_label"] == "S01E01"
+
         unbind = client.post(
             f"/api/works/bind-task/task-works-bind",
             json={"work_id": None, "episode_label": None},

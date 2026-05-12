@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Cpu, Loader2 } from 'lucide-react'
 import { tasksApi } from '../api/tasks'
+import { worksApi } from '../api/works'
 import { configApi, systemApi } from '../api/config'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { buildTemplatePreviewGraph } from '../lib/workflowPreview'
@@ -337,6 +338,7 @@ export function NewTaskPage() {
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showDeveloperSettings, setShowDeveloperSettings] = useState(false)
   const [showCorrectionExplanation, setShowCorrectionExplanation] = useState(false)
+  const [autoBindWork, setAutoBindWork] = useState(true)
 
   const steps = locale === 'zh-CN'
     ? ['素材与语言', '成品目标', '质量与设置', '确认创建']
@@ -366,7 +368,17 @@ export function NewTaskPage() {
   })
 
   const createMutation = useMutation({
-    mutationFn: (req: CreateTaskRequest) => tasksApi.create(req),
+    mutationFn: async (req: CreateTaskRequest) => {
+      const task = await tasksApi.create(req)
+      if (autoBindWork) {
+        try {
+          await worksApi.autoBindTask(task.id)
+        } catch {
+          // Work binding is helpful context, but task creation should still succeed.
+        }
+      }
+      return task
+    },
     onSuccess: task => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
       navigate(`/tasks/${task.id}`)
@@ -818,6 +830,11 @@ export function NewTaskPage() {
           </div>
 
           <div className="space-y-3">
+            <Checkbox
+              checked={autoBindWork}
+              onChange={setAutoBindWork}
+              label={locale === 'zh-CN' ? '创建后自动识别并绑定作品' : 'Auto-detect and bind work after creation'}
+            />
             <Checkbox checked={saveAsPreset} onChange={setSaveAsPreset} label={t.newTask.fields.saveAsPreset} />
             {saveAsPreset && (
               <Field label={t.newTask.fields.presetName}>

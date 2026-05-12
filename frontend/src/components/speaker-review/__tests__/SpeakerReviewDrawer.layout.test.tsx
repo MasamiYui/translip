@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { tasksApi } from '../../../api/tasks'
-import type { SpeakerReviewResponse } from '../../../types'
+import type { SpeakerReviewResponse, SuggestFromGlobalCandidate } from '../../../types'
 import { SpeakerReviewDrawer } from '../SpeakerReviewDrawer'
 
 vi.mock('../../../api/tasks', () => ({
@@ -456,6 +456,114 @@ describe('SpeakerReviewDrawer video review workbench', () => {
     expect(screen.getByTestId('push-to-character-library')).toBeInTheDocument()
   })
 
+  it('shows the task work binding and marks same-work character candidates', async () => {
+    const review = mockReview() as SpeakerReviewResponse & {
+      work_binding: {
+        work_id: string
+        episode_label: string
+        work: { id: string; title: string }
+        candidates: unknown[]
+      }
+    }
+    review.work_binding = {
+      work_id: 'work_nezha',
+      episode_label: 'E03',
+      work: { id: 'work_nezha', title: '哪吒之魔童闹海', type: 'movie' },
+      candidates: [],
+    }
+    vi.mocked(tasksApi.getSpeakerReview).mockResolvedValue(review)
+    vi.mocked(tasksApi.suggestPersonasFromGlobal).mockResolvedValue({
+      ok: true,
+      matches: [
+        {
+          speaker_label: 'SPEAKER_01',
+          candidates: [
+            {
+              persona_id: 'p-nezha',
+              name: 'Young Nezha',
+              score: 0.45,
+              reason: '当前作品',
+              role: '主角',
+              work_id: 'work_nezha',
+              tts_voice_id: 'voice-nezha',
+            } satisfies SuggestFromGlobalCandidate,
+          ],
+        },
+      ],
+    })
+
+    render(<SpeakerReviewDrawer taskId="task-speaker-video" isOpen onClose={vi.fn()} />, {
+      wrapper: createWrapper(),
+    })
+
+    expect(await screen.findByTestId('speaker-review-work-binding')).toHaveTextContent(
+      '哪吒之魔童闹海',
+    )
+    expect(screen.getByTestId('speaker-review-work-binding')).toHaveTextContent('E03')
+    fireEvent.click(screen.getByTestId('transcript-row-seg-2'))
+
+    const candidate = await screen.findByTestId('character-library-candidate-p-nezha')
+    expect(candidate).toHaveTextContent('Young Nezha')
+    expect(candidate).toHaveTextContent('当前作品')
+    expect(candidate).toHaveTextContent('voice-nezha')
+  })
+
+  it('does not keep rematching global personas after the initial candidate load', async () => {
+    vi.mocked(tasksApi.suggestPersonasFromGlobal).mockResolvedValue({
+      ok: true,
+      matches: [
+        {
+          speaker_label: 'SPEAKER_01',
+          candidates: [
+            { persona_id: 'p-once', name: '一次匹配', score: 0.8, reason: '当前作品', work_id: 'work_nezha' },
+          ],
+        },
+      ],
+    })
+
+    render(<SpeakerReviewDrawer taskId="task-speaker-video" isOpen onClose={vi.fn()} />, {
+      wrapper: createWrapper(),
+    })
+
+    await screen.findByTestId('speaker-review-video')
+    await waitFor(() => {
+      expect(tasksApi.suggestPersonasFromGlobal).toHaveBeenCalledTimes(1)
+    })
+    await new Promise(resolve => window.setTimeout(resolve, 100))
+    expect(tasksApi.suggestPersonasFromGlobal).toHaveBeenCalledTimes(1)
+  })
+
+  it('shows every same-work character candidate returned for the active speaker', async () => {
+    vi.mocked(tasksApi.suggestPersonasFromGlobal).mockResolvedValue({
+      ok: true,
+      matches: [
+        {
+          speaker_label: 'SPEAKER_01',
+          candidates: [
+            { persona_id: 'p-young', name: 'Young Nezha', score: 0.45, reason: '当前作品', work_id: 'work_nezha' },
+            { persona_id: 'p-youth', name: 'Youth Nezha', score: 0.45, reason: '当前作品', work_id: 'work_nezha' },
+            { persona_id: 'p-ao-bing', name: 'Ao Bing', score: 0.45, reason: '当前作品', work_id: 'work_nezha' },
+            { persona_id: 'p-li-jing', name: 'Li Jing', score: 0.45, reason: '当前作品', work_id: 'work_nezha' },
+            { persona_id: 'p-mrs-yin', name: 'Mrs. Yin', score: 0.45, reason: '当前作品', work_id: 'work_nezha' },
+          ],
+        },
+      ],
+    })
+
+    render(<SpeakerReviewDrawer taskId="task-speaker-video" isOpen onClose={vi.fn()} />, {
+      wrapper: createWrapper(),
+    })
+
+    await screen.findByTestId('speaker-review-video')
+    fireEvent.click(screen.getByTestId('transcript-row-seg-2'))
+
+    expect(await screen.findByTestId('character-library-candidate-p-young')).toBeInTheDocument()
+    expect(screen.getByTestId('character-library-candidate-p-youth')).toBeInTheDocument()
+    expect(screen.getByTestId('character-library-candidate-p-ao-bing')).toBeInTheDocument()
+    expect(screen.getByTestId('character-library-candidate-p-li-jing')).toBeInTheDocument()
+    expect(screen.getByTestId('character-library-candidate-p-mrs-yin')).toBeInTheDocument()
+  })
+
   it('lists top global persona candidates and binds the selected one to the active speaker', async () => {
     vi.mocked(tasksApi.suggestPersonasFromGlobal).mockResolvedValue({
       ok: true,
@@ -516,7 +624,7 @@ describe('SpeakerReviewDrawer video review workbench', () => {
       })
     })
     expect(await screen.findByTestId('character-library-flash')).toHaveTextContent(
-      '已回灌 2 个角色到角色库',
+      '已保存 2 个角色到角色库',
     )
   })
 })
