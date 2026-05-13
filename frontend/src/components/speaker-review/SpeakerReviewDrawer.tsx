@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   BookUser,
   Check,
   ChevronDown,
@@ -154,12 +155,26 @@ function displayLabel(
   return persona?.name || speakerLabel
 }
 
-function decisionLabel(segment?: SpeakerReviewSegment | null): string | null {
+type DecisionBadge =
+  | { kind: 'confirmed' }
+  | { kind: 'relabel'; targetLabel: string; targetName: string }
+  | { kind: 'other'; text: string }
+
+function decisionBadge(
+  segment?: SpeakerReviewSegment | null,
+  data?: SpeakerReviewResponse,
+): DecisionBadge | null {
   const decision = segment?.decision
   if (!decision) return null
-  if (decision.decision === 'keep_independent') return '已确认'
-  if (decision.target_speaker_label) return `已改为 ${decision.target_speaker_label}`
-  return `已决策：${actionLabel(decision.decision)}`
+  if (decision.decision === 'keep_independent') return { kind: 'confirmed' }
+  if (decision.target_speaker_label) {
+    return {
+      kind: 'relabel',
+      targetLabel: decision.target_speaker_label,
+      targetName: displayLabel(data, decision.target_speaker_label),
+    }
+  }
+  return { kind: 'other', text: actionLabel(decision.decision) }
 }
 
 function buildKeepDecision(segment: SpeakerReviewSegment): SpeakerReviewDecisionPayload {
@@ -1109,11 +1124,11 @@ function TranscriptTimeline({
             const active = activeSegment?.segment_id === segment.segment_id
             const left = (segment.start / timelineDuration) * 100
             const width = Math.max(0.4, ((segment.end - segment.start) / timelineDuration) * 100)
-            const currentDecision = decisionLabel(segment)
+            const currentBadge = decisionBadge(segment, data)
             return (
               <div
                 key={segment.segment_id}
-                className={`relative border-b border-slate-200 ${
+                className={`group/row relative flex items-stretch border-b border-slate-200 ${
                   active ? 'bg-blue-50 ring-1 ring-inset ring-blue-200' : 'bg-white hover:bg-slate-50'
                 }`}
               >
@@ -1124,7 +1139,9 @@ function TranscriptTimeline({
                   type="button"
                   onPointerDown={() => onSelect(segment)}
                   onClick={() => onSelect(segment)}
-                  className="grid w-full grid-cols-[76px_minmax(120px,180px)_minmax(0,1fr)_132px] items-center gap-3 px-4 py-2 text-left text-xs transition"
+                  className={`grid flex-1 min-w-0 grid-cols-[76px_minmax(120px,180px)_minmax(0,1fr)_minmax(140px,176px)] items-center gap-3 py-2 pl-4 text-left text-xs transition ${
+                    currentBadge ? 'pr-1.5' : 'pr-4'
+                  }`}
                   data-testid={`transcript-row-${segment.segment_id}`}
                   title={
                     segment.risk_flags.length > 0
@@ -1159,13 +1176,30 @@ function TranscriptTimeline({
                       )}
                     </span>
                   </span>
-                  <span className="flex items-center justify-end gap-1">
-                    {currentDecision ? (
-                      <span className="flex items-center gap-1">
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] text-emerald-700">
-                          {currentDecision}
+                  <span className="flex min-w-0 items-center justify-end">
+                    {currentBadge ? (
+                      currentBadge.kind === 'confirmed' ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200/60">
+                          <Check size={11} strokeWidth={2.5} />
+                          已确认
                         </span>
-                      </span>
+                      ) : currentBadge.kind === 'relabel' ? (
+                        <span
+                          className="inline-flex min-w-0 max-w-full items-center gap-1 rounded-full bg-emerald-50 py-0.5 pl-1.5 pr-2 text-[11px] font-medium text-emerald-700 ring-1 ring-inset ring-emerald-200/60"
+                          title={`已改为 ${currentBadge.targetName}`}
+                        >
+                          <ArrowRight size={11} strokeWidth={2.5} className="shrink-0 text-emerald-500" />
+                          <span
+                            className="h-1.5 w-1.5 shrink-0 rounded-full"
+                            style={{ backgroundColor: speakerColor(currentBadge.targetLabel) }}
+                          />
+                          <span className="truncate">{currentBadge.targetName}</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 ring-1 ring-inset ring-slate-200">
+                          {currentBadge.text}
+                        </span>
+                      )
                     ) : segment.risk_flags.length > 0 ? (
                       <RiskLevelBadge level={segment.risk_level} />
                     ) : (
@@ -1173,18 +1207,19 @@ function TranscriptTimeline({
                     )}
                   </span>
                 </button>
-                {currentDecision && (
+                {currentBadge && (
                   <button
                     type="button"
                     onClick={event => {
                       event.stopPropagation()
                       onUndoDecision(segment)
                     }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:border-rose-200 hover:text-rose-600"
+                    className="mr-3 my-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-emerald-600/70 opacity-0 transition-all duration-150 hover:bg-emerald-100 hover:text-emerald-700 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300 group-hover/row:opacity-100"
                     title="撤销此决策"
+                    aria-label="撤销此决策"
                     data-testid={`undo-decision-${segment.segment_id}`}
                   >
-                    <Undo2 size={12} />
+                    <Undo2 size={14} strokeWidth={2.25} />
                   </button>
                 )}
               </div>
@@ -1260,7 +1295,7 @@ function DecisionPanel({
     )
   }
   const isLowRisk = activeSegment.risk_level !== 'high' && activeSegment.risk_level !== 'medium' && (activeSegment.risk_flags?.length ?? 0) === 0
-  const decisionText = decisionLabel(activeSegment)
+  const decisionInfo = decisionBadge(activeSegment, data)
 
   return (
     <>
@@ -1348,22 +1383,37 @@ function DecisionPanel({
           </button>
         ) : null}
         {(!isLowRisk || riskDetailsOpen) && <ActiveRiskSummary segment={activeSegment} />}
-        {decisionText && (
+        {decisionInfo && (
           <div
-            className="mt-2 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-700"
+            className="mt-2 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs text-emerald-700"
             data-testid="active-decision-status"
           >
-            <ShieldCheck size={13} />
-            <span className="min-w-0 flex-1 truncate">{decisionText}</span>
+            <ShieldCheck size={13} className="shrink-0" />
+            <span className="flex min-w-0 flex-1 items-center gap-1.5">
+              {decisionInfo.kind === 'confirmed' ? (
+                <span className="font-medium">已确认当前识别</span>
+              ) : decisionInfo.kind === 'relabel' ? (
+                <>
+                  <ArrowRight size={12} strokeWidth={2.5} className="shrink-0 text-emerald-500" />
+                  <span
+                    className="h-2 w-2 shrink-0 rounded-full"
+                    style={{ backgroundColor: speakerColor(decisionInfo.targetLabel) }}
+                  />
+                  <span className="min-w-0 truncate font-medium">{decisionInfo.targetName}</span>
+                </>
+              ) : (
+                <span className="min-w-0 truncate font-medium">{decisionInfo.text}</span>
+              )}
+            </span>
             <button
               type="button"
               onClick={onUndoDecision}
               disabled={saving}
-              className="flex h-6 items-center gap-1 rounded border border-emerald-200 bg-white px-1.5 text-[11px] text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+              className="flex h-6 items-center gap-1 rounded-full border border-emerald-200 bg-white/80 px-2 text-[11px] font-medium text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-100 hover:text-emerald-800 disabled:opacity-50"
               data-testid="undo-active-decision"
               title="撤销该决策"
             >
-              <Undo2 size={11} />
+              <Undo2 size={11} strokeWidth={2.25} />
               撤销
             </button>
           </div>
