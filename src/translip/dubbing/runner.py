@@ -4,7 +4,9 @@ import json
 import logging
 import os
 import shutil
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -27,6 +29,219 @@ from .reference import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+_DUBBING_WORKERS_ENV = "TRANSLIP_DUBBING_WORKERS"
+_MOSS_DEFAULT_WORKERS = 4
+_OTHER_DEFAULT_WORKERS = 1
+
+
+def _resolve_dubbing_concurrency(backend: object) -> int:
+    """Resolve the worker count for parallel segment synthesis.
+
+    Respects ``TRANSLIP_DUBBING_WORKERS`` for explicit override. For the MOSS
+    ONNX backend (subprocess-based, GIL-free) we default to a small pool that
+    fits Apple Silicon performance cores; for GPU/MPS-bound torch backends we
+    keep the worker count at 1 to avoid contention on a single model instance.
+    """
+
+    override = os.environ.get(_DUBBING_WORKERS_ENV, "").strip()
+    if override:
+        try:
+            value = int(override)
+        except ValueError:
+            logger.warning("Ignoring invalid %s=%r (expected integer).", _DUBBING_WORKERS_ENV, override)
+        else:
+            return max(1, value)
+
+    backend_name = getattr(backend, "backend_name", "")
+    if backend_name == "moss-tts-nano-onnx":
+        cpu_count = os.cpu_count() or 4
+        return max(1, min(_MOSS_DEFAULT_WORKERS, cpu_count // 2))
+    return _OTHER_DEFAULT_WORKERS
+
+
+class _GroupResult:
+    """Container for the outcome of synthesizing a single segment group."""
+
+    __slots__ = ("group_index", "audio_paths", "report_rows", "elapsed_sec")
+
+    def __init__(
+        self,
+        *,
+        group_index: int,
+        audio_paths: list[Path],
+        report_rows: list[dict[str, Any]],
+        elapsed_sec: float,
+    ) -> None:
+        self.group_index = group_index
+        self.audio_paths = audio_paths
+        self.report_rows = report_rows
+        self.elapsed_sec = elapsed_sec
+
+
+def _synthesize_group(
+    *,
+    group_index: int,
+    group: list[dict[str, Any]],
+    backend: object,
+    bundle_dir: Path,
+    work_dir: Path,
+    reference_candidates: list[object],
+    prepared_references: dict[Path, ReferencePackage],
+    prepared_lock: threading.Lock,
+    request: DubbingRequest,
+    target_lang: str,
+) -> _GroupResult:
+    """Synthesize a single segment group.
+
+    Used both by the serial fallback and the thread-pool path; pure per-group
+    work with no shared mutable state besides ``prepared_references`` (guarded
+    by ``prepared_lock``).
+    """
+
+    started = time.monotonic()
+    audio_paths: list[Path] = []
+    report_rows: list[dict[str, Any]] = []
+
+    if len(group) == 1:
+        segment_row = group[0]
+        segment = _segment_input_from_row(
+            segment_row,
+            speaker_id=request.speaker_id,
+            target_lang=target_lang,
+        )
+        output_path = bundle_dir / "segments" / f"{segment.segment_id}.wav"
+        synth_output, selected_reference, evaluation, attempt_summary = _synthesize_with_quality_retry(
+            backend=backend,
+            segment=segment,
+            output_path=output_path,
+            reference_candidates=reference_candidates[:3],
+            prepared_references=prepared_references,
+            prepared_lock=prepared_lock,
+            work_dir=work_dir,
+            request=request,
+            target_lang=target_lang,
+        )
+        audio_paths.append(synth_output.audio_path)
+        report_rows.append(
+            _segment_report_row(
+                segment_row=segment_row,
+                segment=segment,
+                synth_output=synth_output,
+                selected_reference=selected_reference,
+                evaluation=evaluation,
+                attempt_summary=attempt_summary,
+                index=0,
+                synthesis_mode="segment",
+            )
+        )
+    else:
+        unit_rows = group
+        unit_segment = _unit_input_from_rows(
+            unit_rows,
+            speaker_id=request.speaker_id,
+            target_lang=target_lang,
+        )
+        unit_output_path = bundle_dir / "units" / f"{unit_segment.segment_id}.wav"
+        synth_output, selected_reference, evaluation, attempt_summary = _synthesize_with_quality_retry(
+            backend=backend,
+            segment=unit_segment,
+            output_path=unit_output_path,
+            reference_candidates=reference_candidates[:3],
+            prepared_references=prepared_references,
+            prepared_lock=prepared_lock,
+            work_dir=work_dir,
+            request=request,
+            target_lang=target_lang,
+        )
+        split_outputs = _split_unit_audio(
+            unit_audio_path=synth_output.audio_path,
+            segment_rows=unit_rows,
+            output_dir=bundle_dir / "segments",
+        )
+        for segment_row, split_output in zip(unit_rows, split_outputs, strict=True):
+            segment = _segment_input_from_row(
+                segment_row,
+                speaker_id=request.speaker_id,
+                target_lang=target_lang,
+            )
+            audio_paths.append(split_output.audio_path)
+            report_rows.append(
+                _segment_report_row(
+                    segment_row=segment_row,
+                    segment=segment,
+                    synth_output=split_output,
+                    selected_reference=selected_reference,
+                    evaluation=evaluation,
+                    attempt_summary=attempt_summary,
+                    index=0,
+                    synthesis_mode="dubbing_unit",
+                    unit_segment=unit_segment,
+                    unit_audio_path=synth_output.audio_path,
+                )
+            )
+
+    return _GroupResult(
+        group_index=group_index,
+        audio_paths=audio_paths,
+        report_rows=report_rows,
+        elapsed_sec=time.monotonic() - started,
+    )
+
+
+def _absorb_group_result(
+    *,
+    result: _GroupResult,
+    succeeded_audio_paths: list[Path],
+    report_segments: list[dict[str, Any]],
+) -> None:
+    succeeded_audio_paths.extend(result.audio_paths)
+    report_segments.extend(result.report_rows)
+
+
+def _ordered_segments(group_results: list[_GroupResult | None]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for entry in group_results:
+        if entry is None:
+            continue
+        rows.extend(entry.report_rows)
+    for index, row in enumerate(rows, start=1):
+        row["index"] = index
+    return rows
+
+
+def _reference_summary(prepared_references: dict[Path, ReferencePackage]) -> dict[str, Any]:
+    if not prepared_references:
+        return {"path": None, "selection_reason": None}
+    first = next(iter(prepared_references.values()))
+    return {
+        "path": str(first.original_audio_path),
+        "selection_reason": first.selection_reason,
+    }
+
+
+def _write_partial_report(
+    *,
+    request: DubbingRequest,
+    target_lang: str,
+    backend: object,
+    prepared_references: dict[Path, ReferencePackage],
+    report_segments: list[dict[str, Any]],
+    report_path: Path,
+    lock: threading.Lock,
+) -> None:
+    with lock:
+        partial_report = build_dubbing_report(
+            request=request,
+            target_lang=target_lang,
+            backend_name=backend.backend_name,
+            resolved_model=backend.resolved_model,
+            resolved_device=backend.resolved_device,
+            reference=_reference_summary(prepared_references),
+            segments=list(report_segments),
+        )
+        write_json(partial_report, report_path)
 
 
 def synthesize_speaker(
@@ -64,96 +279,86 @@ def synthesize_speaker(
         succeeded_audio_paths: list[Path] = []
         report_segments: list[dict[str, Any]] = []
         prepared_references: dict[Path, ReferencePackage] = {}
+        prepared_lock = threading.Lock()
+        report_lock = threading.Lock()
 
-        for group in _synthesis_groups(segments):
-            if len(group) == 1:
-                segment_row = group[0]
-                segment = _segment_input_from_row(
-                    segment_row,
-                    speaker_id=normalized_request.speaker_id,
-                    target_lang=target_lang,
-                )
-                output_path = bundle_dir / "segments" / f"{segment.segment_id}.wav"
-                synth_output, selected_reference, evaluation, attempt_summary = _synthesize_with_quality_retry(
-                    backend=backend,
-                    segment=segment,
-                    output_path=output_path,
-                    reference_candidates=reference_candidates[:3],
-                    prepared_references=prepared_references,
-                    work_dir=work_dir,
-                    request=normalized_request,
-                    target_lang=target_lang,
-                )
-                succeeded_audio_paths.append(synth_output.audio_path)
-                report_segments.append(
-                    _segment_report_row(
-                        segment_row=segment_row,
-                        segment=segment,
-                        synth_output=synth_output,
-                        selected_reference=selected_reference,
-                        evaluation=evaluation,
-                        attempt_summary=attempt_summary,
-                        index=len(report_segments) + 1,
-                        synthesis_mode="segment",
-                    )
-                )
-            else:
-                unit_rows = group
-                unit_segment = _unit_input_from_rows(
-                    unit_rows,
-                    speaker_id=normalized_request.speaker_id,
-                    target_lang=target_lang,
-                )
-                unit_output_path = bundle_dir / "units" / f"{unit_segment.segment_id}.wav"
-                synth_output, selected_reference, evaluation, attempt_summary = _synthesize_with_quality_retry(
-                    backend=backend,
-                    segment=unit_segment,
-                    output_path=unit_output_path,
-                    reference_candidates=reference_candidates[:3],
-                    prepared_references=prepared_references,
-                    work_dir=work_dir,
-                    request=normalized_request,
-                    target_lang=target_lang,
-                )
-                split_outputs = _split_unit_audio(
-                    unit_audio_path=synth_output.audio_path,
-                    segment_rows=unit_rows,
-                    output_dir=bundle_dir / "segments",
-                )
-                for segment_row, split_output in zip(unit_rows, split_outputs, strict=True):
-                    segment = _segment_input_from_row(
-                        segment_row,
-                        speaker_id=normalized_request.speaker_id,
-                        target_lang=target_lang,
-                    )
-                    succeeded_audio_paths.append(split_output.audio_path)
-                    report_segments.append(
-                        _segment_report_row(
-                            segment_row=segment_row,
-                            segment=segment,
-                            synth_output=split_output,
-                            selected_reference=selected_reference,
-                            evaluation=evaluation,
-                            attempt_summary=attempt_summary,
-                            index=len(report_segments) + 1,
-                            synthesis_mode="dubbing_unit",
-                            unit_segment=unit_segment,
-                            unit_audio_path=synth_output.audio_path,
-                        )
-                    )
-            partial_report = build_dubbing_report(
+        groups = list(_synthesis_groups(segments))
+        max_workers = _resolve_dubbing_concurrency(backend)
+        max_workers = max(1, min(max_workers, len(groups))) if groups else 1
+        logger.info(
+            "Task D speaker %s: %d synthesis groups, max_workers=%d (backend=%s)",
+            normalized_request.speaker_id,
+            len(groups),
+            max_workers,
+            getattr(backend, "backend_name", "unknown"),
+        )
+        group_results: list[_GroupResult | None] = [None] * len(groups)
+        sum_segment_time_sec = 0.0
+
+        def submit(index: int, group: list[dict[str, Any]]) -> _GroupResult:
+            return _synthesize_group(
+                group_index=index,
+                group=group,
+                backend=backend,
+                bundle_dir=bundle_dir,
+                work_dir=work_dir,
+                reference_candidates=reference_candidates,
+                prepared_references=prepared_references,
+                prepared_lock=prepared_lock,
                 request=normalized_request,
                 target_lang=target_lang,
-                backend_name=backend.backend_name,
-                resolved_model=backend.resolved_model,
-                resolved_device=backend.resolved_device,
-                reference={
-                    "path": str(selected_reference.original_audio_path),
-                    "selection_reason": selected_reference.selection_reason,
-                },
-                segments=report_segments,
             )
-            write_json(partial_report, report_path)
+
+        if max_workers <= 1:
+            for index, group in enumerate(groups):
+                result = submit(index, group)
+                group_results[index] = result
+                _absorb_group_result(
+                    result=result,
+                    succeeded_audio_paths=succeeded_audio_paths,
+                    report_segments=report_segments,
+                )
+                sum_segment_time_sec += result.elapsed_sec
+                _write_partial_report(
+                    request=normalized_request,
+                    target_lang=target_lang,
+                    backend=backend,
+                    prepared_references=prepared_references,
+                    report_segments=report_segments,
+                    report_path=report_path,
+                    lock=report_lock,
+                )
+        else:
+            with ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="translip-dub") as pool:
+                futures = {pool.submit(submit, idx, group): idx for idx, group in enumerate(groups)}
+                for future in as_completed(futures):
+                    idx = futures[future]
+                    result = future.result()
+                    group_results[idx] = result
+                    sum_segment_time_sec += result.elapsed_sec
+                    with report_lock:
+                        partial_segments = _ordered_segments(group_results)
+                        partial_report = build_dubbing_report(
+                            request=normalized_request,
+                            target_lang=target_lang,
+                            backend_name=backend.backend_name,
+                            resolved_model=backend.resolved_model,
+                            resolved_device=backend.resolved_device,
+                            reference=_reference_summary(prepared_references),
+                            segments=partial_segments,
+                        )
+                        write_json(partial_report, report_path)
+            for entry in group_results:
+                if entry is None:
+                    continue
+                _absorb_group_result(
+                    result=entry,
+                    succeeded_audio_paths=succeeded_audio_paths,
+                    report_segments=report_segments,
+                )
+
+        for index, row in enumerate(report_segments, start=1):
+            row["index"] = index
 
         demo_audio_path = render_demo_audio(
             succeeded_audio_paths,
@@ -174,9 +379,15 @@ def synthesize_speaker(
             segments=report_segments,
         )
         write_json(report, report_path)
+        wall_time_sec = time.monotonic() - started_monotonic
+        speedup = (sum_segment_time_sec / wall_time_sec) if wall_time_sec > 0 else 0.0
         stats = report["stats"] | {
             "selected_segment_count": len(segments),
             "backread_model": normalized_request.backread_model,
+            "concurrency": max_workers,
+            "wall_time_sec": round(wall_time_sec, 3),
+            "sum_segment_time_sec": round(sum_segment_time_sec, 3),
+            "observed_speedup": round(speedup, 3),
         }
         manifest = build_dubbing_manifest(
             request=normalized_request,
@@ -185,7 +396,7 @@ def synthesize_speaker(
             demo_audio_path=demo_audio_path,
             started_at=started_at,
             finished_at=now_iso(),
-            elapsed_sec=time.monotonic() - started_monotonic,
+            elapsed_sec=wall_time_sec,
             resolved={
                 "tts_backend": backend.backend_name,
                 "model": backend.resolved_model,
@@ -564,6 +775,7 @@ def _synthesize_with_quality_retry(
     output_path: Path,
     reference_candidates: list[object],
     prepared_references: dict[Path, ReferencePackage],
+    prepared_lock: threading.Lock | None = None,
     work_dir: Path,
     request: DubbingRequest,
     target_lang: str,
@@ -574,13 +786,23 @@ def _synthesize_with_quality_retry(
     reference_tournament = os.environ.get("TRANSLIP_REFERENCE_TOURNAMENT", "").strip().lower() in {"1", "true", "yes"}
 
     for candidate_index, candidate in enumerate(reference_candidates, start=1):
-        prepared = prepared_references.get(candidate.path)
-        if prepared is None:
-            prepared = prepare_reference_package(
-                candidate,
-                output_path=work_dir / "reference" / f"{candidate.path.stem}_prepared.wav",
-            )
-            prepared_references[candidate.path] = prepared
+        if prepared_lock is not None:
+            with prepared_lock:
+                prepared = prepared_references.get(candidate.path)
+                if prepared is None:
+                    prepared = prepare_reference_package(
+                        candidate,
+                        output_path=work_dir / "reference" / f"{candidate.path.stem}_prepared.wav",
+                    )
+                    prepared_references[candidate.path] = prepared
+        else:
+            prepared = prepared_references.get(candidate.path)
+            if prepared is None:
+                prepared = prepare_reference_package(
+                    candidate,
+                    output_path=work_dir / "reference" / f"{candidate.path.stem}_prepared.wav",
+                )
+                prepared_references[candidate.path] = prepared
         attempt_path = work_dir / "attempts" / segment.segment_id / f"ref-{candidate_index:02d}.wav"
         try:
             synth_output = backend.synthesize(reference=prepared, segment=segment, output_path=attempt_path)

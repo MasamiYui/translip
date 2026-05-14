@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import threading
 from functools import lru_cache
 from pathlib import Path
 
@@ -113,6 +114,7 @@ class QwenTTSBackend:
             # The x-vector-only path can produce NaN sampling probabilities on MPS/float16.
             self.resolved_device = "cpu"
         self._prompt_cache: dict[tuple[Path, str, str, str], object] = {}
+        self._prompt_cache_lock = threading.Lock()
 
     @property
     def model(self):
@@ -172,14 +174,15 @@ class QwenTTSBackend:
             self.resolved_model,
             self.clone_mode,
         )
-        prompt = self._prompt_cache.get(cache_key)
-        if prompt is None:
-            prompt = model.create_voice_clone_prompt(
-                ref_audio=str(reference.prepared_audio_path),
-                ref_text=None if self.clone_mode == "xvec" else reference.text,
-                x_vector_only_mode=self.clone_mode == "xvec",
-            )
-            self._prompt_cache[cache_key] = prompt
+        with self._prompt_cache_lock:
+            prompt = self._prompt_cache.get(cache_key)
+            if prompt is None:
+                prompt = model.create_voice_clone_prompt(
+                    ref_audio=str(reference.prepared_audio_path),
+                    ref_text=None if self.clone_mode == "xvec" else reference.text,
+                    x_vector_only_mode=self.clone_mode == "xvec",
+                )
+                self._prompt_cache[cache_key] = prompt
         return prompt
 
 
