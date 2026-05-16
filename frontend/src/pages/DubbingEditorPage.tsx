@@ -1376,23 +1376,100 @@ function InspectorSection({
   action,
   children,
   className = '',
+  collapsible = false,
+  defaultCollapsed = false,
+  collapsedKey,
+  summary,
+  testId,
+  headerTestId,
 }: {
   title: string
   icon?: React.ReactNode
   action?: React.ReactNode
   children: React.ReactNode
   className?: string
+  collapsible?: boolean
+  defaultCollapsed?: boolean
+  collapsedKey?: string | number
+  summary?: React.ReactNode
+  testId?: string
+  headerTestId?: string
 }) {
+  if (!collapsible) {
+    return (
+      <section className={`border-b border-slate-100 px-3 py-3 ${className}`}>
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            {icon}
+            <span className="truncate">{title}</span>
+          </div>
+          {action}
+        </div>
+        {children}
+      </section>
+    )
+  }
+
   return (
-    <section className={`border-b border-slate-100 px-3 py-3 ${className}`}>
+    <CollapsibleInspectorSection
+      key={`${collapsedKey ?? ''}::${defaultCollapsed ? '1' : '0'}`}
+      title={title}
+      icon={icon}
+      action={action}
+      className={className}
+      defaultCollapsed={defaultCollapsed}
+      summary={summary}
+      testId={testId}
+      headerTestId={headerTestId}
+    >
+      {children}
+    </CollapsibleInspectorSection>
+  )
+}
+
+function CollapsibleInspectorSection({
+  title,
+  icon,
+  action,
+  children,
+  className = '',
+  defaultCollapsed = false,
+  summary,
+  testId,
+  headerTestId,
+}: {
+  title: string
+  icon?: React.ReactNode
+  action?: React.ReactNode
+  children: React.ReactNode
+  className?: string
+  defaultCollapsed?: boolean
+  summary?: React.ReactNode
+  testId?: string
+  headerTestId?: string
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  return (
+    <section
+      className={`border-b border-slate-100 px-3 py-3 ${className}`}
+      data-testid={testId}
+      data-collapsed={collapsed ? 'true' : 'false'}
+    >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+        <button
+          type="button"
+          data-testid={headerTestId}
+          onClick={() => setCollapsed(prev => !prev)}
+          aria-expanded={!collapsed}
+          className="flex min-w-0 flex-1 items-center gap-1.5 rounded text-left text-[10px] font-semibold uppercase tracking-widest text-slate-400 transition-colors hover:text-slate-600 focus:outline-none focus:ring-1 focus:ring-slate-300"
+        >
+          {collapsed ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
           {icon}
           <span className="truncate">{title}</span>
-        </div>
+        </button>
         {action}
       </div>
-      {children}
+      {collapsed ? (summary ?? null) : children}
     </section>
   )
 }
@@ -1465,6 +1542,22 @@ function ScoreBar({ label, value }: { label: string; value: number }) {
   )
 }
 
+type QualityVerdict = 'pass' | 'review' | 'fail'
+
+function computeQualityVerdict(
+  speakerSimilarity: number,
+  durationRatio: number,
+  intelligibility: number,
+): { verdict: QualityVerdict; weakest: number } {
+  const boundedDuration = Math.min(1, durationRatio)
+  const values = [speakerSimilarity, boundedDuration, intelligibility]
+  const weakest = values.reduce((min, v) => (v < min ? v : min), values[0])
+  const isGood = values.every(v => v >= 0.85)
+  const isRisky = weakest < 0.72
+  const verdict: QualityVerdict = isGood ? 'pass' : isRisky ? 'fail' : 'review'
+  return { verdict, weakest }
+}
+
 function QualitySummary({
   speakerSimilarity,
   durationRatio,
@@ -1475,15 +1568,13 @@ function QualitySummary({
   intelligibility: number
 }) {
   const { locale } = useI18n()
-  const boundedDuration = Math.min(1, durationRatio)
-  const items = [
-    { key: 'speaker', value: speakerSimilarity },
-    { key: 'duration', value: boundedDuration },
-    { key: 'intelligibility', value: intelligibility },
-  ]
-  const weakest = items.reduce((min, item) => (item.value < min.value ? item : min), items[0])
-  const isGood = items.every(item => item.value >= 0.85)
-  const isRisky = weakest.value < 0.72
+  const { verdict, weakest } = computeQualityVerdict(
+    speakerSimilarity,
+    durationRatio,
+    intelligibility,
+  )
+  const isGood = verdict === 'pass'
+  const isRisky = verdict === 'fail'
   const label =
     locale === 'zh-CN'
       ? isGood
@@ -1516,12 +1607,12 @@ function QualitySummary({
 
   return (
     <div className="mb-2.5 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
-      <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${qualityTone(weakest.value).dot}`} />
+      <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${qualityTone(weakest).dot}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <span className="text-xs font-semibold text-slate-800">{label}</span>
           <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${badgeCls}`}>
-            {Math.round(weakest.value * 100)}%
+            {Math.round(weakest * 100)}%
           </span>
         </div>
         <p className="mt-0.5 text-[10px] leading-4 text-slate-500">{description}</p>
@@ -1732,7 +1823,6 @@ function SegmentInspector({
   const { t, locale } = useI18n()
   const [editingText, setEditingText] = useState(unit.target_text)
   const [isDirty, setIsDirty] = useState(false)
-  const [showHistory, setShowHistory] = useState(false)
   const [showBacktranslate, setShowBacktranslate] = useState(false)
 
   const char = project.characters.find(c => c.character_id === unit.character_id)
@@ -1800,6 +1890,7 @@ function SegmentInspector({
   const speakerSimilarity = qualitySegment?.speaker_similarity ?? 0.75
   const durationRatio = qualitySegment?.duration_ratio ?? 1
   const intelligibility = qualitySegment?.intelligibility ?? 0.8
+  const qualityVerdict = computeQualityVerdict(speakerSimilarity, durationRatio, intelligibility).verdict
 
   return (
     <div className="space-y-0">
@@ -1851,41 +1942,68 @@ function SegmentInspector({
 
       {/* Clip info */}
       <InspectorSection title={t.dubbingEditor.inspector.clip} icon={<AudioLines size={11} />}>
-        <div className="space-y-1.5 rounded-lg bg-slate-50 px-2.5 py-2">
-          <InspectorMetaRow
-            label={t.dubbingEditor.inspector.clipStatus}
-            value={formatClipStatus(clip.mix_status, locale)}
-            tone={clip.mix_status === 'placed' || clip.mix_status === 'mixed' ? 'success' : 'warning'}
-          />
-          {clip.duration && (
-            <InspectorMetaRow
-              label={t.dubbingEditor.inspector.clipDuration}
-              value={`${clip.duration.toFixed(2)}s`}
-            />
-          )}
-          {clip.fit_strategy && (
-            <InspectorMetaRow
-              label={t.dubbingEditor.inspector.clipFitStrategy}
-              value={formatFitStrategy(clip.fit_strategy, locale)}
-            />
-          )}
-          {clip.audio_artifact_path && (
-            <InspectorMetaRow
-              label={locale === 'zh-CN' ? '文件' : 'File'}
-              value={
-                <a
-                  data-testid="clip-audio-link"
-                  href={clipPreviewSrc ?? undefined}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="truncate text-blue-600 hover:text-blue-700"
-                >
-                  {clipFileName}
-                </a>
-              }
-            />
-          )}
-        </div>
+        {(() => {
+          const clipStatusLabel = formatClipStatus(clip.mix_status, locale)
+          const isStatusOk = clip.mix_status === 'placed' || clip.mix_status === 'mixed'
+          const fitStrategyLabel = clip.fit_strategy ? formatFitStrategy(clip.fit_strategy, locale) : null
+          const isOverflowUnfitted = clip.fit_strategy === 'overflow_unfitted'
+          const metaWarn = !isStatusOk || isOverflowUnfitted
+          const metaSummaryParts: string[] = [clipStatusLabel]
+          if (clip.duration) metaSummaryParts.push(`${clip.duration.toFixed(2)}s`)
+          if (fitStrategyLabel) metaSummaryParts.push(fitStrategyLabel)
+          if (clipFileName) metaSummaryParts.push(clipFileName)
+          const metaSummary = metaSummaryParts.join(' · ')
+          return (
+            <InlineCollapsible
+              key={unit.unit_id}
+              testId="clip-meta"
+              defaultCollapsed={!metaWarn}
+              collapsedSummary={metaSummary}
+              expandedTitle={t.dubbingEditor.inspector.clipMetaTitle}
+              toggleAriaLabel={{
+                expand: t.dubbingEditor.inspector.clipMetaToggleExpand,
+                collapse: t.dubbingEditor.inspector.clipMetaToggleCollapse,
+              }}
+              warn={metaWarn}
+            >
+              <div className="space-y-1.5 rounded-lg bg-slate-50 px-2.5 py-2">
+                <InspectorMetaRow
+                  label={t.dubbingEditor.inspector.clipStatus}
+                  value={clipStatusLabel}
+                  tone={isStatusOk ? 'success' : 'warning'}
+                />
+                {clip.duration && (
+                  <InspectorMetaRow
+                    label={t.dubbingEditor.inspector.clipDuration}
+                    value={`${clip.duration.toFixed(2)}s`}
+                  />
+                )}
+                {fitStrategyLabel && (
+                  <InspectorMetaRow
+                    label={t.dubbingEditor.inspector.clipFitStrategy}
+                    value={fitStrategyLabel}
+                  />
+                )}
+                {clip.audio_artifact_path && (
+                  <InspectorMetaRow
+                    label={locale === 'zh-CN' ? '文件' : 'File'}
+                    value={
+                      <a
+                        data-testid="clip-audio-link"
+                        href={clipPreviewSrc ?? undefined}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="truncate text-blue-600 hover:text-blue-700"
+                      >
+                        {clipFileName}
+                      </a>
+                    }
+                  />
+                )}
+              </div>
+            </InlineCollapsible>
+          )
+        })()}
 
         {/* Per-unit clip preview player — listen to *this* segment after re-synthesis */}
         <div data-testid="clip-preview-card" className="mt-2.5">
@@ -1921,22 +2039,33 @@ function SegmentInspector({
       </InspectorSection>
 
       {/* Phase 2: Per-unit quality score breakdown */}
-      {(qualitySegment || clip.duration) && (
-        <div data-testid="quality-scores">
-          <InspectorSection title={t.dubbingEditor.inspector.qualityScores} icon={<Sliders size={11} />}>
-            <QualitySummary
-              speakerSimilarity={speakerSimilarity}
-              durationRatio={durationRatio}
-              intelligibility={intelligibility}
-            />
+      {(qualitySegment || clip.duration) && (() => {
+        const summaryNode = (
+          <QualitySummary
+            speakerSimilarity={speakerSimilarity}
+            durationRatio={durationRatio}
+            intelligibility={intelligibility}
+          />
+        )
+        return (
+          <InspectorSection
+            testId="quality-scores"
+            title={t.dubbingEditor.inspector.qualityScores}
+            icon={<Sliders size={11} />}
+            collapsible
+            defaultCollapsed={qualityVerdict === 'pass'}
+            collapsedKey={`${unit.unit_id}:${qualityVerdict}`}
+            summary={summaryNode}
+          >
+            {summaryNode}
             <div className="space-y-1.5">
               <ScoreBar label={t.dubbingEditor.inspector.speakerSimilarity} value={speakerSimilarity} />
               <ScoreBar label={t.dubbingEditor.inspector.durationRatio} value={Math.min(1, durationRatio)} />
               <ScoreBar label={t.dubbingEditor.inspector.intelligibility} value={intelligibility} />
             </div>
           </InspectorSection>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Phase 2: Voice mismatch quick-fix */}
       {hasMismatch && (
@@ -2053,93 +2182,103 @@ function SegmentInspector({
       </div>
 
       {/* Phase 2: Candidate Tournament */}
-      {unit.candidates.length > 0 && (
-        <div className="border-t border-slate-100">
-          <div className="flex items-center justify-between px-3 py-2">
-            <div className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500">
-              <Star size={10} />
-              {t.dubbingEditor.inspector.candidatesTitle(unit.candidates.length)}
-            </div>
-          </div>
-          <div data-testid="candidate-list" className="space-y-1 px-3 pb-2">
-            {unit.candidates.map((cand, idx) => (
-              <div
-                key={cand.candidate_id}
-                className="flex items-center gap-2 rounded-md border border-slate-100 px-2 py-1.5"
-              >
-                <span className="w-5 text-center text-[10px] font-bold text-slate-400">#{idx + 1}</span>
-                {cand.score !== null && (
-                  <span
-                    className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                      cand.score >= 0.8
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : cand.score >= 0.6
-                          ? 'bg-amber-50 text-amber-700'
-                          : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {(cand.score * 100).toFixed(0)}
-                  </span>
-                )}
-                {cand.duration && (
-                  <span className="text-[10px] text-slate-400">{cand.duration.toFixed(1)}s</span>
-                )}
-                {cand.audio_path && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const audio = new Audio(`/api/tasks/${taskId}/artifacts/${cand.audio_path}`)
-                      audio.play().catch(() => {})
-                    }}
-                    className="ml-auto rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                    title={t.dubbingEditor.inspector.candidatePlay}
-                  >
-                    <Play size={10} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="px-3 pb-2">
-            <button
-              type="button"
-              onClick={handleResynthClick}
-              disabled={isSynthesizing}
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-200 py-1.5 text-[10px] font-medium text-slate-500 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
-            >
-              <RotateCcw size={10} />
-              {t.dubbingEditor.inspector.generateMoreCandidates}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* P2: Operation history accordion */}
-      {unitOps.length > 0 && (
-        <div className="border-t border-slate-100">
-          <button
-            type="button"
-            data-testid="op-history-btn"
-            onClick={() => setShowHistory(v => !v)}
-            className="flex w-full items-center justify-between px-3 py-2 text-[10px] font-semibold text-slate-500 hover:bg-slate-50"
+      {unit.candidates.length > 0 && (() => {
+        const minScore = unit.candidates.reduce<number>((min, c) => {
+          if (c.score === null || c.score === undefined) return min
+          return c.score < min ? c.score : min
+        }, 1)
+        const candidateRisky = minScore < 0.6 || qualityVerdict === 'fail'
+        const topScore = unit.candidates.reduce<number | null>((max, c) => {
+          if (c.score === null || c.score === undefined) return max
+          if (max === null || c.score > max) return c.score
+          return max
+        }, null)
+        const topPct = topScore !== null ? `${(topScore * 100).toFixed(0)}` : '—'
+        const candidateSummary = `${unit.candidates.length} · top ${topPct}`
+        return (
+          <InspectorSection
+            title={t.dubbingEditor.inspector.candidatesTitle(unit.candidates.length)}
+            icon={<Star size={11} />}
+            collapsible
+            defaultCollapsed={!candidateRisky}
+            collapsedKey={`${unit.unit_id}:cand:${candidateRisky ? '1' : '0'}`}
+            summary={
+              <div className="px-1 text-[10px] text-slate-400">{candidateSummary}</div>
+            }
           >
-            <div className="flex items-center gap-1.5">
-              <History size={10} />
-              {t.dubbingEditor.inspector.operationHistory(unitOps.length)}
-            </div>
-            {showHistory ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-          </button>
-          {showHistory && (
-            <div className="space-y-0.5 px-3 pb-2">
-              {unitOps.map(op => (
-                <div key={op.op_id} className="flex items-center justify-between text-[10px] text-slate-500">
-                  <span className="font-medium text-slate-700">{op.type}</span>
-                  <span>{new Date(op.created_at).toLocaleTimeString()}</span>
+            <div data-testid="candidate-list" className="space-y-1">
+              {unit.candidates.map((cand, idx) => (
+                <div
+                  key={cand.candidate_id}
+                  className="flex items-center gap-2 rounded-md border border-slate-100 px-2 py-1.5"
+                >
+                  <span className="w-5 text-center text-[10px] font-bold text-slate-400">#{idx + 1}</span>
+                  {cand.score !== null && (
+                    <span
+                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                        cand.score >= 0.8
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : cand.score >= 0.6
+                            ? 'bg-amber-50 text-amber-700'
+                            : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      {(cand.score * 100).toFixed(0)}
+                    </span>
+                  )}
+                  {cand.duration && (
+                    <span className="text-[10px] text-slate-400">{cand.duration.toFixed(1)}s</span>
+                  )}
+                  {cand.audio_path && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const audio = new Audio(`/api/tasks/${taskId}/artifacts/${cand.audio_path}`)
+                        audio.play().catch(() => {})
+                      }}
+                      className="ml-auto rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                      title={t.dubbingEditor.inspector.candidatePlay}
+                    >
+                      <Play size={10} />
+                    </button>
+                  )}
                 </div>
               ))}
             </div>
-          )}
-        </div>
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={handleResynthClick}
+                disabled={isSynthesizing}
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-200 py-1.5 text-[10px] font-medium text-slate-500 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
+              >
+                <RotateCcw size={10} />
+                {t.dubbingEditor.inspector.generateMoreCandidates}
+              </button>
+            </div>
+          </InspectorSection>
+        )
+      })()}
+
+      {/* P2: Operation history accordion */}
+      {unitOps.length > 0 && (
+        <InspectorSection
+          title={t.dubbingEditor.inspector.operationHistory(unitOps.length)}
+          icon={<History size={11} />}
+          collapsible
+          defaultCollapsed
+          collapsedKey={`${unit.unit_id}:ops`}
+          headerTestId="op-history-btn"
+        >
+          <div className="space-y-0.5">
+            {unitOps.map(op => (
+              <div key={op.op_id} className="flex items-center justify-between text-[10px] text-slate-500">
+                <span className="font-medium text-slate-700">{op.type}</span>
+                <span>{new Date(op.created_at).toLocaleTimeString()}</span>
+              </div>
+            ))}
+          </div>
+        </InspectorSection>
       )}
     </div>
   )
@@ -2201,6 +2340,78 @@ function VoicePickerModal({
   )
 }
 
+function InlineCollapsible({
+  defaultCollapsed,
+  collapsedSummary,
+  expandedTitle,
+  toggleAriaLabel,
+  warn = false,
+  testId,
+  children,
+}: {
+  defaultCollapsed: boolean
+  collapsedSummary: React.ReactNode
+  expandedTitle: React.ReactNode
+  toggleAriaLabel: { expand: string; collapse: string }
+  warn?: boolean
+  testId?: string
+  children: React.ReactNode
+}) {
+  const [collapsed, setCollapsed] = useState(defaultCollapsed)
+  return (
+    <div data-testid={testId} data-collapsed={collapsed ? 'true' : 'false'}>
+      <button
+        type="button"
+        onClick={() => setCollapsed(prev => !prev)}
+        aria-expanded={!collapsed}
+        aria-label={collapsed ? toggleAriaLabel.expand : toggleAriaLabel.collapse}
+        className="flex w-full min-w-0 items-center gap-1.5 rounded text-left text-[11px] text-slate-500 transition-colors hover:text-slate-700 focus:outline-none focus:ring-1 focus:ring-slate-300"
+      >
+        {collapsed ? <ChevronRight size={11} /> : <ChevronDown size={11} />}
+        {collapsed ? (
+          <span className={`min-w-0 truncate ${warn ? 'text-amber-600' : 'text-slate-500'}`}>
+            {collapsedSummary}
+          </span>
+        ) : (
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            {expandedTitle}
+          </span>
+        )}
+      </button>
+      {!collapsed && <div className="mt-2">{children}</div>}
+    </div>
+  )
+}
+
+function CharacterStatsCollapsible({
+  defaultCollapsed,
+  compactSummary,
+  ratioWarn,
+  children,
+}: {
+  defaultCollapsed: boolean
+  compactSummary: string
+  ratioWarn: boolean
+  children: React.ReactNode
+}) {
+  const { t } = useI18n()
+  return (
+    <InlineCollapsible
+      testId="character-stats"
+      defaultCollapsed={defaultCollapsed}
+      collapsedSummary={compactSummary}
+      expandedTitle={t.dubbingEditor.inspector.charStatsTitle}
+      toggleAriaLabel={{
+        expand: t.dubbingEditor.inspector.charStatsToggleExpand,
+        collapse: t.dubbingEditor.inspector.charStatsToggleCollapse,
+      }}
+      warn={ratioWarn}
+    >
+      {children}
+    </InlineCollapsible>
+  )
+}
+
 function CharacterInspector({
   character,
   taskId,
@@ -2212,6 +2423,16 @@ function CharacterInspector({
 }) {
   const { t } = useI18n()
   const [showVoicePicker, setShowVoicePicker] = useState(false)
+
+  const failedRatio = character.stats.speaker_failed_ratio
+  const failedCount = character.stats.speaker_failed_count
+  const segmentCount = character.stats.segment_count
+  const hasRisk = failedRatio > 0.15 || character.risk_flags.length > 0
+
+  const pitchValue = `${character.pitch_class}${character.pitch_hz ? ` · ${character.pitch_hz.toFixed(1)}Hz` : ''}`
+  const failedRatioPct = (failedRatio * 100).toFixed(0)
+  const compactSummary =
+    `${pitchValue} · ${segmentCount}${t.dubbingEditor.inspector.charStatsSegSuffix} · ${t.dubbingEditor.inspector.charStatsFailedShort} ${failedCount} (${failedRatioPct}%)`
 
   return (
     <div className="px-3 py-2">
@@ -2225,35 +2446,39 @@ function CharacterInspector({
         </div>
       </div>
 
-      <div className="space-y-2 text-[11px] text-slate-600">
-        <div className="flex justify-between">
-          <span className="text-slate-400">{t.dubbingEditor.inspector.pitch}</span>
-          <span>
-            {character.pitch_class}
-            {character.pitch_hz && ` · ${character.pitch_hz.toFixed(1)}Hz`}
-          </span>
+      <CharacterStatsCollapsible
+        key={character.character_id}
+        defaultCollapsed={!hasRisk}
+        compactSummary={compactSummary}
+        ratioWarn={failedRatio > 0.15}
+      >
+        <div className="space-y-2 text-[11px] text-slate-600">
+          <div className="flex justify-between">
+            <span className="text-slate-400">{t.dubbingEditor.inspector.pitch}</span>
+            <span>{pitchValue}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">{t.dubbingEditor.inspector.voiceLock}</span>
+            <span className={character.voice_lock ? 'text-emerald-600' : 'text-slate-500'}>
+              {character.voice_lock ? t.dubbingEditor.inspector.voiceLockOn : t.dubbingEditor.inspector.voiceLockOff}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">{t.dubbingEditor.inspector.segments}</span>
+            <span>{segmentCount}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-slate-400">{t.dubbingEditor.inspector.speakerFailed}</span>
+            <span
+              className={
+                failedRatio > 0.15 ? 'font-medium text-amber-600' : 'text-slate-600'
+              }
+            >
+              {failedCount} ({failedRatioPct}%)
+            </span>
+          </div>
         </div>
-        <div className="flex justify-between">
-          <span className="text-slate-400">{t.dubbingEditor.inspector.voiceLock}</span>
-          <span className={character.voice_lock ? 'text-emerald-600' : 'text-slate-500'}>
-            {character.voice_lock ? t.dubbingEditor.inspector.voiceLockOn : t.dubbingEditor.inspector.voiceLockOff}
-          </span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-slate-400">{t.dubbingEditor.inspector.segments}</span>
-          <span>{character.stats.segment_count}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-slate-400">{t.dubbingEditor.inspector.speakerFailed}</span>
-          <span
-            className={
-              character.stats.speaker_failed_ratio > 0.15 ? 'font-medium text-amber-600' : 'text-slate-600'
-            }
-          >
-            {character.stats.speaker_failed_count} ({(character.stats.speaker_failed_ratio * 100).toFixed(0)}%)
-          </span>
-        </div>
-      </div>
+      </CharacterStatsCollapsible>
 
       {/* Phase 2: Voice sample preview + swap */}
       <div className="mt-3 rounded-md border border-slate-100 px-3 py-2">
