@@ -38,6 +38,7 @@ import {
   Video,
   Volume2,
   Gauge,
+  Wand2,
   VolumeX,
   X,
   ZoomIn,
@@ -2127,6 +2128,27 @@ interface ClipFitMeterProps {
   generatedDuration: number | null
   fittedDuration: number | null
   sourceDuration: number | null
+  onSuggestSpeed?: (speed: number) => void
+}
+
+// Snap an arbitrary ratio to the inspector's 5-step synth-speed segmented
+// (0.85 / 0.95 / 1 / 1.1 / 1.2). We deliberately *cap* outside ±20% — TTS
+// timbre falls apart past that range and the user is better off splitting
+// the segment than asking the engine to do the impossible.
+const SYNTH_SPEED_LEVELS = [0.85, 0.95, 1, 1.1, 1.2] as const
+
+function snapSynthSpeed(ratio: number): number {
+  const clamped = Math.max(SYNTH_SPEED_LEVELS[0], Math.min(SYNTH_SPEED_LEVELS[SYNTH_SPEED_LEVELS.length - 1], ratio))
+  let best: number = SYNTH_SPEED_LEVELS[2]
+  let bestDelta = Number.POSITIVE_INFINITY
+  for (const level of SYNTH_SPEED_LEVELS) {
+    const d = Math.abs(level - clamped)
+    if (d < bestDelta) {
+      bestDelta = d
+      best = level
+    }
+  }
+  return best
 }
 
 function ClipFitMeter({
@@ -2134,6 +2156,7 @@ function ClipFitMeter({
   generatedDuration,
   fittedDuration,
   sourceDuration,
+  onSuggestSpeed,
 }: ClipFitMeterProps) {
   const { t } = useI18n()
   const inspector = t.dubbingEditor.inspector
@@ -2235,6 +2258,30 @@ function ClipFitMeter({
       </div>
 
       <p className="mt-2 text-[11px] leading-4 text-slate-500">{descriptor.hint}</p>
+      {/*
+        Suggest button: when the meter shows a non-trivial mismatch between
+        natural speech and source-slot duration, offer a one-click "fix" that
+        snaps the right speed onto the synth-speed segmented and triggers a
+        resynth. We compute the suggestion from generated/source rather than
+        generated/fitted because the user's *intent* is to make the natural
+        read fit the slot, eliminating the post-hoc stretch entirely.
+      */}
+      {onSuggestSpeed && generated != null && slot != null && Math.abs(generated / slot - 1) >= 0.05 && (() => {
+        const suggested = snapSynthSpeed(generated / slot)
+        if (suggested === 1) return null
+        return (
+          <button
+            type="button"
+            data-testid="clip-fit-meter-suggest"
+            onClick={() => onSuggestSpeed(suggested)}
+            className="mt-2 inline-flex w-full items-center justify-center gap-1.5 rounded-md bg-slate-50 px-2 py-1 text-[11px] font-medium text-slate-700 ring-1 ring-inset ring-slate-200 transition-all hover:bg-slate-100 hover:ring-slate-300"
+            title={inspector.fitSuggestHint.replace('{value}', `${suggested}×`)}
+          >
+            <Wand2 size={11} className="text-slate-500" strokeWidth={2.25} />
+            <span>{inspector.fitSuggestApply.replace('{value}', `${suggested}×`)}</span>
+          </button>
+        )
+      })()}
     </div>
   )
 }
@@ -2249,6 +2296,7 @@ function SegmentInspector({
   onResynthesize,
   isSynthesizing,
   synthesizedAt,
+  synthError,
 }: {
   unit: DubbingEditorUnit
   project: DubbingEditorProject
@@ -2259,6 +2307,7 @@ function SegmentInspector({
   onResynthesize: (unitId: string, targetText?: string, options?: { speed?: number }) => void
   isSynthesizing: boolean
   synthesizedAt: string | null
+  synthError: string | null
 }) {
   const { t, locale } = useI18n()
   const [editingText, setEditingText] = useState(unit.target_text)
@@ -2328,6 +2377,22 @@ function SegmentInspector({
       synthSpeed !== 1 ? { speed: synthSpeed } : undefined,
     )
   }, [isDirty, editingText, unit.unit_id, onSaveText, onResynthesize, synthSpeed])
+
+  // Listen for the global "Y" hotkey dispatched from DubbingEditorPage. We
+  // do this with a CustomEvent rather than props so the hotkey owner up the
+  // tree doesn't need a ref into the inspector and so the keystroke remains
+  // a no-op when no inspector is mounted.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ unitId?: string }>).detail
+      if (!detail || detail.unitId !== unit.unit_id) return
+      if (isSynthesizing) return // hard guard: ignore extra Y while one is in flight
+      void handleResynthClick()
+    }
+    window.addEventListener('dubbingEditor:resynthesizeCurrent', handler as EventListener)
+    return () => window.removeEventListener('dubbingEditor:resynthesizeCurrent', handler as EventListener)
+  }, [unit.unit_id, handleResynthClick, isSynthesizing])
 
   const clipFileName = clip.audio_artifact_path?.split('/').pop()
   const clipPreviewSrc = clip.audio_artifact_path
@@ -2501,6 +2566,16 @@ function SegmentInspector({
           generatedDuration={clip.generated_duration ?? null}
           fittedDuration={clip.duration ?? null}
           sourceDuration={clip.source_duration ?? unit.duration ?? null}
+          onSuggestSpeed={speed => {
+            // Adopt the suggestion *and* immediately re-synthesise so the
+            // user gets one-click "fix the stretch". We bypass
+            // handleResynthClick's draft-save dance because suggestions are
+            // about the audio, not the text — but we still preserve any
+            // dirty edit by passing it inline.
+            setSynthSpeed(speed)
+            const draft = isDirty ? editingText : undefined
+            onResynthesize(unit.unit_id, draft, { speed })
+          }}
         />
 
         {/* Per-unit clip preview player — listen to *this* segment after re-synthesis */}
@@ -2683,6 +2758,19 @@ function SegmentInspector({
             {synthSpeed !== 1 ? ` · ${synthSpeed}×` : ''}
           </span>
         </button>
+        {synthError && (
+          <div
+            data-testid="resynth-error-banner"
+            role="alert"
+            className="mt-1.5 flex items-start gap-1.5 rounded-md bg-rose-50 px-2 py-1.5 text-[11px] leading-tight text-rose-700 ring-1 ring-inset ring-rose-200"
+          >
+            <AlertTriangle size={11} className="mt-0.5 shrink-0" strokeWidth={2.25} />
+            <div className="flex-1">
+              <div className="font-medium">{t.dubbingEditor.inspector.resynthFailed}</div>
+              <div className="mt-0.5 break-words text-[10px] text-rose-600">{synthError}</div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Phase 2: Back-translation check */}
@@ -3114,6 +3202,7 @@ function InspectorPanel({
   onAssignVoice,
   isSynthesizing,
   synthesizedAt,
+  synthError,
 }: {
   project: DubbingEditorProject
   taskId: string
@@ -3126,6 +3215,7 @@ function InspectorPanel({
   onAssignVoice: (characterId: string, voicePath: string) => void
   isSynthesizing: boolean
   synthesizedAt: string | null
+  synthError: string | null
 }) {
   const { t } = useI18n()
   if (!selectedUnit) {
@@ -3189,6 +3279,7 @@ function InspectorPanel({
           onResynthesize={onResynthesize}
           isSynthesizing={isSynthesizing}
           synthesizedAt={synthesizedAt}
+          synthError={synthError}
         />
       </div>
 
@@ -3983,10 +4074,17 @@ export function DubbingEditorPage() {
   const [selectedUnit, setSelectedUnit] = useState<DubbingEditorUnit | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
   const [isSynthesizing, setIsSynthesizing] = useState(false)
+  // Concurrency guard: a useRef so re-entrant calls inside the same tick
+  // (e.g. user hammers Y, or hotkey + button fire together) see the latched
+  // truth without waiting for React's setState commit.
+  const synthInFlightRef = useRef(false)
   // Per-unit cache-busting token: latest synthesize-unit response timestamp.
   // When this changes for the selected unit, the inspector's preview <audio>
   // element re-mounts and reloads the freshly synthesized clip.
   const [synthesizedAtByUnit, setSynthesizedAtByUnit] = useState<Record<string, string>>({})
+  // Per-unit synthesize error message, cleared on the next successful run for
+  // the same unit. Surfaced as a small banner under the resynth button.
+  const [synthErrorByUnit, setSynthErrorByUnit] = useState<Record<string, string>>({})
   const [renderRangeResult, setRenderRangeResult] = useState<{
     url: string
     start_sec: number
@@ -4201,6 +4299,32 @@ export function DubbingEditorPage() {
     [operationsMutation],
   )
 
+  // Triage flow helper: after approving / flagging the current unit, jump to
+  // the next *open* issue so power users can rip through a batch with A/A/A
+  // or F/F/F instead of arrow-down clicks. We compute the next issue at call
+  // time (rather than caching) so the list reflects the freshly-mutated
+  // status.
+  const advanceToNextOpenIssue = useCallback(
+    (afterIssueId: string | null) => {
+      const issues = projectQuery.data?.issues ?? []
+      const open = issues.filter(i => i.status === 'open')
+      if (open.length === 0) {
+        setSelectedIssueId(null)
+        setSelectedUnit(null)
+        return
+      }
+      const idx = afterIssueId ? open.findIndex(i => i.issue_id === afterIssueId) : -1
+      // If the just-resolved issue is still in the list (server hasn't yet
+      // re-fetched), step past it; otherwise idx is -1 and (idx+1) % len = 0
+      // selects the first remaining open issue.
+      const next = open[(idx + 1) % open.length]
+      setSelectedIssueId(next.issue_id)
+      const unit = projectQuery.data?.units.find(u => u.unit_id === next.unit_id)
+      if (unit) setSelectedUnit(unit)
+    },
+    [projectQuery.data],
+  )
+
   const handleSaveText = useCallback(
     async (unitId: string, targetText: string) => {
       await operationsMutation.mutateAsync([
@@ -4227,7 +4351,21 @@ export function DubbingEditorPage() {
   const handleResynthesize = useCallback(
     async (unitId: string, targetText?: string, options?: { speed?: number }) => {
       if (!taskId) return
+      // Hard de-dup: a synth is already running, drop this click silently.
+      // We don't queue because if the user is impatient the right thing is
+      // to wait for the latest *intentional* request; queueing would
+      // multiply backend load and could play stale audio.
+      if (synthInFlightRef.current) return
+      synthInFlightRef.current = true
       setIsSynthesizing(true)
+      // Optimistically clear any previous error for this unit; on failure
+      // we'll repopulate with the new message.
+      setSynthErrorByUnit(prev => {
+        if (!(unitId in prev)) return prev
+        const next = { ...prev }
+        delete next[unitId]
+        return next
+      })
       try {
         const result = await dubbingEditorApi.synthesizeUnit(taskId, unitId, targetText, options)
         // Always bump the token so the audio element re-mounts even if the
@@ -4235,7 +4373,17 @@ export function DubbingEditorPage() {
         const token = result.synthesized_at ?? new Date().toISOString()
         setSynthesizedAtByUnit(prev => ({ ...prev, [unitId]: token }))
         queryClient.invalidateQueries({ queryKey: ['dubbing-editor', taskId] })
+      } catch (err) {
+        // Fall back to a generic message if the API client doesn't expose
+        // structured error info; the banner is mostly there to confirm the
+        // synth *didn't* succeed (so the user doesn't think their click
+        // was lost).
+        type AxiosLike = { response?: { data?: { detail?: string; message?: string } }; message?: string }
+        const e = err as AxiosLike
+        const detail = e.response?.data?.detail ?? e.response?.data?.message ?? e.message ?? 'unknown error'
+        setSynthErrorByUnit(prev => ({ ...prev, [unitId]: detail }))
       } finally {
+        synthInFlightRef.current = false
         setIsSynthesizing(false)
       }
     },
@@ -4341,9 +4489,46 @@ export function DubbingEditorPage() {
           else audio.pause()
         }
       } else if (e.key === 'a' || e.key === 'A') {
-        if (selectedUnit) handleApprove(selectedUnit.unit_id)
+        // Approve current unit and auto-advance to the next open issue.
+        // Power-user triage: A / A / A / A churns through a queue.
+        if (selectedUnit) {
+          const currentIssue = selectedIssueId
+          handleApprove(selectedUnit.unit_id)
+          advanceToNextOpenIssue(currentIssue)
+        }
       } else if (e.key === 'f' || e.key === 'F') {
-        if (selectedUnit) handleNeedsReview(selectedUnit.unit_id)
+        // Flag for review and advance — symmetric to A but for the
+        // "needs human ear" bucket.
+        if (selectedUnit) {
+          const currentIssue = selectedIssueId
+          handleNeedsReview(selectedUnit.unit_id)
+          advanceToNextOpenIssue(currentIssue)
+        }
+      } else if (e.key === 'y' || e.key === 'Y') {
+        // Resynthesize current unit at whatever speed is currently selected
+        // in the inspector. We don't own that state up here; the inspector
+        // listens for a custom event so the keystroke can hand off to it.
+        if (selectedUnit) {
+          window.dispatchEvent(
+            new CustomEvent('dubbingEditor:resynthesizeCurrent', {
+              detail: { unitId: selectedUnit.unit_id },
+            }),
+          )
+        }
+      } else if (e.key === '[') {
+        e.preventDefault()
+        const current = readPlaybackRate()
+        const idx = PLAYBACK_RATE_LEVELS.indexOf(current)
+        const next = PLAYBACK_RATE_LEVELS[Math.max(0, idx - 1)]
+        writePlaybackRate(next)
+        window.dispatchEvent(new CustomEvent<PlaybackRate>(PLAYBACK_RATE_EVENT, { detail: next }))
+      } else if (e.key === ']') {
+        e.preventDefault()
+        const current = readPlaybackRate()
+        const idx = PLAYBACK_RATE_LEVELS.indexOf(current)
+        const next = PLAYBACK_RATE_LEVELS[Math.min(PLAYBACK_RATE_LEVELS.length - 1, idx + 1)]
+        writePlaybackRate(next)
+        window.dispatchEvent(new CustomEvent<PlaybackRate>(PLAYBACK_RATE_EVENT, { detail: next }))
       } else if (e.key === 'r' || e.key === 'R') {
         handleRenderRange()
       } else if (e.key === 'Escape') {
@@ -4363,6 +4548,7 @@ export function DubbingEditorPage() {
     handleRenderRange,
     handleUndo,
     handleRedo,
+    advanceToNextOpenIssue,
     editorMode,
   ])
 
@@ -4536,6 +4722,9 @@ export function DubbingEditorPage() {
                 isSynthesizing={isSynthesizing}
                 synthesizedAt={
                   selectedUnit ? synthesizedAtByUnit[selectedUnit.unit_id] ?? null : null
+                }
+                synthError={
+                  selectedUnit ? synthErrorByUnit[selectedUnit.unit_id] ?? null : null
                 }
               />
             </div>
