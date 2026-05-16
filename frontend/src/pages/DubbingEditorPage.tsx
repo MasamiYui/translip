@@ -2286,6 +2286,123 @@ function ClipFitMeter({
   )
 }
 
+// LiveFitPredictor — drawn under the target_text textarea while the user is
+// typing, so they can tell *before* spending GPU on a re-synth whether the
+// new wording is going to overflow the slot. The estimate uses the most
+// recently synthesised clip as a per-voice/per-segment calibration anchor:
+// chars-per-second for *this* unit ≈ chars(target_text) / generated_duration.
+// That is far more accurate than a global voice average because it
+// implicitly accounts for the speaker's pace, the speed_hint, and the
+// language-specific token density. When no baseline exists yet (the unit
+// has never been synthesised) we degrade to a hint instead of fabricating
+// a number.
+type LiveFitTone = 'safe' | 'borderline' | 'over' | 'under' | 'unknown'
+
+function liveFitTone(predicted: number | null, slot: number | null): LiveFitTone {
+  if (predicted === null || slot === null || slot <= 0) return 'unknown'
+  const ratio = predicted / slot
+  if (ratio <= 1.05 && ratio >= 0.7) return 'safe'
+  if (ratio < 0.7) return 'under'
+  if (ratio <= 1.2) return 'borderline'
+  return 'over'
+}
+
+function LiveFitPredictor({
+  draftText,
+  baselineText,
+  baselineDuration,
+  slotDuration,
+}: {
+  draftText: string
+  baselineText: string
+  baselineDuration: number | null
+  slotDuration: number | null
+}) {
+  const { t } = useI18n()
+
+  const baselineChars = baselineText.trim().length
+  const draftChars = draftText.trim().length
+
+  const predicted =
+    baselineDuration !== null && baselineChars > 0
+      ? (baselineDuration / baselineChars) * draftChars
+      : null
+
+  const tone = liveFitTone(predicted, slotDuration)
+
+  if (predicted === null || slotDuration === null) {
+    return (
+      <div
+        data-testid="live-fit-predictor"
+        data-tone="unknown"
+        className="mt-1.5 rounded-md border border-dashed border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-500"
+      >
+        {t.dubbingEditor.inspector.liveFitNoBaseline}
+      </div>
+    )
+  }
+
+  const delta = predicted - slotDuration
+  const palette: Record<LiveFitTone, { wrap: string; chip: string; chipText: string }> = {
+    safe: {
+      wrap: 'border-emerald-200 bg-emerald-50',
+      chip: 'bg-emerald-100',
+      chipText: 'text-emerald-700',
+    },
+    borderline: {
+      wrap: 'border-amber-200 bg-amber-50',
+      chip: 'bg-amber-100',
+      chipText: 'text-amber-700',
+    },
+    over: {
+      wrap: 'border-rose-200 bg-rose-50',
+      chip: 'bg-rose-100',
+      chipText: 'text-rose-700',
+    },
+    under: {
+      wrap: 'border-sky-200 bg-sky-50',
+      chip: 'bg-sky-100',
+      chipText: 'text-sky-700',
+    },
+    unknown: {
+      wrap: 'border-slate-200 bg-slate-50',
+      chip: 'bg-slate-100',
+      chipText: 'text-slate-600',
+    },
+  }
+  const colors = palette[tone]
+
+  const summaryLabel = (() => {
+    if (tone === 'over') return t.dubbingEditor.inspector.liveFitOver.replace('{value}', delta.toFixed(2))
+    if (tone === 'borderline') return t.dubbingEditor.inspector.liveFitBorderline
+    if (tone === 'under') return t.dubbingEditor.inspector.liveFitUnder.replace('{value}', (-delta).toFixed(2))
+    return t.dubbingEditor.inspector.liveFitSafe
+  })()
+
+  return (
+    <div
+      data-testid="live-fit-predictor"
+      data-tone={tone}
+      data-predicted={predicted.toFixed(3)}
+      data-slot={slotDuration.toFixed(3)}
+      className={`mt-1.5 flex items-center justify-between gap-2 rounded-md border px-2 py-1 text-[11px] ${colors.wrap}`}
+    >
+      <span className="font-medium text-slate-700">
+        {t.dubbingEditor.inspector.liveFitEstimated.replace('{value}', predicted.toFixed(2))}
+        <span className="ml-1.5 text-slate-400">
+          {t.dubbingEditor.inspector.liveFitSlot.replace('{value}', slotDuration.toFixed(2))}
+        </span>
+      </span>
+      <span
+        data-testid="live-fit-predictor-chip"
+        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${colors.chip} ${colors.chipText}`}
+      >
+        {summaryLabel}
+      </span>
+    </div>
+  )
+}
+
 function SegmentInspector({
   unit,
   project,
@@ -2493,6 +2610,12 @@ function SegmentInspector({
           }}
           rows={3}
           className="min-h-[74px] w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-5 text-slate-800 shadow-[inset_0_1px_0_rgba(15,23,42,.03)] transition-colors focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+        />
+        <LiveFitPredictor
+          draftText={editingText}
+          baselineText={unit.target_text}
+          baselineDuration={clip.generated_duration ?? null}
+          slotDuration={unit.duration ?? null}
         />
       </InspectorSection>
 
