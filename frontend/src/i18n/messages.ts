@@ -761,6 +761,8 @@ const zhMessages = {
       segmentPreview: '选段试听',
       seek: '拖动定位',
       fullscreen: '全屏',
+      dragSubtitle: '按住拖动调整字幕位置，双击恢复默认',
+      resetSubtitlePosition: '恢复默认位置',
     },
     unitStatus: {
       approved: '已批准',
@@ -1834,6 +1836,8 @@ const enMessages: LocaleMessages = {
       segmentPreview: 'Segment preview',
       seek: 'Seek',
       fullscreen: 'Fullscreen',
+      dragSubtitle: 'Drag to reposition subtitle, double-click to reset',
+      resetSubtitlePosition: 'Reset position',
     },
     unitStatus: {
       approved: 'approved',

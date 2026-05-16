@@ -381,3 +381,136 @@ describe('DubbingEditorPage resizable workbench layout', () => {
     )
   })
 })
+
+describe('DubbingEditorPage draggable subtitle overlay', () => {
+  beforeEach(() => {
+    vi.resetAllMocks()
+    window.localStorage.clear()
+    vi.spyOn(window, 'requestAnimationFrame').mockImplementation(callback => {
+      return window.setTimeout(() => callback(performance.now()), 16)
+    })
+    vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(id => {
+      window.clearTimeout(id)
+    })
+    vi.mocked(dubbingEditorApi.getProject).mockResolvedValue(mockProject())
+    vi.mocked(dubbingEditorApi.getWaveform).mockResolvedValue({
+      track: 'original',
+      peaks: [0.1, 0.4, 0.2, 0.8],
+      duration_sec: 4,
+      available: true,
+    })
+    vi.mocked(dubbingEditorApi.getClipPreview).mockResolvedValue({
+      url: '/api/mock/clip.wav',
+      start_sec: 0.8,
+      end_sec: 3.2,
+      duration_sec: 2.4,
+    })
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined),
+    })
+    Object.defineProperty(HTMLMediaElement.prototype, 'pause', {
+      configurable: true,
+      value: vi.fn(),
+    })
+    vi.mocked(tasksApi.get).mockResolvedValue({ id: 'task-layout', name: '任务-14:52' } as never)
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    cleanup()
+  })
+
+  function stubRect(
+    el: Element,
+    rect: { left: number; top: number; width: number; height: number },
+  ) {
+    const { left, top, width, height } = rect
+    vi.spyOn(el, 'getBoundingClientRect').mockReturnValue({
+      left,
+      top,
+      right: left + width,
+      bottom: top + height,
+      width,
+      height,
+      x: left,
+      y: top,
+      toJSON: () => ({}),
+    })
+  }
+
+  it('renders the subtitle overlay with default centered classes and no inline position', async () => {
+    render(<DubbingEditorPage />, { wrapper: createWrapper() })
+
+    const subtitle = await screen.findByTestId('edit-monitor-subtitle')
+    expect(subtitle).toHaveClass('bottom-16')
+    expect(subtitle).toHaveClass('left-1/2')
+    expect(subtitle).toHaveClass('-translate-x-1/2')
+    expect(subtitle.style.left).toBe('')
+    expect(subtitle.style.top).toBe('')
+    expect(subtitle).not.toHaveClass('pointer-events-none')
+  })
+
+  it('repositions the subtitle via pointer drag and clamps to the stage bounds', async () => {
+    render(<DubbingEditorPage />, { wrapper: createWrapper() })
+
+    const subtitle = await screen.findByTestId('edit-monitor-subtitle')
+    const stage = subtitle.parentElement as HTMLElement
+    expect(stage).toBeTruthy()
+
+    stubRect(stage, { left: 0, top: 0, width: 800, height: 400 })
+    stubRect(subtitle, { left: 200, top: 320, width: 400, height: 40 })
+
+    fireEvent.pointerDown(subtitle, { button: 0, clientX: 220, clientY: 330 })
+    fireEvent.pointerMove(window, { clientX: 260, clientY: 360 })
+
+    await waitFor(() => {
+      expect(subtitle.style.left).toBe('240px')
+      expect(subtitle.style.top).toBe('350px')
+    })
+    expect(subtitle).not.toHaveClass('bottom-16')
+
+    fireEvent.pointerMove(window, { clientX: 5000, clientY: 5000 })
+
+    await waitFor(() => {
+      expect(subtitle.style.left).toBe('400px')
+      expect(subtitle.style.top).toBe('360px')
+    })
+
+    fireEvent.pointerMove(window, { clientX: -200, clientY: -200 })
+    await waitFor(() => {
+      expect(subtitle.style.left).toBe('0px')
+      expect(subtitle.style.top).toBe('0px')
+    })
+
+    fireEvent.pointerUp(window)
+  })
+
+  it('restores the default subtitle position on double-click', async () => {
+    render(<DubbingEditorPage />, { wrapper: createWrapper() })
+
+    const subtitle = await screen.findByTestId('edit-monitor-subtitle')
+    const stage = subtitle.parentElement as HTMLElement
+
+    stubRect(stage, { left: 0, top: 0, width: 800, height: 400 })
+    stubRect(subtitle, { left: 200, top: 320, width: 400, height: 40 })
+
+    fireEvent.pointerDown(subtitle, { button: 0, clientX: 220, clientY: 330 })
+    fireEvent.pointerMove(window, { clientX: 260, clientY: 360 })
+    fireEvent.pointerUp(window)
+
+    await waitFor(() => {
+      expect(subtitle.style.left).toBe('240px')
+    })
+    expect(subtitle).not.toHaveClass('bottom-16')
+
+    fireEvent.doubleClick(subtitle)
+
+    await waitFor(() => {
+      expect(subtitle.style.left).toBe('')
+      expect(subtitle.style.top).toBe('')
+    })
+    expect(subtitle).toHaveClass('bottom-16')
+    expect(subtitle).toHaveClass('left-1/2')
+  })
+})

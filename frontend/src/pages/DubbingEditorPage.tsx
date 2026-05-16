@@ -2696,10 +2696,14 @@ function EditMonitorPane({
   const monitorAudioRef = useRef<HTMLAudioElement>(null)
   const rangeAudioRef = useRef<HTMLAudioElement>(null)
   const progressTrackRef = useRef<HTMLDivElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const subtitleRef = useRef<HTMLDivElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [audioTrack, setAudioTrack] = useState<'original' | 'dub' | 'mix'>('dub')
   const [subtitleMode, setSubtitleMode] = useState<'source' | 'target' | 'bilingual'>('target')
   const [duration, setDuration] = useState(0)
+  const [subtitlePos, setSubtitlePos] = useState<{ x: number; y: number } | null>(null)
+  const [isDraggingSubtitle, setIsDraggingSubtitle] = useState(false)
 
   const videoSrc = `/api/tasks/${taskId}/dubbing-editor/video-preview`
   const activeUnit = selectedUnit ?? project.units.find(u => u.start <= playheadSec && u.end > playheadSec) ?? null
@@ -2906,6 +2910,45 @@ function EditMonitorPane({
     },
     [seekMonitor],
   )
+  const handleSubtitlePointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    const stage = stageRef.current
+    const subtitle = subtitleRef.current
+    if (!stage || !subtitle) return
+    event.preventDefault()
+    event.stopPropagation()
+
+    const stageRect = stage.getBoundingClientRect()
+    const subRect = subtitle.getBoundingClientRect()
+    const offsetX = event.clientX - subRect.left
+    const offsetY = event.clientY - subRect.top
+
+    setIsDraggingSubtitle(true)
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      const nextLeft = moveEvent.clientX - stageRect.left - offsetX
+      const nextTop = moveEvent.clientY - stageRect.top - offsetY
+      const maxLeft = Math.max(0, stageRect.width - subRect.width)
+      const maxTop = Math.max(0, stageRect.height - subRect.height)
+      setSubtitlePos({
+        x: clampNumber(nextLeft, 0, maxLeft),
+        y: clampNumber(nextTop, 0, maxTop),
+      })
+    }
+    const handlePointerUp = () => {
+      setIsDraggingSubtitle(false)
+      window.removeEventListener('pointermove', handlePointerMove)
+      window.removeEventListener('pointerup', handlePointerUp)
+      window.removeEventListener('pointercancel', handlePointerUp)
+    }
+
+    window.addEventListener('pointermove', handlePointerMove)
+    window.addEventListener('pointerup', handlePointerUp)
+    window.addEventListener('pointercancel', handlePointerUp)
+  }, [])
+  const resetSubtitlePosition = useCallback(() => {
+    setSubtitlePos(null)
+  }, [])
   const sourceText = activeUnit?.source_text || t.dubbingEditor.currentLine.empty
   const targetText = activeUnit?.target_text || ''
   const canPreviewClip = !!selectedUnit && !!clipPreviewQuery.data?.url
@@ -2924,7 +2967,7 @@ function EditMonitorPane({
       />
       <audio ref={clipAudioRef} preload="none" className="hidden" />
 
-      <div className="relative min-h-0 flex-1 overflow-hidden bg-[#111827]">
+      <div ref={stageRef} className="relative min-h-0 flex-1 overflow-hidden bg-[#111827]">
         <video
           ref={videoRef}
           data-testid="edit-monitor-video"
@@ -2950,7 +2993,25 @@ function EditMonitorPane({
           </span>
         </div>
 
-        <div className="pointer-events-none absolute bottom-16 left-1/2 w-[min(760px,82%)] -translate-x-1/2 text-center">
+        <div
+          ref={subtitleRef}
+          data-testid="edit-monitor-subtitle"
+          role="group"
+          aria-label={t.dubbingEditor.preview.dragSubtitle}
+          title={t.dubbingEditor.preview.dragSubtitle}
+          onPointerDown={handleSubtitlePointerDown}
+          onDoubleClick={resetSubtitlePosition}
+          className={`group absolute w-[min(760px,82%)] select-none text-center ${
+            subtitlePos
+              ? ''
+              : 'bottom-16 left-1/2 -translate-x-1/2'
+          } ${isDraggingSubtitle ? 'cursor-grabbing' : 'cursor-grab'}`}
+          style={
+            subtitlePos
+              ? { left: `${subtitlePos.x}px`, top: `${subtitlePos.y}px` }
+              : undefined
+          }
+        >
           {(subtitleMode === 'source' || subtitleMode === 'bilingual') && (
             <div className="inline-block rounded-md bg-black/45 px-2.5 py-0.5 text-sm font-semibold leading-snug text-white shadow-lg shadow-black/20 backdrop-blur-sm">
               {sourceText}
@@ -2960,6 +3021,17 @@ function EditMonitorPane({
             <div className="mt-1 inline-block rounded-md bg-black/50 px-2.5 py-1 text-[15px] font-semibold leading-snug text-white shadow-lg shadow-black/20 backdrop-blur-sm">
               {targetText}
             </div>
+          )}
+          {subtitlePos && (
+            <button
+              type="button"
+              onPointerDown={event => event.stopPropagation()}
+              onClick={resetSubtitlePosition}
+              className="pointer-events-auto absolute -top-2 -right-2 hidden rounded-full bg-black/70 px-2 py-0.5 text-[10px] font-medium text-slate-100 shadow-md ring-1 ring-white/10 transition-colors hover:bg-black/85 group-hover:inline-flex"
+              title={t.dubbingEditor.preview.resetSubtitlePosition}
+            >
+              {t.dubbingEditor.preview.resetSubtitlePosition}
+            </button>
           )}
         </div>
 
