@@ -1370,17 +1370,340 @@ function UnitStatusBadge({ status }: { status: string }) {
 // Segment Inspector (Phase 2: quality scores, voice mismatch, candidate tournament, back-translation)
 // ---------------------------------------------------------------------------
 
-/** Mini metric score bar */
-function ScoreBar({ label, value }: { label: string; value: number }) {
-  const pct = Math.round(value * 100)
-  const color = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-400' : 'bg-rose-500'
+function InspectorSection({
+  title,
+  icon,
+  action,
+  children,
+  className = '',
+}: {
+  title: string
+  icon?: React.ReactNode
+  action?: React.ReactNode
+  children: React.ReactNode
+  className?: string
+}) {
   return (
-    <div className="flex items-center gap-2">
-      <span className="w-24 shrink-0 text-[10px] text-slate-500">{label}</span>
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-        <div className={`h-full rounded-full ${color} transition-all`} style={{ width: `${pct}%` }} />
+    <section className={`border-b border-slate-100 px-3 py-3 ${className}`}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+          {icon}
+          <span className="truncate">{title}</span>
+        </div>
+        {action}
       </div>
-      <span className="w-7 text-right text-[10px] font-medium text-slate-700">{pct}%</span>
+      {children}
+    </section>
+  )
+}
+
+function InspectorMetaRow({
+  label,
+  value,
+  tone = 'default',
+}: {
+  label: string
+  value: React.ReactNode
+  tone?: 'default' | 'success' | 'warning'
+}) {
+  const valueCls =
+    tone === 'success'
+      ? 'text-emerald-600'
+      : tone === 'warning'
+        ? 'text-amber-600'
+        : 'text-slate-700'
+  return (
+    <div className="flex items-center justify-between gap-3 text-[11px]">
+      <span className="shrink-0 text-slate-400">{label}</span>
+      <span className={`min-w-0 truncate text-right font-medium ${valueCls}`}>{value}</span>
+    </div>
+  )
+}
+
+function formatClipStatus(status: string | null | undefined, locale: 'zh-CN' | 'en-US'): string {
+  if (!status) return locale === 'zh-CN' ? '未知' : 'Unknown'
+  const copy: Record<string, { zh: string; en: string }> = {
+    placed: { zh: '已放置', en: 'Placed' },
+    mixed: { zh: '已混入', en: 'Mixed' },
+    pending: { zh: '待处理', en: 'Pending' },
+    failed: { zh: '失败', en: 'Failed' },
+  }
+  const item = copy[status]
+  return item ? (locale === 'zh-CN' ? item.zh : item.en) : status
+}
+
+function formatFitStrategy(strategy: string | null | undefined, locale: 'zh-CN' | 'en-US'): string {
+  if (!strategy) return locale === 'zh-CN' ? '默认' : 'Default'
+  const copy: Record<string, { zh: string; en: string }> = {
+    pad: { zh: '补静音', en: 'Pad' },
+    compress: { zh: '压缩贴合', en: 'Compress' },
+    stretch: { zh: '拉伸贴合', en: 'Stretch' },
+    trim: { zh: '裁剪', en: 'Trim' },
+  }
+  const item = copy[strategy]
+  return item ? (locale === 'zh-CN' ? item.zh : item.en) : strategy
+}
+
+function qualityTone(value: number): { bar: string; dot: string; text: string } {
+  if (value >= 0.85) return { bar: 'bg-emerald-500', dot: 'bg-emerald-500', text: 'text-emerald-700' }
+  if (value >= 0.72) return { bar: 'bg-amber-400', dot: 'bg-amber-400', text: 'text-amber-700' }
+  return { bar: 'bg-rose-500', dot: 'bg-rose-500', text: 'text-rose-700' }
+}
+
+function ScoreBar({ label, value }: { label: string; value: number }) {
+  const bounded = Math.max(0, Math.min(1, value))
+  const pct = Math.round(bounded * 100)
+  const tone = qualityTone(bounded)
+  return (
+    <div className="grid grid-cols-[76px_minmax(0,1fr)_34px] items-center gap-2">
+      <span className="min-w-0 truncate text-[11px] text-slate-500">{label}</span>
+      <div className="h-1.5 overflow-hidden rounded-full bg-slate-100">
+        <div className={`h-full rounded-full ${tone.bar} transition-all`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className={`text-right text-[10px] font-semibold tabular-nums ${tone.text}`}>{pct}%</span>
+    </div>
+  )
+}
+
+function QualitySummary({
+  speakerSimilarity,
+  durationRatio,
+  intelligibility,
+}: {
+  speakerSimilarity: number
+  durationRatio: number
+  intelligibility: number
+}) {
+  const { locale } = useI18n()
+  const boundedDuration = Math.min(1, durationRatio)
+  const items = [
+    { key: 'speaker', value: speakerSimilarity },
+    { key: 'duration', value: boundedDuration },
+    { key: 'intelligibility', value: intelligibility },
+  ]
+  const weakest = items.reduce((min, item) => (item.value < min.value ? item : min), items[0])
+  const isGood = items.every(item => item.value >= 0.85)
+  const isRisky = weakest.value < 0.72
+  const label =
+    locale === 'zh-CN'
+      ? isGood
+        ? '可通过'
+        : isRisky
+          ? '建议重合成'
+          : '建议复听'
+      : isGood
+        ? 'Ready'
+        : isRisky
+          ? 'Resynthesis advised'
+          : 'Review advised'
+  const description =
+    locale === 'zh-CN'
+      ? isGood
+        ? '三项指标稳定，重点确认语义即可。'
+        : isRisky
+          ? '存在明显短板，先复听并考虑重新合成。'
+          : '指标接近阈值，复听后再做审核决策。'
+      : isGood
+        ? 'All metrics are stable. Focus on meaning.'
+        : isRisky
+          ? 'One metric is weak. Listen again and consider resynthesis.'
+          : 'Metrics are near the threshold. Review before deciding.'
+  const badgeCls = isGood
+    ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+    : isRisky
+      ? 'border-rose-200 bg-rose-50 text-rose-700'
+      : 'border-amber-200 bg-amber-50 text-amber-700'
+
+  return (
+    <div className="mb-2.5 flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+      <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${qualityTone(weakest.value).dot}`} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-semibold text-slate-800">{label}</span>
+          <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${badgeCls}`}>
+            {Math.round(weakest.value * 100)}%
+          </span>
+        </div>
+        <p className="mt-0.5 text-[10px] leading-4 text-slate-500">{description}</p>
+      </div>
+    </div>
+  )
+}
+
+function ClipPreviewPlayer({
+  src,
+  fileName,
+  initialDurationSec,
+}: {
+  src: string
+  fileName?: string
+  initialDurationSec?: number | null
+}) {
+  const { t, locale } = useI18n()
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
+  const [currentSec, setCurrentSec] = useState(0)
+  const [durationSec, setDurationSec] = useState(initialDurationSec ?? 0)
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0
+      loadMediaElement(audioRef.current)
+    }
+  }, [src])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    const updateDuration = () => {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) {
+        setDurationSec(audio.duration)
+      }
+    }
+    const updateTime = () => setCurrentSec(audio.currentTime || 0)
+    const handlePlay = () => setIsPlaying(true)
+    const handlePause = () => setIsPlaying(false)
+    const handleEnded = () => {
+      setIsPlaying(false)
+      setCurrentSec(audio.duration || 0)
+    }
+
+    audio.addEventListener('loadedmetadata', updateDuration)
+    audio.addEventListener('durationchange', updateDuration)
+    audio.addEventListener('timeupdate', updateTime)
+    audio.addEventListener('play', handlePlay)
+    audio.addEventListener('pause', handlePause)
+    audio.addEventListener('ended', handleEnded)
+    return () => {
+      audio.removeEventListener('loadedmetadata', updateDuration)
+      audio.removeEventListener('durationchange', updateDuration)
+      audio.removeEventListener('timeupdate', updateTime)
+      audio.removeEventListener('play', handlePlay)
+      audio.removeEventListener('pause', handlePause)
+      audio.removeEventListener('ended', handleEnded)
+    }
+  }, [])
+
+  const togglePlay = useCallback(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (audio.paused || !isPlaying) {
+      audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false))
+    } else {
+      audio.pause()
+      setIsPlaying(false)
+    }
+  }, [isPlaying])
+
+  const toggleMute = useCallback(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.muted = !audio.muted
+    setIsMuted(audio.muted)
+  }, [])
+
+  const seekPreview = useCallback((nextValue: number) => {
+    const audio = audioRef.current
+    const nextSec = Math.max(0, Math.min(durationSec || nextValue, nextValue))
+    if (audio) audio.currentTime = nextSec
+    setCurrentSec(nextSec)
+  }, [durationSec])
+
+  const handleProgressInput = useCallback(
+    (event: React.FormEvent<HTMLInputElement>) => {
+      seekPreview(Number(event.currentTarget.value))
+    },
+    [seekPreview],
+  )
+
+  const progressPct = durationSec > 0 ? Math.min(100, (currentSec / durationSec) * 100) : 0
+  const playerLabel = locale === 'zh-CN' ? '播放片段音频' : 'Play clip audio'
+  const muteLabel = isMuted
+    ? t.dubbingEditor.preview.unmute
+    : t.dubbingEditor.preview.mute
+
+  return (
+    <div
+      data-testid="clip-preview-player"
+      className="rounded-lg border border-slate-200 bg-slate-50/80 px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,.7)]"
+    >
+      <audio
+        ref={audioRef}
+        data-testid="clip-preview-audio"
+        preload="metadata"
+        src={src}
+        className="hidden"
+      >
+        <track kind="captions" />
+      </audio>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          data-testid="clip-preview-play"
+          onClick={togglePlay}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white shadow-sm transition-colors hover:bg-slate-700"
+          title={playerLabel}
+          aria-label={playerLabel}
+        >
+          {isPlaying ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
+        </button>
+
+        <div className="min-w-0 flex-1">
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <span
+              data-testid="clip-preview-timecode"
+              className="font-mono text-[10px] font-medium tabular-nums text-slate-600"
+            >
+              {formatTimeSec(currentSec)}
+              <span className="mx-1 text-slate-300">/</span>
+              {formatTimeSec(durationSec)}
+            </span>
+            {fileName && (
+              <span className="min-w-0 truncate text-[10px] text-slate-400" title={fileName}>
+                {fileName}
+              </span>
+            )}
+          </div>
+          <div className="relative h-4">
+            <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-slate-200">
+              <div className="h-full rounded-full bg-blue-500" style={{ width: `${progressPct}%` }} />
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={durationSec || 0}
+              step={0.01}
+              value={Math.min(currentSec, durationSec || currentSec)}
+              onInput={handleProgressInput}
+              onChange={handleProgressInput}
+              className="absolute inset-0 h-4 w-full cursor-pointer opacity-0"
+              aria-label={t.dubbingEditor.preview.seek}
+              title={t.dubbingEditor.preview.seek}
+            />
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={toggleMute}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-white hover:text-slate-700"
+          title={muteLabel}
+          aria-label={muteLabel}
+        >
+          {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+        </button>
+        <a
+          href={src}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-white hover:text-slate-700"
+          title={fileName ?? src}
+          aria-label={locale === 'zh-CN' ? '打开音频文件' : 'Open audio file'}
+        >
+          <ExternalLink size={13} />
+        </a>
+      </div>
     </div>
   )
 }
@@ -1406,7 +1729,7 @@ function SegmentInspector({
   isSynthesizing: boolean
   synthesizedAt: string | null
 }) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const [editingText, setEditingText] = useState(unit.target_text)
   const [isDirty, setIsDirty] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
@@ -1470,134 +1793,148 @@ function SegmentInspector({
     onResynthesize(unit.unit_id, isDirty ? draft : undefined)
   }, [isDirty, editingText, unit.unit_id, onSaveText, onResynthesize])
 
+  const clipFileName = clip.audio_artifact_path?.split('/').pop()
+  const clipPreviewSrc = clip.audio_artifact_path
+    ? `/api/tasks/${taskId}/artifacts/${clip.audio_artifact_path}?t=${encodeURIComponent(synthesizedAt ?? unit.unit_id)}`
+    : null
+  const speakerSimilarity = qualitySegment?.speaker_similarity ?? 0.75
+  const durationRatio = qualitySegment?.duration_ratio ?? 1
+  const intelligibility = qualitySegment?.intelligibility ?? 0.8
+
   return (
     <div className="space-y-0">
       {/* Segment header */}
-      <div className="flex items-center justify-between px-3 py-2">
-        <div>
-          <div className="text-xs font-semibold text-slate-800">{unit.unit_id}</div>
-          <div className="text-[10px] text-slate-400">
-            {char?.display_name ?? unit.character_id} · {formatTimeSec(unit.start)} – {formatTimeSec(unit.end)}
+      <div className="border-b border-slate-100 bg-white px-3 py-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold text-slate-900">{unit.unit_id}</div>
+            <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-slate-400">
+              <span className="truncate">{char?.display_name ?? unit.character_id}</span>
+              <span className="font-mono tabular-nums">
+                {formatTimeSec(unit.start)} – {formatTimeSec(unit.end)}
+              </span>
+            </div>
           </div>
+          <UnitStatusBadge status={unit.status} />
         </div>
-        <UnitStatusBadge status={unit.status} />
       </div>
 
       {/* Editable target text */}
-      <div className="border-t border-slate-100 px-3 py-2">
-        <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.dubText}</div>
+      <InspectorSection
+        title={t.dubbingEditor.inspector.dubText}
+        icon={<PenLine size={11} />}
+        action={
+          isDirty ? (
+            <button
+              type="button"
+              onClick={() => {
+                onSaveText(unit.unit_id, editingText)
+                setIsDirty(false)
+              }}
+              className="rounded-md px-1.5 py-0.5 text-[10px] font-semibold text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
+            >
+              {t.dubbingEditor.inspector.saveText}
+            </button>
+          ) : null
+        }
+      >
         <textarea
           value={editingText}
           onChange={e => {
             setEditingText(e.target.value)
             setIsDirty(e.target.value !== unit.target_text)
           }}
-          rows={2}
-          className="w-full resize-none rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-200"
+          rows={3}
+          className="min-h-[74px] w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-5 text-slate-800 shadow-[inset_0_1px_0_rgba(15,23,42,.03)] transition-colors focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
         />
-        {isDirty && (
-          <button
-            type="button"
-            onClick={() => {
-              onSaveText(unit.unit_id, editingText)
-              setIsDirty(false)
-            }}
-            className="mt-1.5 text-xs font-medium text-blue-600 hover:text-blue-800"
-          >
-            {t.dubbingEditor.inspector.saveText}
-          </button>
-        )}
-      </div>
+      </InspectorSection>
 
       {/* Clip info */}
-      <div className="border-t border-slate-100 px-3 py-2">
-        <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.clip}</div>
-        <div className="space-y-1 text-[10px] text-slate-500">
-          <div className="flex justify-between">
-            <span>{t.dubbingEditor.inspector.clipStatus}</span>
-            <span className={`font-medium ${clip.mix_status === 'placed' ? 'text-emerald-600' : 'text-amber-600'}`}>
-              {clip.mix_status || 'unknown'}
-            </span>
-          </div>
+      <InspectorSection title={t.dubbingEditor.inspector.clip} icon={<AudioLines size={11} />}>
+        <div className="space-y-1.5 rounded-lg bg-slate-50 px-2.5 py-2">
+          <InspectorMetaRow
+            label={t.dubbingEditor.inspector.clipStatus}
+            value={formatClipStatus(clip.mix_status, locale)}
+            tone={clip.mix_status === 'placed' || clip.mix_status === 'mixed' ? 'success' : 'warning'}
+          />
           {clip.duration && (
-            <div className="flex justify-between">
-              <span>{t.dubbingEditor.inspector.clipDuration}</span>
-              <span className="text-slate-700">{clip.duration.toFixed(2)}s</span>
-            </div>
+            <InspectorMetaRow
+              label={t.dubbingEditor.inspector.clipDuration}
+              value={`${clip.duration.toFixed(2)}s`}
+            />
           )}
           {clip.fit_strategy && (
-            <div className="flex justify-between">
-              <span>{t.dubbingEditor.inspector.clipFitStrategy}</span>
-              <span className="text-slate-700">{clip.fit_strategy}</span>
-            </div>
+            <InspectorMetaRow
+              label={t.dubbingEditor.inspector.clipFitStrategy}
+              value={formatFitStrategy(clip.fit_strategy, locale)}
+            />
           )}
           {clip.audio_artifact_path && (
-            <a
-              data-testid="clip-audio-link"
-              href={`/api/tasks/${taskId}/artifacts/${clip.audio_artifact_path}?t=${encodeURIComponent(synthesizedAt ?? '')}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block truncate text-blue-500 hover:text-blue-700"
-            >
-              {clip.audio_artifact_path.split('/').pop()}
-            </a>
+            <InspectorMetaRow
+              label={locale === 'zh-CN' ? '文件' : 'File'}
+              value={
+                <a
+                  data-testid="clip-audio-link"
+                  href={clipPreviewSrc ?? undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="truncate text-blue-600 hover:text-blue-700"
+                >
+                  {clipFileName}
+                </a>
+              }
+            />
           )}
         </div>
-      </div>
 
-      {/* Per-unit clip preview player — listen to *this* segment after re-synthesis */}
-      <div
-        data-testid="clip-preview-card"
-        className="border-t border-slate-100 px-3 py-2"
-      >
-        <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-          <Headphones size={11} />
-          {t.dubbingEditor.inspector.clipPreviewTitle}
-        </div>
-        {clip.audio_artifact_path ? (
-          <>
-            <audio
-              key={`${unit.unit_id}:${synthesizedAt ?? ''}`}
-              data-testid="clip-preview-audio"
-              data-synthesized-at={synthesizedAt ?? ''}
-              controls
-              preload="metadata"
-              src={`/api/tasks/${taskId}/artifacts/${clip.audio_artifact_path}?t=${encodeURIComponent(synthesizedAt ?? unit.unit_id)}`}
-              className="w-full"
-            >
-              <track kind="captions" />
-            </audio>
-            <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
-              <span>{t.dubbingEditor.inspector.clipPreviewHint}</span>
-            </div>
-            {synthesizedAt && (
-              <div className="mt-0.5 text-[10px] text-emerald-600">
-                {t.dubbingEditor.inspector.clipPreviewSynthesizedAt(
-                  new Date(synthesizedAt).toLocaleTimeString(),
-                )}
-              </div>
-            )}
-          </>
-        ) : (
-          <div className="text-[10px] text-slate-400">
-            {t.dubbingEditor.inspector.clipPreviewMissing}
+        {/* Per-unit clip preview player — listen to *this* segment after re-synthesis */}
+        <div data-testid="clip-preview-card" className="mt-2.5">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            <Headphones size={11} />
+            {t.dubbingEditor.inspector.clipPreviewTitle}
           </div>
-        )}
-      </div>
-
+          {clipPreviewSrc ? (
+            <>
+              <ClipPreviewPlayer
+                key={clipPreviewSrc}
+                src={clipPreviewSrc}
+                fileName={clipFileName}
+                initialDurationSec={clip.duration}
+              />
+              <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-slate-400">
+                <span className="min-w-0">{t.dubbingEditor.inspector.clipPreviewHint}</span>
+              </div>
+              {synthesizedAt && (
+                <div className="mt-0.5 text-[10px] text-emerald-600">
+                  {t.dubbingEditor.inspector.clipPreviewSynthesizedAt(
+                    new Date(synthesizedAt).toLocaleTimeString(),
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-[11px] text-slate-400">
+              {t.dubbingEditor.inspector.clipPreviewMissing}
+            </div>
+          )}
+        </div>
+      </InspectorSection>
 
       {/* Phase 2: Per-unit quality score breakdown */}
       {(qualitySegment || clip.duration) && (
-        <div
-          data-testid="quality-scores"
-          className="border-t border-slate-100 px-3 py-2"
-        >
-          <div className="mb-2 text-[10px] font-semibold uppercase tracking-widest text-slate-400">{t.dubbingEditor.inspector.qualityScores}</div>
-          <div className="space-y-1.5">
-            <ScoreBar label={t.dubbingEditor.inspector.speakerSimilarity} value={qualitySegment?.speaker_similarity ?? 0.75} />
-            <ScoreBar label={t.dubbingEditor.inspector.durationRatio} value={Math.min(1, qualitySegment?.duration_ratio ?? 1)} />
-            <ScoreBar label={t.dubbingEditor.inspector.intelligibility} value={qualitySegment?.intelligibility ?? 0.8} />
-          </div>
+        <div data-testid="quality-scores">
+          <InspectorSection title={t.dubbingEditor.inspector.qualityScores} icon={<Sliders size={11} />}>
+            <QualitySummary
+              speakerSimilarity={speakerSimilarity}
+              durationRatio={durationRatio}
+              intelligibility={intelligibility}
+            />
+            <div className="space-y-1.5">
+              <ScoreBar label={t.dubbingEditor.inspector.speakerSimilarity} value={speakerSimilarity} />
+              <ScoreBar label={t.dubbingEditor.inspector.durationRatio} value={Math.min(1, durationRatio)} />
+              <ScoreBar label={t.dubbingEditor.inspector.intelligibility} value={intelligibility} />
+            </div>
+          </InspectorSection>
         </div>
       )}
 
@@ -1605,7 +1942,7 @@ function SegmentInspector({
       {hasMismatch && (
         <div
           data-testid="voice-mismatch-card"
-          className="mx-3 my-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
+          className="mx-3 my-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
         >
           <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold text-amber-700">
             <AlertTriangle size={11} />
@@ -1616,14 +1953,14 @@ function SegmentInspector({
               type="button"
               onClick={handleResynthClick}
               disabled={isSynthesizing}
-              className="flex-1 rounded bg-amber-100 px-2 py-1 text-[10px] font-medium text-amber-800 hover:bg-amber-200 disabled:opacity-50"
+              className="flex-1 rounded-md bg-amber-100 px-2 py-1.5 text-[10px] font-semibold text-amber-800 transition-colors hover:bg-amber-200 disabled:opacity-50"
             >
               {t.dubbingEditor.inspector.voiceMismatchResynth}
             </button>
             <button
               type="button"
               onClick={() => onApprove(unit.unit_id)}
-              className="flex-1 rounded bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-700 hover:bg-slate-200"
+              className="flex-1 rounded-md bg-white px-2 py-1.5 text-[10px] font-semibold text-slate-700 transition-colors hover:bg-slate-100"
             >
               {t.dubbingEditor.inspector.voiceMismatchExempt}
             </button>
@@ -1632,27 +1969,32 @@ function SegmentInspector({
       )}
 
       {/* Action buttons */}
-      <div className="border-t border-slate-100 px-3 py-2">
+      <div data-testid="clip-primary-actions" className="border-b border-slate-100 bg-white px-3 py-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+            {locale === 'zh-CN' ? '审核与修复' : 'Review actions'}
+          </span>
+        </div>
         <div className="flex gap-2">
           <button
             type="button"
             onClick={() => onApprove(unit.unit_id)}
             disabled={unit.status === 'approved'}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 py-2 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+            className="flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-2 py-2 text-xs font-semibold text-white shadow-sm shadow-emerald-900/10 transition-colors hover:bg-emerald-700 disabled:opacity-50"
           >
             <Check size={12} />
             {t.dubbingEditor.inspector.approve}
-            <kbd className="ml-1 rounded bg-emerald-700/60 px-1 text-[9px]">A</kbd>
+            <kbd className="ml-0.5 rounded bg-white/20 px-1 text-[9px] text-emerald-50">A</kbd>
           </button>
           <button
             type="button"
             onClick={() => onNeedsReview(unit.unit_id)}
             disabled={unit.status === 'needs_review'}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 py-2 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+            className="flex min-h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-white px-2 py-2 text-xs font-semibold text-amber-700 transition-colors hover:bg-amber-50 disabled:opacity-50"
           >
             <AlertTriangle size={12} />
             {t.dubbingEditor.inspector.needsReview}
-            <kbd className="ml-1 rounded bg-amber-200/60 px-1 text-[9px]">F</kbd>
+            <kbd className="ml-0.5 rounded bg-amber-100 px-1 text-[9px] text-amber-700">F</kbd>
           </button>
         </div>
 
@@ -1662,7 +2004,7 @@ function SegmentInspector({
           data-testid="resynthesize-btn"
           onClick={handleResynthClick}
           disabled={isSynthesizing}
-          className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          className="mt-2 flex min-h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2 py-1.5 text-xs font-semibold text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50"
         >
           {isSynthesizing ? (
             <Loader2 size={12} className="animate-spin" />

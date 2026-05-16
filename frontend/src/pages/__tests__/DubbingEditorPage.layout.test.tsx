@@ -286,7 +286,7 @@ describe('DubbingEditorPage resizable workbench layout', () => {
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalled()
   })
 
-  it('renders a per-segment preview audio in the inspector and reloads it after re-synthesize', async () => {
+  it('renders a designed per-segment preview player in the inspector and reloads it after re-synthesize', async () => {
     vi.mocked(dubbingEditorApi.synthesizeUnit).mockResolvedValue({
       status: 'queued',
       unit_id: 'unit-1',
@@ -307,9 +307,15 @@ describe('DubbingEditorPage resizable workbench layout', () => {
     expect(card).toHaveTextContent('试听这段配音')
 
     const audio = screen.getByTestId('clip-preview-audio') as HTMLAudioElement
+    expect(audio).not.toHaveAttribute('controls')
     expect(audio.getAttribute('src') ?? '').toContain(
       '/api/tasks/task-layout/artifacts/task-e/voice/clips/seg-0003.wav',
     )
+    expect(screen.getByTestId('clip-preview-player')).toBeInTheDocument()
+    expect(screen.getByTestId('clip-preview-play')).toBeInTheDocument()
+    expect(screen.getByTestId('clip-preview-timecode')).toHaveTextContent('00:00.00')
+    expect(screen.getByTestId('clip-primary-actions')).toHaveTextContent('标记已修')
+    expect(screen.getByTestId('clip-primary-actions')).toHaveTextContent('仍需复核')
     const initialSrc = audio.getAttribute('src') ?? ''
 
     fireEvent.click(screen.getByTestId('resynthesize-btn'))
@@ -337,7 +343,6 @@ describe('DubbingEditorPage resizable workbench layout', () => {
       unit_id: 'unit-1',
       audio_artifact_path: 'task-d/voice/spk_0001/segments/seg-0003.wav',
       synthesized_at: '2026-05-16T11:30:00.000Z',
-      error: null,
       message: 'Re-synthesized.',
     })
 
