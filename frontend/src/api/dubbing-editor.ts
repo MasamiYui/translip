@@ -140,6 +140,8 @@ export interface ClipPreviewResult {
 export interface SynthesizeUnitResult {
   status: string
   unit_id: string
+  audio_artifact_path?: string | null
+  synthesized_at?: string
   message: string
 }
 
@@ -199,9 +201,16 @@ export const dubbingEditorApi = {
       })
       .then(r => r.data),
 
-  synthesizeUnit: (taskId: string, unitId: string): Promise<SynthesizeUnitResult> =>
+  synthesizeUnit: (
+    taskId: string,
+    unitId: string,
+    targetText?: string,
+  ): Promise<SynthesizeUnitResult> =>
     apiClient
-      .post(`/api/tasks/${taskId}/dubbing-editor/synthesize-unit`, { unit_id: unitId })
+      .post(`/api/tasks/${taskId}/dubbing-editor/synthesize-unit`, {
+        unit_id: unitId,
+        ...(targetText !== undefined ? { target_text: targetText } : {}),
+      })
       .then(r => r.data),
 
   assignCharacterVoice: (taskId: string, characterId: string, voicePath: string): Promise<AssignVoiceResult> =>

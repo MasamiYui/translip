@@ -21,6 +21,10 @@ from ...speaker_review.personas import (
     build_by_speaker_index as _build_persona_by_speaker,
     load_personas as _load_personas,
 )
+from ...dubbing.backend import (
+    ReferencePackage as _ReferencePackage,
+    SynthSegmentInput as _SynthSegmentInput,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -451,7 +455,11 @@ def _build_units(
         char_id = seg.get("character_id") or seg_to_char.get(speaker_id, f"char_unknown")
 
         slot = clip_paths.get(seg_id, {})
-        audio_path = slot.get("fitted_audio_path") or slot.get("audio_path") or slot.get("clip_path")
+        # NOTE: prefer the permanent task-d ``audio_path`` over the transient
+        # ``fitted_audio_path`` (which lives under ``task-e/.work/<job>/fit/``
+        # and is wiped after the pipeline run). This keeps the inspector
+        # preview playable long after the pipeline finishes.
+        audio_path = slot.get("audio_path") or slot.get("fitted_audio_path") or slot.get("clip_path")
 
         unit = {
             "unit_id": seg_id,
@@ -506,6 +514,236 @@ def _to_relative(path: str, root: Path) -> str | None:
         return str(Path(path).relative_to(root))
     except ValueError:
         return path
+
+
+def _resolve_existing_clip_audio(
+    output_root: Path,
+    clip: dict[str, Any] | None,
+    *,
+    unit_id: str | None = None,
+    speaker_id: str | None = None,
+    target_lang: str = "en",
+) -> str | None:
+    """Return a relative artifact path that actually exists on disk.
+
+    Older materialized projects stored ``task-e/.work/<job>/fit/<seg>.wav``
+    (the transient *fitted* clip) which is wiped after the pipeline run, so
+    the inspector preview ended up requesting a 404'd file. This helper
+    tries the recorded paths first, then falls back to the permanent
+    per-segment wav under ``task-d/voice/<speaker>/segments/<unit_id>.wav``.
+    """
+    if not output_root:
+        return None
+
+    candidates: list[str] = []
+    if clip:
+        for key in ("audio_artifact_path", "audio_path", "fitted_audio_path", "clip_path"):
+            value = clip.get(key)
+            if value:
+                candidates.append(str(value))
+
+    for raw in candidates:
+        # Resolve to absolute, then check existence.
+        p = Path(raw)
+        if not p.is_absolute():
+            p = output_root / raw
+        try:
+            if p.exists() and p.is_file():
+                return _to_relative(str(p), output_root)
+        except OSError:
+            continue
+
+    # Fallback 1: permanent task-d wav using known speaker_id.
+    if unit_id and speaker_id:
+        td = output_root / "task-d" / "voice" / speaker_id / "segments" / f"{unit_id}.wav"
+        if td.exists() and td.is_file():
+            return _to_relative(str(td), output_root)
+
+    # Fallback 2: glob across all speakers under task-d.
+    if unit_id:
+        try:
+            for hit in (output_root / "task-d" / "voice").glob(f"*/segments/{unit_id}.wav"):
+                if hit.is_file():
+                    return _to_relative(str(hit), output_root)
+        except OSError:
+            pass
+
+    return None
+
+
+def _resynthesize_segment_to_disk(
+    *,
+    output_root: Path,
+    target_lang: str,
+    unit_id: str,
+    speaker_id: str,
+    target_text: str,
+    duration_budget_sec: float | None,
+) -> tuple[Path | None, str | None]:
+    """Run the TTS backend for a single segment and overwrite the task-d wav.
+
+    Returns ``(audio_path, error)``. ``audio_path`` is the final wav location
+    (absolute) when synthesis succeeds, ``error`` carries a short reason when
+    we cannot synthesize (so the API can degrade gracefully instead of 500).
+    """
+    if not target_text or not target_text.strip():
+        return None, "empty_target_text"
+    if not speaker_id:
+        return None, "missing_speaker_id"
+
+    speaker_dir = output_root / "task-d" / "voice" / speaker_id
+    speaker_segments_path = speaker_dir / f"speaker_segments.{target_lang}.json"
+    if not speaker_segments_path.exists():
+        # Fallback: glob in case target_lang differs.
+        matches = list(speaker_dir.glob("speaker_segments.*.json"))
+        if not matches:
+            return None, "speaker_segments_not_found"
+        speaker_segments_path = matches[0]
+
+    try:
+        speaker_data = json.loads(speaker_segments_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        logger.warning("Failed to read %s: %s", speaker_segments_path, exc)
+        return None, "speaker_segments_unreadable"
+
+    seg_record: dict[str, Any] | None = None
+    for item in speaker_data.get("segments", []) or []:
+        if str(item.get("segment_id")) == unit_id:
+            seg_record = item
+            break
+    if seg_record is None:
+        return None, "segment_not_in_speaker_report"
+
+    reference_path_raw = seg_record.get("reference_path")
+    if not reference_path_raw:
+        return None, "missing_reference_path"
+    reference_path = Path(str(reference_path_raw))
+    if not reference_path.exists():
+        return None, "reference_audio_missing"
+
+    backend_name_raw = (
+        seg_record.get("backend")
+        or speaker_data.get("backend")
+        or "moss-tts-nano-onnx"
+    )
+    if isinstance(backend_name_raw, dict):
+        backend_name = str(
+            backend_name_raw.get("tts_backend")
+            or backend_name_raw.get("name")
+            or "moss-tts-nano-onnx"
+        )
+    else:
+        backend_name = str(backend_name_raw or "moss-tts-nano-onnx")
+
+    # Build the TTS backend lazily so we don't pay the import cost when
+    # synthesize-unit is never called. Tests can monkey-patch
+    # ``_TTS_BACKEND_FACTORIES`` to inject a fake.
+    factory = _TTS_BACKEND_FACTORIES.get(backend_name)
+    if factory is None:
+        return None, f"unsupported_backend:{backend_name}"
+    try:
+        backend = factory()
+    except Exception as exc:  # pragma: no cover - depends on local install
+        logger.warning("Failed to build TTS backend %s: %s", backend_name, exc)
+        return None, "backend_unavailable"
+
+    # Re-prepare the reference into a stable cache directory so subsequent
+    # re-synth requests for the same speaker can skip the prep work.
+    refs_cache_dir = output_root / _EDITOR_SUBDIR / "refs" / speaker_id
+    refs_cache_dir.mkdir(parents=True, exist_ok=True)
+    prepared_path = refs_cache_dir / f"{reference_path.stem}_prepared.wav"
+    if not prepared_path.exists():
+        try:
+            from ...dubbing.reference import (
+                ReferenceCandidate as _ReferenceCandidate,
+                prepare_reference_package as _prepare_reference_package,
+            )
+            candidate = _ReferenceCandidate(
+                profile_id=str(seg_record.get("profile_id") or speaker_id),
+                speaker_id=speaker_id,
+                path=reference_path,
+                text="",
+                duration_sec=0.0,
+                rms=0.0,
+                score=0.0,
+                selection_reason="dubbing_editor_resynth",
+            )
+            _prepare_reference_package(candidate, output_path=prepared_path)
+        except Exception as exc:  # pragma: no cover - reference prep edge case
+            logger.warning("Failed to prepare reference for %s: %s", unit_id, exc)
+            return None, "reference_prep_failed"
+
+    reference_package = _ReferencePackage(
+        speaker_id=speaker_id,
+        profile_id=str(seg_record.get("profile_id") or speaker_id),
+        original_audio_path=reference_path,
+        prepared_audio_path=prepared_path,
+        text="",
+        duration_sec=0.0,
+        score=0.0,
+        selection_reason="dubbing_editor_resynth",
+    )
+
+    source_duration = float(seg_record.get("source_duration_sec") or 0.0)
+    segment_input = _SynthSegmentInput(
+        segment_id=unit_id,
+        speaker_id=speaker_id,
+        target_lang=target_lang,
+        target_text=target_text.strip(),
+        source_duration_sec=source_duration,
+        duration_budget_sec=duration_budget_sec,
+        qa_flags=[],
+        metadata={"trigger": "dubbing_editor_synthesize_unit"},
+    )
+
+    final_audio_path = speaker_dir / "segments" / f"{unit_id}.wav"
+    final_audio_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Backends always write to the supplied output_path; first synthesize to a
+    # temp file, then atomically replace the existing wav so any in-flight
+    # streamed reads see either the old or the new bytes (never partial).
+    tmp_audio_path = final_audio_path.with_suffix(".wav.tmp")
+    try:
+        backend.synthesize(
+            reference=reference_package,
+            segment=segment_input,
+            output_path=tmp_audio_path,
+        )
+    except Exception as exc:  # pragma: no cover - depends on local TTS
+        logger.warning("TTS synthesis failed for %s: %s", unit_id, exc)
+        if tmp_audio_path.exists():
+            try:
+                tmp_audio_path.unlink()
+            except OSError:
+                pass
+        return None, "tts_synthesis_failed"
+
+    if not tmp_audio_path.exists():
+        return None, "tts_no_output"
+
+    try:
+        os.replace(tmp_audio_path, final_audio_path)
+    except OSError as exc:
+        logger.warning("Failed to replace %s: %s", final_audio_path, exc)
+        return None, "rename_failed"
+
+    return final_audio_path, None
+
+
+def _build_moss_backend() -> Any:
+    from ...dubbing.moss_tts_nano_backend import MossTtsNanoOnnxBackend
+    return MossTtsNanoOnnxBackend(requested_device="auto")
+
+
+def _build_qwen_backend() -> Any:
+    from ...dubbing.qwen_tts_backend import QwenTTSBackend
+    return QwenTTSBackend(requested_device="auto")
+
+
+_TTS_BACKEND_FACTORIES: dict[str, Any] = {
+    "moss-tts-nano-onnx": _build_moss_backend,
+    "qwen3tts": _build_qwen_backend,
+}
 
 
 def _build_issues(
@@ -933,12 +1171,15 @@ def get_dubbing_editor(
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
     task = _get_task(session, task_id)
+    output_root = Path(task.output_root).resolve()
     editor_root = _editor_root(task.output_root)
     mat_path = editor_root / "materialized.current.json"
 
     if not mat_path.exists():
         # Try to import
-        return _import_editor_project(task)
+        result = _import_editor_project(task)
+        _patch_unit_audio_paths(result, output_root)
+        return result
 
     if replay_to is not None:
         # Partial replay: only apply operations[0..replay_to]
@@ -966,9 +1207,34 @@ def get_dubbing_editor(
                 result = _materialize(snapshot, tmp_path)
             finally:
                 tmp_path.unlink(missing_ok=True)
+            _patch_unit_audio_paths(result, output_root)
             return result
 
-    return _read_json(mat_path)
+    materialized = _read_json(mat_path)
+    _patch_unit_audio_paths(materialized, output_root)
+    return materialized
+
+
+def _patch_unit_audio_paths(project: dict[str, Any], output_root: Path) -> None:
+    """Rewrite each unit's ``current_clip.audio_artifact_path`` to a path
+    that *currently exists on disk*, falling back to the permanent task-d
+    wav when the recorded fitted-clip path has been cleaned up.
+
+    This is applied at response time so older projects keep working without
+    forcing a re-import / re-run of the pipeline.
+    """
+    for unit in project.get("units", []) or []:
+        clip = unit.get("current_clip")
+        if not isinstance(clip, dict):
+            continue
+        resolved = _resolve_existing_clip_audio(
+            output_root,
+            clip,
+            unit_id=unit.get("unit_id"),
+            speaker_id=unit.get("speaker_id"),
+        )
+        if resolved:
+            clip["audio_artifact_path"] = resolved
 
 
 @router.post("/{task_id}/dubbing-editor/import")
@@ -1174,6 +1440,12 @@ def get_clip_preview(
 
 class SynthesizeUnitRequest(BaseModel):
     unit_id: str
+    # Optional inline target_text. When the editor's text box is dirty the
+    # client should pass the latest draft here so the backend can persist it
+    # (as a synthetic ``segment.update_text`` op) *before* running TTS. This
+    # makes "click resynth" implicitly auto-save the draft -- no race against
+    # the operations mutation.
+    target_text: str | None = None
 
 
 @router.post("/{task_id}/dubbing-editor/synthesize-unit")
@@ -1182,12 +1454,38 @@ def synthesize_unit(
     body: SynthesizeUnitRequest,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """Queue a single dialogue unit for re-synthesis (records operation, triggers async synthesis)."""
+    """Queue a single dialogue unit for re-synthesis (records operation, triggers async synthesis).
+
+    The actual TTS pipeline runs asynchronously, but we *do* update the clip
+    artifact mtime here so the inspector preview can cache-bust and reload the
+    latest wav. The response carries ``audio_artifact_path`` and
+    ``synthesized_at`` so the frontend has a stable cache-busting token.
+    """
     task = _get_task(session, task_id)
+    output_root = Path(task.output_root).resolve()
     editor_root = _editor_root(task.output_root)
     ops_path = editor_root / "operations.jsonl"
 
-    now = datetime.now(timezone.utc).isoformat()
+    now_dt = datetime.now(timezone.utc)
+    now = now_dt.isoformat()
+
+    # Auto-save dirty target_text before kicking off TTS. The frontend sends
+    # the textarea draft inline whenever it differs from the last saved
+    # version; we persist it here as a regular ``segment.update_text`` op so
+    # the operation history stays linear and undo/redo keeps working.
+    if body.target_text is not None:
+        draft = body.target_text.strip()
+        if draft:
+            update_op = {
+                "op_id": f"op_{uuid.uuid4().hex[:12]}",
+                "type": "segment.update_text",
+                "target_id": body.unit_id,
+                "payload": {"target_text": draft},
+                "author": "local_user",
+                "created_at": now,
+            }
+            _append_jsonl(ops_path, update_op)
+
     op_record = {
         "op_id": f"op_{uuid.uuid4().hex[:12]}",
         "type": "synthesis.requested",
@@ -1200,15 +1498,92 @@ def synthesize_unit(
 
     # Re-materialize so the operation appears in the history
     snapshot_path = editor_root / "initial_snapshot.json"
+    materialized: dict[str, Any] = {}
     if snapshot_path.exists():
         snapshot = _read_json(snapshot_path)
         materialized = _materialize(snapshot, ops_path)
         _write_json(editor_root / "materialized.current.json", materialized)
 
+    # Locate the unit so we know which speaker / target_text / duration to
+    # re-synthesize, then drive the TTS backend synchronously. Synchronous
+    # execution keeps the inspector flow simple: the audio file on disk is
+    # already updated by the time the response returns, so the client only
+    # needs to cache-bust to hear the new content.
+    matched_unit: dict[str, Any] | None = None
+    for unit in materialized.get("units", []) or []:
+        if unit.get("unit_id") == body.unit_id:
+            matched_unit = unit
+            break
+
+    audio_artifact_path: str | None = None
+    synthesis_status = "queued"
+    synthesis_error: str | None = None
+
+    if matched_unit is None:
+        synthesis_error = "unit_not_found"
+    else:
+        clip = matched_unit.get("current_clip") or {}
+        speaker_id = str(matched_unit.get("speaker_id") or "")
+        target_text = str(matched_unit.get("target_text") or "")
+        target_lang = str(materialized.get("target_lang") or "en")
+        duration_budget_sec: float | None = None
+        for key in ("duration_budget_sec", "duration", "source_duration_sec"):
+            value = matched_unit.get(key) if matched_unit else None
+            if isinstance(value, (int, float)) and value > 0:
+                duration_budget_sec = float(value)
+                break
+
+        synthesized_path, synthesis_error = _resynthesize_segment_to_disk(
+            output_root=output_root,
+            target_lang=target_lang,
+            unit_id=body.unit_id,
+            speaker_id=speaker_id,
+            target_text=target_text,
+            duration_budget_sec=duration_budget_sec,
+        )
+
+        if synthesized_path is not None:
+            synthesis_status = "synthesized"
+            try:
+                audio_artifact_path = str(synthesized_path.relative_to(output_root))
+            except ValueError:
+                audio_artifact_path = str(synthesized_path)
+        else:
+            # Synthesis failed (or backend unavailable); fall back to mtime
+            # bump so at least the existing wav reloads in the player.
+            audio_artifact_path = _resolve_existing_clip_audio(
+                output_root,
+                clip,
+                unit_id=matched_unit.get("unit_id"),
+                speaker_id=matched_unit.get("speaker_id"),
+            )
+            if not audio_artifact_path:
+                audio_artifact_path = (
+                    clip.get("audio_artifact_path")
+                    or clip.get("audio_path")
+                )
+            if audio_artifact_path:
+                candidate = output_root / audio_artifact_path
+                try:
+                    if candidate.exists():
+                        ts = now_dt.timestamp()
+                        os.utime(candidate, (ts, ts))
+                except OSError as exc:  # pragma: no cover - best-effort
+                    logger.warning("Failed to bump mtime for %s: %s", candidate, exc)
+
+    message = (
+        "Re-synthesized. The clip preview will refresh to the latest version."
+        if synthesis_status == "synthesized"
+        else f"Re-synthesis could not be completed: {synthesis_error or 'unknown_error'}."
+    )
+
     return {
-        "status": "queued",
+        "status": synthesis_status,
         "unit_id": body.unit_id,
-        "message": "Re-synthesis queued. Refresh to see updated clip.",
+        "audio_artifact_path": audio_artifact_path,
+        "synthesized_at": now,
+        "error": synthesis_error,
+        "message": message,
     }
 
 

@@ -105,7 +105,7 @@ function mockProject(): DubbingEditorProject {
         current_clip: {
           clip_id: 'clip-1',
           audio_path: null,
-          audio_artifact_path: null,
+          audio_artifact_path: 'task-e/voice/clips/seg-0003.wav',
           duration: 2.1,
           backend: 'qwen',
           mix_status: 'mixed',
@@ -284,5 +284,95 @@ describe('DubbingEditorPage resizable workbench layout', () => {
 
     expect(screen.getByTestId('edit-monitor-video')).toHaveProperty('muted', true)
     expect(HTMLMediaElement.prototype.play).toHaveBeenCalled()
+  })
+
+  it('renders a per-segment preview audio in the inspector and reloads it after re-synthesize', async () => {
+    vi.mocked(dubbingEditorApi.synthesizeUnit).mockResolvedValue({
+      status: 'queued',
+      unit_id: 'unit-1',
+      audio_artifact_path: 'task-e/voice/clips/seg-0003.wav',
+      synthesized_at: '2026-05-16T10:00:00.000Z',
+      message: 'Re-synthesis queued.',
+    })
+
+    render(<DubbingEditorPage />, { wrapper: createWrapper() })
+
+    // Issue queue rail is collapsed by default in the focus preset; expand it
+    // so we can click an issue to drive a unit selection.
+    fireEvent.click(await screen.findByTestId('toggle-issue-queue-panel'))
+    fireEvent.click(await screen.findByTestId('issue-item-issue-1'))
+
+    const card = await screen.findByTestId('clip-preview-card')
+    expect(card).toBeInTheDocument()
+    expect(card).toHaveTextContent('试听这段配音')
+
+    const audio = screen.getByTestId('clip-preview-audio') as HTMLAudioElement
+    expect(audio.getAttribute('src') ?? '').toContain(
+      '/api/tasks/task-layout/artifacts/task-e/voice/clips/seg-0003.wav',
+    )
+    const initialSrc = audio.getAttribute('src') ?? ''
+
+    fireEvent.click(screen.getByTestId('resynthesize-btn'))
+
+    await waitFor(() => {
+      const refreshed = screen.getByTestId('clip-preview-audio') as HTMLAudioElement
+      const src = refreshed.getAttribute('src') ?? ''
+      expect(src).not.toEqual(initialSrc)
+      expect(src).toContain('2026-05-16T10%3A00%3A00.000Z')
+    })
+
+    // Click resynth without editing the textarea: the third argument
+    // (inline target_text auto-save payload) should be ``undefined``.
+    expect(dubbingEditorApi.synthesizeUnit).toHaveBeenCalledWith('task-layout', 'unit-1', undefined)
+  })
+
+  it('auto-saves the dirty target_text draft before resynthesizing', async () => {
+    vi.mocked(dubbingEditorApi.saveOperations).mockResolvedValue({
+      ok: true,
+      applied: 1,
+      summary: {},
+    } as never)
+    vi.mocked(dubbingEditorApi.synthesizeUnit).mockResolvedValue({
+      status: 'synthesized',
+      unit_id: 'unit-1',
+      audio_artifact_path: 'task-d/voice/spk_0001/segments/seg-0003.wav',
+      synthesized_at: '2026-05-16T11:30:00.000Z',
+      error: null,
+      message: 'Re-synthesized.',
+    })
+
+    render(<DubbingEditorPage />, { wrapper: createWrapper() })
+
+    fireEvent.click(await screen.findByTestId('toggle-issue-queue-panel'))
+    fireEvent.click(await screen.findByTestId('issue-item-issue-1'))
+
+    // Edit the textarea so the inspector becomes dirty.
+    const textarea = await screen.findByDisplayValue('Nana, where are you?')
+    fireEvent.change(textarea, { target: { value: 'Edited dub text 1 from the test.' } })
+
+    fireEvent.click(screen.getByTestId('resynthesize-btn'))
+
+    await waitFor(() => {
+      // Auto-save fires first with a ``segment.update_text`` op carrying the
+      // freshly edited draft.
+      expect(dubbingEditorApi.saveOperations).toHaveBeenCalledWith(
+        'task-layout',
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'segment.update_text',
+            target_id: 'unit-1',
+            payload: expect.objectContaining({ target_text: 'Edited dub text 1 from the test.' }),
+          }),
+        ]),
+      )
+    })
+
+    // Then the synth call carries the same draft inline as a backend safety
+    // net (third positional argument).
+    expect(dubbingEditorApi.synthesizeUnit).toHaveBeenCalledWith(
+      'task-layout',
+      'unit-1',
+      'Edited dub text 1 from the test.',
+    )
   })
 })

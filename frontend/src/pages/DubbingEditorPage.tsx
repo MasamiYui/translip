@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Download,
   ExternalLink,
+  Headphones,
   History,
   Keyboard,
   Loader2,
@@ -1393,15 +1394,17 @@ function SegmentInspector({
   onSaveText,
   onResynthesize,
   isSynthesizing,
+  synthesizedAt,
 }: {
   unit: DubbingEditorUnit
   project: DubbingEditorProject
   taskId: string
   onApprove: (unitId: string) => void
   onNeedsReview: (unitId: string) => void
-  onSaveText: (unitId: string, targetText: string) => void
-  onResynthesize: (unitId: string) => void
+  onSaveText: (unitId: string, targetText: string) => Promise<void>
+  onResynthesize: (unitId: string, targetText?: string) => void
   isSynthesizing: boolean
+  synthesizedAt: string | null
 }) {
   const { t } = useI18n()
   const [editingText, setEditingText] = useState(unit.target_text)
@@ -1443,6 +1446,29 @@ function SegmentInspector({
     () => project.operations?.filter(op => op.target_id === unit.unit_id) ?? [],
     [project.operations, unit.unit_id],
   )
+
+  // Wrapper used by every "重新合成" button inside this inspector. If the
+  // user has unsaved edits in the target_text textarea we must persist them
+  // *first* (so the backend's materialized view picks them up) before kicking
+  // off TTS, otherwise the freshly generated wav will be based on the stale
+  // target_text. We swallow save failures here to keep the synth call best
+  // effort -- the operations mutation surfaces its own toast/error UI -- and
+  // additionally pass ``editingText`` inline so the backend gets a second
+  // chance to persist the draft on its end (defence in depth: avoids any
+  // race where the save mutation hasn't fully committed yet).
+  const handleResynthClick = useCallback(async () => {
+    const draft = editingText
+    if (isDirty) {
+      try {
+        await onSaveText(unit.unit_id, draft)
+        setIsDirty(false)
+      } catch {
+        // fall through: backend will receive the previous target_text via
+        // materialized state, but inline ``draft`` below still wins.
+      }
+    }
+    onResynthesize(unit.unit_id, isDirty ? draft : undefined)
+  }, [isDirty, editingText, unit.unit_id, onSaveText, onResynthesize])
 
   return (
     <div className="space-y-0">
@@ -1507,7 +1533,8 @@ function SegmentInspector({
           )}
           {clip.audio_artifact_path && (
             <a
-              href={`/api/tasks/${taskId}/artifacts/${clip.audio_artifact_path}`}
+              data-testid="clip-audio-link"
+              href={`/api/tasks/${taskId}/artifacts/${clip.audio_artifact_path}?t=${encodeURIComponent(synthesizedAt ?? '')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="block truncate text-blue-500 hover:text-blue-700"
@@ -1517,6 +1544,47 @@ function SegmentInspector({
           )}
         </div>
       </div>
+
+      {/* Per-unit clip preview player — listen to *this* segment after re-synthesis */}
+      <div
+        data-testid="clip-preview-card"
+        className="border-t border-slate-100 px-3 py-2"
+      >
+        <div className="mb-1.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+          <Headphones size={11} />
+          {t.dubbingEditor.inspector.clipPreviewTitle}
+        </div>
+        {clip.audio_artifact_path ? (
+          <>
+            <audio
+              key={`${unit.unit_id}:${synthesizedAt ?? ''}`}
+              data-testid="clip-preview-audio"
+              data-synthesized-at={synthesizedAt ?? ''}
+              controls
+              preload="metadata"
+              src={`/api/tasks/${taskId}/artifacts/${clip.audio_artifact_path}?t=${encodeURIComponent(synthesizedAt ?? unit.unit_id)}`}
+              className="w-full"
+            >
+              <track kind="captions" />
+            </audio>
+            <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+              <span>{t.dubbingEditor.inspector.clipPreviewHint}</span>
+            </div>
+            {synthesizedAt && (
+              <div className="mt-0.5 text-[10px] text-emerald-600">
+                {t.dubbingEditor.inspector.clipPreviewSynthesizedAt(
+                  new Date(synthesizedAt).toLocaleTimeString(),
+                )}
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="text-[10px] text-slate-400">
+            {t.dubbingEditor.inspector.clipPreviewMissing}
+          </div>
+        )}
+      </div>
+
 
       {/* Phase 2: Per-unit quality score breakdown */}
       {(qualitySegment || clip.duration) && (
@@ -1546,7 +1614,7 @@ function SegmentInspector({
           <div className="flex gap-1.5">
             <button
               type="button"
-              onClick={() => onResynthesize(unit.unit_id)}
+              onClick={handleResynthClick}
               disabled={isSynthesizing}
               className="flex-1 rounded bg-amber-100 px-2 py-1 text-[10px] font-medium text-amber-800 hover:bg-amber-200 disabled:opacity-50"
             >
@@ -1592,7 +1660,7 @@ function SegmentInspector({
         <button
           type="button"
           data-testid="resynthesize-btn"
-          onClick={() => onResynthesize(unit.unit_id)}
+          onClick={handleResynthClick}
           disabled={isSynthesizing}
           className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-200 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-50"
         >
@@ -1693,7 +1761,7 @@ function SegmentInspector({
           <div className="px-3 pb-2">
             <button
               type="button"
-              onClick={() => onResynthesize(unit.unit_id)}
+              onClick={handleResynthClick}
               disabled={isSynthesizing}
               className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-slate-200 py-1.5 text-[10px] font-medium text-slate-500 hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50"
             >
@@ -1937,6 +2005,7 @@ function InspectorPanel({
   onResynthesize,
   onAssignVoice,
   isSynthesizing,
+  synthesizedAt,
 }: {
   project: DubbingEditorProject
   taskId: string
@@ -1944,10 +2013,11 @@ function InspectorPanel({
   onTogglePanel: () => void
   onApprove: (unitId: string) => void
   onNeedsReview: (unitId: string) => void
-  onSaveText: (unitId: string, text: string) => void
-  onResynthesize: (unitId: string) => void
+  onSaveText: (unitId: string, text: string) => Promise<void>
+  onResynthesize: (unitId: string, targetText?: string) => void
   onAssignVoice: (characterId: string, voicePath: string) => void
   isSynthesizing: boolean
+  synthesizedAt: string | null
 }) {
   const { t } = useI18n()
   if (!selectedUnit) {
@@ -2010,6 +2080,7 @@ function InspectorPanel({
           onSaveText={onSaveText}
           onResynthesize={onResynthesize}
           isSynthesizing={isSynthesizing}
+          synthesizedAt={synthesizedAt}
         />
       </div>
 
@@ -2718,6 +2789,10 @@ export function DubbingEditorPage() {
   const [selectedUnit, setSelectedUnit] = useState<DubbingEditorUnit | null>(null)
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null)
   const [isSynthesizing, setIsSynthesizing] = useState(false)
+  // Per-unit cache-busting token: latest synthesize-unit response timestamp.
+  // When this changes for the selected unit, the inspector's preview <audio>
+  // element re-mounts and reloads the freshly synthesized clip.
+  const [synthesizedAtByUnit, setSynthesizedAtByUnit] = useState<Record<string, string>>({})
   const [renderRangeResult, setRenderRangeResult] = useState<{
     url: string
     start_sec: number
@@ -2933,8 +3008,8 @@ export function DubbingEditorPage() {
   )
 
   const handleSaveText = useCallback(
-    (unitId: string, targetText: string) => {
-      operationsMutation.mutate([
+    async (unitId: string, targetText: string) => {
+      await operationsMutation.mutateAsync([
         { type: 'segment.update_text', target_id: unitId, payload: { target_text: targetText } },
       ])
     },
@@ -2956,11 +3031,15 @@ export function DubbingEditorPage() {
 
   // P1: re-synthesis
   const handleResynthesize = useCallback(
-    async (unitId: string) => {
+    async (unitId: string, targetText?: string) => {
       if (!taskId) return
       setIsSynthesizing(true)
       try {
-        await dubbingEditorApi.synthesizeUnit(taskId, unitId)
+        const result = await dubbingEditorApi.synthesizeUnit(taskId, unitId, targetText)
+        // Always bump the token so the audio element re-mounts even if the
+        // backend doesn't yet supply a synthesized_at timestamp.
+        const token = result.synthesized_at ?? new Date().toISOString()
+        setSynthesizedAtByUnit(prev => ({ ...prev, [unitId]: token }))
         queryClient.invalidateQueries({ queryKey: ['dubbing-editor', taskId] })
       } finally {
         setIsSynthesizing(false)
@@ -3261,6 +3340,9 @@ export function DubbingEditorPage() {
                 onResynthesize={handleResynthesize}
                 onAssignVoice={handleAssignVoice}
                 isSynthesizing={isSynthesizing}
+                synthesizedAt={
+                  selectedUnit ? synthesizedAtByUnit[selectedUnit.unit_id] ?? null : null
+                }
               />
             </div>
             </>
