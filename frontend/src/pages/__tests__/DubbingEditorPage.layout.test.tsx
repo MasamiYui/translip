@@ -56,7 +56,11 @@ function mockProject(): DubbingEditorProject {
     target_lang: 'en',
     status: 'ready',
     source_video_path: '/tmp/source.mp4',
-    artifact_paths: { final_dub: 'task-g/final-dub/final_dub.en.mp4' },
+    artifact_paths: {
+      final_dub: 'task-g/final-dub/final_dub.en.mp4',
+      dub_voice: 'task-e/voice/dub_voice.en.wav',
+      preview_mix: 'task-e/voice/preview_mix.en.wav',
+    },
     quality_benchmark: {
       version: 'v1',
       status: 'review_required',
@@ -155,6 +159,20 @@ describe('DubbingEditorPage resizable workbench layout', () => {
       duration_sec: 4,
       available: true,
     })
+    vi.mocked(dubbingEditorApi.getClipPreview).mockResolvedValue({
+      url: '/api/mock/clip.wav',
+      start_sec: 0.8,
+      end_sec: 3.2,
+      duration_sec: 2.4,
+    })
+    Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+      configurable: true,
+      value: vi.fn().mockResolvedValue(undefined),
+    })
+    Object.defineProperty(HTMLMediaElement.prototype, 'pause', {
+      configurable: true,
+      value: vi.fn(),
+    })
     vi.mocked(tasksApi.get).mockResolvedValue({ id: 'task-layout', name: '任务-14:52' } as never)
   })
 
@@ -163,22 +181,28 @@ describe('DubbingEditorPage resizable workbench layout', () => {
     cleanup()
   })
 
-  it('collapses both edit side panels and restores them from layout presets', async () => {
+  it('defaults to video-priority layout and restores panels from layout presets', async () => {
     render(<DubbingEditorPage />, { wrapper: createWrapper() })
 
-    expect(await screen.findByTestId('issue-queue-panel')).toBeInTheDocument()
+    expect(await screen.findByTestId('issue-queue-rail')).toBeInTheDocument()
     expect(screen.getByTestId('inspector-panel-shell')).toBeInTheDocument()
+    expect(screen.getByTestId('edit-monitor-pane')).toBeInTheDocument()
+    expect(await screen.findByDisplayValue('Nana, where are you?')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('toggle-inspector-panel'))
     expect(screen.queryByTestId('inspector-panel-shell')).not.toBeInTheDocument()
     expect(screen.getByTestId('inspector-panel-rail')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('toggle-issue-queue-panel'))
-    expect(screen.queryByTestId('issue-queue-panel')).not.toBeInTheDocument()
-    expect(screen.getByTestId('issue-queue-rail')).toBeInTheDocument()
+    expect(await screen.findByTestId('issue-queue-panel')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('layout-preset-review'))
     expect(await screen.findByTestId('issue-queue-panel')).toBeInTheDocument()
+    expect(screen.getByTestId('inspector-panel-shell')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByTestId('layout-preset-focus'))
+    expect(screen.queryByTestId('issue-queue-panel')).not.toBeInTheDocument()
+    expect(screen.getByTestId('issue-queue-rail')).toBeInTheDocument()
     expect(screen.getByTestId('inspector-panel-shell')).toBeInTheDocument()
 
     fireEvent.click(screen.getByTestId('layout-preset-timeline'))
@@ -190,11 +214,13 @@ describe('DubbingEditorPage resizable workbench layout', () => {
   it('resizes side panels with drag handles and persists the layout', async () => {
     render(<DubbingEditorPage />, { wrapper: createWrapper() })
 
+    fireEvent.click(await screen.findByTestId('toggle-issue-queue-panel'))
+
     const leftPanel = await screen.findByTestId('issue-queue-panel')
     const rightPanel = screen.getByTestId('inspector-panel-shell')
 
     expect(leftPanel).toHaveStyle({ width: '300px' })
-    expect(rightPanel).toHaveStyle({ width: '380px' })
+    expect(rightPanel).toHaveStyle({ width: '360px' })
 
     fireEvent.mouseDown(screen.getByTestId('resize-issue-queue-panel'), { clientX: 300 })
     fireEvent.mouseMove(document, { clientX: 360 })
@@ -209,14 +235,54 @@ describe('DubbingEditorPage resizable workbench layout', () => {
     fireEvent.mouseUp(document)
 
     await waitFor(() => {
-      expect(screen.getByTestId('inspector-panel-shell')).toHaveStyle({ width: '440px' })
+      expect(screen.getByTestId('inspector-panel-shell')).toHaveStyle({ width: '420px' })
     })
 
     expect(JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? '{}')).toMatchObject({
       leftWidth: 360,
-      rightWidth: 440,
+      rightWidth: 420,
       leftOpen: true,
       rightOpen: true,
     })
+  })
+
+  it('seeks the edit monitor from the progress control', async () => {
+    render(<DubbingEditorPage />, { wrapper: createWrapper() })
+
+    await screen.findByDisplayValue('Nana, where are you?')
+    const track = await screen.findByTestId('edit-monitor-progress-track')
+    vi.spyOn(track, 'getBoundingClientRect').mockReturnValue({
+      left: 100,
+      right: 400,
+      width: 300,
+      top: 0,
+      bottom: 8,
+      height: 8,
+      x: 100,
+      y: 0,
+      toJSON: () => ({}),
+    })
+    fireEvent.mouseDown(track, { clientX: 350 })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('edit-monitor-timecode')).toHaveTextContent('00:02.50')
+    })
+  })
+
+  it('uses the full dubbed audio track for main monitor playback in dub mode', async () => {
+    render(<DubbingEditorPage />, { wrapper: createWrapper() })
+
+    await screen.findByTestId('edit-monitor-pane')
+
+    const monitorAudio = screen.getByTestId('edit-monitor-audio')
+    expect(monitorAudio).toHaveAttribute(
+      'src',
+      '/api/tasks/task-layout/artifacts/task-e/voice/dub_voice.en.wav',
+    )
+
+    fireEvent.click(screen.getByTestId('edit-monitor-play'))
+
+    expect(screen.getByTestId('edit-monitor-video')).toHaveProperty('muted', true)
+    expect(HTMLMediaElement.prototype.play).toHaveBeenCalled()
   })
 })

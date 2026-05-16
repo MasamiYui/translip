@@ -71,6 +71,15 @@ function formatScore(score: number): string {
   return score.toFixed(1)
 }
 
+function loadMediaElement(element: HTMLMediaElement) {
+  if (typeof navigator !== 'undefined' && navigator.userAgent.includes('jsdom')) return
+  try {
+    element.load()
+  } catch {
+    /* Some test/browser environments do not implement media loading. */
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Benchmark Badge (compact status pill used in the status bar)
 // ---------------------------------------------------------------------------
@@ -170,10 +179,10 @@ const LEFT_PANEL_MAX = 420
 const LEFT_PANEL_DEFAULT = 300
 const RIGHT_PANEL_MIN = 320
 const RIGHT_PANEL_MAX = 520
-const RIGHT_PANEL_DEFAULT = 380
+const RIGHT_PANEL_DEFAULT = 360
 const PANEL_RESIZE_STEP = 24
 
-type WorkbenchLayoutPreset = 'review' | 'timeline' | 'voice' | 'preview'
+type WorkbenchLayoutPreset = 'review' | 'focus' | 'timeline' | 'voice' | 'preview'
 type StoredWorkbenchLayoutPreset = WorkbenchLayoutPreset | 'custom'
 
 interface DubbingWorkbenchLayout {
@@ -193,9 +202,9 @@ interface PanelResizeState {
 const DEFAULT_WORKBENCH_LAYOUT: DubbingWorkbenchLayout = {
   leftWidth: LEFT_PANEL_DEFAULT,
   rightWidth: RIGHT_PANEL_DEFAULT,
-  leftOpen: true,
+  leftOpen: false,
   rightOpen: true,
-  preset: 'review',
+  preset: 'focus',
 }
 
 function clampNumber(value: number, min: number, max: number): number {
@@ -209,7 +218,7 @@ function sanitizePanelWidth(value: unknown, fallback: number, min: number, max: 
 }
 
 function isStoredPreset(value: unknown): value is StoredWorkbenchLayoutPreset {
-  return value === 'review' || value === 'timeline' || value === 'voice' || value === 'preview' || value === 'custom'
+  return value === 'review' || value === 'focus' || value === 'timeline' || value === 'voice' || value === 'preview' || value === 'custom'
 }
 
 function readInitialWorkbenchLayout(): DubbingWorkbenchLayout {
@@ -231,6 +240,7 @@ function readInitialWorkbenchLayout(): DubbingWorkbenchLayout {
 }
 
 function layoutForPreset(preset: WorkbenchLayoutPreset): Pick<DubbingWorkbenchLayout, 'leftOpen' | 'rightOpen' | 'preset'> {
+  if (preset === 'focus') return { leftOpen: false, rightOpen: true, preset }
   if (preset === 'timeline') return { leftOpen: false, rightOpen: false, preset }
   if (preset === 'voice') return { leftOpen: false, rightOpen: true, preset }
   return { leftOpen: true, rightOpen: true, preset }
@@ -412,7 +422,7 @@ function EditorTopBar({
           role="tablist"
           aria-label={t.dubbingEditor.layoutPresetGroupLabel}
         >
-          {(['review', 'timeline', 'voice', 'preview'] as WorkbenchLayoutPreset[]).map(preset => {
+          {(['review', 'focus', 'timeline', 'voice', 'preview'] as WorkbenchLayoutPreset[]).map(preset => {
             const active = layoutPreset === preset
             return (
               <button
@@ -837,6 +847,92 @@ function IssueQueue({
   )
 }
 
+function IssueQueueRail({
+  project,
+  onExpand,
+}: {
+  project: DubbingEditorProject
+  onExpand: () => void
+}) {
+  const { t } = useI18n()
+  const openIssues = project.issues.filter(issue => issue.status === 'open')
+  const p0 = openIssues.filter(issue => issue.severity === 'P0').length
+  const p1 = openIssues.filter(issue => issue.severity === 'P1').length
+  const p2 = openIssues.filter(issue => issue.severity === 'P2').length
+
+  return (
+    <div
+      className="flex h-full w-12 shrink-0 flex-col items-center border-r border-slate-200 bg-slate-50/80 py-2"
+      data-testid="issue-queue-rail"
+    >
+      <button
+        type="button"
+        onClick={onExpand}
+        data-testid="toggle-issue-queue-panel"
+        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+        title={t.dubbingEditor.panels.expandIssueQueue}
+        aria-label={t.dubbingEditor.panels.expandIssueQueue}
+      >
+        <PanelLeftOpen size={14} />
+      </button>
+      <div className="mt-2 flex flex-1 flex-col items-center gap-1.5">
+        {[
+          ['P0', p0, 'border-rose-200 bg-rose-50 text-rose-700'],
+          ['P1', p1, 'border-amber-200 bg-amber-50 text-amber-700'],
+          ['P2', p2, 'border-slate-200 bg-white text-slate-500'],
+        ].map(([label, count, cls]) => (
+          <button
+            key={label}
+            type="button"
+            onClick={onExpand}
+            className={`flex h-8 w-8 flex-col items-center justify-center rounded-lg border text-[9px] font-bold leading-none ${cls}`}
+            title={`${label} ${count}`}
+          >
+            <span>{label}</span>
+            <span className="mt-0.5 text-[10px] tabular-nums">{count}</span>
+          </button>
+        ))}
+      </div>
+      <div className="mb-1 text-[10px] font-semibold text-slate-400 [writing-mode:vertical-rl]">
+        {openIssues.length} open
+      </div>
+    </div>
+  )
+}
+
+function InspectorRail({
+  selectedUnit,
+  onExpand,
+}: {
+  selectedUnit: DubbingEditorUnit | null
+  onExpand: () => void
+}) {
+  const { t } = useI18n()
+
+  return (
+    <div
+      className="flex h-full w-12 shrink-0 flex-col items-center border-l border-slate-200 bg-slate-50/80 py-2"
+      data-testid="inspector-panel-rail"
+    >
+      <button
+        type="button"
+        onClick={onExpand}
+        data-testid="toggle-inspector-panel"
+        className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-600"
+        title={t.dubbingEditor.panels.expandInspector}
+        aria-label={t.dubbingEditor.panels.expandInspector}
+      >
+        <PanelRightOpen size={14} />
+      </button>
+      <div className="mt-3 flex flex-1 items-center justify-center">
+        <div className="text-[10px] font-semibold text-slate-400 [writing-mode:vertical-rl]">
+          {selectedUnit ? selectedUnit.unit_id : t.dubbingEditor.inspector.title}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Character Cast Section
 // ---------------------------------------------------------------------------
@@ -967,14 +1063,14 @@ function WaveformBar({
 // ---------------------------------------------------------------------------
 
 const CHAR_COLOR_SLOTS = [
-  { bg: 'bg-blue-100',   border: 'border-blue-400',   text: 'text-blue-700',   dot: '#3b82f6' },
-  { bg: 'bg-amber-100',  border: 'border-amber-400',  text: 'text-amber-700',  dot: '#f59e0b' },
-  { bg: 'bg-violet-100', border: 'border-violet-400', text: 'text-violet-700', dot: '#8b5cf6' },
-  { bg: 'bg-rose-100',   border: 'border-rose-400',   text: 'text-rose-700',   dot: '#f43f5e' },
-  { bg: 'bg-teal-100',   border: 'border-teal-400',   text: 'text-teal-700',   dot: '#14b8a6' },
-  { bg: 'bg-orange-100', border: 'border-orange-400', text: 'text-orange-700', dot: '#ea580c' },
-  { bg: 'bg-pink-100',   border: 'border-pink-400',   text: 'text-pink-700',   dot: '#ec4899' },
-  { bg: 'bg-lime-100',   border: 'border-lime-400',   text: 'text-lime-700',   dot: '#84cc16' },
+  { bg: 'bg-slate-50',   border: 'border-slate-300',   text: 'text-slate-700',   dot: '#2563eb' },
+  { bg: 'bg-stone-50',   border: 'border-stone-300',   text: 'text-stone-700',   dot: '#b45309' },
+  { bg: 'bg-sky-50',     border: 'border-sky-200',     text: 'text-slate-700',   dot: '#0284c7' },
+  { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-slate-700',   dot: '#059669' },
+  { bg: 'bg-violet-50',  border: 'border-violet-200',  text: 'text-slate-700',   dot: '#7c3aed' },
+  { bg: 'bg-zinc-50',    border: 'border-zinc-300',    text: 'text-zinc-700',    dot: '#52525b' },
+  { bg: 'bg-indigo-50',  border: 'border-indigo-200',  text: 'text-slate-700',   dot: '#4f46e5' },
+  { bg: 'bg-cyan-50',    border: 'border-cyan-200',    text: 'text-slate-700',   dot: '#0891b2' },
 ]
 
 function charColorSlot(characterId: string) {
@@ -1039,7 +1135,12 @@ function TimelinePane({
     const left = (selectedUnit.start / totalDuration) * totalWidth
     const el = scrollRef.current
     if (left < el.scrollLeft || left > el.scrollLeft + el.clientWidth - 100) {
-      el.scrollTo({ left: Math.max(0, left - 100), behavior: 'smooth' })
+      const nextLeft = Math.max(0, left - 100)
+      if (typeof el.scrollTo === 'function') {
+        el.scrollTo({ left: nextLeft, behavior: 'smooth' })
+      } else {
+        el.scrollLeft = nextLeft
+      }
     }
   }, [selectedUnit, totalWidth, totalDuration])
 
@@ -1052,7 +1153,12 @@ function TimelinePane({
     const el = scrollRef.current
     const trackLabelWidth = 96
     const targetScrollLeft = playheadLeft + trackLabelWidth - el.clientWidth / 2
-    el.scrollTo({ left: Math.max(0, targetScrollLeft), behavior: 'smooth' })
+    const nextLeft = Math.max(0, targetScrollLeft)
+    if (typeof el.scrollTo === 'function') {
+      el.scrollTo({ left: nextLeft, behavior: 'smooth' })
+    } else {
+      el.scrollLeft = nextLeft
+    }
   }, [darkMode, playheadLeft])
 
   // Click on scrollable container to seek
@@ -1209,12 +1315,12 @@ function TimelinePane({
                             onClick={e => { e.stopPropagation(); onSelectUnit(unit) }}
                             style={{ left: `${left}px`, width: `${Math.max(2, width)}px` }}
                             title={`${unit.source_text}\n→ ${unit.target_text}\n[${formatTimeSec(unit.start)} – ${formatTimeSec(unit.end)}]`}
-                            className={`absolute inset-y-0.5 cursor-pointer rounded border transition-opacity flex items-center overflow-hidden px-1 ${
+                            className={`absolute inset-y-0.5 cursor-pointer rounded border transition-colors flex items-center overflow-hidden px-1 ${
                               isSelected
-                                ? `${color.bg} ${color.border} ring-1 ring-offset-0 ring-blue-400 ${color.text}`
+                                ? 'bg-blue-50 border-blue-500 ring-1 ring-offset-0 ring-blue-500 text-blue-800 shadow-sm'
                                 : hasIssue
-                                  ? 'bg-amber-100 border-amber-400 text-amber-700 hover:bg-amber-200'
-                                  : `${color.bg} ${color.border} ${color.text} opacity-80 hover:opacity-100`
+                                  ? 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
+                                  : `${color.bg} ${color.border} ${color.text} hover:bg-white`
                             }`}
                           >
                             {showText && (
@@ -1233,186 +1339,6 @@ function TimelinePane({
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-// ---------------------------------------------------------------------------
-// Current Line / Video Preview Pane (P1: A/B comparison, P0: clip audio ref)
-// ---------------------------------------------------------------------------
-
-function CurrentLinePane({
-  project,
-  taskId,
-  selectedUnit,
-  renderRangeResult,
-  clipAudioRef,
-}: {
-  project: DubbingEditorProject
-  taskId: string
-  selectedUnit: DubbingEditorUnit | null
-  renderRangeResult: { url: string; start_sec: number; end_sec: number } | null
-  clipAudioRef: React.RefObject<HTMLAudioElement | null>
-}) {
-  const { t } = useI18n()
-  const rangeAudioRef = useRef<HTMLAudioElement>(null)
-
-  // P1: load clip preview via API for A/B comparison
-  const clipPreviewQuery = useQuery({
-    queryKey: ['clip-preview', taskId, selectedUnit?.unit_id],
-    queryFn: () =>
-      selectedUnit
-        ? dubbingEditorApi.getClipPreview(taskId, Math.max(0, selectedUnit.start - 0.2), selectedUnit.end + 0.2)
-        : null,
-    enabled: !!selectedUnit && !!taskId,
-    staleTime: 1000 * 60,
-  })
-
-  // Sync clip URL into the ref used by keyboard Space shortcut
-  useEffect(() => {
-    if (!clipAudioRef.current) return
-    const url = clipPreviewQuery.data?.url
-    if (url) {
-      clipAudioRef.current.src = url
-      clipAudioRef.current.load()
-    }
-  }, [clipPreviewQuery.data?.url, clipAudioRef])
-
-  useEffect(() => {
-    if (renderRangeResult && rangeAudioRef.current) {
-      rangeAudioRef.current.load()
-    }
-  }, [renderRangeResult])
-
-  if (!selectedUnit) {
-    return (
-      <div className="flex h-7 items-center gap-2 px-3 text-[10px] text-slate-400">
-        <span className="font-semibold uppercase tracking-widest">
-          {t.dubbingEditor.currentLine.title}
-        </span>
-        <span className="h-2.5 w-px bg-slate-200" aria-hidden="true" />
-        <span>{t.dubbingEditor.currentLine.empty}</span>
-      </div>
-    )
-  }
-
-  const hasIssue = selectedUnit.issue_ids.length > 0
-  const char = project.characters.find(c => c.character_id === selectedUnit.character_id)
-
-  return (
-    <div className="flex flex-col">
-      {/* Hidden audio element for Space key playback */}
-      <audio ref={clipAudioRef} preload="none" className="hidden" />
-
-      {/* Single-row strip: identity | source | target | A/B audio */}
-      <div className="flex items-stretch gap-3 px-3 py-2">
-        {/* Identity column */}
-        <div className="flex w-44 shrink-0 flex-col justify-center gap-1">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
-              {t.dubbingEditor.currentLine.title}
-            </span>
-          </div>
-          <div className="text-[11px] font-medium text-slate-700">
-            {selectedUnit.unit_id}
-          </div>
-          <div className="text-[10px] tabular-nums text-slate-400">
-            {formatTimeSec(selectedUnit.start)} – {formatTimeSec(selectedUnit.end)}
-          </div>
-          <div className="flex flex-wrap items-center gap-1">
-            <UnitStatusBadge status={selectedUnit.status} />
-            {char && <span className="truncate text-[10px] text-slate-500">{char.display_name}</span>}
-            {hasIssue && (
-              <span className="rounded bg-amber-50 px-1 py-0.5 text-[9px] font-medium text-amber-700">
-                {t.dubbingEditor.currentLine.issueCount(selectedUnit.issue_ids.length)}
-              </span>
-            )}
-          </div>
-        </div>
-
-        {/* Source / target text columns */}
-        <div className="grid min-w-0 flex-1 grid-cols-2 gap-2">
-          <div className="flex min-w-0 flex-col">
-            <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-widest text-slate-400">
-              {t.dubbingEditor.currentLine.sourceText}
-            </div>
-            <div
-              className="min-h-0 flex-1 overflow-y-auto rounded-md bg-slate-50 px-2.5 py-1.5 text-[12px] leading-snug text-slate-800"
-              title={selectedUnit.source_text}
-            >
-              {selectedUnit.source_text}
-            </div>
-          </div>
-          <div className="flex min-w-0 flex-col">
-            <div className="mb-0.5 text-[9px] font-semibold uppercase tracking-widest text-slate-400">
-              {t.dubbingEditor.currentLine.dubText}
-            </div>
-            <div
-              className="min-h-0 flex-1 overflow-y-auto rounded-md bg-slate-50 px-2.5 py-1.5 text-[12px] leading-snug text-slate-800"
-              title={selectedUnit.target_text}
-            >
-              {selectedUnit.target_text}
-            </div>
-          </div>
-        </div>
-
-        {/* A/B audio column */}
-        <div className="flex w-[260px] shrink-0 flex-col gap-1">
-          <div className="flex items-center justify-between">
-            <span className="text-[9px] font-semibold uppercase tracking-widest text-slate-400">
-              {t.dubbingEditor.currentLine.abCompare}
-            </span>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 shrink-0 text-[9px] font-bold text-slate-400">A</span>
-            {clipPreviewQuery.data?.url ? (
-              <audio
-                controls
-                src={clipPreviewQuery.data.url}
-                className="h-7 flex-1"
-              />
-            ) : (
-              <div className="h-7 flex-1 rounded bg-slate-100 text-center text-[10px] leading-7 text-slate-400">
-                {clipPreviewQuery.isLoading ? t.dubbingEditor.currentLine.loading : t.dubbingEditor.currentLine.empty1}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-3 shrink-0 text-[9px] font-bold text-slate-400">B</span>
-            {selectedUnit.current_clip?.audio_artifact_path ? (
-              <audio
-                data-testid="clip-audio"
-                controls
-                src={`/api/tasks/${taskId}/artifacts/${selectedUnit.current_clip.audio_artifact_path}`}
-                className="h-7 flex-1"
-              />
-            ) : (
-              <div className="h-7 flex-1 rounded bg-slate-100 text-center text-[10px] leading-7 text-slate-400">
-                {t.dubbingEditor.currentLine.empty1}
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Range render result — appears as a thin secondary strip */}
-      {renderRangeResult && (
-        <div className="flex items-center gap-2 border-t border-slate-100 bg-blue-50/60 px-3 py-1.5">
-          <AudioLines size={11} className="text-blue-600" />
-          <span className="text-[10px] font-semibold text-blue-700">
-            {t.dubbingEditor.currentLine.rangePreview}
-          </span>
-          <span className="text-[10px] tabular-nums text-blue-500">
-            {formatTimeSec(renderRangeResult.start_sec)} – {formatTimeSec(renderRangeResult.end_sec)}
-          </span>
-          <audio
-            ref={rangeAudioRef}
-            controls
-            src={renderRangeResult.url}
-            className="ml-auto h-7 w-[320px]"
-          />
-        </div>
-      )}
     </div>
   )
 }
@@ -2104,6 +2030,418 @@ function InspectorPanel({
 }
 
 // ---------------------------------------------------------------------------
+// Edit Video Monitor — video-first workbench surface
+// ---------------------------------------------------------------------------
+
+function EditMonitorPane({
+  project,
+  taskId,
+  selectedUnit,
+  playheadSec,
+  onPlayheadChange,
+  renderRangeResult,
+  clipAudioRef,
+  videoRef,
+}: {
+  project: DubbingEditorProject
+  taskId: string
+  selectedUnit: DubbingEditorUnit | null
+  playheadSec: number
+  onPlayheadChange: (sec: number) => void
+  renderRangeResult: { url: string; start_sec: number; end_sec: number } | null
+  clipAudioRef: React.RefObject<HTMLAudioElement | null>
+  videoRef: React.RefObject<HTMLVideoElement | null>
+}) {
+  const { t } = useI18n()
+  const monitorAudioRef = useRef<HTMLAudioElement>(null)
+  const rangeAudioRef = useRef<HTMLAudioElement>(null)
+  const progressTrackRef = useRef<HTMLDivElement>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [audioTrack, setAudioTrack] = useState<'original' | 'dub' | 'mix'>('dub')
+  const [subtitleMode, setSubtitleMode] = useState<'source' | 'target' | 'bilingual'>('target')
+  const [duration, setDuration] = useState(0)
+
+  const videoSrc = `/api/tasks/${taskId}/dubbing-editor/video-preview`
+  const activeUnit = selectedUnit ?? project.units.find(u => u.start <= playheadSec && u.end > playheadSec) ?? null
+  const clipTrack = audioTrack === 'mix' ? 'preview_mix' : audioTrack
+  const monitorAudioPath =
+    audioTrack === 'dub'
+      ? project.artifact_paths?.dub_voice
+      : audioTrack === 'mix'
+        ? project.artifact_paths?.preview_mix
+        : ''
+  const monitorAudioUrl = monitorAudioPath ? `/api/tasks/${taskId}/artifacts/${monitorAudioPath}` : ''
+  const usesExternalMonitorAudio = audioTrack !== 'original' && !!monitorAudioUrl
+
+  const clipPreviewQuery = useQuery({
+    queryKey: ['clip-preview', taskId, selectedUnit?.unit_id, clipTrack],
+    queryFn: () =>
+      selectedUnit
+        ? dubbingEditorApi.getClipPreview(taskId, Math.max(0, selectedUnit.start - 0.2), selectedUnit.end + 0.2, clipTrack)
+        : null,
+    enabled: !!selectedUnit && !!taskId,
+    staleTime: 1000 * 60,
+  })
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video) return
+    const audio = monitorAudioRef.current
+    const syncExternalAudio = () => {
+      if (!usesExternalMonitorAudio || !audio || video.paused) return
+      if (Math.abs(audio.currentTime - video.currentTime) > 0.25) {
+        audio.currentTime = video.currentTime
+      }
+    }
+    const onTimeUpdate = () => {
+      onPlayheadChange(video.currentTime)
+      syncExternalAudio()
+    }
+    const onDurationChange = () => setDuration(video.duration || 0)
+    const onPlay = () => {
+      setIsPlaying(true)
+      if (!audio) return
+      if (!usesExternalMonitorAudio) {
+        audio.pause()
+        video.muted = false
+        return
+      }
+      video.muted = true
+      audio.currentTime = video.currentTime
+      audio.play().catch(() => {})
+    }
+    const onPause = () => {
+      setIsPlaying(false)
+      audio?.pause()
+    }
+    const onEnded = () => {
+      setIsPlaying(false)
+      audio?.pause()
+    }
+    video.addEventListener('timeupdate', onTimeUpdate)
+    video.addEventListener('durationchange', onDurationChange)
+    video.addEventListener('loadedmetadata', onDurationChange)
+    video.addEventListener('play', onPlay)
+    video.addEventListener('pause', onPause)
+    video.addEventListener('ended', onEnded)
+    return () => {
+      video.removeEventListener('timeupdate', onTimeUpdate)
+      video.removeEventListener('durationchange', onDurationChange)
+      video.removeEventListener('loadedmetadata', onDurationChange)
+      video.removeEventListener('play', onPlay)
+      video.removeEventListener('pause', onPause)
+      video.removeEventListener('ended', onEnded)
+    }
+  }, [onPlayheadChange, usesExternalMonitorAudio, videoRef])
+
+  useEffect(() => {
+    const video = videoRef.current
+    const audio = monitorAudioRef.current
+    if (!video || !audio) return
+
+    if (!usesExternalMonitorAudio) {
+      audio.pause()
+      audio.removeAttribute('src')
+      video.muted = false
+      return
+    }
+
+    video.muted = true
+    audio.currentTime = video.currentTime
+    loadMediaElement(audio)
+    if (!video.paused) {
+      audio.play().catch(() => {})
+    }
+  }, [monitorAudioUrl, usesExternalMonitorAudio, videoRef])
+
+  useEffect(() => {
+    if (!selectedUnit || !videoRef.current) return
+    const video = videoRef.current
+    if (Math.abs(video.currentTime - selectedUnit.start) > 0.5) {
+      video.currentTime = selectedUnit.start
+      onPlayheadChange(selectedUnit.start)
+    }
+  }, [selectedUnit, onPlayheadChange, videoRef])
+
+  useEffect(() => {
+    if (!clipAudioRef.current) return
+    const url = clipPreviewQuery.data?.url
+    if (url) {
+      clipAudioRef.current.src = url
+      clipAudioRef.current.dataset.startSec = String(clipPreviewQuery.data?.start_sec ?? selectedUnit?.start ?? 0)
+      loadMediaElement(clipAudioRef.current)
+    }
+  }, [clipAudioRef, clipPreviewQuery.data?.start_sec, clipPreviewQuery.data?.url, selectedUnit?.start])
+
+  useEffect(() => {
+    if (renderRangeResult && rangeAudioRef.current) {
+      loadMediaElement(rangeAudioRef.current)
+    }
+  }, [renderRangeResult])
+
+  const togglePlay = useCallback(() => {
+    const video = videoRef.current
+    if (!video) return
+    const audio = monitorAudioRef.current
+
+    if (video.paused) {
+      if (usesExternalMonitorAudio && audio) {
+        video.muted = true
+        audio.currentTime = video.currentTime
+        audio.play().catch(() => {})
+      } else {
+        video.muted = false
+        audio?.pause()
+      }
+      video.play().catch(() => {})
+    } else {
+      video.pause()
+      audio?.pause()
+    }
+  }, [usesExternalMonitorAudio, videoRef])
+
+  const toggleClipPreview = useCallback(() => {
+    const audio = clipAudioRef.current
+    if (!audio || !clipPreviewQuery.data?.url) return
+    const video = videoRef.current
+    if (audio.paused) {
+      video?.pause()
+      if (audio.ended) audio.currentTime = 0
+      audio.play().catch(() => {})
+    } else {
+      audio.pause()
+    }
+  }, [clipAudioRef, clipPreviewQuery.data?.url, videoRef])
+
+  const projectDuration = project.units.reduce((max, unit) => Math.max(max, unit.end), 0)
+  const monitorDuration = Math.max(duration || 0, projectDuration, playheadSec, 1)
+  const progressPct = Math.min(100, Math.max(0, (playheadSec / monitorDuration) * 100))
+  const seekMonitor = useCallback(
+    (sec: number) => {
+      const nextSec = clampNumber(sec, 0, monitorDuration)
+      const video = videoRef.current
+      if (video) {
+        video.currentTime = nextSec
+      }
+      const audio = clipAudioRef.current
+      if (audio && !audio.paused) audio.pause()
+      const monitorAudio = monitorAudioRef.current
+      if (monitorAudio && usesExternalMonitorAudio) {
+        monitorAudio.currentTime = nextSec
+      }
+      onPlayheadChange(nextSec)
+    },
+    [clipAudioRef, monitorDuration, onPlayheadChange, usesExternalMonitorAudio, videoRef],
+  )
+  const seekMonitorFromClientX = useCallback(
+    (clientX: number) => {
+      const rect = progressTrackRef.current?.getBoundingClientRect()
+      if (!rect || rect.width <= 0) return
+      const pct = clampNumber((clientX - rect.left) / rect.width, 0, 1)
+      seekMonitor(pct * monitorDuration)
+    },
+    [monitorDuration, seekMonitor],
+  )
+  const handleProgressMouseDown = useCallback(
+    (event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault()
+      seekMonitorFromClientX(event.clientX)
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        seekMonitorFromClientX(moveEvent.clientX)
+      }
+      const handleMouseUp = () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    },
+    [seekMonitorFromClientX],
+  )
+  const handleProgressInput = useCallback(
+    (event: React.FormEvent<HTMLInputElement>) => {
+      seekMonitor(Number(event.currentTarget.value))
+    },
+    [seekMonitor],
+  )
+  const sourceText = activeUnit?.source_text || t.dubbingEditor.currentLine.empty
+  const targetText = activeUnit?.target_text || ''
+  const canPreviewClip = !!selectedUnit && !!clipPreviewQuery.data?.url
+
+  return (
+    <div
+      data-testid="edit-monitor-pane"
+      className="flex h-full flex-col overflow-hidden border-b border-slate-200 bg-[#111827]"
+    >
+      <audio
+        ref={monitorAudioRef}
+        data-testid="edit-monitor-audio"
+        src={monitorAudioUrl || undefined}
+        preload="metadata"
+        className="hidden"
+      />
+      <audio ref={clipAudioRef} preload="none" className="hidden" />
+
+      <div className="relative min-h-0 flex-1 overflow-hidden bg-[#111827]">
+        <video
+          ref={videoRef}
+          data-testid="edit-monitor-video"
+          src={videoSrc}
+          className="h-full w-full object-contain"
+          preload="metadata"
+          muted={usesExternalMonitorAudio}
+          playsInline
+        />
+
+        <div className="absolute left-3 top-3 flex flex-wrap items-center gap-2">
+          <span className="rounded-md border border-white/10 bg-black/45 px-2 py-1 text-[11px] font-medium text-slate-100 shadow-sm backdrop-blur-sm">
+            {activeUnit
+              ? `${formatTimeSec(activeUnit.start)} – ${formatTimeSec(activeUnit.end)}`
+              : t.dubbingEditor.currentLine.title}
+          </span>
+          <span className="rounded-md border border-white/10 bg-black/45 px-2 py-1 text-[11px] font-medium text-slate-100 shadow-sm backdrop-blur-sm">
+            {audioTrack === 'mix'
+              ? t.dubbingEditor.preview.mix
+              : audioTrack === 'dub'
+                ? t.dubbingEditor.preview.dub
+                : t.dubbingEditor.preview.original}
+          </span>
+        </div>
+
+        <div className="pointer-events-none absolute bottom-16 left-1/2 w-[min(760px,82%)] -translate-x-1/2 text-center">
+          {(subtitleMode === 'source' || subtitleMode === 'bilingual') && (
+            <div className="inline-block rounded-md bg-black/45 px-2.5 py-0.5 text-sm font-semibold leading-snug text-white shadow-lg shadow-black/20 backdrop-blur-sm">
+              {sourceText}
+            </div>
+          )}
+          {(subtitleMode === 'target' || subtitleMode === 'bilingual') && targetText && (
+            <div className="mt-1 inline-block rounded-md bg-black/50 px-2.5 py-1 text-[15px] font-semibold leading-snug text-white shadow-lg shadow-black/20 backdrop-blur-sm">
+              {targetText}
+            </div>
+          )}
+        </div>
+
+        <div className="absolute inset-x-0 bottom-0 flex h-11 items-center gap-2 bg-gradient-to-t from-black/80 via-black/55 to-transparent px-3 text-slate-200">
+          <button
+            type="button"
+            data-testid="edit-monitor-play"
+            onClick={togglePlay}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white shadow-lg shadow-black/25 transition-colors hover:bg-blue-500"
+            title={isPlaying ? t.dubbingEditor.preview.pause : t.dubbingEditor.preview.play}
+          >
+            {isPlaying ? <Pause size={15} /> : <Play size={15} className="ml-0.5" />}
+          </button>
+          <span data-testid="edit-monitor-timecode" className="w-28 shrink-0 font-mono text-[11px] text-slate-100">
+            {formatTimeSec(playheadSec)}
+            <span className="mx-1 text-slate-500">/</span>
+            {formatTimeSec(monitorDuration)}
+          </span>
+          <div
+            ref={progressTrackRef}
+            data-testid="edit-monitor-progress-track"
+            className="group relative h-7 min-w-20 flex-1"
+            onMouseDown={handleProgressMouseDown}
+          >
+            <div className="pointer-events-none absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-white/20">
+              <div className="h-full rounded-full bg-blue-500" style={{ width: `${progressPct}%` }} />
+            </div>
+            <div
+              className="pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white bg-blue-500 shadow-sm shadow-black/30"
+              style={{ left: `${progressPct}%` }}
+            />
+            <input
+              data-testid="edit-monitor-progress"
+              type="range"
+              min={0}
+              max={monitorDuration}
+              step={0.01}
+              value={Math.min(playheadSec, monitorDuration)}
+              onInput={handleProgressInput}
+              onChange={handleProgressInput}
+              className="absolute inset-0 h-7 w-full cursor-pointer opacity-0"
+              aria-label={t.dubbingEditor.preview.seek}
+              title={t.dubbingEditor.preview.seek}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={toggleClipPreview}
+            disabled={!canPreviewClip}
+            className="flex h-7 shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-black/35 px-2 text-[11px] font-medium text-slate-200 transition-colors hover:bg-white/10 disabled:cursor-not-allowed disabled:text-slate-600"
+            title={t.dubbingEditor.preview.segmentPreview}
+          >
+            <AudioLines size={13} />
+            <span className="hidden xl:inline">
+              {clipPreviewQuery.isLoading ? t.dubbingEditor.currentLine.loading : t.dubbingEditor.preview.segmentPreview}
+            </span>
+          </button>
+          <div className="flex shrink-0 items-center rounded-lg border border-white/10 bg-black/35 p-0.5">
+            {(['original', 'dub', 'mix'] as const).map(track => (
+              <button
+                key={track}
+                type="button"
+                onClick={() => setAudioTrack(track)}
+                className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                  audioTrack === track
+                    ? 'bg-white text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-100'
+                }`}
+              >
+                {track === 'mix'
+                  ? t.dubbingEditor.preview.mix
+                  : track === 'dub'
+                    ? t.dubbingEditor.preview.dub
+                    : t.dubbingEditor.preview.original}
+              </button>
+            ))}
+          </div>
+          <div className="flex shrink-0 items-center rounded-lg border border-white/10 bg-black/35 p-0.5">
+            {(['source', 'target', 'bilingual'] as const).map(mode => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setSubtitleMode(mode)}
+                className={`rounded-md px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                  subtitleMode === mode
+                    ? 'bg-white text-slate-950 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-100'
+                }`}
+              >
+                {mode === 'source'
+                  ? t.dubbingEditor.preview.sourceSubtitle
+                  : mode === 'target'
+                    ? t.dubbingEditor.preview.targetSubtitle
+                    : t.dubbingEditor.preview.bilingualSubtitle}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {renderRangeResult && (
+        <div className="flex h-9 shrink-0 items-center gap-2 border-t border-slate-800 bg-slate-900 px-3">
+          <AudioLines size={12} className="text-blue-300" />
+          <span className="text-[11px] font-semibold text-blue-100">
+            {t.dubbingEditor.currentLine.rangePreview}
+          </span>
+          <span className="text-[10px] tabular-nums text-blue-200">
+            {formatTimeSec(renderRangeResult.start_sec)} – {formatTimeSec(renderRangeResult.end_sec)}
+          </span>
+          <audio
+            ref={rangeAudioRef}
+            controls
+            src={renderRangeResult.url}
+            className="ml-auto h-7 w-[260px]"
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Preview Pane — full-width video player + synced timeline
 // ---------------------------------------------------------------------------
 
@@ -2391,8 +2729,10 @@ export function DubbingEditorPage() {
   const [workbenchLayout, setWorkbenchLayout] = useState<DubbingWorkbenchLayout>(readInitialWorkbenchLayout)
   const [resizeState, setResizeState] = useState<PanelResizeState | null>(null)
 
-  // P0: ref for Space-key audio playback (clips)
+  // P0: refs for primary video playback and selected-clip audio previews
   const clipAudioRef = useRef<HTMLAudioElement | null>(null)
+  const editVideoRef = useRef<HTMLVideoElement | null>(null)
+  const autoSelectedTaskRef = useRef<string | null>(null)
 
   useEffect(() => {
     try {
@@ -2493,7 +2833,8 @@ export function DubbingEditorPage() {
     const tick = () => {
       const audio = clipAudioRef.current
       if (audio && !audio.paused) {
-        setPlayheadSec(audio.currentTime)
+        const startSec = Number(audio.dataset.startSec ?? 0)
+        setPlayheadSec(startSec + audio.currentTime)
       }
       rafId = requestAnimationFrame(tick)
     }
@@ -2510,6 +2851,26 @@ export function DubbingEditorPage() {
     enabled: !!taskId,
     staleTime: 1000 * 30,
   })
+
+  useEffect(() => {
+    const project = projectQuery.data
+    if (!project || !taskId || autoSelectedTaskRef.current === taskId) return
+
+    const severityRank: Record<DubbingEditorIssue['severity'], number> = { P0: 0, P1: 1, P2: 2 }
+    const firstOpenIssue = [...project.issues]
+      .filter(issue => issue.status === 'open')
+      .sort((a, b) => severityRank[a.severity] - severityRank[b.severity] || a.time_sec - b.time_sec)[0]
+
+    if (firstOpenIssue) {
+      const unit = project.units.find(u => u.unit_id === firstOpenIssue.unit_id)
+      setSelectedIssueId(firstOpenIssue.issue_id)
+      if (unit) setSelectedUnit(unit)
+    } else if (project.units.length > 0) {
+      setSelectedUnit(project.units[0])
+    }
+
+    autoSelectedTaskRef.current = taskId
+  }, [projectQuery.data, taskId])
 
   // Track total ops count for redo
   const totalOpsRef = useRef(0)
@@ -2693,6 +3054,12 @@ export function DubbingEditorPage() {
         handleSelectIssue(prev)
       } else if (e.key === ' ') {
         e.preventDefault()
+        const video = editorMode === 'edit' ? editVideoRef.current : null
+        if (video) {
+          if (video.paused) video.play().catch(() => {})
+          else video.pause()
+          return
+        }
         const audio = clipAudioRef.current
         if (audio) {
           if (audio.paused) audio.play().catch(() => {})
@@ -2721,6 +3088,7 @@ export function DubbingEditorPage() {
     handleRenderRange,
     handleUndo,
     handleRedo,
+    editorMode,
   ])
 
   if (!taskId) return null
@@ -2831,33 +3199,22 @@ export function DubbingEditorPage() {
             />
             </>
           ) : (
-            <div
-              className="flex w-10 shrink-0 flex-col items-center border-r border-slate-200 bg-white py-2"
-              data-testid="issue-queue-rail"
-            >
-              <button
-                type="button"
-                onClick={() => setIssueQueueOpen(true)}
-                data-testid="toggle-issue-queue-panel"
-                className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-                title={t.dubbingEditor.panels.expandIssueQueue}
-                aria-label={t.dubbingEditor.panels.expandIssueQueue}
-              >
-                <PanelLeftOpen size={14} />
-              </button>
-            </div>
+            <IssueQueueRail project={project} onExpand={() => setIssueQueueOpen(true)} />
           )}
 
           {/* Center: Current line strip + Timeline */}
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#FAFBFD]">
-            {/* Current line — compact strip, auto height */}
-            <div className="shrink-0 border-b border-slate-200 bg-white">
-              <CurrentLinePane
+            {/* Video monitor — primary editing context */}
+            <div className="h-[min(42vh,420px)] min-h-[280px] shrink-0 overflow-hidden border-b border-slate-200 bg-slate-950">
+              <EditMonitorPane
                 project={project}
                 taskId={taskId}
                 selectedUnit={selectedUnit}
+                playheadSec={playheadSec}
+                onPlayheadChange={setPlayheadSec}
                 renderRangeResult={renderRangeResult}
                 clipAudioRef={clipAudioRef}
+                videoRef={editVideoRef}
               />
             </div>
 
@@ -2906,21 +3263,7 @@ export function DubbingEditorPage() {
             </div>
             </>
           ) : (
-            <div
-              className="flex w-10 shrink-0 flex-col items-center border-l border-slate-200 bg-white py-2"
-              data-testid="inspector-panel-rail"
-            >
-              <button
-                type="button"
-                onClick={() => setInspectorOpen(true)}
-                data-testid="toggle-inspector-panel"
-                className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
-                title={t.dubbingEditor.panels.expandInspector}
-                aria-label={t.dubbingEditor.panels.expandInspector}
-              >
-                <PanelRightOpen size={14} />
-              </button>
-            </div>
+            <InspectorRail selectedUnit={selectedUnit} onExpand={() => setInspectorOpen(true)} />
           )}
         </div>
       ) : (

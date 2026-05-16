@@ -1135,6 +1135,8 @@ def get_clip_preview(
     track_patterns: dict[str, list[str]] = {
         **_TRACK_PATTERNS,
         "dub": [f"task-e/voice/dub_voice.{target_lang}.wav"],
+        "preview_mix": [f"task-e/voice/preview_mix.{target_lang}.wav"],
+        "mix": [f"task-e/voice/preview_mix.{target_lang}.wav"],
     }
     patterns = track_patterns.get(track)
     if not patterns:

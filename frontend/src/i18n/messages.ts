@@ -596,6 +596,7 @@ const zhMessages = {
     layoutPresetGroupLabel: '工作区布局预设',
     layoutPresets: {
       review: '审稿',
+      focus: '视频优先',
       timeline: '时间线',
       voice: '角色音色',
       preview: '预览',
@@ -740,6 +741,12 @@ const zhMessages = {
       mute: '静音',
       original: '原声',
       dub: '配音',
+      mix: '混音',
+      sourceSubtitle: '原文',
+      targetSubtitle: '译文',
+      bilingualSubtitle: '双语',
+      segmentPreview: '选段试听',
+      seek: '拖动定位',
       fullscreen: '全屏',
     },
     unitStatus: {
@@ -1649,6 +1656,7 @@ const enMessages: LocaleMessages = {
     layoutPresetGroupLabel: 'Workbench layout presets',
     layoutPresets: {
       review: 'Review',
+      focus: 'Video first',
       timeline: 'Timeline',
       voice: 'Voice',
       preview: 'Preview',
@@ -1793,6 +1801,12 @@ const enMessages: LocaleMessages = {
       mute: 'Mute',
       original: 'Original',
       dub: 'Dub',
+      mix: 'Mix',
+      sourceSubtitle: 'Source',
+      targetSubtitle: 'Target',
+      bilingualSubtitle: 'Bilingual',
+      segmentPreview: 'Segment preview',
+      seek: 'Seek',
       fullscreen: 'Fullscreen',
     },
     unitStatus: {
