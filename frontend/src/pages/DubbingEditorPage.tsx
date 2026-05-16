@@ -37,6 +37,7 @@ import {
   User,
   Video,
   Volume2,
+  Gauge,
   VolumeX,
   X,
   ZoomIn,
@@ -1090,6 +1091,111 @@ function charColorSlot(characterId: string) {
 
 const ZOOM_LEVELS = [10, 20, 40, 80, 160, 320] // pixels per second
 
+// ---------------------------------------------------------------------------
+// Playback rate (preview-time speed) — shared across clip preview, edit
+// monitor, and legacy video player. Value is normalised to one of
+// PLAYBACK_RATE_LEVELS so the UI segmented control always has an exact match.
+// ---------------------------------------------------------------------------
+const PLAYBACK_RATE_LEVELS = [0.75, 1, 1.25, 1.5, 2] as const
+type PlaybackRate = (typeof PLAYBACK_RATE_LEVELS)[number]
+const PLAYBACK_RATE_STORAGE_KEY = 'dubbingEditor.playbackRate'
+const PLAYBACK_RATE_EVENT = 'dubbingEditor:playbackRateChange'
+const DEFAULT_PLAYBACK_RATE: PlaybackRate = 1
+
+function clampPlaybackRate(value: number): PlaybackRate {
+  let nearest: PlaybackRate = DEFAULT_PLAYBACK_RATE
+  let bestDelta = Number.POSITIVE_INFINITY
+  for (const level of PLAYBACK_RATE_LEVELS) {
+    const delta = Math.abs(level - value)
+    if (delta < bestDelta) {
+      bestDelta = delta
+      nearest = level
+    }
+  }
+  return nearest
+}
+
+function readPlaybackRate(): PlaybackRate {
+  if (typeof window === 'undefined') return DEFAULT_PLAYBACK_RATE
+  try {
+    const raw = window.localStorage.getItem(PLAYBACK_RATE_STORAGE_KEY)
+    if (!raw) return DEFAULT_PLAYBACK_RATE
+    const parsed = Number(raw)
+    if (!Number.isFinite(parsed)) return DEFAULT_PLAYBACK_RATE
+    return clampPlaybackRate(parsed)
+  } catch {
+    return DEFAULT_PLAYBACK_RATE
+  }
+}
+
+function writePlaybackRate(rate: PlaybackRate) {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(PLAYBACK_RATE_STORAGE_KEY, String(rate))
+  } catch {
+    /* ignore quota / privacy errors */
+  }
+}
+
+function usePlaybackRate(): [PlaybackRate, (rate: PlaybackRate) => void] {
+  const [rate, setRateState] = useState<PlaybackRate>(() => readPlaybackRate())
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<PlaybackRate>).detail
+      if (typeof detail === 'number') setRateState(clampPlaybackRate(detail))
+    }
+    window.addEventListener(PLAYBACK_RATE_EVENT, handler as EventListener)
+    return () => window.removeEventListener(PLAYBACK_RATE_EVENT, handler as EventListener)
+  }, [])
+
+  const setRate = useCallback((next: PlaybackRate) => {
+    const safe = clampPlaybackRate(next)
+    setRateState(safe)
+    writePlaybackRate(safe)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent<PlaybackRate>(PLAYBACK_RATE_EVENT, { detail: safe }))
+    }
+  }, [])
+
+  return [rate, setRate]
+}
+
+function applyPlaybackRate(el: HTMLMediaElement | null, rate: PlaybackRate) {
+  if (!el) return
+  try {
+    el.playbackRate = rate
+    // Keep pitch stable when slowed/sped (Safari uses preservesPitch, others webkit/moz).
+    type PitchPreservingMedia = HTMLMediaElement & {
+      preservesPitch?: boolean
+      mozPreservesPitch?: boolean
+      webkitPreservesPitch?: boolean
+    }
+    const pp = el as PitchPreservingMedia
+    pp.preservesPitch = true
+    pp.mozPreservesPitch = true
+    pp.webkitPreservesPitch = true
+  } catch {
+    /* not all browsers expose playbackRate setter */
+  }
+}
+
+type TimelineTextMode = 'source' | 'target' | 'bilingual'
+const TIMELINE_TEXT_MODE_STORAGE_KEY = 'dubbingEditor.timelineTextMode'
+const TIMELINE_TEXT_MODES: readonly TimelineTextMode[] = ['source', 'target', 'bilingual'] as const
+
+function readTimelineTextMode(): TimelineTextMode {
+  if (typeof window === 'undefined') return 'target'
+  try {
+    const raw = window.localStorage.getItem(TIMELINE_TEXT_MODE_STORAGE_KEY)
+    if (raw === 'source' || raw === 'target' || raw === 'bilingual') return raw
+  } catch {
+    /* localStorage may be unavailable (private mode / tests) */
+  }
+  return 'target'
+}
+
 function TimelinePane({
   project,
   taskId,
@@ -1111,6 +1217,17 @@ function TimelinePane({
   const [zoomIdx, setZoomIdx] = useState(2) // 40px/s default
   const pixelsPerSec = ZOOM_LEVELS[zoomIdx]
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [textMode, setTextMode] = useState<TimelineTextMode>(() => readTimelineTextMode())
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    try {
+      window.localStorage.setItem(TIMELINE_TEXT_MODE_STORAGE_KEY, textMode)
+    } catch {
+      /* ignore quota / privacy errors */
+    }
+  }, [textMode])
+  const isBilingual = textMode === 'bilingual'
+  const laneHeight = isBilingual ? 40 : 28
 
   const originalWaveformQuery = useQuery({
     queryKey: ['waveform', taskId, 'original'],
@@ -1179,6 +1296,34 @@ function TimelinePane({
     [totalWidth, totalDuration, onSeek],
   )
 
+  // Render the per-unit label according to the active text mode.
+  // Bilingual stacks source above target in two lines; very narrow cards
+  // gracefully degrade to a single-line target (full text still visible via title tooltip).
+  const renderUnitLabel = useCallback(
+    (unit: DubbingEditorUnit, width: number) => {
+      if (pixelsPerSec < 40 || width <= 20) return null
+      const source = unit.source_text || ''
+      const target = unit.target_text || ''
+      if (textMode === 'source') {
+        return <span className="truncate text-[9px] leading-tight font-medium">{source || target}</span>
+      }
+      if (textMode === 'target') {
+        return <span className="truncate text-[9px] leading-tight font-medium">{target || source}</span>
+      }
+      // bilingual
+      if (width < 56 || !source || !target) {
+        return <span className="truncate text-[9px] leading-tight font-medium">{target || source}</span>
+      }
+      return (
+        <span className="flex min-w-0 flex-1 flex-col justify-center leading-tight">
+          <span className={`truncate text-[8.5px] ${darkMode ? 'text-slate-400/90' : 'text-slate-500'}`}>{source}</span>
+          <span className="truncate text-[9px] font-medium">{target}</span>
+        </span>
+      )
+    },
+    [pixelsPerSec, textMode, darkMode],
+  )
+
   return (
     <div className={`flex h-full flex-col ${darkMode ? 'bg-slate-900' : 'bg-white'}`}>
       {/* Header: duration + zoom controls */}
@@ -1189,7 +1334,42 @@ function TimelinePane({
         <span className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-slate-500'}`}>
           {t.dubbingEditor.timeline.summary(formatTimeSec(totalDuration), units.length)}
         </span>
-        <div data-testid="zoom-controls" className="flex items-center gap-1">
+        <div className="flex items-center gap-3">
+          <div
+            role="radiogroup"
+            aria-label={t.dubbingEditor.timeline.textMode.ariaLabel}
+            data-testid="timeline-text-mode"
+            className={`inline-flex items-center rounded-md border p-0.5 ${
+              darkMode ? 'border-slate-700 bg-slate-800/60' : 'border-slate-200 bg-slate-50'
+            }`}
+          >
+            {TIMELINE_TEXT_MODES.map(mode => {
+              const active = textMode === mode
+              const label = t.dubbingEditor.timeline.textMode[mode]
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  data-testid={`timeline-text-mode-${mode}`}
+                  onClick={e => { e.stopPropagation(); setTextMode(mode) }}
+                  className={`rounded px-2 py-0.5 text-[10px] font-medium transition-colors ${
+                    active
+                      ? darkMode
+                        ? 'bg-slate-700 text-slate-100 shadow-sm'
+                        : 'bg-white text-slate-800 shadow-sm'
+                      : darkMode
+                        ? 'text-slate-400 hover:text-slate-200'
+                        : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {label}
+                </button>
+              )
+            })}
+          </div>
+          <div data-testid="zoom-controls" className="flex items-center gap-1">
           <button
             type="button"
             onClick={() => setZoomIdx(i => Math.max(0, i - 1))}
@@ -1209,6 +1389,7 @@ function TimelinePane({
           >
             <ZoomIn size={12} />
           </button>
+        </div>
         </div>
       </div>
 
@@ -1258,14 +1439,15 @@ function TimelinePane({
           <div className={`flex flex-1 flex-col overflow-y-auto border-t ${darkMode ? 'border-slate-700' : 'border-slate-200'}`}>
             {project.characters.length === 0 ? (
               // Fallback: no characters, show flat unit lane
-              <div className="flex shrink-0 items-center" style={{ height: '28px' }}>
+              <div className="flex shrink-0 items-center" style={{ height: `${laneHeight}px` }}>
                 <span className={`w-24 shrink-0 px-2 text-[10px] font-medium ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>{t.dubbingEditor.timeline.labels.units}</span>
                 <div className={`relative flex-1 h-full overflow-hidden border-l ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50/50 border-slate-100'}`}>
                   {units.map(unit => {
                     const left = (unit.start / totalDuration) * totalWidth
                     const width = ((unit.end - unit.start) / totalDuration) * totalWidth
                     const isSelected = selectedUnit?.unit_id === unit.unit_id
-                    const showText = pixelsPerSec >= 40 && width > 20
+                    const fitStrategy = unit.current_clip?.fit_strategy
+                    const hasFitWarning = fitStrategy === 'stretch' || fitStrategy === 'pad' || fitStrategy === 'overflow_unfitted'
                     return (
                       <button
                         key={unit.unit_id}
@@ -1276,10 +1458,12 @@ function TimelinePane({
                         className={`absolute inset-y-0.5 cursor-pointer rounded border text-[9px] font-medium flex items-center overflow-hidden px-1 transition-opacity ${
                           isSelected
                             ? 'bg-blue-100 border-blue-400 ring-1 ring-blue-400 text-blue-700'
-                            : 'bg-slate-100 border-slate-300 text-slate-600 opacity-80 hover:opacity-100'
+                            : hasFitWarning
+                              ? 'bg-rose-50 border-rose-300 text-rose-700 opacity-90 hover:opacity-100'
+                              : 'bg-slate-100 border-slate-300 text-slate-600 opacity-80 hover:opacity-100'
                         }`}
                       >
-                        {showText && <span className="truncate">{unit.target_text || unit.source_text}</span>}
+                        {renderUnitLabel(unit, width)}
                       </button>
                     )
                   })}
@@ -1293,7 +1477,7 @@ function TimelinePane({
                   <div
                     key={char.character_id}
                     className={`flex shrink-0 items-center border-b last:border-b-0 ${darkMode ? 'border-slate-700/60' : 'border-slate-100'}`}
-                    style={{ height: '28px' }}
+                    style={{ height: `${laneHeight}px` }}
                   >
                     {/* Lane label */}
                     <div className="w-24 shrink-0 flex items-center gap-1.5 px-2">
@@ -1309,8 +1493,9 @@ function TimelinePane({
                         const left = (unit.start / totalDuration) * totalWidth
                         const width = ((unit.end - unit.start) / totalDuration) * totalWidth
                         const hasIssue = unit.issue_ids.length > 0
+                        const fitStrategy = unit.current_clip?.fit_strategy
+                        const hasFitWarning = fitStrategy === 'stretch' || fitStrategy === 'pad' || fitStrategy === 'overflow_unfitted'
                         const isSelected = selectedUnit?.unit_id === unit.unit_id
-                        const showText = pixelsPerSec >= 40 && width > 20
                         return (
                           <button
                             key={unit.unit_id}
@@ -1321,16 +1506,14 @@ function TimelinePane({
                             className={`absolute inset-y-0.5 cursor-pointer rounded border transition-colors flex items-center overflow-hidden px-1 ${
                               isSelected
                                 ? 'bg-blue-50 border-blue-500 ring-1 ring-offset-0 ring-blue-500 text-blue-800 shadow-sm'
-                                : hasIssue
-                                  ? 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
-                                  : `${color.bg} ${color.border} ${color.text} hover:bg-white`
+                                : hasFitWarning
+                                  ? 'bg-rose-50 border-rose-300 text-rose-700 hover:bg-rose-100'
+                                  : hasIssue
+                                    ? 'bg-orange-50 border-orange-200 text-orange-700 hover:bg-orange-100'
+                                    : `${color.bg} ${color.border} ${color.text} hover:bg-white`
                             }`}
                           >
-                            {showText && (
-                              <span className="truncate text-[9px] leading-tight font-medium">
-                                {unit.target_text || unit.source_text}
-                              </span>
-                            )}
+                            {renderUnitLabel(unit, width)}
                           </button>
                         )
                       })}
@@ -1636,6 +1819,7 @@ function ClipPreviewPlayer({
   const [isMuted, setIsMuted] = useState(false)
   const [currentSec, setCurrentSec] = useState(0)
   const [durationSec, setDurationSec] = useState(initialDurationSec ?? 0)
+  const [playbackRate, setPlaybackRate] = usePlaybackRate()
 
   useEffect(() => {
     if (audioRef.current) {
@@ -1643,6 +1827,11 @@ function ClipPreviewPlayer({
       loadMediaElement(audioRef.current)
     }
   }, [src])
+
+  // Keep the audio element's playbackRate in sync with the global preference.
+  useEffect(() => {
+    applyPlaybackRate(audioRef.current, playbackRate)
+  }, [playbackRate, src])
 
   useEffect(() => {
     const audio = audioRef.current
@@ -1795,6 +1984,257 @@ function ClipPreviewPlayer({
           <ExternalLink size={13} />
         </a>
       </div>
+      <div
+        data-testid="clip-preview-rate"
+        role="radiogroup"
+        aria-label={t.dubbingEditor.preview.playbackRateLabel}
+        className="mt-1.5 flex items-center justify-end gap-1"
+      >
+        <span className="mr-1 text-[10px] font-medium uppercase tracking-widest text-slate-400">
+          {t.dubbingEditor.preview.playbackRateLabel}
+        </span>
+        {PLAYBACK_RATE_LEVELS.map(level => {
+          const active = playbackRate === level
+          return (
+            <button
+              key={level}
+              type="button"
+              role="radio"
+              aria-checked={active}
+              data-testid={`clip-preview-rate-${level}`}
+              onClick={() => setPlaybackRate(level)}
+              className={`h-5 rounded-md px-1.5 font-mono text-[10px] tabular-nums transition-colors ${
+                active
+                  ? 'bg-slate-900 text-white shadow-sm'
+                  : 'text-slate-500 hover:bg-white hover:text-slate-700'
+              }`}
+              title={`${level}×`}
+            >
+              {level}×
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+interface FitDescriptor {
+  tone: 'success' | 'amber' | 'rose' | 'slate'
+  label: string
+  hint: string
+  showRate: boolean
+  showDeltaPercent: boolean
+}
+
+function describeFitStrategy(
+  strategy: string,
+  generatedSec: number | null,
+  fittedSec: number | null,
+  t: ReturnType<typeof useI18n>['t'],
+): FitDescriptor {
+  const inspector = t.dubbingEditor.inspector
+  const known = strategy && (
+    strategy === 'direct'
+    || strategy === 'compress'
+    || strategy === 'stretch'
+    || strategy === 'pad'
+    || strategy === 'overflow_unfitted'
+    || strategy === 'underflow_unfitted'
+  )
+  const finalStrategy = known ? strategy : (
+    generatedSec && fittedSec && Math.abs(generatedSec - fittedSec) > 0.05
+      ? (generatedSec < fittedSec ? 'stretch' : 'compress')
+      : 'direct'
+  )
+  switch (finalStrategy) {
+    case 'compress':
+      return {
+        tone: 'amber',
+        label: inspector.fitCompressLabel,
+        hint: inspector.fitCompressHint,
+        showRate: true,
+        showDeltaPercent: true,
+      }
+    case 'stretch':
+      return {
+        tone: 'rose',
+        label: inspector.fitStretchLabel,
+        hint: inspector.fitStretchHint,
+        showRate: true,
+        showDeltaPercent: true,
+      }
+    case 'pad':
+      return {
+        tone: 'rose',
+        label: inspector.fitPadLabel,
+        hint: inspector.fitPadHint,
+        showRate: false,
+        showDeltaPercent: false,
+      }
+    case 'overflow_unfitted':
+      return {
+        tone: 'rose',
+        label: inspector.fitOverflowLabel,
+        hint: inspector.fitOverflowHint,
+        showRate: true,
+        showDeltaPercent: true,
+      }
+    case 'underflow_unfitted':
+      return {
+        tone: 'slate',
+        label: inspector.fitUnderflowLabel,
+        hint: inspector.fitUnderflowHint,
+        showRate: false,
+        showDeltaPercent: false,
+      }
+    default:
+      return {
+        tone: 'success',
+        label: inspector.fitDirect,
+        hint: inspector.fitDirectHint,
+        showRate: false,
+        showDeltaPercent: false,
+      }
+  }
+}
+
+const FIT_TONE_STYLES: Record<FitDescriptor['tone'], { dot: string; chip: string; bar: string }> = {
+  success: {
+    dot: 'bg-emerald-500',
+    chip: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    bar: 'bg-emerald-400',
+  },
+  amber: {
+    dot: 'bg-amber-500',
+    chip: 'bg-amber-50 text-amber-700 border-amber-200',
+    bar: 'bg-amber-400',
+  },
+  rose: {
+    dot: 'bg-rose-500',
+    chip: 'bg-rose-50 text-rose-700 border-rose-200',
+    bar: 'bg-rose-400',
+  },
+  slate: {
+    dot: 'bg-slate-400',
+    chip: 'bg-slate-50 text-slate-600 border-slate-200',
+    bar: 'bg-slate-300',
+  },
+}
+
+interface ClipFitMeterProps {
+  fitStrategy: string
+  generatedDuration: number | null
+  fittedDuration: number | null
+  sourceDuration: number | null
+}
+
+function ClipFitMeter({
+  fitStrategy,
+  generatedDuration,
+  fittedDuration,
+  sourceDuration,
+}: ClipFitMeterProps) {
+  const { t } = useI18n()
+  const inspector = t.dubbingEditor.inspector
+
+  const generated = generatedDuration && generatedDuration > 0 ? generatedDuration : null
+  const fitted = fittedDuration && fittedDuration > 0 ? fittedDuration : null
+  const slot = sourceDuration && sourceDuration > 0 ? sourceDuration : null
+
+  if (!fitted && !generated) return null
+
+  const descriptor = describeFitStrategy(fitStrategy, generated, fitted, t)
+  const tone = FIT_TONE_STYLES[descriptor.tone]
+
+  // playback rate = how fast vs. natural read; rate < 1 means slowed down.
+  const rate = generated && fitted ? generated / fitted : null
+  // delta = how much fitted differs from natural (positive = longer/slower).
+  const deltaPercent = generated && fitted ? Math.round(((fitted / generated) - 1) * 100) : null
+
+  const maxDuration = Math.max(generated ?? 0, fitted ?? 0, slot ?? 0, 0.001)
+  const widthPct = (v: number | null) => (v ? Math.max(2, Math.min(100, (v / maxDuration) * 100)) : 0)
+
+  const rateText = rate ? `${rate.toFixed(2)}×` : null
+  const deltaText = (() => {
+    if (deltaPercent == null) return null
+    if (deltaPercent > 0) return inspector.fitSlowerPercent.replace('{value}', String(deltaPercent))
+    if (deltaPercent < 0) return inspector.fitFasterPercent.replace('{value}', String(-deltaPercent))
+    return null
+  })()
+
+  const chipText = (() => {
+    if (descriptor.showRate && rateText && deltaText) return `${rateText} · ${deltaText}`
+    if (descriptor.showRate && rateText) return rateText
+    if (descriptor.showDeltaPercent && deltaText) return deltaText
+    return descriptor.label
+  })()
+
+  return (
+    <div data-testid="clip-fit-meter" className="mt-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+          <Gauge size={11} />
+          {inspector.fitTitle}
+        </div>
+        <div
+          data-testid="clip-fit-meter-chip"
+          className={`flex items-center gap-1.5 rounded-md border px-1.5 py-0.5 text-[10px] font-semibold ${tone.chip}`}
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${tone.dot}`} />
+          <span>{descriptor.label}</span>
+          {(descriptor.showRate || descriptor.showDeltaPercent) && chipText !== descriptor.label && (
+            <span className="font-mono text-[10px] tabular-nums">· {chipText}</span>
+          )}
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        {generated != null && (
+          <div data-testid="clip-fit-meter-natural" className="flex items-center gap-2 text-[11px] text-slate-500">
+            <span className="w-14 shrink-0">{inspector.fitNatural}</span>
+            <div className="relative h-1.5 flex-1 rounded-full bg-slate-100">
+              <div
+                className="absolute inset-y-0 left-0 rounded-full bg-slate-400"
+                style={{ width: `${widthPct(generated)}%` }}
+              />
+            </div>
+            <span className="w-12 shrink-0 text-right font-mono text-[10px] tabular-nums text-slate-600">
+              {generated.toFixed(2)}s
+            </span>
+          </div>
+        )}
+        {fitted != null && (
+          <div data-testid="clip-fit-meter-fitted" className="flex items-center gap-2 text-[11px] text-slate-500">
+            <span className="w-14 shrink-0">{inspector.fitFitted}</span>
+            <div className="relative h-1.5 flex-1 rounded-full bg-slate-100">
+              <div
+                className={`absolute inset-y-0 left-0 rounded-full ${tone.bar}`}
+                style={{ width: `${widthPct(fitted)}%` }}
+              />
+            </div>
+            <span className="w-12 shrink-0 text-right font-mono text-[10px] tabular-nums text-slate-700">
+              {fitted.toFixed(2)}s
+            </span>
+          </div>
+        )}
+        {slot != null && (
+          <div data-testid="clip-fit-meter-slot" className="flex items-center gap-2 text-[11px] text-slate-400">
+            <span className="w-14 shrink-0">{inspector.fitSlot}</span>
+            <div className="relative h-1 flex-1 rounded-full bg-slate-100">
+              <div
+                className="absolute inset-y-0 left-0 rounded-full bg-slate-300"
+                style={{ width: `${widthPct(slot)}%` }}
+              />
+            </div>
+            <span className="w-12 shrink-0 text-right font-mono text-[10px] tabular-nums text-slate-500">
+              {slot.toFixed(2)}s
+            </span>
+          </div>
+        )}
+      </div>
+
+      <p className="mt-2 text-[11px] leading-4 text-slate-500">{descriptor.hint}</p>
     </div>
   )
 }
@@ -1816,7 +2256,7 @@ function SegmentInspector({
   onApprove: (unitId: string) => void
   onNeedsReview: (unitId: string) => void
   onSaveText: (unitId: string, targetText: string) => Promise<void>
-  onResynthesize: (unitId: string, targetText?: string) => void
+  onResynthesize: (unitId: string, targetText?: string, options?: { speed?: number }) => void
   isSynthesizing: boolean
   synthesizedAt: string | null
 }) {
@@ -1824,6 +2264,8 @@ function SegmentInspector({
   const [editingText, setEditingText] = useState(unit.target_text)
   const [isDirty, setIsDirty] = useState(false)
   const [showBacktranslate, setShowBacktranslate] = useState(false)
+  const [copiedSource, setCopiedSource] = useState(false)
+  const [synthSpeed, setSynthSpeed] = useState<number>(1)
 
   const char = project.characters.find(c => c.character_id === unit.character_id)
   const clip = unit.current_clip
@@ -1880,8 +2322,12 @@ function SegmentInspector({
         // materialized state, but inline ``draft`` below still wins.
       }
     }
-    onResynthesize(unit.unit_id, isDirty ? draft : undefined)
-  }, [isDirty, editingText, unit.unit_id, onSaveText, onResynthesize])
+    onResynthesize(
+      unit.unit_id,
+      isDirty ? draft : undefined,
+      synthSpeed !== 1 ? { speed: synthSpeed } : undefined,
+    )
+  }, [isDirty, editingText, unit.unit_id, onSaveText, onResynthesize, synthSpeed])
 
   const clipFileName = clip.audio_artifact_path?.split('/').pop()
   const clipPreviewSrc = clip.audio_artifact_path
@@ -1891,6 +2337,20 @@ function SegmentInspector({
   const durationRatio = qualitySegment?.duration_ratio ?? 1
   const intelligibility = qualitySegment?.intelligibility ?? 0.8
   const qualityVerdict = computeQualityVerdict(speakerSimilarity, durationRatio, intelligibility).verdict
+
+  const sourceText = unit.source_text?.trim() ?? ''
+  const handleCopySource = useCallback(async () => {
+    if (!sourceText) return
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(sourceText)
+      }
+      setCopiedSource(true)
+      window.setTimeout(() => setCopiedSource(false), 1500)
+    } catch {
+      /* clipboard unavailable; silently ignore */
+    }
+  }, [sourceText])
 
   return (
     <div className="space-y-0">
@@ -1909,6 +2369,37 @@ function SegmentInspector({
           <UnitStatusBadge status={unit.status} />
         </div>
       </div>
+
+      {/* Read-only source text — gives reviewers an always-on reference for the original line. */}
+      {sourceText && (
+        <InspectorSection
+          title={t.dubbingEditor.inspector.sourceText}
+          icon={<BookOpen size={11} />}
+          action={
+            <button
+              type="button"
+              onClick={handleCopySource}
+              aria-label={t.dubbingEditor.inspector.sourceTextCopy}
+              title={t.dubbingEditor.inspector.sourceTextCopy}
+              data-testid="inspector-source-text-copy"
+              className={`rounded-md px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
+                copiedSource
+                  ? 'text-emerald-600 hover:bg-emerald-50'
+                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+              }`}
+            >
+              {copiedSource ? t.dubbingEditor.inspector.sourceTextCopied : t.dubbingEditor.inspector.sourceTextCopy}
+            </button>
+          }
+        >
+          <div
+            data-testid="inspector-source-text"
+            className="max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm leading-5 text-slate-700"
+          >
+            {sourceText}
+          </div>
+        </InspectorSection>
+      )}
 
       {/* Editable target text */}
       <InspectorSection
@@ -2004,6 +2495,13 @@ function SegmentInspector({
             </InlineCollapsible>
           )
         })()}
+
+        <ClipFitMeter
+          fitStrategy={clip.fit_strategy}
+          generatedDuration={clip.generated_duration ?? null}
+          fittedDuration={clip.duration ?? null}
+          sourceDuration={clip.source_duration ?? unit.duration ?? null}
+        />
 
         {/* Per-unit clip preview player — listen to *this* segment after re-synthesis */}
         <div data-testid="clip-preview-card" className="mt-2.5">
@@ -2128,6 +2626,46 @@ function SegmentInspector({
         </div>
 
         {/* P1: Re-synthesis button — primary repair action */}
+        <div
+          data-testid="resynth-speed-control"
+          role="radiogroup"
+          aria-label={t.dubbingEditor.inspector.synthSpeedLabel}
+          className="mt-2 flex items-center justify-between gap-2 rounded-md bg-slate-50 px-2 py-1.5"
+        >
+          <span className="text-[10px] font-medium uppercase tracking-widest text-slate-500">
+            {t.dubbingEditor.inspector.synthSpeedLabel}
+          </span>
+          <div className="flex items-center gap-0.5">
+            {[0.85, 0.95, 1, 1.1, 1.2].map(level => {
+              const active = synthSpeed === level
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  data-testid={`resynth-speed-${level}`}
+                  onClick={() => setSynthSpeed(level)}
+                  className={`h-5 rounded px-1.5 font-mono text-[10px] tabular-nums transition-colors ${
+                    active
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'text-slate-500 hover:bg-white hover:text-slate-700'
+                  }`}
+                  title={`${level.toFixed(2)}×`}
+                >
+                  {level === 1 ? '1×' : `${level}×`}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        {synthSpeed !== 1 && (
+          <p className="mt-1 text-[10px] leading-tight text-slate-500">
+            {synthSpeed > 1
+              ? t.dubbingEditor.inspector.synthSpeedFasterHint
+              : t.dubbingEditor.inspector.synthSpeedSlowerHint}
+          </p>
+        )}
         <button
           type="button"
           data-testid="resynthesize-btn"
@@ -2140,7 +2678,10 @@ function SegmentInspector({
           ) : (
             <RotateCcw size={12} className="shrink-0" strokeWidth={2.5} />
           )}
-          <span className="truncate">{t.dubbingEditor.inspector.resynthesize}</span>
+          <span className="truncate">
+            {t.dubbingEditor.inspector.resynthesize}
+            {synthSpeed !== 1 ? ` · ${synthSpeed}×` : ''}
+          </span>
         </button>
       </div>
 
@@ -2704,6 +3245,15 @@ function EditMonitorPane({
   const [duration, setDuration] = useState(0)
   const [subtitlePos, setSubtitlePos] = useState<{ x: number; y: number } | null>(null)
   const [isDraggingSubtitle, setIsDraggingSubtitle] = useState(false)
+  const [playbackRate] = usePlaybackRate()
+
+  // Keep every monitor media element synced with the global preview rate.
+  useEffect(() => {
+    applyPlaybackRate(videoRef.current, playbackRate)
+    applyPlaybackRate(monitorAudioRef.current, playbackRate)
+    applyPlaybackRate(rangeAudioRef.current, playbackRate)
+    applyPlaybackRate(clipAudioRef.current, playbackRate)
+  }, [playbackRate, clipAudioRef, videoRef])
 
   const videoSrc = `/api/tasks/${taskId}/dubbing-editor/video-preview`
   const activeUnit = selectedUnit ?? project.units.find(u => u.start <= playheadSec && u.end > playheadSec) ?? null
@@ -3179,6 +3729,11 @@ function PreviewPane({
   const [audioTrack, setAudioTrack] = useState<'original' | 'dub'>('dub')
   const [duration, setDuration] = useState(0)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [playbackRate] = usePlaybackRate()
+
+  useEffect(() => {
+    applyPlaybackRate(videoRef.current, playbackRate)
+  }, [playbackRate])
 
   // Video URL from project — served by backend streaming endpoint
   const videoSrc = `/api/tasks/${taskId}/dubbing-editor/video-preview`
@@ -3670,11 +4225,11 @@ export function DubbingEditorPage() {
 
   // P1: re-synthesis
   const handleResynthesize = useCallback(
-    async (unitId: string, targetText?: string) => {
+    async (unitId: string, targetText?: string, options?: { speed?: number }) => {
       if (!taskId) return
       setIsSynthesizing(true)
       try {
-        const result = await dubbingEditorApi.synthesizeUnit(taskId, unitId, targetText)
+        const result = await dubbingEditorApi.synthesizeUnit(taskId, unitId, targetText, options)
         // Always bump the token so the audio element re-mounts even if the
         // backend doesn't yet supply a synthesized_at timestamp.
         const token = result.synthesized_at ?? new Date().toISOString()

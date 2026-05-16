@@ -19,6 +19,8 @@ export interface DubbingEditorClip {
   audio_path: string | null
   audio_artifact_path: string | null
   duration: number | null
+  generated_duration?: number | null
+  source_duration?: number | null
   backend: string
   mix_status: string
   fit_strategy: string
@@ -205,11 +207,13 @@ export const dubbingEditorApi = {
     taskId: string,
     unitId: string,
     targetText?: string,
+    options?: { speed?: number },
   ): Promise<SynthesizeUnitResult> =>
     apiClient
       .post(`/api/tasks/${taskId}/dubbing-editor/synthesize-unit`, {
         unit_id: unitId,
         ...(targetText !== undefined ? { target_text: targetText } : {}),
+        ...(options?.speed !== undefined ? { speed: options.speed } : {}),
       })
       .then(r => r.data),
 

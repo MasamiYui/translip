@@ -483,6 +483,12 @@ def _build_units(
                     or slot.get("duration")
                     or slot.get("generated_duration_sec")
                 ),
+                "generated_duration": slot.get("generated_duration_sec"),
+                "source_duration": (
+                    slot.get("source_duration_sec")
+                    or seg.get("duration")
+                    or (seg.get("end", 0) - seg.get("start", 0))
+                ),
                 "backend": slot.get("backend", ""),
                 "mix_status": slot.get("mix_status") or ("placed" if audio_path else "missing"),
                 "fit_strategy": slot.get("fit_strategy", ""),
@@ -579,6 +585,7 @@ def _resynthesize_segment_to_disk(
     speaker_id: str,
     target_text: str,
     duration_budget_sec: float | None,
+    speed: float | None = None,
 ) -> tuple[Path | None, str | None]:
     """Run the TTS backend for a single segment and overwrite the task-d wav.
 
@@ -685,15 +692,38 @@ def _resynthesize_segment_to_disk(
     )
 
     source_duration = float(seg_record.get("source_duration_sec") or 0.0)
+
+    # Speed → modify duration_budget. Speed > 1 means "speak faster", which
+    # translates to a *shorter* target window for the TTS engine. We clamp to
+    # the [0.5, 2.0] range so an ill-chosen value cannot produce nonsensical
+    # budgets, and keep ``speed_hint`` in metadata so backends that cannot
+    # honour duration (e.g. moss-tts-nano-onnx CLI) at least see the intent.
+    speed_factor: float | None = None
+    if speed is not None:
+        try:
+            candidate = float(speed)
+        except (TypeError, ValueError):
+            candidate = 1.0
+        if candidate > 0:
+            speed_factor = max(0.5, min(2.0, candidate))
+
+    effective_budget = duration_budget_sec
+    if speed_factor and speed_factor != 1.0 and effective_budget and effective_budget > 0:
+        effective_budget = effective_budget / speed_factor
+
+    metadata: dict[str, Any] = {"trigger": "dubbing_editor_synthesize_unit"}
+    if speed_factor is not None and speed_factor != 1.0:
+        metadata["speed_hint"] = speed_factor
+
     segment_input = _SynthSegmentInput(
         segment_id=unit_id,
         speaker_id=speaker_id,
         target_lang=target_lang,
         target_text=target_text.strip(),
         source_duration_sec=source_duration,
-        duration_budget_sec=duration_budget_sec,
+        duration_budget_sec=effective_budget,
         qa_flags=[],
-        metadata={"trigger": "dubbing_editor_synthesize_unit"},
+        metadata=metadata,
     )
 
     final_audio_path = speaker_dir / "segments" / f"{unit_id}.wav"
@@ -1446,6 +1476,12 @@ class SynthesizeUnitRequest(BaseModel):
     # makes "click resynth" implicitly auto-save the draft -- no race against
     # the operations mutation.
     target_text: str | None = None
+    # Optional per-segment speed hint, e.g. 0.85x ~ 1.20x. The route maps this
+    # to a corrected ``duration_budget_sec = source / speed`` so duration-aware
+    # backends (Qwen) speed up or slow down naturally without resorting to
+    # post-hoc time stretching, while pure CLI backends still receive
+    # ``metadata.speed_hint`` for diagnostics.
+    speed: float | None = Field(default=None, ge=0.5, le=2.0)
 
 
 @router.post("/{task_id}/dubbing-editor/synthesize-unit")
@@ -1540,6 +1576,7 @@ def synthesize_unit(
             speaker_id=speaker_id,
             target_text=target_text,
             duration_budget_sec=duration_budget_sec,
+            speed=body.speed,
         )
 
         if synthesized_path is not None:
