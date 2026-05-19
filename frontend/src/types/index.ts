@@ -299,6 +299,51 @@ export interface CacheCleanupResult {
   details: CacheCleanupDetail[]
 }
 
+export type ModelDownloadEntryState = 'pending' | 'running' | 'succeeded' | 'failed' | 'skipped'
+export type ModelDownloadJobState =
+  | 'pending'
+  | 'running'
+  | 'succeeded'
+  | 'partial'
+  | 'failed'
+  | 'cancelled'
+
+export interface ModelDownloadEntry {
+  key: string
+  label: string
+  state: ModelDownloadEntryState
+  error: string | null
+  started_at: number | null
+  finished_at: number | null
+}
+
+export interface ModelDownloadJob {
+  job_id: string
+  state: ModelDownloadJobState
+  status: ModelDownloadJobState
+  current_key: string | null
+  error: string | null
+  started_at: number | null
+  finished_at: number | null
+  items: ModelDownloadEntry[]
+  summary: {
+    total: number
+    succeeded: number
+    failed: number
+    skipped: number
+  }
+}
+
+export interface MissingModelInfo {
+  key: string
+  label: string
+  auto_downloadable: boolean
+}
+
+export interface MissingModelsResponse {
+  items: MissingModelInfo[]
+}
+
 export interface Artifact {
   path: string
   size_bytes: number

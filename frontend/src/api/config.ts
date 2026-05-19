@@ -4,6 +4,8 @@ import type {
   CacheCleanupResult,
   CacheMigrateTask,
   ConfigPreset,
+  MissingModelsResponse,
+  ModelDownloadJob,
   SystemInfo,
 } from '../types'
 
@@ -20,6 +22,21 @@ export const systemApi = {
   getInfo: () => api.get<SystemInfo>('/api/system/info').then(r => r.data),
   probe: (path: string) =>
     api.get('/api/system/probe', { params: { path } }).then(r => r.data),
+}
+
+export const modelsApi = {
+  listMissing: () =>
+    api.get<MissingModelsResponse>('/api/system/models/missing').then(r => r.data),
+  downloadMissing: (keys?: string[]) =>
+    api
+      .post<ModelDownloadJob>('/api/system/models/download-missing', keys ? { keys } : {})
+      .then(r => r.data),
+  getJob: (jobId: string) =>
+    api.get<ModelDownloadJob>(`/api/system/models/download/${jobId}`).then(r => r.data),
+  cancelJob: (jobId: string) =>
+    api
+      .post<{ ok: boolean }>(`/api/system/models/download/${jobId}/cancel`)
+      .then(r => r.data),
 }
 
 export const cacheApi = {

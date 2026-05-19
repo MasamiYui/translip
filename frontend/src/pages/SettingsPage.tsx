@@ -1,15 +1,25 @@
-import { useState } from 'react'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { systemApi } from '../api/config'
+import { useEffect, useState } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { modelsApi, systemApi } from '../api/config'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { CacheSection } from '../components/settings/CacheSection'
 import { formatBytes } from '../lib/utils'
-import { CheckCircle, XCircle, Save, Lock } from 'lucide-react'
+import {
+  CheckCircle,
+  XCircle,
+  Save,
+  Lock,
+  Download,
+  Loader2,
+  AlertTriangle,
+} from 'lucide-react'
 import { useI18n } from '../i18n/useI18n'
 import { worksApi } from '../api/works'
+import type { ModelDownloadEntry } from '../types'
 
 export function SettingsPage() {
   const { t } = useI18n()
+  const queryClient = useQueryClient()
   const { data: sysInfo, isLoading } = useQuery({
     queryKey: ['system-info'],
     queryFn: systemApi.getInfo,
@@ -39,6 +49,63 @@ export function SettingsPage() {
   const handleSave = () => {
     saveMutation.mutate()
   }
+
+  // ---------- Model download state ----------
+  const [downloadJobId, setDownloadJobId] = useState<string | null>(null)
+  const [startError, setStartError] = useState<string | null>(null)
+
+  const missingModelCount =
+    sysInfo?.models.filter(m => m.status !== 'available').length ?? 0
+
+  const downloadMutation = useMutation({
+    mutationFn: () => modelsApi.downloadMissing(),
+    onSuccess: job => {
+      setStartError(null)
+      setDownloadJobId(job.job_id)
+      if (job.state === 'succeeded' || job.state === 'failed' || job.state === 'partial') {
+        queryClient.invalidateQueries({ queryKey: ['system-info'] })
+      }
+    },
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { detail?: string } }; message?: string })?.response?.data?.detail ||
+        (err as { message?: string })?.message ||
+        'unknown_error'
+      setStartError(msg)
+    },
+  })
+
+  const jobQuery = useQuery({
+    queryKey: ['model-download', downloadJobId],
+    queryFn: () => modelsApi.getJob(downloadJobId as string),
+    enabled: !!downloadJobId,
+    refetchInterval: query => {
+      const data = query.state.data
+      if (!data) return 1500
+      const finished = ['succeeded', 'failed', 'partial', 'cancelled']
+      return finished.includes(data.state) ? false : 1500
+    },
+  })
+
+  const cancelMutation = useMutation({
+    mutationFn: (jobId: string) => modelsApi.cancelJob(jobId),
+  })
+
+  const job = jobQuery.data
+  const jobIsRunning = !!job && (job.state === 'pending' || job.state === 'running')
+
+  // When the job finishes, refresh system info so "not downloaded" turns green.
+  useEffect(() => {
+    if (!job) return
+    if (
+      job.state === 'succeeded' ||
+      job.state === 'partial' ||
+      job.state === 'failed' ||
+      job.state === 'cancelled'
+    ) {
+      queryClient.invalidateQueries({ queryKey: ['system-info'] })
+    }
+  }, [job?.state, queryClient])
 
   return (
     <PageContainer className={APP_CONTENT_MAX_WIDTH}>
@@ -151,26 +218,81 @@ export function SettingsPage() {
         {/* Model status */}
         {sysInfo && (
           <div className="border-b border-slate-100 px-6 py-5">
-            <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">{t.settings.modelStatus}</h2>
-            <div className="divide-y divide-slate-100">
-              {sysInfo.models.map(m => (
-                <div key={m.name} className="flex items-center justify-between py-2.5">
-                  <span className="text-sm text-slate-700">{m.name}</span>
-                  <div className="flex items-center gap-1.5 text-sm">
-                    {m.status === 'available' ? (
-                      <>
-                        <CheckCircle size={14} className="text-emerald-500" />
-                        <span className="text-emerald-700">{t.settings.models.downloaded}</span>
-                      </>
-                    ) : (
-                      <>
-                        <XCircle size={14} className="text-slate-400" />
-                        <span className="text-slate-400">{t.settings.models.missing}</span>
-                      </>
-                    )}
-                  </div>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">{t.settings.modelStatus}</h2>
+              {missingModelCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => downloadMutation.mutate()}
+                  disabled={downloadMutation.isPending || jobIsRunning}
+                  className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {downloadMutation.isPending || jobIsRunning ? (
+                    <>
+                      <Loader2 size={14} className="animate-spin" />
+                      <span>{t.settings.models.downloading}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download size={14} />
+                      <span>{t.settings.models.downloadAllMissing} ({missingModelCount})</span>
+                    </>
+                  )}
+                </button>
+              ) : (
+                <span className="flex items-center gap-1.5 text-xs text-emerald-600">
+                  <CheckCircle size={14} />
+                  {t.settings.models.allDownloaded}
+                </span>
+              )}
+            </div>
+
+            {startError && (
+              <div className="mb-3 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                <div>
+                  <div className="font-medium">{t.settings.models.downloadStartFailed}</div>
+                  <div className="break-all">{startError}</div>
                 </div>
-              ))}
+              </div>
+            )}
+
+            {job && (
+              <ModelDownloadJobBanner
+                job={job}
+                jobIsRunning={jobIsRunning}
+                onCancel={() => cancelMutation.mutate(job.job_id)}
+                onRetry={() => downloadMutation.mutate()}
+                cancelling={cancelMutation.isPending}
+                t={t}
+              />
+            )}
+
+            <div className="divide-y divide-slate-100">
+              {sysInfo.models.map(m => {
+                const itemKey = m.name
+                const liveEntry: ModelDownloadEntry | undefined = job?.items.find(it => it.label === m.name)
+                return (
+                  <div key={itemKey} className="flex items-center justify-between py-2.5">
+                    <span className="text-sm text-slate-700">{m.name}</span>
+                    <div className="flex items-center gap-1.5 text-sm">
+                      {liveEntry ? (
+                        <ModelDownloadEntryStatus entry={liveEntry} t={t} />
+                      ) : m.status === 'available' ? (
+                        <>
+                          <CheckCircle size={14} className="text-emerald-500" />
+                          <span className="text-emerald-700">{t.settings.models.downloaded}</span>
+                        </>
+                      ) : (
+                        <>
+                          <XCircle size={14} className="text-slate-400" />
+                          <span className="text-slate-400">{t.settings.models.missing}</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}
@@ -194,5 +316,151 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
       <span className="w-24 shrink-0 text-slate-400">{label}</span>
       <span className={`text-slate-700 ${mono ? 'font-mono text-xs' : ''}`}>{value}</span>
     </div>
+  )
+}
+
+type I18nT = ReturnType<typeof useI18n>['t']
+
+function ModelDownloadJobBanner({
+  job,
+  jobIsRunning,
+  onCancel,
+  onRetry,
+  cancelling,
+  t,
+}: {
+  job: import('../types').ModelDownloadJob
+  jobIsRunning: boolean
+  onCancel: () => void
+  onRetry: () => void
+  cancelling: boolean
+  t: I18nT
+}) {
+  const summary = job.summary
+  if (job.state === 'succeeded') {
+    return (
+      <div className="mb-3 flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+        <CheckCircle size={14} />
+        <span>{t.settings.models.downloadDone} ({summary.succeeded}/{summary.total})</span>
+      </div>
+    )
+  }
+  if (job.state === 'partial') {
+    return (
+      <div className="mb-3 flex items-start justify-between gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+        <div className="flex items-start gap-2">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>
+            {t.settings.models.downloadPartial} ({summary.succeeded}/{summary.total})
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded border border-amber-300 px-2 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100"
+        >
+          {t.settings.models.retry}
+        </button>
+      </div>
+    )
+  }
+  if (job.state === 'failed') {
+    return (
+      <div className="mb-3 flex items-start justify-between gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+        <div className="flex items-start gap-2">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <span>{t.settings.models.downloadFailed}</span>
+        </div>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded border border-rose-300 px-2 py-0.5 text-[11px] font-medium text-rose-800 hover:bg-rose-100"
+        >
+          {t.settings.models.retry}
+        </button>
+      </div>
+    )
+  }
+  if (job.state === 'cancelled') {
+    return (
+      <div className="mb-3 flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+        <XCircle size={14} />
+        <span>{t.settings.models.cancel}</span>
+      </div>
+    )
+  }
+  // pending / running
+  const currentEntry = job.items.find(it => it.key === job.current_key)
+  return (
+    <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+      <div className="flex items-center gap-2">
+        <Loader2 size={14} className="animate-spin" />
+        <span>
+          {currentEntry
+            ? t.settings.models.downloadingCurrent(currentEntry.label)
+            : t.settings.models.downloading}{' '}
+          ({summary.succeeded}/{summary.total})
+        </span>
+      </div>
+      {jobIsRunning && (
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={cancelling}
+          className="rounded border border-blue-300 px-2 py-0.5 text-[11px] font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-60"
+        >
+          {cancelling ? t.settings.models.cancelling : t.settings.models.cancel}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function ModelDownloadEntryStatus({
+  entry,
+  t,
+}: {
+  entry: ModelDownloadEntry
+  t: I18nT
+}) {
+  if (entry.state === 'running') {
+    return (
+      <>
+        <Loader2 size={14} className="animate-spin text-blue-500" />
+        <span className="text-blue-700">{t.settings.models.itemRunning}</span>
+      </>
+    )
+  }
+  if (entry.state === 'succeeded') {
+    return (
+      <>
+        <CheckCircle size={14} className="text-emerald-500" />
+        <span className="text-emerald-700">{t.settings.models.itemSucceeded}</span>
+      </>
+    )
+  }
+  if (entry.state === 'failed') {
+    return (
+      <>
+        <AlertTriangle size={14} className="text-rose-500" />
+        <span className="text-rose-700" title={entry.error ?? undefined}>
+          {t.settings.models.itemFailed}
+        </span>
+      </>
+    )
+  }
+  if (entry.state === 'skipped') {
+    return (
+      <>
+        <XCircle size={14} className="text-slate-400" />
+        <span className="text-slate-500">{t.settings.models.itemSkipped}</span>
+      </>
+    )
+  }
+  return (
+    <>
+      <Loader2 size={14} className="text-slate-400" />
+      <span className="text-slate-500">{t.settings.models.itemPending}</span>
+    </>
   )
 }

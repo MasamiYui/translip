@@ -49,6 +49,10 @@ class CleanupRequest(BaseModel):
     keys: list[str]
 
 
+class ModelDownloadRequest(BaseModel):
+    keys: list[str] | None = None
+
+
 # ---------------------------------------------------------------------------
 # Generic system info
 # ---------------------------------------------------------------------------
@@ -181,6 +185,54 @@ def cancel_cache_migration(task_id: str):
     ok = cache_manager.migration_manager.cancel(task_id)
     if not ok:
         raise HTTPException(status_code=404, detail="task_not_cancellable")
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# Model download
+# ---------------------------------------------------------------------------
+
+
+@router.get("/models/missing")
+def list_missing_models():
+    """List model registry keys whose weights are not yet present locally."""
+    keys = cache_manager.list_missing_model_keys()
+    items = []
+    for key in keys:
+        group = cache_manager.find_group(key)
+        items.append(
+            {
+                "key": key,
+                "label": group.label if group else key,
+                "auto_downloadable": key in cache_manager._MODEL_HF_REPOS,
+            }
+        )
+    return {"items": items}
+
+
+@router.post("/models/download-missing")
+def start_model_download(body: ModelDownloadRequest | None = None):
+    only = body.keys if body else None
+    try:
+        job = cache_manager.model_download_manager.start_missing(only_keys=only)
+    except cache_manager.ModelDownloadError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return job.to_dict()
+
+
+@router.get("/models/download/{job_id}")
+def get_model_download(job_id: str):
+    job = cache_manager.model_download_manager.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="job_not_found")
+    return job.to_dict()
+
+
+@router.post("/models/download/{job_id}/cancel")
+def cancel_model_download(job_id: str):
+    ok = cache_manager.model_download_manager.cancel(job_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="job_not_cancellable")
     return {"ok": True}
 
 

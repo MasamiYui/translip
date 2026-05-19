@@ -760,6 +760,293 @@ class MigrationManager:
 migration_manager = MigrationManager()
 
 
+# ---------------------------------------------------------------------------
+# Model download (HuggingFace snapshot) tasks
+# ---------------------------------------------------------------------------
+
+
+# Map registry keys -> list of HF repo_ids that should be snapshot-downloaded.
+# Models that cannot be auto-downloaded (e.g. CDX23 weights distributed
+# manually) are intentionally absent from this map.
+_MODEL_HF_REPOS: dict[str, list[str]] = {
+    "faster_whisper_small": ["Systran/faster-whisper-small"],
+    "speechbrain_ecapa": ["speechbrain/spkrec-ecapa-voxceleb"],
+    "m2m100_418m": ["facebook/m2m100_418M"],
+    "moss_tts_nano_onnx": [
+        "OpenMOSS-Team/MOSS-TTS-Nano-100M-ONNX",
+        "OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX",
+    ],
+    "qwen3tts": ["Qwen/Qwen3-TTS-Flash"],
+}
+
+
+def list_missing_model_keys(
+    *,
+    cache_root: Path | None = None,
+    huggingface_cache_root: Path | None = None,
+) -> list[str]:
+    """Return registry keys for model groups whose weights are not yet present."""
+    cache_root = cache_root or resolve_active_cache_root()
+    hf_root = huggingface_cache_root or _huggingface_cache_root()
+
+    def _has_cdx23(paths: list[Path]) -> bool:
+        for p in paths:
+            if p.is_file() and p.suffix == ".th":
+                return True
+            if p.is_dir() and any(p.glob("*.th")):
+                return True
+        return False
+
+    missing: list[str] = []
+    for group in CACHE_REGISTRY:
+        if group.group != "model":
+            continue
+        paths = _resolve_group_paths(group, cache_root, hf_root)
+        if group.key == "cdx23":
+            present = _has_cdx23(paths)
+        else:
+            present = any(p.exists() for p in paths)
+        if not present:
+            missing.append(group.key)
+    return missing
+
+
+@dataclass
+class ModelDownloadEntry:
+    key: str
+    label: str
+    state: str = "pending"  # pending | running | succeeded | failed | skipped
+    error: str | None = None
+    started_at: float | None = None
+    finished_at: float | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "key": self.key,
+            "label": self.label,
+            "state": self.state,
+            "error": self.error,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+        }
+
+
+@dataclass
+class ModelDownloadJob:
+    job_id: str
+    keys: list[str]
+    items: dict[str, ModelDownloadEntry] = field(default_factory=dict)
+    state: str = "pending"  # pending | running | succeeded | partial | failed | cancelled
+    started_at: float | None = None
+    finished_at: float | None = None
+    current_key: str | None = None
+    error: str | None = None
+    cancel_event: threading.Event = field(default_factory=threading.Event)
+    thread: threading.Thread | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        items = [self.items[k].to_dict() for k in self.keys if k in self.items]
+        succeeded = sum(1 for it in items if it["state"] == "succeeded")
+        failed = sum(1 for it in items if it["state"] == "failed")
+        skipped = sum(1 for it in items if it["state"] == "skipped")
+        total = len(items)
+        return {
+            "job_id": self.job_id,
+            "state": self.state,
+            "status": self.state,
+            "current_key": self.current_key,
+            "error": self.error,
+            "started_at": self.started_at,
+            "finished_at": self.finished_at,
+            "items": items,
+            "summary": {
+                "total": total,
+                "succeeded": succeeded,
+                "failed": failed,
+                "skipped": skipped,
+            },
+        }
+
+
+class ModelDownloadError(RuntimeError):
+    pass
+
+
+class ModelDownloadManager:
+    """Manage background HuggingFace snapshot downloads for missing models."""
+
+    _JOB_HISTORY_LIMIT = 8
+
+    def __init__(self) -> None:
+        self._jobs: dict[str, ModelDownloadJob] = {}
+        self._lock = threading.Lock()
+        self._active_job_id: str | None = None
+
+    def reset(self) -> None:
+        with self._lock:
+            self._jobs.clear()
+            self._active_job_id = None
+
+    def get(self, job_id: str) -> ModelDownloadJob | None:
+        with self._lock:
+            return self._jobs.get(job_id)
+
+    def list_jobs(self) -> list[ModelDownloadJob]:
+        with self._lock:
+            return list(self._jobs.values())
+
+    def cancel(self, job_id: str) -> bool:
+        job = self.get(job_id)
+        if job is None:
+            return False
+        if job.state in {"succeeded", "partial", "failed", "cancelled"}:
+            return False
+        job.cancel_event.set()
+        return True
+
+    def start_missing(
+        self,
+        *,
+        run_in_thread: bool = True,
+        only_keys: list[str] | None = None,
+    ) -> ModelDownloadJob:
+        if only_keys:
+            requested = [k for k in only_keys if k in _MODEL_HF_REPOS]
+            unknown = [k for k in only_keys if k not in _MODEL_HF_REPOS]
+            if unknown:
+                raise ModelDownloadError(f"unsupported_keys:{','.join(unknown)}")
+            missing_keys = requested
+        else:
+            all_missing = list_missing_model_keys()
+            missing_keys = [k for k in all_missing if k in _MODEL_HF_REPOS]
+
+        with self._lock:
+            if self._active_job_id and self._jobs[self._active_job_id].state in {
+                "pending",
+                "running",
+            }:
+                raise ModelDownloadError("another_job_running")
+            self._gc_finished_jobs_locked()
+
+        job = ModelDownloadJob(job_id=uuid.uuid4().hex, keys=list(missing_keys))
+        for key in missing_keys:
+            group = find_group(key)
+            label = group.label if group else key
+            job.items[key] = ModelDownloadEntry(key=key, label=label)
+        with self._lock:
+            self._jobs[job.job_id] = job
+            self._active_job_id = job.job_id
+        if not missing_keys:
+            job.state = "succeeded"
+            job.started_at = time.time()
+            job.finished_at = job.started_at
+            with self._lock:
+                self._active_job_id = None
+            return job
+        if run_in_thread:
+            t = threading.Thread(
+                target=self._run,
+                args=(job,),
+                name=f"model-download-{job.job_id}",
+                daemon=True,
+            )
+            job.thread = t
+            t.start()
+        else:
+            self._run(job)
+        return job
+
+    def _gc_finished_jobs_locked(self) -> None:
+        finished = [
+            (jid, j) for jid, j in self._jobs.items()
+            if j.state in {"succeeded", "partial", "failed", "cancelled"} and j.finished_at
+        ]
+        if len(finished) <= self._JOB_HISTORY_LIMIT:
+            return
+        finished.sort(key=lambda kv: kv[1].finished_at or 0.0)
+        to_drop = len(finished) - self._JOB_HISTORY_LIMIT
+        for jid, _ in finished[:to_drop]:
+            self._jobs.pop(jid, None)
+
+    def _run(self, job: ModelDownloadJob) -> None:
+        from huggingface_hub import snapshot_download
+        from huggingface_hub.utils import HfHubHTTPError
+
+        job.state = "running"
+        job.started_at = time.time()
+        cache_root = resolve_active_cache_root()
+        hf_root = _huggingface_cache_root()
+        ensure_directory(cache_root)
+        ensure_directory(hf_root)
+        try:
+            for key in job.keys:
+                if job.cancel_event.is_set():
+                    break
+                entry = job.items[key]
+                job.current_key = key
+                entry.state = "running"
+                entry.started_at = time.time()
+                repos = _MODEL_HF_REPOS.get(key, [])
+                if not repos:
+                    entry.state = "skipped"
+                    entry.error = "no_auto_download_source"
+                    entry.finished_at = time.time()
+                    continue
+                try:
+                    for repo_id in repos:
+                        if job.cancel_event.is_set():
+                            break
+                        snapshot_download(
+                            repo_id=repo_id,
+                            cache_dir=str(hf_root),
+                            local_files_only=False,
+                            resume_download=True,
+                        )
+                    if job.cancel_event.is_set():
+                        entry.state = "failed"
+                        entry.error = "cancelled"
+                    else:
+                        entry.state = "succeeded"
+                except HfHubHTTPError as exc:  # network / 4xx / 5xx
+                    entry.state = "failed"
+                    entry.error = f"hf_http_error:{exc}"[:500]
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.exception("Download failed for %s", key)
+                    entry.state = "failed"
+                    entry.error = repr(exc)[:500]
+                finally:
+                    entry.finished_at = time.time()
+            # Finalise overall state
+            if job.cancel_event.is_set():
+                job.state = "cancelled"
+            else:
+                states = {it.state for it in job.items.values()}
+                if states == {"succeeded"}:
+                    job.state = "succeeded"
+                elif "succeeded" in states and "failed" in states:
+                    job.state = "partial"
+                elif "succeeded" in states and "skipped" in states and "failed" not in states:
+                    job.state = "partial"
+                elif "succeeded" in states:
+                    job.state = "succeeded"
+                else:
+                    job.state = "failed"
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.exception("Download job %s failed", job.job_id)
+            job.state = "failed"
+            job.error = repr(exc)[:500]
+        finally:
+            job.finished_at = time.time()
+            job.current_key = None
+            with self._lock:
+                if self._active_job_id == job.job_id:
+                    self._active_job_id = None
+                self._gc_finished_jobs_locked()
+
+
+model_download_manager = ModelDownloadManager()
+
+
 __all__ = [
     "CachePathError",
     "CacheGroup",
@@ -767,6 +1054,9 @@ __all__ = [
     "MigrateTask",
     "MigrationError",
     "MigrationManager",
+    "ModelDownloadError",
+    "ModelDownloadJob",
+    "ModelDownloadManager",
     "apply_active_cache_root",
     "cleanup_group",
     "cleanup_groups",
@@ -776,7 +1066,9 @@ __all__ = [
     "dir_size",
     "find_group",
     "get_user_config_path",
+    "list_missing_model_keys",
     "migration_manager",
+    "model_download_manager",
     "read_user_setting",
     "reset_cache_dir_to_default",
     "resolve_active_cache_root",
