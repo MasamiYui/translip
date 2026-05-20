@@ -776,7 +776,13 @@ _MODEL_HF_REPOS: dict[str, list[str]] = {
         "OpenMOSS-Team/MOSS-TTS-Nano-100M-ONNX",
         "OpenMOSS-Team/MOSS-Audio-Tokenizer-Nano-ONNX",
     ],
-    "qwen3tts": ["Qwen/Qwen3-TTS-Flash"],
+    # NOTE: Qwen3-TTS-12Hz-0.6B-Base is publicly downloadable; the VoiceDesign
+    # variant is gated and requires `huggingface-cli login`, so it's NOT pulled
+    # automatically here to avoid spurious failures for users who only need the
+    # default voice-clone path.
+    "qwen3tts": [
+        "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+    ],
 }
 
 
