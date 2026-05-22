@@ -29,24 +29,57 @@ _DEFAULT_CONFIG = {
     "separation_quality": "balanced",
     "music_backend": "demucs",
     "dialogue_backend": "cdx23",
+    "stage1_output_format": "mp3",
+    "audio_stream_index": 0,
     "asr_model": "small",
+    "vad_filter": True,
+    "vad_min_silence_duration_ms": 400,
+    "beam_size": 5,
+    "best_of": 5,
+    "temperature": 0.0,
+    "condition_on_previous_text": False,
     "generate_srt": True,
     "top_k": 3,
     "translation_backend": "local-m2m100",
     "translation_batch_size": 4,
+    "siliconflow_base_url": None,
+    "siliconflow_model": None,
     "condense_mode": "off",
     "tts_backend": "moss-tts-nano-onnx",
     "dubbing_quality_check": "standard",
+    "dubbing_workers": None,
+    "dub_repair_enabled": False,
+    "dub_repair_backend": [],
+    "dub_repair_max_items": 12,
+    "dub_repair_attempts_per_item": 3,
+    "dub_repair_include_risk": False,
     "fit_policy": "conservative",
     "fit_backend": "atempo",
     "mix_profile": "preview",
     "ducking_mode": "static",
     "background_gain_db": -8.0,
+    "window_ducking_db": -3.0,
+    "max_compress_ratio": 1.45,
+    "output_sample_rate": 24000,
+    "preview_format": "wav",
     "export_preview": True,
     "export_dub": True,
     "delivery_container": "mp4",
     "delivery_video_codec": "copy",
     "delivery_audio_codec": "aac",
+    "subtitle_mode": "none",
+    "subtitle_render_source": "ocr",
+    "subtitle_font": None,
+    "subtitle_font_size": 0,
+    "subtitle_color": "#FFFFFF",
+    "subtitle_outline_color": "#000000",
+    "subtitle_outline_width": 2.0,
+    "subtitle_position": "bottom",
+    "subtitle_margin_v": 0,
+    "subtitle_bold": False,
+    "bilingual_chinese_position": "bottom",
+    "bilingual_english_position": "top",
+    "bilingual_export_strategy": "auto_standard_bilingual",
 }
 
 
@@ -69,9 +102,125 @@ def _save_config(config: dict[str, Any]) -> None:
     os.chmod(CONFIG_PATH, 0o600)
 
 
+def _load_global_config() -> dict[str, Any]:
+    config = _load_config()
+    saved_global = config.get("global", {})
+    if not isinstance(saved_global, dict):
+        saved_global = {}
+    return {**_DEFAULT_CONFIG, **saved_global}
+
+
 @router.get("/defaults")
 def get_defaults():
-    return _DEFAULT_CONFIG
+    return _load_global_config()
+
+
+class GlobalConfigRequest(BaseModel):
+    device: Optional[str] = None
+    use_cache: Optional[bool] = None
+    keep_intermediate: Optional[bool] = None
+    separation_mode: Optional[str] = None
+    separation_quality: Optional[str] = None
+    stage1_output_format: Optional[str] = None
+    audio_stream_index: Optional[int] = None
+    asr_model: Optional[str] = None
+    generate_srt: Optional[bool] = None
+    vad_filter: Optional[bool] = None
+    vad_min_silence_duration_ms: Optional[int] = None
+    beam_size: Optional[int] = None
+    best_of: Optional[int] = None
+    temperature: Optional[float] = None
+    condition_on_previous_text: Optional[bool] = None
+    top_k: Optional[int] = None
+    translation_backend: Optional[str] = None
+    translation_batch_size: Optional[int] = None
+    siliconflow_base_url: Optional[str] = None
+    siliconflow_model: Optional[str] = None
+    condense_mode: Optional[str] = None
+    tts_backend: Optional[str] = None
+    dubbing_quality_check: Optional[str] = None
+    dubbing_workers: Optional[int] = None
+    dub_repair_enabled: Optional[bool] = None
+    dub_repair_backend: Optional[list[str]] = None
+    dub_repair_max_items: Optional[int] = None
+    dub_repair_attempts_per_item: Optional[int] = None
+    dub_repair_include_risk: Optional[bool] = None
+    fit_policy: Optional[str] = None
+    fit_backend: Optional[str] = None
+    mix_profile: Optional[str] = None
+    ducking_mode: Optional[str] = None
+    background_gain_db: Optional[float] = None
+    window_ducking_db: Optional[float] = None
+    max_compress_ratio: Optional[float] = None
+    output_sample_rate: Optional[int] = None
+    preview_format: Optional[str] = None
+    export_preview: Optional[bool] = None
+    export_dub: Optional[bool] = None
+    delivery_container: Optional[str] = None
+    delivery_video_codec: Optional[str] = None
+    delivery_audio_codec: Optional[str] = None
+    subtitle_mode: Optional[str] = None
+    subtitle_render_source: Optional[str] = None
+    subtitle_font: Optional[str] = None
+    subtitle_font_size: Optional[int] = None
+    subtitle_color: Optional[str] = None
+    subtitle_outline_color: Optional[str] = None
+    subtitle_outline_width: Optional[float] = None
+    subtitle_position: Optional[str] = None
+    subtitle_margin_v: Optional[int] = None
+    subtitle_bold: Optional[bool] = None
+    bilingual_chinese_position: Optional[str] = None
+    bilingual_english_position: Optional[str] = None
+    bilingual_export_strategy: Optional[str] = None
+
+
+def _validate_global_update(update: dict[str, Any]) -> None:
+    for field in (
+        "vad_min_silence_duration_ms",
+        "beam_size",
+        "best_of",
+        "top_k",
+        "translation_batch_size",
+        "dubbing_workers",
+        "dub_repair_max_items",
+        "dub_repair_attempts_per_item",
+        "output_sample_rate",
+    ):
+        if field in update and update[field] is not None and int(update[field]) <= 0:
+            raise HTTPException(status_code=400, detail=f"{field} must be greater than 0")
+    for field in ("audio_stream_index", "subtitle_font_size", "subtitle_margin_v"):
+        if field in update and update[field] is not None and int(update[field]) < 0:
+            raise HTTPException(status_code=400, detail=f"{field} must be greater than or equal to 0")
+    if "max_compress_ratio" in update and update["max_compress_ratio"] is not None and float(update["max_compress_ratio"]) <= 0:
+        raise HTTPException(status_code=400, detail="max_compress_ratio must be greater than 0")
+    for field in ("subtitle_outline_width",):
+        if field in update and update[field] is not None and float(update[field]) < 0:
+            raise HTTPException(status_code=400, detail=f"{field} must be greater than or equal to 0")
+    if "temperature" in update and update["temperature"] is not None and float(update["temperature"]) < 0:
+        raise HTTPException(status_code=400, detail="temperature must be greater than or equal to 0")
+
+
+@router.get("/global")
+def get_global_config() -> dict[str, Any]:
+    return _load_global_config()
+
+
+@router.put("/global")
+def update_global_config(req: GlobalConfigRequest) -> dict[str, Any]:
+    update = req.model_dump(exclude_unset=True)
+    _validate_global_update(update)
+    config = _load_config()
+    saved_global = config.get("global", {})
+    if not isinstance(saved_global, dict):
+        saved_global = {}
+    for key, value in update.items():
+        if value is None:
+            saved_global.pop(key, None)
+        else:
+            saved_global[key] = value
+    config["global"] = saved_global
+    _save_config(config)
+    return {"ok": True, "config": _load_global_config()}
 
 
 @router.get("/tmdb")

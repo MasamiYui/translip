@@ -175,7 +175,7 @@ def build_stage1_command(request: PipelineRequest) -> list[str]:
 
 
 def build_task_a_command(request: PipelineRequest) -> list[str]:
-    return [
+    command = [
         *_cli_prefix(),
         "transcribe",
         "--input",
@@ -189,6 +189,27 @@ def build_task_a_command(request: PipelineRequest) -> list[str]:
         "--device",
         request.device,
     ]
+    if not request.generate_srt:
+        command.append("--no-srt")
+    command.append("--vad-filter" if request.vad_filter else "--no-vad-filter")
+    command.extend(
+        [
+            "--vad-min-silence-duration-ms",
+            str(request.vad_min_silence_duration_ms),
+            "--beam-size",
+            str(request.beam_size),
+            "--best-of",
+            str(request.best_of),
+            "--temperature",
+            str(request.temperature),
+        ]
+    )
+    command.append(
+        "--condition-on-previous-text"
+        if request.condition_on_previous_text
+        else "--no-condition-on-previous-text"
+    )
+    return command
 
 
 def build_task_b_command(request: PipelineRequest) -> list[str]:

@@ -115,6 +115,17 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser.add_argument("--audio-stream-index", type=int, default=0)
     transcribe_parser.add_argument("--keep-intermediate", action="store_true")
     transcribe_parser.add_argument("--no-srt", action="store_true")
+    transcribe_parser.add_argument("--vad-filter", dest="vad_filter", action=argparse.BooleanOptionalAction, default=True)
+    transcribe_parser.add_argument("--vad-min-silence-duration-ms", type=int, default=400)
+    transcribe_parser.add_argument("--beam-size", type=int, default=5)
+    transcribe_parser.add_argument("--best-of", type=int, default=5)
+    transcribe_parser.add_argument("--temperature", type=float, default=0.0)
+    transcribe_parser.add_argument(
+        "--condition-on-previous-text",
+        dest="condition_on_previous_text",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
 
     correction_parser = subparsers.add_parser(
         "correct-asr-with-ocr",
@@ -565,6 +576,18 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument("--stage1-output-format", default=None, choices=["wav", "mp3", "flac", "aac", "opus"])
     pipeline_parser.add_argument("--transcription-language", default=None)
     pipeline_parser.add_argument("--asr-model", default=None)
+    pipeline_parser.add_argument("--generate-srt", dest="generate_srt", action=argparse.BooleanOptionalAction, default=None)
+    pipeline_parser.add_argument("--vad-filter", dest="vad_filter", action=argparse.BooleanOptionalAction, default=None)
+    pipeline_parser.add_argument("--vad-min-silence-duration-ms", type=int, default=None)
+    pipeline_parser.add_argument("--beam-size", type=int, default=None)
+    pipeline_parser.add_argument("--best-of", type=int, default=None)
+    pipeline_parser.add_argument("--temperature", type=float, default=None)
+    pipeline_parser.add_argument(
+        "--condition-on-previous-text",
+        dest="condition_on_previous_text",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
     pipeline_parser.add_argument("--audio-stream-index", type=int, default=None)
     pipeline_parser.add_argument("--top-k", type=int, default=None)
     pipeline_parser.add_argument("--update-registry", dest="update_registry", action=argparse.BooleanOptionalAction, default=None)
@@ -705,6 +728,12 @@ def main(argv: list[str] | None = None) -> int:
             audio_stream_index=args.audio_stream_index,
             keep_intermediate=args.keep_intermediate,
             write_srt=not args.no_srt,
+            vad_filter=args.vad_filter,
+            vad_min_silence_duration_ms=args.vad_min_silence_duration_ms,
+            beam_size=args.beam_size,
+            best_of=args.best_of,
+            temperature=args.temperature,
+            condition_on_previous_text=args.condition_on_previous_text,
         )
         result = transcribe_file(request)
         print(f"segments={result.artifacts.segments_json_path}")

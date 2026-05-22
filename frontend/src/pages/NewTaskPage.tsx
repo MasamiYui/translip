@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Cpu, Loader2 } from 'lucide-react'
@@ -36,8 +36,16 @@ const defaultConfig: Partial<TaskConfig> = {
   separation_quality: 'balanced',
   music_backend: 'demucs',
   dialogue_backend: 'cdx23',
+  stage1_output_format: 'mp3',
+  audio_stream_index: 0,
   asr_model: 'small',
   generate_srt: true,
+  vad_filter: true,
+  vad_min_silence_duration_ms: 400,
+  beam_size: 5,
+  best_of: 5,
+  temperature: 0.0,
+  condition_on_previous_text: false,
   transcription_correction: {
     enabled: true,
     preset: 'standard',
@@ -50,11 +58,79 @@ const defaultConfig: Partial<TaskConfig> = {
   condense_mode: 'off',
   tts_backend: 'moss-tts-nano-onnx',
   dubbing_quality_check: 'standard',
+  dub_repair_enabled: false,
+  dub_repair_max_items: 12,
+  dub_repair_attempts_per_item: 3,
+  dub_repair_include_risk: false,
   fit_policy: 'conservative',
   fit_backend: 'atempo',
   mix_profile: 'preview',
   ducking_mode: 'static',
   background_gain_db: -8.0,
+  window_ducking_db: -3.0,
+  max_compress_ratio: 1.45,
+  output_sample_rate: 24000,
+  preview_format: 'wav',
+  subtitle_mode: 'none',
+  subtitle_render_source: 'ocr',
+}
+
+const globalDefaultKeys: Array<keyof TaskConfig> = [
+  'device',
+  'use_cache',
+  'keep_intermediate',
+  'separation_mode',
+  'separation_quality',
+  'stage1_output_format',
+  'audio_stream_index',
+  'asr_model',
+  'generate_srt',
+  'vad_filter',
+  'vad_min_silence_duration_ms',
+  'beam_size',
+  'best_of',
+  'temperature',
+  'condition_on_previous_text',
+  'top_k',
+  'translation_backend',
+  'translation_batch_size',
+  'siliconflow_base_url',
+  'siliconflow_model',
+  'condense_mode',
+  'tts_backend',
+  'dubbing_workers',
+  'dubbing_quality_check',
+  'dub_repair_enabled',
+  'dub_repair_backend',
+  'dub_repair_backends',
+  'dub_repair_max_items',
+  'dub_repair_attempts_per_item',
+  'dub_repair_include_risk',
+  'fit_policy',
+  'fit_backend',
+  'mix_profile',
+  'ducking_mode',
+  'background_gain_db',
+  'window_ducking_db',
+  'max_compress_ratio',
+  'output_sample_rate',
+  'preview_format',
+  'subtitle_mode',
+  'subtitle_render_source',
+]
+
+function applyGlobalDefaults(
+  current: Partial<TaskConfig>,
+  defaults: Partial<TaskConfig>,
+): Partial<TaskConfig> {
+  const next: Partial<TaskConfig> = { ...current }
+  for (const key of globalDefaultKeys) {
+    if (defaults[key] === undefined) continue
+    if (Object.is(current[key], defaultConfig[key])) {
+      next[key] = defaults[key] as never
+    }
+  }
+  return next
 }
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
@@ -340,6 +416,7 @@ export function NewTaskPage() {
   const [showDeveloperSettings, setShowDeveloperSettings] = useState(false)
   const [showCorrectionExplanation, setShowCorrectionExplanation] = useState(false)
   const [autoBindWork, setAutoBindWork] = useState(true)
+  const [globalDefaultsApplied, setGlobalDefaultsApplied] = useState(false)
 
   const steps = locale === 'zh-CN'
     ? ['素材与语言', '成品目标', '质量与设置', '确认创建']
@@ -361,6 +438,17 @@ export function NewTaskPage() {
     queryKey: ['presets'],
     queryFn: configApi.getPresets,
   })
+
+  const { data: globalDefaults } = useQuery({
+    queryKey: ['config-defaults'],
+    queryFn: configApi.getDefaults,
+  })
+
+  useEffect(() => {
+    if (globalDefaultsApplied || !globalDefaults) return
+    setConfig(prev => applyGlobalDefaults(prev, globalDefaults))
+    setGlobalDefaultsApplied(true)
+  }, [globalDefaults, globalDefaultsApplied])
 
   const probeMutation = useMutation({
     mutationFn: (path: string) => systemApi.probe(path),
@@ -426,13 +514,28 @@ export function NewTaskPage() {
     })
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
+    let defaultsForSubmit = globalDefaults
+    if (!defaultsForSubmit && !globalDefaultsApplied) {
+      try {
+        defaultsForSubmit = await queryClient.fetchQuery({
+          queryKey: ['config-defaults'],
+          queryFn: configApi.getDefaults,
+        })
+      } catch {
+        defaultsForSubmit = undefined
+      }
+    }
+    const resolvedConfig =
+      defaultsForSubmit && !globalDefaultsApplied
+        ? applyGlobalDefaults(config, defaultsForSubmit)
+        : config
     createMutation.mutate({
       name: name || `任务-${new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`,
       input_path: inputPath,
       source_lang: sourceLang,
       target_lang: targetLang,
-      config,
+      config: resolvedConfig,
       save_as_preset: saveAsPreset,
       preset_name: saveAsPreset ? presetName : undefined,
     })

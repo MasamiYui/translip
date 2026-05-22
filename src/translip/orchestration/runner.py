@@ -134,7 +134,19 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
             }
         )
     elif stage_name == "task-a":
-        common.update({"language": request.transcription_language, "asr_model": request.asr_model})
+        common.update(
+            {
+                "language": request.transcription_language,
+                "asr_model": request.asr_model,
+                "generate_srt": request.generate_srt,
+                "vad_filter": request.vad_filter,
+                "vad_min_silence_duration_ms": request.vad_min_silence_duration_ms,
+                "beam_size": request.beam_size,
+                "best_of": request.best_of,
+                "temperature": request.temperature,
+                "condition_on_previous_text": request.condition_on_previous_text,
+            }
+        )
     elif stage_name == "asr-ocr-correct":
         common.update({"transcription_correction": dict(request.transcription_correction)})
     elif stage_name == "task-b":
@@ -175,8 +187,11 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "fit_backend": request.fit_backend,
                 "mix_profile": request.mix_profile,
                 "ducking_mode": request.ducking_mode,
+                "background_gain_db": request.background_gain_db,
+                "window_ducking_db": request.window_ducking_db,
                 "preview_format": request.preview_format,
                 "max_compress_ratio": request.max_compress_ratio,
+                "output_sample_rate": request.output_sample_rate,
                 "dub_repair_enabled": request.dub_repair_enabled,
                 "dub_repair_backends": request.dub_repair_backends,
                 "dub_repair_max_items": request.dub_repair_max_items,

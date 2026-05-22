@@ -39,6 +39,16 @@ def test_cli_transcribe_parser() -> None:
             "zh",
             "--asr-model",
             "small",
+            "--no-vad-filter",
+            "--vad-min-silence-duration-ms",
+            "650",
+            "--beam-size",
+            "3",
+            "--best-of",
+            "2",
+            "--temperature",
+            "0.2",
+            "--condition-on-previous-text",
             "--no-srt",
         ]
     )
@@ -47,6 +57,12 @@ def test_cli_transcribe_parser() -> None:
     assert args.output_dir == "output-transcribe"
     assert args.language == "zh"
     assert args.asr_model == "small"
+    assert args.vad_filter is False
+    assert args.vad_min_silence_duration_ms == 650
+    assert args.beam_size == 3
+    assert args.best_of == 2
+    assert args.temperature == 0.2
+    assert args.condition_on_previous_text is True
     assert args.no_srt is True
 
 

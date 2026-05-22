@@ -7,10 +7,18 @@ import type {
   MissingModelsResponse,
   ModelDownloadJob,
   SystemInfo,
+  TaskConfig,
 } from '../types'
+
+export type GlobalConfigUpdate = {
+  [K in keyof TaskConfig]?: TaskConfig[K] | null
+}
 
 export const configApi = {
   getDefaults: () => api.get('/api/config/defaults').then(r => r.data),
+  getGlobal: () => api.get<Partial<TaskConfig>>('/api/config/global').then(r => r.data),
+  updateGlobal: (config: GlobalConfigUpdate) =>
+    api.put<{ ok: boolean; config: Partial<TaskConfig> }>('/api/config/global', config).then(r => r.data),
   getPresets: () => api.get<ConfigPreset[]>('/api/config/presets').then(r => r.data),
   createPreset: (preset: Omit<ConfigPreset, 'id' | 'created_at' | 'updated_at'>) =>
     api.post<ConfigPreset>('/api/config/presets', preset).then(r => r.data),

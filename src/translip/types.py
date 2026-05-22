@@ -543,6 +543,13 @@ class PipelineRequest:
     stage1_output_format: OutputFormat = "mp3"
     transcription_language: str = "zh"
     asr_model: str = "small"
+    generate_srt: bool = True
+    vad_filter: bool = True
+    vad_min_silence_duration_ms: int = 400
+    beam_size: int = 5
+    best_of: int = 5
+    temperature: float = 0.0
+    condition_on_previous_text: bool = False
     audio_stream_index: int = 0
     top_k: int = 3
     update_registry: bool = True
@@ -650,6 +657,13 @@ class PipelineRequest:
             stage1_output_format=self.stage1_output_format,
             transcription_language=self.transcription_language,
             asr_model=self.asr_model,
+            generate_srt=bool(self.generate_srt),
+            vad_filter=bool(self.vad_filter),
+            vad_min_silence_duration_ms=int(self.vad_min_silence_duration_ms),
+            beam_size=int(self.beam_size),
+            best_of=int(self.best_of),
+            temperature=float(self.temperature),
+            condition_on_previous_text=bool(self.condition_on_previous_text),
             audio_stream_index=self.audio_stream_index,
             top_k=self.top_k,
             update_registry=self.update_registry,

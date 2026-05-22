@@ -240,6 +240,9 @@ const zhMessages = {
   },
   settings: {
     title: '全局设置',
+    tabGeneral: '常规',
+    tabDefaults: '任务默认参数',
+    saveDefaults: '保存默认参数',
     systemInfo: '系统信息',
     modelStatus: '模型状态',
     about: '关于',
@@ -1372,6 +1375,9 @@ const enMessages: LocaleMessages = {
   },
   settings: {
     title: 'Settings',
+    tabGeneral: 'General',
+    tabDefaults: 'Task Defaults',
+    saveDefaults: 'Save defaults',
     systemInfo: 'System Info',
     modelStatus: 'Model Status',
     about: 'About',

@@ -1,8 +1,9 @@
-import { useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, RefreshCw } from 'lucide-react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { atomicToolsApi } from '../api/atomic-tools'
+import { configApi } from '../api/config'
 import { FileUploadZone } from '../components/atomic-tools/FileUploadZone'
 import { ResultPanel } from '../components/atomic-tools/ResultPanel'
 import { ToolProgressBar } from '../components/atomic-tools/ToolProgressBar'
@@ -11,9 +12,11 @@ import { useAtomicTool } from '../hooks/useAtomicTool'
 import { useI18n } from '../i18n/useI18n'
 import type { Locale, LocaleMessages } from '../i18n/messages'
 import { readAtomicToolPrefill, type AtomicToolPrefill } from '../lib/atomicToolPrefill'
+import type { TaskConfig } from '../types'
 import type { FileUploadResponse } from '../types/atomic-tools'
 
 type FileRefMap = Record<string, FileUploadResponse | null>
+type ToolParams = Record<string, string | number | boolean>
 type SelectOption = string | { value: string; label: string }
 
 const SOURCE_LANGUAGE_CODES = ['auto', 'zh', 'en', 'ja'] as const
@@ -35,6 +38,11 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     queryFn: atomicToolsApi.listTools,
     staleTime: 30_000,
   })
+  const { data: globalDefaults } = useQuery<Partial<TaskConfig>>({
+    queryKey: ['config-defaults'],
+    queryFn: configApi.getDefaults,
+    staleTime: 30_000,
+  })
   const tool = tools.find(item => item.tool_id === toolId)
   const { uploadFile, job, artifacts, runTool, isRunning, getDownloadUrl, errorMessage, reset } =
     useAtomicTool({ toolId })
@@ -42,7 +50,12 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
   const [fileRefs, setFileRefs] = useState<FileRefMap>(() => buildInitialFileRefs(prefill))
   const [translationInputMode, setTranslationInputMode] = useState<'text' | 'file'>('text')
   const [textInput, setTextInput] = useState(() => prefill?.text ?? '')
-  const [params, setParams] = useState<Record<string, string | number | boolean>>(getDefaultParams(toolId))
+  const [params, setParams] = useState<ToolParams>(getDefaultParams(toolId))
+
+  useEffect(() => {
+    if (toolId !== 'transcription' || !globalDefaults) return
+    setParams(prev => applyTranscriptionGlobalDefaults(prev, globalDefaults))
+  }, [globalDefaults, toolId])
 
   if (!tool) {
     return (
@@ -74,7 +87,7 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     setFileRefs({})
     setTextInput('')
     setTranslationInputMode('text')
-    setParams(getDefaultParams(toolId))
+    setParams(getDefaultParams(toolId, globalDefaults))
     reset()
   }
 
@@ -278,8 +291,8 @@ function buildInitialFileRefs(prefill: AtomicToolPrefill | null): FileRefMap {
 
 function renderControls(
   toolId: string,
-  params: Record<string, string | number | boolean>,
-  setParams: Dispatch<SetStateAction<Record<string, string | number | boolean>>>,
+  params: ToolParams,
+  setParams: Dispatch<SetStateAction<ToolParams>>,
   textInput: string,
   setTextInput: Dispatch<SetStateAction<string>>,
   translationInputMode: 'text' | 'file',
@@ -492,7 +505,7 @@ function renderControls(
 
 function buildRunPayload(
   toolId: string,
-  params: Record<string, string | number | boolean>,
+  params: ToolParams,
   fileRefs: FileRefMap,
   textInput: string,
   translationInputMode: 'text' | 'file',
@@ -555,31 +568,82 @@ function buildRunPayload(
   return params
 }
 
-function getDefaultParams(toolId: string): Record<string, string | number | boolean> {
+const transcriptionGlobalDefaultKeys = [
+  'asr_model',
+  'generate_srt',
+  'vad_filter',
+  'vad_min_silence_duration_ms',
+  'beam_size',
+  'best_of',
+  'temperature',
+  'condition_on_previous_text',
+] as const satisfies readonly (keyof TaskConfig)[]
+
+function applyTranscriptionGlobalDefaults(current: ToolParams, globalDefaults: Partial<TaskConfig>): ToolParams {
+  const base = getDefaultParams('transcription')
+  const next = { ...current }
+
+  for (const key of transcriptionGlobalDefaultKeys) {
+    const value = globalDefaults[key]
+    if (value === undefined || value === null) continue
+    if (current[key] === undefined || current[key] === base[key]) {
+      next[key] = value as ToolParams[string]
+    }
+  }
+
+  return next
+}
+
+function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>): ToolParams {
+  let params: ToolParams
+
   switch (toolId) {
     case 'separation':
-      return { mode: 'auto', quality: 'balanced', output_format: 'wav' }
+      params = { mode: 'auto', quality: 'balanced', output_format: 'wav' }
+      break
     case 'mixing':
-      return { background_gain_db: -8, ducking_mode: 'static', output_format: 'wav' }
+      params = { background_gain_db: -8, ducking_mode: 'static', output_format: 'wav' }
+      break
     case 'transcription':
-      return { language: 'zh', asr_model: 'small', enable_diarization: false, generate_srt: true }
+      params = {
+        language: 'zh',
+        asr_model: 'small',
+        enable_diarization: false,
+        generate_srt: true,
+        vad_filter: true,
+        vad_min_silence_duration_ms: 400,
+        beam_size: 5,
+        best_of: 5,
+        temperature: 0,
+        condition_on_previous_text: false,
+      }
+      break
     case 'translation':
-      return { source_lang: 'zh', target_lang: 'en', backend: 'local-m2m100' }
+      params = { source_lang: 'zh', target_lang: 'en', backend: 'local-m2m100' }
+      break
     case 'tts':
-      return { language: 'auto' }
+      params = { language: 'auto' }
+      break
     case 'muxing':
-      return { video_codec: 'copy', audio_codec: 'aac', audio_bitrate: '192k' }
+      params = { video_codec: 'copy', audio_codec: 'aac', audio_bitrate: '192k' }
+      break
     case 'subtitle-detect':
-      return {
+      params = {
         language: 'ch',
         sample_interval: 0.4,
         preview_frames: 3,
       }
+      break
     case 'subtitle-erase':
-      return { preset: 'fast', mode: 'auto', backend: '', auto_tune: false }
+      params = { preset: 'fast', mode: 'auto', backend: '', auto_tune: false }
+      break
     default:
-      return {}
+      params = {}
   }
+
+  return toolId === 'transcription' && globalDefaults
+    ? applyTranscriptionGlobalDefaults(params, globalDefaults)
+    : params
 }
 
 function languageOptions(

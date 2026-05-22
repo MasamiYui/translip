@@ -104,6 +104,30 @@ def test_build_pipeline_request_keeps_dubbing_speed_controls() -> None:
     assert request.dubbing_quality_check == "duration-only"
 
 
+def test_build_pipeline_request_keeps_transcription_advanced_controls() -> None:
+    request = build_pipeline_request(
+        {
+            "input": "sample.mp4",
+            "output_root": "out",
+            "asr_model": "medium",
+            "vad_filter": False,
+            "vad_min_silence_duration_ms": 650,
+            "beam_size": 3,
+            "best_of": 2,
+            "temperature": 0.2,
+            "condition_on_previous_text": True,
+        }
+    )
+
+    assert request.asr_model == "medium"
+    assert request.vad_filter is False
+    assert request.vad_min_silence_duration_ms == 650
+    assert request.beam_size == 3
+    assert request.best_of == 2
+    assert request.temperature == 0.2
+    assert request.condition_on_previous_text is True
+
+
 def test_build_pipeline_request_rejects_invalid_dubbing_speed_controls() -> None:
     import pytest
 
@@ -161,6 +185,25 @@ def test_task_e_command_passes_selected_repair_segments(tmp_path: Path) -> None:
     assert str(selected_path) in command
 
 
+def test_task_e_cache_payload_includes_render_mix_controls(tmp_path: Path) -> None:
+    from translip.orchestration.runner import _stage_cache_payload
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(
+        input_path=tmp_path / "sample.mp4",
+        output_root=tmp_path / "out",
+        background_gain_db=-12.0,
+        window_ducking_db=-5.0,
+        output_sample_rate=48000,
+    )
+
+    payload = _stage_cache_payload(request, "task-e")
+
+    assert payload["background_gain_db"] == -12.0
+    assert payload["window_ducking_db"] == -5.0
+    assert payload["output_sample_rate"] == 48000
+
+
 def test_task_d_command_passes_dubbing_speed_controls(tmp_path: Path) -> None:
     from translip.orchestration.commands import build_task_d_command
     from translip.types import PipelineRequest
@@ -177,6 +220,39 @@ def test_task_d_command_passes_dubbing_speed_controls(tmp_path: Path) -> None:
     assert "6" in command
     assert "--quality-check-mode" in command
     assert "duration-only" in command
+
+
+def test_task_a_command_passes_transcription_advanced_controls(tmp_path: Path) -> None:
+    from translip.orchestration.commands import build_task_a_command
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(
+        input_path=tmp_path / "sample.mp4",
+        output_root=tmp_path / "out",
+        asr_model="medium",
+        generate_srt=False,
+        vad_filter=False,
+        vad_min_silence_duration_ms=650,
+        beam_size=3,
+        best_of=2,
+        temperature=0.2,
+        condition_on_previous_text=True,
+    )
+    command = build_task_a_command(request)
+
+    assert "--asr-model" in command
+    assert "medium" in command
+    assert "--no-srt" in command
+    assert "--no-vad-filter" in command
+    assert "--vad-min-silence-duration-ms" in command
+    assert "650" in command
+    assert "--beam-size" in command
+    assert "3" in command
+    assert "--best-of" in command
+    assert "2" in command
+    assert "--temperature" in command
+    assert "0.2" in command
+    assert "--condition-on-previous-text" in command
 
 
 def test_execute_task_e_writes_character_ledger_and_dub_benchmark(tmp_path: Path, monkeypatch) -> None:
