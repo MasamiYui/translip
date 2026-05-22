@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class TaskStageRead(BaseModel):
@@ -116,7 +116,9 @@ class TaskConfigInput(BaseModel):
     condense_mode: str = "off"
     # Task D
     tts_backend: str = "moss-tts-nano-onnx"
-    max_segments: Optional[int] = None
+    max_segments: Optional[int] = Field(default=None, gt=0)
+    dubbing_workers: Optional[int] = Field(default=None, gt=0)
+    dubbing_quality_check: Literal["standard", "duration-only"] = "standard"
     dub_repair_enabled: bool = False
     dub_repair_backend: List[str] = []
     dub_repair_max_items: int = 12

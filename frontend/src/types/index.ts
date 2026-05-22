@@ -199,6 +199,8 @@ export interface TaskConfig {
   condense_mode?: string
   tts_backend: string
   max_segments?: number
+  dubbing_workers?: number
+  dubbing_quality_check?: 'standard' | 'duration-only'
   dub_repair_enabled?: boolean
   dub_repair_backend?: string[]
   dub_repair_backends?: string[]

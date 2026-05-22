@@ -263,6 +263,10 @@ def build_task_d_command(request: PipelineRequest, *, speaker_id: str, segment_i
     voice_bank_path = task_b_voice_bank_path(request)
     if voice_bank_path.exists():
         command.extend(["--voice-bank", str(voice_bank_path)])
+    if request.dubbing_workers is not None:
+        command.extend(["--dubbing-workers", str(request.dubbing_workers)])
+    if request.dubbing_quality_check and request.dubbing_quality_check != "standard":
+        command.extend(["--quality-check-mode", request.dubbing_quality_check])
     if segment_ids:
         for segment_id in segment_ids:
             command.extend(["--segment-id", segment_id])

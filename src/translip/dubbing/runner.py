@@ -14,11 +14,16 @@ import numpy as np
 import soundfile as sf
 
 from ..exceptions import TranslipError
-from ..types import DubbingArtifacts, DubbingRequest, DubbingResult
+from ..types import (
+    DUBBING_QUALITY_CHECK_MODES,
+    DubbingArtifacts,
+    DubbingRequest,
+    DubbingResult,
+)
 from ..utils.files import ensure_directory, remove_tree, work_directory
 from .backend import ReferencePackage, SynthSegmentInput, SynthSegmentOutput
 from .export import build_dubbing_manifest, build_dubbing_report, now_iso, render_demo_audio, write_json
-from .metrics import evaluate_segment
+from .metrics import SegmentEvaluation, evaluate_segment
 from .moss_tts_nano_backend import MossTtsNanoOnnxBackend
 from .qwen_tts_backend import QwenTTSBackend
 from .reference import (
@@ -36,14 +41,30 @@ _MOSS_DEFAULT_WORKERS = 4
 _OTHER_DEFAULT_WORKERS = 1
 
 
-def _resolve_dubbing_concurrency(backend: object) -> int:
+def _resolve_dubbing_concurrency(
+    backend: object,
+    *,
+    requested_workers: int | None = None,
+) -> int:
     """Resolve the worker count for parallel segment synthesis.
 
-    Respects ``TRANSLIP_DUBBING_WORKERS`` for explicit override. For the MOSS
-    ONNX backend (subprocess-based, GIL-free) we default to a small pool that
-    fits Apple Silicon performance cores; for GPU/MPS-bound torch backends we
-    keep the worker count at 1 to avoid contention on a single model instance.
+    Respects an explicit request or ``TRANSLIP_DUBBING_WORKERS``. For the MOSS
+    ONNX backend (subprocess-based, GIL-free) we default to a small pool; for
+    GPU/MPS-bound torch backends we keep the worker count at 1 to avoid
+    contention on a single model instance.
     """
+
+    backend_name = getattr(backend, "backend_name", "")
+    return _resolve_dubbing_concurrency_for_request(str(backend_name), requested_workers=requested_workers)
+
+
+def _resolve_dubbing_concurrency_for_request(
+    backend_name: str,
+    *,
+    requested_workers: int | None = None,
+) -> int:
+    if requested_workers is not None:
+        return max(1, int(requested_workers))
 
     override = os.environ.get(_DUBBING_WORKERS_ENV, "").strip()
     if override:
@@ -54,7 +75,10 @@ def _resolve_dubbing_concurrency(backend: object) -> int:
         else:
             return max(1, value)
 
-    backend_name = getattr(backend, "backend_name", "")
+    return _default_dubbing_concurrency_for_backend_name(backend_name)
+
+
+def _default_dubbing_concurrency_for_backend_name(backend_name: str) -> int:
     if backend_name == "moss-tts-nano-onnx":
         cpu_count = os.cpu_count() or 4
         return max(1, min(_MOSS_DEFAULT_WORKERS, cpu_count // 2))
@@ -269,7 +293,20 @@ def synthesize_speaker(
 
     try:
         segments = _filtered_segments(translation_payload, normalized_request)
-        backend = backend_override if backend_override is not None else _build_backend(normalized_request)
+        groups = list(_synthesis_groups(segments))
+        backend_name_for_concurrency = str(
+            getattr(backend_override, "backend_name", normalized_request.backend)
+        )
+        max_workers = _resolve_dubbing_concurrency_for_request(
+            backend_name_for_concurrency,
+            requested_workers=normalized_request.dubbing_workers,
+        )
+        max_workers = max(1, min(max_workers, len(groups))) if groups else 1
+        backend = (
+            backend_override
+            if backend_override is not None
+            else _build_backend(normalized_request, worker_count_hint=max_workers)
+        )
         reference_candidates = _select_reference_candidates(
             profiles_payload=profiles_payload,
             speaker_id=normalized_request.speaker_id,
@@ -282,9 +319,6 @@ def synthesize_speaker(
         prepared_lock = threading.Lock()
         report_lock = threading.Lock()
 
-        groups = list(_synthesis_groups(segments))
-        max_workers = _resolve_dubbing_concurrency(backend)
-        max_workers = max(1, min(max_workers, len(groups))) if groups else 1
         logger.info(
             "Task D speaker %s: %d synthesis groups, max_workers=%d (backend=%s)",
             normalized_request.speaker_id,
@@ -385,6 +419,7 @@ def synthesize_speaker(
             "selected_segment_count": len(segments),
             "backread_model": normalized_request.backread_model,
             "concurrency": max_workers,
+            "quality_check_mode": normalized_request.quality_check_mode,
             "wall_time_sec": round(wall_time_sec, 3),
             "sum_segment_time_sec": round(sum_segment_time_sec, 3),
             "observed_speedup": round(speedup, 3),
@@ -455,6 +490,10 @@ def _validate_request(request: DubbingRequest) -> DubbingRequest:
         raise TranslipError("speaker_id is required for Task D")
     if normalized.max_segments is not None and normalized.max_segments <= 0:
         raise TranslipError("max_segments must be greater than 0 when provided")
+    if normalized.dubbing_workers is not None and normalized.dubbing_workers <= 0:
+        raise TranslipError("dubbing_workers must be greater than 0 when provided")
+    if normalized.quality_check_mode not in DUBBING_QUALITY_CHECK_MODES:
+        raise TranslipError("quality_check_mode must be one of: standard, duration-only")
     return normalized
 
 
@@ -682,6 +721,7 @@ def _segment_report_row(
         "text_similarity": round(float(getattr(evaluation, "text_similarity", 0.0) or 0.0), 4),
         "intelligibility_status": intelligibility_status,
         "overall_status": overall_status,
+        "quality_check_mode": attempt_summary.get("quality_check_mode", "standard"),
         "qa_flags": segment.qa_flags,
         "reference_path": str(selected_reference.original_audio_path),
         "audio_path": str(synth_output.audio_path),
@@ -806,14 +846,12 @@ def _synthesize_with_quality_retry(
         attempt_path = work_dir / "attempts" / segment.segment_id / f"ref-{candidate_index:02d}.wav"
         try:
             synth_output = backend.synthesize(reference=prepared, segment=segment, output_path=attempt_path)
-            evaluation = evaluate_segment(
+            evaluation = _evaluate_synthesized_segment(
                 reference_audio_path=prepared.original_audio_path,
-                generated_audio_path=synth_output.audio_path,
-                target_text=segment.target_text,
+                synth_output=synth_output,
+                segment=segment,
                 target_lang=target_lang,
-                source_duration_sec=segment.source_duration_sec,
-                requested_device=request.device,
-                backread_model_name=request.backread_model,
+                request=request,
             )
         except Exception as exc:  # pragma: no cover - covered by real pipeline run
             synthesis_error = exc
@@ -898,8 +936,49 @@ def _synthesize_with_quality_retry(
             "attempt_count": len(attempts),
             "selected_attempt_index": int(selected["attempt_index"]),
             "quality_retry_reasons": retry_reasons,
+            "quality_check_mode": request.quality_check_mode,
             "attempts": report_attempts,
         },
+    )
+
+
+def _evaluate_synthesized_segment(
+    *,
+    reference_audio_path: Path,
+    synth_output: SynthSegmentOutput,
+    segment: SynthSegmentInput,
+    target_lang: str,
+    request: DubbingRequest,
+) -> SegmentEvaluation:
+    if request.quality_check_mode == "duration-only":
+        duration_ratio = (
+            float(synth_output.generated_duration_sec) / float(segment.source_duration_sec)
+            if segment.source_duration_sec > 0
+            else 0.0
+        )
+        duration_status = _duration_status_from_ratio(duration_ratio)
+        return SegmentEvaluation(
+            speaker_similarity=None,
+            speaker_status="review",
+            backread_text="",
+            text_similarity=0.0,
+            intelligibility_status="review",
+            duration_ratio=duration_ratio,
+            duration_status=duration_status,
+            overall_status=_overall_status_from_parts(
+                duration_status=duration_status,
+                speaker_status="review",
+                intelligibility_status="review",
+            ),
+        )
+    return evaluate_segment(
+        reference_audio_path=reference_audio_path,
+        generated_audio_path=synth_output.audio_path,
+        target_text=segment.target_text,
+        target_lang=target_lang,
+        source_duration_sec=segment.source_duration_sec,
+        requested_device=request.device,
+        backread_model_name=request.backread_model,
     )
 
 
@@ -937,9 +1016,9 @@ def _status_score(status: str) -> float:
     return {"passed": 2.0, "review": 1.0, "failed": 0.0}.get(status, 0.0)
 
 
-def _build_backend(request: DubbingRequest) -> object:
+def _build_backend(request: DubbingRequest, *, worker_count_hint: int | None = None) -> object:
     if request.backend == "moss-tts-nano-onnx":
-        return MossTtsNanoOnnxBackend(requested_device=request.device)
+        return MossTtsNanoOnnxBackend(requested_device=request.device, worker_count_hint=worker_count_hint)
     if request.backend == "qwen3tts":
         return QwenTTSBackend(requested_device=request.device)
     raise TranslipError(f"Unsupported dubbing backend: {request.backend}")

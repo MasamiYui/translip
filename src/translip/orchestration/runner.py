@@ -162,6 +162,8 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
             {
                 "speaker_limit": request.speaker_limit,
                 "segments_per_speaker": request.segments_per_speaker,
+                "dubbing_workers": request.dubbing_workers,
+                "dubbing_quality_check": request.dubbing_quality_check,
             }
         )
     elif stage_name == "task-e":

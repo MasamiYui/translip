@@ -191,6 +191,15 @@ def test_resolve_dubbing_concurrency_respects_env_override(monkeypatch) -> None:
     assert _resolve_dubbing_concurrency(FakeQwen()) == 8
 
 
+def test_resolve_dubbing_concurrency_explicit_request_wins(monkeypatch) -> None:
+    monkeypatch.setenv("TRANSLIP_DUBBING_WORKERS", "8")
+
+    class FakeQwen:
+        backend_name = "qwen3tts"
+
+    assert _resolve_dubbing_concurrency(FakeQwen(), requested_workers=3) == 3
+
+
 def test_resolve_dubbing_concurrency_ignores_invalid_override(monkeypatch) -> None:
     monkeypatch.setenv("TRANSLIP_DUBBING_WORKERS", "not-a-number")
 
@@ -222,6 +231,16 @@ def test_moss_cpu_threads_autotunes_with_dubbing_workers(monkeypatch) -> None:
 
     # 8 cpus / 4 workers = 2 threads each, capped at default 4.
     assert _resolve_cpu_threads() == 2
+
+
+def test_moss_cpu_threads_autotunes_with_worker_count_hint(monkeypatch) -> None:
+    from translip.dubbing.moss_tts_nano_backend import _resolve_cpu_threads
+
+    monkeypatch.delenv("MOSS_TTS_NANO_CPU_THREADS", raising=False)
+    monkeypatch.delenv("TRANSLIP_DUBBING_WORKERS", raising=False)
+    monkeypatch.setattr("translip.dubbing.moss_tts_nano_backend.os.cpu_count", lambda: 8)
+
+    assert _resolve_cpu_threads(worker_count_hint=4) == 2
 
 
 def test_moss_cpu_threads_explicit_override_wins(monkeypatch) -> None:

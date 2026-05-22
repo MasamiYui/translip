@@ -328,6 +328,19 @@ uv run translip synthesize-speaker \
   --device auto
 ```
 
+生成草稿或本机 CPU 核心较多时，可以显式提高并发；如果暂时不需要每段 speaker/backread 质检，可用只检查时长的快速模式。`duration-only` 会跳过音色相似度与回读文本评估，因此也不会触发基于音色/回读失败的换参考音频重试，仅保留病态时长兜底；建议只用于草稿生成。
+
+```bash
+uv run translip synthesize-speaker \
+  --translation ./output-task-c/voice/translation.en.json \
+  --profiles ./output-task-b/voice/speaker_profiles.json \
+  --speaker-id spk_0000 \
+  --backend moss-tts-nano-onnx \
+  --output-dir ./output-task-d \
+  --dubbing-workers 6 \
+  --quality-check-mode duration-only
+```
+
 ### Task E: 时间轴拟合与混音
 
 ```bash

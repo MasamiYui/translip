@@ -90,6 +90,41 @@ def test_build_pipeline_request_keeps_translation_batch_size() -> None:
     assert request.translation_batch_size == 2
 
 
+def test_build_pipeline_request_keeps_dubbing_speed_controls() -> None:
+    request = build_pipeline_request(
+        {
+            "input": "sample.mp4",
+            "output_root": "out",
+            "dubbing_workers": 6,
+            "dubbing_quality_check": " Duration-Only ",
+        }
+    )
+
+    assert request.dubbing_workers == 6
+    assert request.dubbing_quality_check == "duration-only"
+
+
+def test_build_pipeline_request_rejects_invalid_dubbing_speed_controls() -> None:
+    import pytest
+
+    with pytest.raises(ValueError):
+        build_pipeline_request(
+            {
+                "input": "sample.mp4",
+                "output_root": "out",
+                "dubbing_workers": 0,
+            }
+        )
+    with pytest.raises(ValueError):
+        build_pipeline_request(
+            {
+                "input": "sample.mp4",
+                "output_root": "out",
+                "dubbing_quality_check": "fast",
+            }
+        )
+
+
 def test_build_pipeline_request_maps_dub_repair_config() -> None:
     request = build_pipeline_request(
         {
@@ -124,6 +159,24 @@ def test_task_e_command_passes_selected_repair_segments(tmp_path: Path) -> None:
 
     assert "--selected-segments" in command
     assert str(selected_path) in command
+
+
+def test_task_d_command_passes_dubbing_speed_controls(tmp_path: Path) -> None:
+    from translip.orchestration.commands import build_task_d_command
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(
+        input_path=tmp_path / "sample.mp4",
+        output_root=tmp_path / "out",
+        dubbing_workers=6,
+        dubbing_quality_check="duration-only",
+    )
+    command = build_task_d_command(request, speaker_id="spk_0000", segment_ids=None)
+
+    assert "--dubbing-workers" in command
+    assert "6" in command
+    assert "--quality-check-mode" in command
+    assert "duration-only" in command
 
 
 def test_execute_task_e_writes_character_ledger_and_dub_benchmark(tmp_path: Path, monkeypatch) -> None:

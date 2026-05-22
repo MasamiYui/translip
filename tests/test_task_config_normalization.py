@@ -3,10 +3,24 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
 from sqlmodel import Session, SQLModel, create_engine, select
 
 from translip.server.models import Task, TaskStage
 from translip.server.schemas import CreateTaskRequest, RerunTaskRequest, TaskConfigInput
+
+
+def test_task_config_validates_dubbing_speed_controls() -> None:
+    config = TaskConfigInput(dubbing_workers=4, dubbing_quality_check="duration-only")
+
+    assert config.dubbing_workers == 4
+    assert config.dubbing_quality_check == "duration-only"
+
+    with pytest.raises(ValidationError):
+        TaskConfigInput(dubbing_workers=0)
+    with pytest.raises(ValidationError):
+        TaskConfigInput(dubbing_quality_check="fast")
 
 
 def test_normalize_task_storage_splits_legacy_flat_config() -> None:

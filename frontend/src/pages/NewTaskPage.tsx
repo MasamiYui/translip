@@ -49,6 +49,7 @@ const defaultConfig: Partial<TaskConfig> = {
   translation_batch_size: 4,
   condense_mode: 'off',
   tts_backend: 'moss-tts-nano-onnx',
+  dubbing_quality_check: 'standard',
   fit_policy: 'conservative',
   fit_backend: 'atempo',
   mix_profile: 'preview',
@@ -655,6 +656,44 @@ export function NewTaskPage() {
                     options={[
                       { value: 'moss-tts-nano-onnx', label: 'MOSS-TTS-Nano ONNX' },
                       { value: 'qwen3tts', label: 'Qwen3TTS' },
+                    ]}
+                  />
+                </Field>
+                <Field
+                  label={locale === 'zh-CN' ? '配音并发数' : 'Dubbing Workers'}
+                  hint={
+                    locale === 'zh-CN'
+                      ? '留空使用默认值；MOSS 后端可按机器核心数调到 4-6。'
+                      : 'Leave blank for default; 4-6 is a practical starting point for MOSS.'
+                  }
+                >
+                  <TextInput
+                    type="number"
+                    value={config.dubbing_workers ?? ''}
+                    onChange={value => {
+                      const parsed = Number(value)
+                      patchConfig({
+                        dubbing_workers: value.trim() && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined,
+                      })
+                    }}
+                  />
+                </Field>
+                <Field
+                  label={locale === 'zh-CN' ? '配音质检' : 'Dubbing QA'}
+                  hint={
+                    locale === 'zh-CN'
+                      ? '快速草稿会跳过音色和回读检查，只保留时长兜底。'
+                      : 'Fast draft skips speaker/backread checks and only keeps duration fallback.'
+                  }
+                >
+                  <Select
+                    value={config.dubbing_quality_check ?? 'standard'}
+                    onChange={value =>
+                      patchConfig({ dubbing_quality_check: value as 'standard' | 'duration-only' })
+                    }
+                    options={[
+                      { value: 'standard', label: locale === 'zh-CN' ? '完整质检' : 'Standard QA' },
+                      { value: 'duration-only', label: locale === 'zh-CN' ? '快速草稿' : 'Fast draft' },
                     ]}
                   />
                 </Field>

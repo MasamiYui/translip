@@ -27,7 +27,12 @@ from ..config import (
     DEFAULT_TRANSCRIPTION_ASR_MODEL,
     DEFAULT_TRANSCRIPTION_LANGUAGE,
 )
-from ..types import PipelineRequest
+from ..types import (
+    DUBBING_QUALITY_CHECK_MODES,
+    DubbingQualityCheckMode,
+    PipelineRequest,
+    normalize_dubbing_quality_check_mode,
+)
 
 
 def _load_json_config(path: str | Path | None) -> dict[str, Any]:
@@ -46,6 +51,23 @@ def _list_config(value: Any) -> list[str] | None:
         return [str(item) for item in value if str(item)]
     text = str(value).strip()
     return [text] if text else None
+
+
+def _validated_dubbing_quality_check(value: Any) -> DubbingQualityCheckMode:
+    mode = normalize_dubbing_quality_check_mode(value)
+    if mode not in DUBBING_QUALITY_CHECK_MODES:
+        allowed = ", ".join(sorted(DUBBING_QUALITY_CHECK_MODES))
+        raise ValueError(f"dubbing_quality_check must be one of: {allowed}")
+    return mode
+
+
+def _optional_positive_int(value: Any, *, name: str) -> int | None:
+    if value is None:
+        return None
+    parsed = int(value)
+    if parsed <= 0:
+        raise ValueError(f"{name} must be greater than 0")
+    return parsed
 
 
 def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
@@ -101,6 +123,8 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
         background_gain_db=float(merged.get("background_gain_db", DEFAULT_RENDER_BACKGROUND_GAIN_DB)),
         window_ducking_db=float(merged.get("window_ducking_db", DEFAULT_RENDER_WINDOW_DUCKING_DB)),
         max_compress_ratio=float(merged.get("max_compress_ratio", 1.45)),
+        dubbing_workers=_optional_positive_int(merged.get("dubbing_workers"), name="dubbing_workers"),
+        dubbing_quality_check=_validated_dubbing_quality_check(merged.get("dubbing_quality_check")),
         dub_repair_enabled=bool(merged.get("dub_repair_enabled", False)),
         dub_repair_backends=_list_config(
             merged.get("dub_repair_backends")

@@ -240,6 +240,10 @@ def test_cli_synthesize_speaker_parser() -> None:
             "seg-0002",
             "--max-segments",
             "2",
+            "--dubbing-workers",
+            "6",
+            "--quality-check-mode",
+            "duration-only",
         ]
     )
     assert args.command == "synthesize-speaker"
@@ -250,6 +254,8 @@ def test_cli_synthesize_speaker_parser() -> None:
     assert args.voice_bank == "voice_bank.en.json"
     assert args.segment_ids == ["seg-0001", "seg-0002"]
     assert args.max_segments == 2
+    assert args.dubbing_workers == 6
+    assert args.quality_check_mode == "duration-only"
 
 
 def test_cli_synthesize_speaker_defaults_to_moss_tts_nano_onnx() -> None:

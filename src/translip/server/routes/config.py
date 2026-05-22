@@ -36,6 +36,7 @@ _DEFAULT_CONFIG = {
     "translation_batch_size": 4,
     "condense_mode": "off",
     "tts_backend": "moss-tts-nano-onnx",
+    "dubbing_quality_check": "standard",
     "fit_policy": "conservative",
     "fit_backend": "atempo",
     "mix_profile": "preview",

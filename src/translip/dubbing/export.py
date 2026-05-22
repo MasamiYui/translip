@@ -102,6 +102,8 @@ def build_dubbing_manifest(
             "device": request.device,
             "segment_ids": request.segment_ids,
             "max_segments": request.max_segments,
+            "dubbing_workers": request.dubbing_workers,
+            "quality_check_mode": request.quality_check_mode,
             "keep_intermediate": request.keep_intermediate,
             "backread_model": request.backread_model,
         },

@@ -59,6 +59,16 @@ def test_dubbing_request_defaults_to_moss_tts_nano_onnx() -> None:
     assert request.backend == "moss-tts-nano-onnx"
 
 
+def test_dubbing_request_normalizes_quality_check_mode() -> None:
+    request = DubbingRequest(
+        translation_path="translation.en.json",
+        profiles_path="speaker_profiles.json",
+        quality_check_mode=" Duration-Only ",  # type: ignore[arg-type]
+    )
+
+    assert request.normalized().quality_check_mode == "duration-only"
+
+
 def test_select_reference_candidates_prefers_ideal_duration(tmp_path: Path) -> None:
     clip_short = tmp_path / "clip-short.wav"
     clip_ideal = tmp_path / "clip-ideal.wav"
@@ -485,6 +495,84 @@ def test_synthesize_speaker_writes_report_and_manifest(tmp_path: Path, monkeypat
     assert report["segments"][1]["overall_status"] == "passed"
     assert manifest["status"] == "succeeded"
     assert manifest["resolved"]["selected_segment_count"] == 2
+
+
+def test_synthesize_speaker_duration_only_quality_check_skips_backread(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    reference_clip = tmp_path / "reference.wav"
+    _write_audio(reference_clip, 9.0)
+    translation_path = tmp_path / "translation.en.json"
+    profiles_path = tmp_path / "speaker_profiles.json"
+    translation_path.write_text(
+        json.dumps(
+            {
+                "backend": {"target_lang": "en", "output_tag": "en"},
+                "segments": [
+                    {
+                        "segment_id": "seg-0001",
+                        "speaker_id": "spk_0000",
+                        "speaker_label": "SPEAKER_00",
+                        "start": 0.0,
+                        "duration": 1.0,
+                        "target_text": "Hello.",
+                        "duration_budget": {"estimated_target_sec": 1.0},
+                        "qa_flags": [],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    profiles_path.write_text(
+        json.dumps(
+            {
+                "profiles": [
+                    {
+                        "profile_id": "profile_0000",
+                        "speaker_id": "spk_0000",
+                        "reference_clips": [
+                            {
+                                "path": str(reference_clip),
+                                "text": "这是声音参考文本",
+                                "duration": 9.0,
+                                "rms": 0.05,
+                            }
+                        ],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    def fail_evaluate(**_):
+        raise AssertionError("standard quality checks should be skipped")
+
+    monkeypatch.setattr("translip.dubbing.runner.evaluate_segment", fail_evaluate)
+
+    result = synthesize_speaker(
+        DubbingRequest(
+            translation_path=translation_path,
+            profiles_path=profiles_path,
+            output_dir=tmp_path / "output",
+            speaker_id="spk_0000",
+            quality_check_mode="duration-only",
+        ),
+        backend_override=FakeBackend(),
+    )
+
+    report = json.loads(result.artifacts.report_path.read_text(encoding="utf-8"))
+    manifest = json.loads(result.artifacts.manifest_path.read_text(encoding="utf-8"))
+    row = report["segments"][0]
+    assert row["quality_check_mode"] == "duration-only"
+    assert row["speaker_status"] == "review"
+    assert row["intelligibility_status"] == "review"
+    assert manifest["request"]["quality_check_mode"] == "duration-only"
+    assert manifest["resolved"]["quality_check_mode"] == "duration-only"
 
 
 def test_synthesize_speaker_retries_second_reference_for_pathological_duration(

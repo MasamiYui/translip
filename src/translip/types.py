@@ -11,6 +11,8 @@ Device = Literal["auto", "cpu", "cuda", "mps"]
 Quality = Literal["balanced", "high"]
 TranslationBackendName = Literal["local-m2m100", "siliconflow"]
 TtsBackendName = Literal["moss-tts-nano-onnx", "qwen3tts"]
+DubbingQualityCheckMode = Literal["standard", "duration-only"]
+DUBBING_QUALITY_CHECK_MODES = {"standard", "duration-only"}
 CondenseMode = Literal["off", "smart", "aggressive"]
 FitPolicy = Literal["conservative", "high_quality"]
 FitBackendName = Literal["atempo", "rubberband"]
@@ -87,6 +89,11 @@ class SubtitleStyle:
     margin_v: int = 0
     margin_h: int = 20
     alignment: int = 2
+
+
+def normalize_dubbing_quality_check_mode(value: object | None) -> DubbingQualityCheckMode:
+    text = str(value or "standard").strip().lower()
+    return cast(DubbingQualityCheckMode, text)
 
 
 @dataclass(slots=True)
@@ -358,6 +365,8 @@ class DubbingRequest:
     voice_bank_path: Path | str | None = None
     segment_ids: list[str] | None = None
     max_segments: int | None = None
+    dubbing_workers: int | None = None
+    quality_check_mode: DubbingQualityCheckMode = "standard"
     keep_intermediate: bool = False
     backread_model: str = "tiny"
 
@@ -381,6 +390,8 @@ class DubbingRequest:
             ),
             segment_ids=list(self.segment_ids) if self.segment_ids else None,
             max_segments=self.max_segments,
+            dubbing_workers=self.dubbing_workers,
+            quality_check_mode=normalize_dubbing_quality_check_mode(self.quality_check_mode),
             keep_intermediate=self.keep_intermediate,
             backread_model=self.backread_model,
         )
@@ -518,6 +529,8 @@ class PipelineRequest:
     background_gain_db: float = -8.0
     window_ducking_db: float = -3.0
     max_compress_ratio: float = 1.45
+    dubbing_workers: int | None = None
+    dubbing_quality_check: DubbingQualityCheckMode = "standard"
     dub_repair_enabled: bool = False
     dub_repair_backends: list[str] | None = None
     dub_repair_max_items: int = 12
@@ -623,6 +636,8 @@ class PipelineRequest:
             background_gain_db=self.background_gain_db,
             window_ducking_db=self.window_ducking_db,
             max_compress_ratio=self.max_compress_ratio,
+            dubbing_workers=self.dubbing_workers,
+            dubbing_quality_check=normalize_dubbing_quality_check_mode(self.dubbing_quality_check),
             dub_repair_enabled=bool(self.dub_repair_enabled),
             dub_repair_backends=list(self.dub_repair_backends) if self.dub_repair_backends else None,
             dub_repair_max_items=int(self.dub_repair_max_items),

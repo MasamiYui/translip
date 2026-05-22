@@ -42,25 +42,29 @@ def _env_int(name: str, default: int) -> int:
     return int(value)
 
 
-def _resolve_cpu_threads() -> int:
+def _resolve_cpu_threads(worker_count_hint: int | None = None) -> int:
     """Pick a CPU thread count that plays well with the dubbing worker pool.
 
     Honors ``MOSS_TTS_NANO_CPU_THREADS`` when explicitly set. Otherwise, when
-    the dubbing runner is configured for parallel synthesis via
-    ``TRANSLIP_DUBBING_WORKERS``, downscale per-process threads so that
-    ``workers * threads`` does not over-subscribe CPU cores on Apple Silicon.
+    the dubbing runner is configured for parallel synthesis, downscale
+    per-process threads so that ``workers * threads`` does not over-subscribe
+    CPU cores on Apple Silicon.
     """
 
     explicit = os.environ.get("MOSS_TTS_NANO_CPU_THREADS")
     if explicit and explicit.strip():
         return max(1, int(explicit))
 
+    # Worker hint comes from an explicit CLI/server request, so it intentionally
+    # wins over the legacy TRANSLIP_DUBBING_WORKERS environment override.
+    workers = worker_count_hint
     workers_override = os.environ.get(_DUBBING_WORKERS_ENV, "").strip()
-    if workers_override:
+    if workers is None and workers_override:
         try:
             workers = max(1, int(workers_override))
         except ValueError:
             workers = 1
+    if workers is not None:
         cpu_count = os.cpu_count() or 4
         # Reserve at least 1 thread per process; total threads ~= cpu_count.
         return max(1, min(_DEFAULT_CPU_THREADS, cpu_count // workers))
@@ -70,13 +74,13 @@ def _resolve_cpu_threads() -> int:
 class MossTtsNanoOnnxBackend:
     backend_name = "moss-tts-nano-onnx"
 
-    def __init__(self, *, requested_device: str) -> None:
+    def __init__(self, *, requested_device: str, worker_count_hint: int | None = None) -> None:
         self.requested_device = requested_device
         self.resolved_device = "cpu"
         self.resolved_model = _DEFAULT_MODEL_NAME
         self.cli_path = _resolve_cli_path()
         self.model_dir = os.environ.get("MOSS_TTS_NANO_MODEL_DIR", str(CACHE_ROOT / "models"))
-        self.cpu_threads = _resolve_cpu_threads()
+        self.cpu_threads = _resolve_cpu_threads(worker_count_hint=worker_count_hint)
         self.max_new_frames = _env_int("MOSS_TTS_NANO_MAX_NEW_FRAMES", _DEFAULT_MAX_NEW_FRAMES)
         self.voice_clone_max_text_tokens = _env_int(
             "MOSS_TTS_NANO_VOICE_CLONE_MAX_TEXT_TOKENS",

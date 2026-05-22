@@ -64,6 +64,8 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
         mix_profile=cfg.get("mix_profile", "preview"),
         ducking_mode=cfg.get("ducking_mode", "static"),
         background_gain_db=cfg.get("background_gain_db", -8.0),
+        dubbing_workers=cfg.get("dubbing_workers"),
+        dubbing_quality_check=cfg.get("dubbing_quality_check", "standard"),
         dub_repair_enabled=bool(cfg.get("dub_repair_enabled", False)),
         dub_repair_backends=cfg.get("dub_repair_backends") or cfg.get("dub_repair_backend") or None,
         dub_repair_max_items=int(cfg.get("dub_repair_max_items", 12)),

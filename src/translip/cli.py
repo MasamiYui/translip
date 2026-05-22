@@ -269,6 +269,21 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional cap on the number of synthesized segments after filtering",
     )
     synthesize_parser.add_argument(
+        "--dubbing-workers",
+        type=int,
+        default=None,
+        help="Override parallel segment synthesis worker count",
+    )
+    synthesize_parser.add_argument(
+        "--quality-check-mode",
+        default="standard",
+        choices=["standard", "duration-only"],
+        help=(
+            "Use duration-only for faster drafts: skip speaker/backread checks "
+            "and keep only pathological-duration reference retry"
+        ),
+    )
+    synthesize_parser.add_argument(
         "--backread-model",
         default=DEFAULT_DUBBING_BACKREAD_MODEL,
         help="faster-whisper model name used for generated-audio backread checks",
@@ -520,6 +535,16 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument("--dub-repair-include-risk", dest="dub_repair_include_risk", action=argparse.BooleanOptionalAction, default=None)
     pipeline_parser.add_argument("--speaker-limit", type=int, default=None)
     pipeline_parser.add_argument("--segments-per-speaker", type=int, default=None)
+    pipeline_parser.add_argument("--dubbing-workers", type=int, default=None)
+    pipeline_parser.add_argument(
+        "--dubbing-quality-check",
+        default=None,
+        choices=["standard", "duration-only"],
+        help=(
+            "Task D quality check mode; duration-only skips speaker/backread checks "
+            "and keeps only pathological-duration reference retry"
+        ),
+    )
     pipeline_parser.add_argument(
         "--video-source",
         default=None,
@@ -849,6 +874,8 @@ def main(argv: list[str] | None = None) -> int:
             voice_bank_path=args.voice_bank,
             segment_ids=args.segment_ids,
             max_segments=args.max_segments,
+            dubbing_workers=args.dubbing_workers,
+            quality_check_mode=args.quality_check_mode,
             keep_intermediate=args.keep_intermediate,
             backread_model=args.backread_model,
         )
