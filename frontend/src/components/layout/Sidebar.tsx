@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -7,7 +7,6 @@ import {
   Captions,
   ChevronDown,
   Clapperboard,
-  Cpu,
   Eraser,
   Languages,
   LayoutDashboard,
@@ -51,6 +50,30 @@ function normalizePathname(pathname: string) {
   return pathname.replace(/\/+$/, '')
 }
 
+function TranslipVoiceStemsLogo() {
+  return (
+    <svg
+      role="img"
+      aria-label="Translip Voice Stems logo"
+      viewBox="0 0 64 64"
+      className="h-8 w-8"
+    >
+      <rect x="7" y="7" width="50" height="50" rx="14" fill="#ffffff" stroke="#d0d5dd" strokeWidth="2" />
+      <path
+        d="M17 32h4l4-11 5 25 6-31 5 17h6"
+        fill="none"
+        stroke="#4285f4"
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M17 47h13" stroke="#34a853" strokeWidth="5" strokeLinecap="round" />
+      <path d="M36 47h11" stroke="#fbbc04" strokeWidth="5" strokeLinecap="round" />
+      <circle cx="47" cy="32" r="4" fill="#ea4335" />
+    </svg>
+  )
+}
+
 interface SidebarProps {
   collapsed?: boolean
   onToggle?: () => void
@@ -68,16 +91,10 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
   const isTaskCenterRoute = isPipelineTaskRoute || isNewTaskRoute || isAtomicJobsRoute
   const isToolsRoute =
     currentPath === '/tools' || (currentPath.startsWith('/tools/') && !isAtomicJobsRoute)
-  const [taskCenterExpanded, setTaskCenterExpanded] = useState(isTaskCenterRoute)
-  const [toolsExpanded, setToolsExpanded] = useState(isToolsRoute)
-
-  useEffect(() => {
-    if (isTaskCenterRoute) setTaskCenterExpanded(true)
-  }, [isTaskCenterRoute])
-
-  useEffect(() => {
-    if (isToolsRoute) setToolsExpanded(true)
-  }, [isToolsRoute])
+  const [taskCenterCollapsedPath, setTaskCenterCollapsedPath] = useState<string | null>(null)
+  const [toolsCollapsedPath, setToolsCollapsedPath] = useState<string | null>(null)
+  const taskCenterExpanded = isTaskCenterRoute && taskCenterCollapsedPath !== currentPath
+  const toolsExpanded = isToolsRoute && toolsCollapsedPath !== currentPath
 
   const navItems = [
     {
@@ -155,8 +172,8 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
           collapsed ? 'justify-center px-0' : 'px-4',
         )}
       >
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#3b5bdb]">
-          <Cpu size={14} className="text-white" />
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#d7e7ff]">
+          <TranslipVoiceStemsLogo />
         </div>
         {!collapsed && (
           <div className="min-w-0">
@@ -197,10 +214,10 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
               return
             }
             if (taskCenterExpanded) {
-              setTaskCenterExpanded(false)
+              setTaskCenterCollapsedPath(currentPath)
               return
             }
-            setTaskCenterExpanded(true)
+            setTaskCenterCollapsedPath(null)
             if (!isTaskCenterRoute) navigate('/tasks')
           }}
           className={navItemClass(isTaskCenterRoute)}
@@ -285,10 +302,10 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
               return
             }
             if (toolsExpanded) {
-              setToolsExpanded(false)
+              setToolsCollapsedPath(currentPath)
               return
             }
-            setToolsExpanded(true)
+            setToolsCollapsedPath(null)
             if (!isToolsRoute) navigate('/tools')
           }}
           className={navItemClass(isToolsRoute)}
