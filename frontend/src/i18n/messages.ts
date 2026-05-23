@@ -46,7 +46,7 @@ const zhMessages = {
     completed: '已完成',
     failed: '失败',
     activeTasks: '活跃任务',
-    recentCompleted: '最近完成',
+    recentCompleted: '最近完成的流水线任务',
     recentAtomicJobs: '最近原子任务',
     columns: {
       name: '名称',
@@ -1181,7 +1181,7 @@ const enMessages: LocaleMessages = {
     completed: 'Completed',
     failed: 'Failed',
     activeTasks: 'Active Tasks',
-    recentCompleted: 'Recently Completed',
+    recentCompleted: 'Recently Completed Pipeline Tasks',
     recentAtomicJobs: 'Recent Atomic Jobs',
     columns: {
       name: 'Name',
