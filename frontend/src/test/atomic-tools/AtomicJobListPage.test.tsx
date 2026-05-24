@@ -99,7 +99,7 @@ describe('AtomicJobListPage', () => {
     render(<AtomicJobListPage />, { wrapper: createWrapper() })
 
     expect(await screen.findByRole('heading', { name: '原子任务' })).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('搜索 job、文件名或能力...')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('搜索 job、文件名或工具...')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '全部' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '运行中' })).toBeInTheDocument()
     expect(screen.queryByRole('combobox', { name: '状态' })).not.toBeInTheDocument()
