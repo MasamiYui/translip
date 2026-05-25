@@ -248,7 +248,7 @@ def build_last_export_summary(
         files = []
         exported_paths: list[Path] = []
 
-        for key, label in (("final_preview", "预览成品"), ("final_dub", "正式成品")):
+        for key, label in (("final_preview", "预览混音"), ("final_dub", "纯配音成品")):
             rel_path = asset_summary["exports"][key]["path"]
             if rel_path:
                 files.append({"kind": key, "label": label, "path": rel_path})
@@ -375,11 +375,9 @@ def _export_kind_from_path(path: Path) -> str:
 
 def _export_label(kind: str, *, delivery_config: Mapping[str, Any]) -> str:
     if kind in {"preview", "final_preview"}:
-        if delivery_config.get("export_preview") is True and delivery_config.get("export_dub") is False:
-            return "正式成品"
-        return "预览成品"
+        return "预览混音"
     if kind in {"dub", "final_dub"}:
-        return "纯配音质检版"
+        return "纯配音成品"
     return "成品文件"
 
 

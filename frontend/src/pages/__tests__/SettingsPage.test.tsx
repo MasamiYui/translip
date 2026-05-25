@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -167,9 +167,11 @@ describe('SettingsPage global and advanced settings', () => {
     expect(screen.getByLabelText('译文压缩')).toHaveValue('smart')
     expect(screen.getByLabelText('SiliconFlow 模型')).toHaveValue('deepseek-ai/DeepSeek-V3')
     expect(screen.getByLabelText('TTS 后端')).toHaveValue('qwen3tts')
+    expect(within(screen.getByLabelText('TTS 后端')).getByRole('option', { name: 'VoxCPM2' })).toBeInTheDocument()
     expect(screen.getByLabelText('配音并发数')).toHaveValue(2)
     expect(screen.getByLabelText('配音质检')).toHaveValue('duration-only')
     expect(screen.getByLabelText('启用配音修复')).toBeChecked()
+    expect(screen.getByLabelText('VoxCPM2')).not.toBeChecked()
     expect(screen.getByLabelText('修复最大条数')).toHaveValue(6)
     expect(screen.getByLabelText('修复每条尝试次数')).toHaveValue(2)
     expect(screen.getByLabelText('允许修复风险段落')).toBeChecked()

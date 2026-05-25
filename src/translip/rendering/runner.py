@@ -47,6 +47,12 @@ OVERLAP_LAYER_PASSED_GAIN_DB = -2.0
 MAX_SUBTITLE_START_SHIFT_SEC = 1.5
 UNDERFLOW_STRETCH_MIN_RATIO = 0.35
 UNDERFLOW_STRETCH_MAX_SOURCE_SEC = 2.5
+SOURCE_VOICE_ACTIVITY_FRAME_SEC = 0.04
+SOURCE_VOICE_ACTIVITY_HOP_SEC = 0.02
+SOURCE_VOICE_ACTIVITY_PAD_SEC = 1.0
+SOURCE_VOICE_ACTIVITY_MIN_RMS = 0.003
+SOURCE_VOICE_ACTIVITY_THRESHOLD_RATIO = 0.05
+SOURCE_VOICE_RESIDUAL_DUCK_DB = -80.0
 
 
 @dataclass(slots=True)
@@ -168,6 +174,11 @@ def render_dub(request: RenderDubRequest) -> RenderDubResult:
             sample_rate=normalized_request.output_sample_rate,
         )
         background_waveform = prepare_audio_for_mix(background_wav_path, target_sample_rate=normalized_request.output_sample_rate)
+        source_voice_waveform = _load_source_voice_waveform(
+            background_path=Path(normalized_request.background_path),
+            work_dir=work_dir,
+            output_sample_rate=normalized_request.output_sample_rate,
+        )
         total_duration_sec = len(background_waveform) / normalized_request.output_sample_rate
 
         candidates, skipped_items = _load_candidates(
@@ -208,6 +219,7 @@ def render_dub(request: RenderDubRequest) -> RenderDubResult:
             dub_waveform=dub_waveform,
             background_wav_path=background_wav_path,
             background_waveform=background_waveform,
+            source_voice_waveform=source_voice_waveform,
             placed_items=placed_items,
             preview_mix_wav_path=preview_mix_wav_path,
         )
@@ -747,6 +759,7 @@ def _render_preview_mix(
     dub_waveform: np.ndarray,
     background_wav_path: Path,
     background_waveform: np.ndarray,
+    source_voice_waveform: np.ndarray | None,
     placed_items: list[TimelineItem],
     preview_mix_wav_path: Path,
 ) -> Path | None:
@@ -764,6 +777,7 @@ def _render_preview_mix(
             request=request,
             dub_waveform=dub_waveform,
             background_waveform=background_waveform,
+            source_voice_waveform=source_voice_waveform,
             placed_items=placed_items,
         )
         write_wav(preview_mix_wav_path, preview_waveform, sample_rate=request.output_sample_rate)
@@ -780,6 +794,7 @@ def _render_static_preview_mix(
     request: RenderDubRequest,
     dub_waveform: np.ndarray,
     background_waveform: np.ndarray,
+    source_voice_waveform: np.ndarray | None,
     placed_items: list[TimelineItem],
 ) -> np.ndarray:
     background = background_waveform.astype(np.float32).copy()
@@ -793,10 +808,99 @@ def _render_static_preview_mix(
             end_idx = min(background.size, int(round(item.placement_end * request.output_sample_rate)))
             if end_idx > start_idx:
                 background[start_idx:end_idx] *= duck_gain
+        source_voice_mask = _source_voice_activity_mask(
+            source_voice_waveform,
+            total_samples=background.size,
+            sample_rate=request.output_sample_rate,
+        )
+        if np.any(source_voice_mask):
+            background[source_voice_mask] *= db_to_gain(SOURCE_VOICE_RESIDUAL_DUCK_DB)
     preview = background + dub_waveform.astype(np.float32)
     if request.mix_profile == "enhanced":
         preview = peak_limit(preview, peak=0.9)
     return peak_limit(preview)
+
+
+def _load_source_voice_waveform(
+    *,
+    background_path: Path,
+    work_dir: Path,
+    output_sample_rate: int,
+) -> np.ndarray | None:
+    source_voice_path = _resolve_source_voice_path(background_path)
+    if source_voice_path is None:
+        return None
+    try:
+        source_voice_wav_path = render_wav(
+            source_voice_path,
+            work_dir / "source_voice.wav",
+            sample_rate=output_sample_rate,
+        )
+        return prepare_audio_for_mix(source_voice_wav_path, target_sample_rate=output_sample_rate)
+    except Exception as exc:  # pragma: no cover - optional input should not block rendering
+        logger.warning("Failed to load source voice stem for residual ducking: %s", exc)
+        return None
+
+
+def _resolve_source_voice_path(background_path: Path) -> Path | None:
+    suffixes = _dedupe_suffixes([background_path.suffix, ".wav", ".mp3", ".flac", ".m4a", ".aac", ".opus"])
+    for stem in ("voice", "dialogue", "dialog", "vocals"):
+        for suffix in suffixes:
+            candidate = background_path.with_name(f"{stem}{suffix}")
+            if candidate.exists():
+                return candidate
+    return None
+
+
+def _dedupe_suffixes(values: list[str]) -> list[str]:
+    result: list[str] = []
+    for value in values:
+        if value and value not in result:
+            result.append(value)
+    return result
+
+
+def _source_voice_activity_mask(
+    source_voice_waveform: np.ndarray | None,
+    *,
+    total_samples: int,
+    sample_rate: int,
+) -> np.ndarray:
+    mask = np.zeros(total_samples, dtype=bool)
+    if source_voice_waveform is None or source_voice_waveform.size == 0 or total_samples <= 0:
+        return mask
+    source = source_voice_waveform.astype(np.float32)
+    if source.size < total_samples:
+        source = np.pad(source, (0, total_samples - source.size))
+    else:
+        source = source[:total_samples]
+
+    frame_samples = max(1, int(round(SOURCE_VOICE_ACTIVITY_FRAME_SEC * sample_rate)))
+    hop_samples = max(1, int(round(SOURCE_VOICE_ACTIVITY_HOP_SEC * sample_rate)))
+    pad_samples = max(0, int(round(SOURCE_VOICE_ACTIVITY_PAD_SEC * sample_rate)))
+    rms_values: list[float] = []
+    for start_idx in range(0, total_samples, hop_samples):
+        chunk = source[start_idx:min(total_samples, start_idx + frame_samples)]
+        rms_values.append(float(np.sqrt(np.mean(chunk * chunk))) if chunk.size else 0.0)
+    if not rms_values:
+        return mask
+
+    rms = np.asarray(rms_values, dtype=np.float32)
+    speech_level = float(np.percentile(rms, 95))
+    if speech_level < SOURCE_VOICE_ACTIVITY_MIN_RMS:
+        return mask
+    noise_floor = float(np.percentile(rms, 20))
+    threshold = max(
+        SOURCE_VOICE_ACTIVITY_MIN_RMS,
+        noise_floor + (speech_level - noise_floor) * SOURCE_VOICE_ACTIVITY_THRESHOLD_RATIO,
+    )
+    for frame_index, frame_rms in enumerate(rms):
+        if frame_rms <= threshold:
+            continue
+        start_idx = frame_index * hop_samples
+        end_idx = min(total_samples, start_idx + frame_samples)
+        mask[max(0, start_idx - pad_samples):min(total_samples, end_idx + pad_samples)] = True
+    return mask
 
 
 def _interval_overlap(start_a: float | None, end_a: float | None, start_b: float | None, end_b: float | None) -> bool:

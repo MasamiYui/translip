@@ -472,6 +472,35 @@ describe('TaskDetailPage export workflow', () => {
     expect(screen.getByRole('button', { name: '补跑擦字幕' })).toBeInTheDocument()
   })
 
+  it('exports both preview mix and pure dub for the default dub-only profile', async () => {
+    vi.mocked(tasksApi.get).mockResolvedValue(mockTask('task-1') as never)
+    vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
+    vi.mocked(tasksApi.getGraph).mockResolvedValue({
+      workflow: { template_id: 'asr-dub-basic', status: 'succeeded' },
+      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      edges: [],
+    } as never)
+    vi.mocked(tasksApi.composeDelivery).mockResolvedValue({} as never)
+
+    render(<TaskDetailPage />, { wrapper: createWrapper() })
+
+    fireEvent.click(await screen.findByTestId('flow-step-export'))
+    const exportSection = screen.getByText('4. 预览并导出').closest('section')
+    expect(exportSection).not.toBeNull()
+    fireEvent.click(within(exportSection as HTMLElement).getByRole('button', { name: '导出成品' }))
+
+    await waitFor(() => {
+      expect(tasksApi.composeDelivery).toHaveBeenCalledWith(
+        'task-1',
+        expect.objectContaining({
+          subtitle_mode: 'none',
+          export_preview: true,
+          export_dub: true,
+        }),
+      )
+    })
+  })
+
   it('provides download links for available asset items only', async () => {
     vi.mocked(tasksApi.get).mockResolvedValue({
       id: 'task-3',
@@ -871,8 +900,8 @@ describe('TaskDetailPage export workflow', () => {
         profile: 'english_subtitle_burned',
         updated_at: '2026-04-16T00:00:00Z',
         files: [
-          { kind: 'preview', label: '预览成品', path: 'task-g/final-preview/final_preview.en.mp4' },
-          { kind: 'dub', label: '正式成品', path: 'task-g/final-dub/final_dub.en.mp4' },
+          { kind: 'preview', label: '预览混音', path: 'task-g/final-preview/final_preview.en.mp4' },
+          { kind: 'dub', label: '纯配音成品', path: 'task-g/final-dub/final_dub.en.mp4' },
         ],
       },
       overall_progress: 100,
@@ -891,7 +920,7 @@ describe('TaskDetailPage export workflow', () => {
 
     render(<TaskDetailPage />, { wrapper: createWrapper() })
 
-    const exportDownload = await screen.findByRole('link', { name: '下载预览成品' })
+    const exportDownload = await screen.findByRole('link', { name: '下载预览混音' })
     const assetDownload = screen.getByRole('link', { name: '下载原始视频' })
     const exportIconShell = exportDownload.querySelector('span[aria-hidden="true"]')
 

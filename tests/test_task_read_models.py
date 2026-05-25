@@ -236,7 +236,7 @@ def test_task_read_exposes_last_export_summary(tmp_path: Path) -> None:
     payload = response.json()
     assert payload["last_export_summary"]["status"] == "exported"
     assert len(payload["last_export_summary"]["files"]) == 1
-    assert payload["last_export_summary"]["files"][0]["label"] == "正式成品"
+    assert payload["last_export_summary"]["files"][0]["label"] == "预览混音"
     assert payload["last_export_summary"]["files"][0]["path"].endswith("final_preview.en.mp4")
 
 

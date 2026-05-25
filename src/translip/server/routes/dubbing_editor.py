@@ -770,9 +770,15 @@ def _build_qwen_backend() -> Any:
     return QwenTTSBackend(requested_device="auto")
 
 
+def _build_voxcpm_backend() -> Any:
+    from ...dubbing.voxcpm_tts_backend import VoxCPMTTSBackend
+    return VoxCPMTTSBackend(requested_device="auto")
+
+
 _TTS_BACKEND_FACTORIES: dict[str, Any] = {
     "moss-tts-nano-onnx": _build_moss_backend,
     "qwen3tts": _build_qwen_backend,
+    "voxcpm2": _build_voxcpm_backend,
 }
 
 

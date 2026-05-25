@@ -193,6 +193,16 @@ CACHE_REGISTRY: list[CacheGroup] = [
         ],
     ),
     CacheGroup(
+        key="voxcpm2",
+        label="VoxCPM2",
+        group="model",
+        paths=lambda r, h: [
+            r / "models" / "VoxCPM2",
+            *_glob_dirs(h, "models--openbmb--VoxCPM2*"),
+            *_glob_dirs(h, "models--OpenBMB--VoxCPM2*"),
+        ],
+    ),
+    CacheGroup(
         key="hf_hub",
         label="HuggingFace Hub",
         group="hub",
@@ -783,7 +793,14 @@ _MODEL_HF_REPOS: dict[str, list[str]] = {
     "qwen3tts": [
         "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
     ],
+    "voxcpm2": [
+        "openbmb/VoxCPM2",
+    ],
 }
+
+
+def downloadable_model_keys() -> tuple[str, ...]:
+    return tuple(sorted(_MODEL_HF_REPOS))
 
 
 def list_missing_model_keys(
@@ -1070,6 +1087,7 @@ __all__ = [
     "compute_breakdown",
     "default_cache_root",
     "dir_size",
+    "downloadable_model_keys",
     "find_group",
     "get_user_config_path",
     "list_missing_model_keys",

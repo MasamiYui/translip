@@ -308,6 +308,37 @@ def test_cli_synthesize_speaker_accepts_moss_tts_nano_onnx() -> None:
     assert args.backend == "moss-tts-nano-onnx"
 
 
+def test_cli_synthesize_speaker_accepts_voxcpm2() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "synthesize-speaker",
+            "--translation",
+            "translation.en.json",
+            "--profiles",
+            "speaker_profiles.json",
+            "--speaker-id",
+            "spk_0000",
+            "--backend",
+            "voxcpm2",
+        ]
+    )
+    assert args.backend == "voxcpm2"
+
+
+def test_cli_download_models_accepts_voxcpm2() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "download-models",
+            "--backend",
+            "voxcpm2",
+        ]
+    )
+
+    assert args.backend == "voxcpm2"
+
+
 def test_cli_render_dub_parser() -> None:
     parser = build_parser()
     args = parser.parse_args(
@@ -373,6 +404,8 @@ def test_cli_run_dub_repair_parser() -> None:
             "moss-tts-nano-onnx",
             "--tts-backend",
             "qwen3tts",
+            "--tts-backend",
+            "voxcpm2",
             "--segment-id",
             "seg-0001",
             "--max-items",
@@ -387,7 +420,7 @@ def test_cli_run_dub_repair_parser() -> None:
     assert args.rewrite_plan == "rewrite_plan.en.json"
     assert args.reference_plan == "reference_plan.en.json"
     assert args.character_ledger == "character_ledger.en.json"
-    assert args.tts_backends == ["moss-tts-nano-onnx", "qwen3tts"]
+    assert args.tts_backends == ["moss-tts-nano-onnx", "qwen3tts", "voxcpm2"]
     assert args.segment_ids == ["seg-0001"]
     assert args.max_items == 5
     assert args.attempts_per_item == 4

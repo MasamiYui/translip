@@ -81,7 +81,7 @@ flowchart LR
 - Generate speaker-attributed transcripts with `faster-whisper` + `SpeechBrain`.
 - Build reusable speaker profiles and registries for later tasks.
 - Produce dubbing scripts with local `M2M100` or the `SiliconFlow API`.
-- Synthesize target-language speech locally with `MOSS-TTS-Nano ONNX` by default, with `Qwen3-TTS` still available as an option.
+- Synthesize target-language speech locally with `MOSS-TTS-Nano ONNX` by default, with `Qwen3-TTS` and `VoxCPM2` also available as options.
 - Fit generated speech back to the original timeline and export preview/final outputs.
 - Manage tasks, progress, presets, and artifacts through the web UI.
 
@@ -300,7 +300,7 @@ uv run translip translate-script \
 
 ### Task D: Single-speaker Synthesis
 
-`moss-tts-nano-onnx` is the default backend and requires the `moss-tts-nano` CLI from OpenMOSS/MOSS-TTS-Nano to be installed first. Task D reports a clear dependency error when the CLI is missing; pass `--backend qwen3tts` to use the previous model.
+`moss-tts-nano-onnx` is the default backend and requires the `moss-tts-nano` CLI from OpenMOSS/MOSS-TTS-Nano to be installed first. Task D reports a clear dependency error when the CLI is missing; pass `--backend qwen3tts` or `--backend voxcpm2` to switch TTS backends. `voxcpm2` uses `openbmb/VoxCPM2` and falls back to CPU on Apple Silicon by default; set `VOXCPM_ALLOW_MPS=1` to force an MPS attempt.
 
 ```bash
 uv run translip synthesize-speaker \
@@ -353,6 +353,10 @@ uv run translip export-video \
 | `MOSS_TTS_NANO_CLI` | `moss-tts-nano` | CLI executable used by the `moss-tts-nano-onnx` backend |
 | `MOSS_TTS_NANO_MODEL_DIR` | `~/.cache/translip/models` | MOSS ONNX model directory passed to `--onnx-model-dir` |
 | `MOSS_TTS_NANO_CPU_THREADS` | `4` | CPU thread count for MOSS ONNX inference |
+| `VOXCPM_MODEL` | `openbmb/VoxCPM2` | Override the model loaded by the `voxcpm2` backend |
+| `VOXCPM_ALLOW_MPS` | `0` | Allow `voxcpm2` to run on Apple Silicon MPS; defaults to CPU fallback |
+| `VOXCPM_INFERENCE_TIMESTEPS` | `10` | Inference steps for `voxcpm2` |
+| `VOXCPM_RETRY_BADCASE` | `1` | Enable VoxCPM internal bad-case retry |
 
 For more defaults, see [src/translip/config.py](src/translip/config.py).
 

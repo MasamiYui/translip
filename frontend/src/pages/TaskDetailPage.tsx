@@ -81,10 +81,10 @@ const PROFILE_CONFIG: Record<
   dub_no_subtitles: {
     subtitleMode: 'none',
     exportPreview: true,
-    exportDub: false,
+    exportDub: true,
     videoLabel: '原始视频',
     audioLabel: '配音+背景混音音轨',
-    description: '导出含背景声的正式配音成片，不烧录英文字幕。',
+    description: '导出含背景声的正式配音成片，并保留纯配音成品用于复核。',
   },
   bilingual_review: {
     subtitleMode: 'bilingual',

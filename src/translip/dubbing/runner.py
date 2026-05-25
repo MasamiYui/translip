@@ -32,6 +32,7 @@ from .reference import (
     select_reference_candidates,
     select_voice_bank_reference_candidates,
 )
+from .voxcpm_tts_backend import VoxCPMTTSBackend
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,9 @@ logger = logging.getLogger(__name__)
 _DUBBING_WORKERS_ENV = "TRANSLIP_DUBBING_WORKERS"
 _MOSS_DEFAULT_WORKERS = 4
 _OTHER_DEFAULT_WORKERS = 1
+_MIN_AUDIBLE_PEAK = 0.01
+_MIN_AUDIBLE_RMS_DBFS = -60.0
+_SILENT_AUDIO_MAX_ATTEMPTS = 3
 
 
 def _resolve_dubbing_concurrency(
@@ -702,6 +706,19 @@ def _segment_report_row(
         if synthesis_mode == "dubbing_unit"
         else str(getattr(evaluation, "overall_status", ""))
     )
+    quality_flags = [str(flag) for flag in (getattr(evaluation, "quality_flags", ()) or ())]
+    if _is_near_silent_audio(synth_output.audio_path):
+        if "silent_audio" not in quality_flags:
+            quality_flags.append("silent_audio")
+        intelligibility_status = "failed"
+        overall_status = _overall_status_from_parts(
+            duration_status=duration_status,
+            speaker_status=speaker_status,
+            intelligibility_status=intelligibility_status,
+        )
+    quality_retry_reasons = _dedupe(
+        [str(reason) for reason in attempt_summary["quality_retry_reasons"]] + quality_flags
+    )
     row = {
         "segment_id": segment.segment_id,
         "speaker_id": segment.speaker_id,
@@ -721,13 +738,14 @@ def _segment_report_row(
         "text_similarity": round(float(getattr(evaluation, "text_similarity", 0.0) or 0.0), 4),
         "intelligibility_status": intelligibility_status,
         "overall_status": overall_status,
+        "quality_flags": quality_flags,
         "quality_check_mode": attempt_summary.get("quality_check_mode", "standard"),
         "qa_flags": segment.qa_flags,
         "reference_path": str(selected_reference.original_audio_path),
         "audio_path": str(synth_output.audio_path),
         "attempt_count": attempt_summary["attempt_count"],
         "selected_attempt_index": attempt_summary["selected_attempt_index"],
-        "quality_retry_reasons": attempt_summary["quality_retry_reasons"],
+        "quality_retry_reasons": quality_retry_reasons,
         "attempts": attempt_summary["attempts"],
         "index": index,
         "synthesis_mode": synthesis_mode,
@@ -824,6 +842,7 @@ def _synthesize_with_quality_retry(
     retry_reasons: list[str] = []
     synthesis_error: Exception | None = None
     reference_tournament = os.environ.get("TRANSLIP_REFERENCE_TOURNAMENT", "").strip().lower() in {"1", "true", "yes"}
+    attempt_index = 0
 
     for candidate_index, candidate in enumerate(reference_candidates, start=1):
         if prepared_lock is not None:
@@ -843,61 +862,88 @@ def _synthesize_with_quality_retry(
                     output_path=work_dir / "reference" / f"{candidate.path.stem}_prepared.wav",
                 )
                 prepared_references[candidate.path] = prepared
-        attempt_path = work_dir / "attempts" / segment.segment_id / f"ref-{candidate_index:02d}.wav"
-        try:
-            synth_output = backend.synthesize(reference=prepared, segment=segment, output_path=attempt_path)
-            evaluation = _evaluate_synthesized_segment(
-                reference_audio_path=prepared.original_audio_path,
-                synth_output=synth_output,
-                segment=segment,
-                target_lang=target_lang,
-                request=request,
+        candidate_retry_reasons: list[str] = []
+        candidate_had_success = False
+        for synthesis_attempt_index in range(1, _silent_audio_max_attempts() + 1):
+            attempt_index += 1
+            attempt_stem = (
+                f"ref-{candidate_index:02d}"
+                if synthesis_attempt_index == 1
+                else f"ref-{candidate_index:02d}-retry-{synthesis_attempt_index:02d}"
             )
-        except Exception as exc:  # pragma: no cover - covered by real pipeline run
-            synthesis_error = exc
-            logger.warning(
-                "Task D synthesis failed for %s with reference %s: %s",
-                segment.segment_id,
-                candidate.path,
-                exc,
-            )
-            attempts.append(
-                {
-                    "attempt_index": candidate_index,
-                    "reference_path": str(candidate.path),
-                    "status": "failed",
-                    "error": str(exc),
-                }
-            )
-            continue
-
-        attempt = {
-            "attempt_index": candidate_index,
-            "reference_path": str(prepared.original_audio_path),
-            "status": "candidate",
-            "audio_path": str(synth_output.audio_path),
-            "sample_rate": synth_output.sample_rate,
-            "generated_duration_sec": round(float(synth_output.generated_duration_sec), 3),
-            "duration_ratio": round(float(evaluation.duration_ratio), 3),
-            "duration_status": evaluation.duration_status,
-            "speaker_similarity": (
-                round(float(evaluation.speaker_similarity), 4)
-                if evaluation.speaker_similarity is not None
-                else None
-            ),
-            "speaker_status": evaluation.speaker_status,
-            "text_similarity": round(float(evaluation.text_similarity), 4),
-            "intelligibility_status": evaluation.intelligibility_status,
-            "overall_status": evaluation.overall_status,
-            "_prepared": prepared,
-            "_synth_output": synth_output,
-            "_evaluation": evaluation,
-        }
-        attempts.append(attempt)
-        if candidate_index == 1:
-            retry_reasons = _quality_retry_reasons(evaluation)
-            if not retry_reasons and not reference_tournament:
+            attempt_path = work_dir / "attempts" / segment.segment_id / f"{attempt_stem}.wav"
+            try:
+                synth_output = backend.synthesize(reference=prepared, segment=segment, output_path=attempt_path)
+                evaluation = _evaluate_synthesized_segment(
+                    reference_audio_path=prepared.original_audio_path,
+                    synth_output=synth_output,
+                    segment=segment,
+                    target_lang=target_lang,
+                    request=request,
+                )
+            except Exception as exc:  # pragma: no cover - covered by real pipeline run
+                synthesis_error = exc
+                logger.warning(
+                    "Task D synthesis failed for %s with reference %s: %s",
+                    segment.segment_id,
+                    candidate.path,
+                    exc,
+                )
+                attempts.append(
+                    {
+                        "attempt_index": attempt_index,
+                        "reference_candidate_index": candidate_index,
+                        "synthesis_attempt_index": synthesis_attempt_index,
+                        "reference_path": str(candidate.path),
+                        "status": "failed",
+                        "error": str(exc),
+                    }
+                )
                 break
+
+            candidate_had_success = True
+            attempt = {
+                "attempt_index": attempt_index,
+                "reference_candidate_index": candidate_index,
+                "synthesis_attempt_index": synthesis_attempt_index,
+                "reference_path": str(prepared.original_audio_path),
+                "status": "candidate",
+                "audio_path": str(synth_output.audio_path),
+                "sample_rate": synth_output.sample_rate,
+                "generated_duration_sec": round(float(synth_output.generated_duration_sec), 3),
+                "duration_ratio": round(float(evaluation.duration_ratio), 3),
+                "duration_status": evaluation.duration_status,
+                "speaker_similarity": (
+                    round(float(evaluation.speaker_similarity), 4)
+                    if evaluation.speaker_similarity is not None
+                    else None
+                ),
+                "speaker_status": evaluation.speaker_status,
+                "text_similarity": round(float(evaluation.text_similarity), 4),
+                "intelligibility_status": evaluation.intelligibility_status,
+                "overall_status": evaluation.overall_status,
+                "quality_flags": list(getattr(evaluation, "quality_flags", ()) or ()),
+                "_prepared": prepared,
+                "_synth_output": synth_output,
+                "_evaluation": evaluation,
+            }
+            attempts.append(attempt)
+            current_retry_reasons = _quality_retry_reasons(evaluation)
+            if attempt_index == 1:
+                retry_reasons = current_retry_reasons
+            candidate_retry_reasons = current_retry_reasons
+            if _should_retry_silent_audio(current_retry_reasons, synthesis_attempt_index):
+                continue
+            break
+
+        if not candidate_had_success:
+            continue
+        if reference_tournament:
+            continue
+        if not candidate_retry_reasons:
+            break
+        if not _should_try_next_reference(backend, candidate_retry_reasons):
+            break
 
     successful_attempts = [attempt for attempt in attempts if attempt.get("status") == "candidate"]
     if not successful_attempts:
@@ -957,6 +1003,22 @@ def _evaluate_synthesized_segment(
             else 0.0
         )
         duration_status = _duration_status_from_ratio(duration_ratio)
+        if _is_near_silent_audio(synth_output.audio_path):
+            return SegmentEvaluation(
+                speaker_similarity=None,
+                speaker_status="review",
+                backread_text="",
+                text_similarity=0.0,
+                intelligibility_status="failed",
+                duration_ratio=duration_ratio,
+                duration_status=duration_status,
+                overall_status=_overall_status_from_parts(
+                    duration_status=duration_status,
+                    speaker_status="review",
+                    intelligibility_status="failed",
+                ),
+                quality_flags=("silent_audio",),
+            )
         return SegmentEvaluation(
             speaker_similarity=None,
             speaker_status="review",
@@ -982,15 +1044,68 @@ def _evaluate_synthesized_segment(
     )
 
 
+def _is_near_silent_audio(audio_path: Path) -> bool:
+    try:
+        waveform, _sample_rate = sf.read(audio_path, always_2d=False)
+    except Exception as exc:
+        logger.warning("Failed to inspect synthesized audio level for %s: %s", audio_path, exc)
+        return False
+    if waveform.size == 0:
+        return True
+    if waveform.ndim > 1:
+        waveform = waveform.mean(axis=1)
+    waveform = waveform.astype(np.float32, copy=False)
+    peak = float(np.max(np.abs(waveform)))
+    rms = float(np.sqrt(np.mean(np.square(waveform))))
+    rms_dbfs = 20.0 * np.log10(rms + 1e-12)
+    return peak < _MIN_AUDIBLE_PEAK or rms_dbfs < _MIN_AUDIBLE_RMS_DBFS
+
+
+def _silent_audio_max_attempts() -> int:
+    value = os.environ.get("TRANSLIP_SILENT_AUDIO_MAX_ATTEMPTS", "").strip()
+    if not value:
+        return _SILENT_AUDIO_MAX_ATTEMPTS
+    try:
+        parsed = int(value)
+    except ValueError:
+        logger.warning("Ignoring invalid TRANSLIP_SILENT_AUDIO_MAX_ATTEMPTS=%r", value)
+        return _SILENT_AUDIO_MAX_ATTEMPTS
+    return max(1, parsed)
+
+
+def _should_retry_silent_audio(retry_reasons: list[str], synthesis_attempt_index: int) -> bool:
+    return "silent_audio" in retry_reasons and synthesis_attempt_index < _silent_audio_max_attempts()
+
+
+def _should_try_next_reference(backend: object, retry_reasons: list[str]) -> bool:
+    if "silent_audio" in retry_reasons:
+        return True
+    return _reference_retry_enabled_for_backend(backend)
+
+
+def _reference_retry_enabled_for_backend(backend: object) -> bool:
+    backend_name = str(getattr(backend, "backend_name", ""))
+    if backend_name != "voxcpm2":
+        return True
+    return os.environ.get("VOXCPM_REFERENCE_RETRY", "").strip().lower() in {"1", "true", "yes"}
+
+
 def _quality_retry_reasons(evaluation: object) -> list[str]:
     reasons: list[str] = []
+    for flag in getattr(evaluation, "quality_flags", ()) or ():
+        if flag not in reasons:
+            reasons.append(str(flag))
     duration_ratio = float(getattr(evaluation, "duration_ratio", 0.0) or 0.0)
     text_similarity = float(getattr(evaluation, "text_similarity", 0.0) or 0.0)
     if getattr(evaluation, "duration_status", "") == "failed" and (
         duration_ratio >= 2.0 or 0.0 < duration_ratio <= 0.45
     ):
         reasons.append("pathological_duration")
-    if getattr(evaluation, "intelligibility_status", "") == "failed" and text_similarity < 0.6:
+    if (
+        "silent_audio" not in reasons
+        and getattr(evaluation, "intelligibility_status", "") == "failed"
+        and text_similarity < 0.6
+    ):
         reasons.append("poor_backread")
     speaker_similarity = getattr(evaluation, "speaker_similarity", None)
     if getattr(evaluation, "speaker_status", "") == "failed":
@@ -1000,6 +1115,8 @@ def _quality_retry_reasons(evaluation: object) -> list[str]:
 
 
 def _attempt_score(evaluation: object) -> float:
+    if "silent_audio" in (getattr(evaluation, "quality_flags", ()) or ()):
+        return -1_000_000.0
     overall = _status_score(str(getattr(evaluation, "overall_status", ""))) * 100.0
     duration = _status_score(str(getattr(evaluation, "duration_status", ""))) * 24.0
     intelligibility = _status_score(str(getattr(evaluation, "intelligibility_status", ""))) * 18.0
@@ -1021,4 +1138,6 @@ def _build_backend(request: DubbingRequest, *, worker_count_hint: int | None = N
         return MossTtsNanoOnnxBackend(requested_device=request.device, worker_count_hint=worker_count_hint)
     if request.backend == "qwen3tts":
         return QwenTTSBackend(requested_device=request.device)
+    if request.backend == "voxcpm2":
+        return VoxCPMTTSBackend(requested_device=request.device)
     raise TranslipError(f"Unsupported dubbing backend: {request.backend}")

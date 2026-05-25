@@ -548,6 +548,186 @@ def test_pipeline_runner_marks_cached_stage_when_manifest_reusable(tmp_path: Pat
     assert payload["stages"][0]["status"] == "cached"
 
 
+def test_task_g_cache_requires_requested_delivery_outputs(tmp_path: Path, monkeypatch) -> None:
+    from translip.orchestration.runner import run_pipeline
+    from translip.types import PipelineRequest
+
+    input_path = tmp_path / "sample.mp4"
+    input_path.write_text("placeholder", encoding="utf-8")
+    output_root = tmp_path / "pipeline-out"
+    task_g_dir = output_root / "task-g"
+    task_g_dir.mkdir(parents=True)
+    (task_g_dir / "delivery-manifest.json").write_text(
+        json.dumps({"status": "succeeded", "request": {"export_preview": True, "export_dub": False}}),
+        encoding="utf-8",
+    )
+    (task_g_dir / "delivery-report.json").write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
+
+    request = PipelineRequest(
+        input_path=input_path,
+        output_root=output_root,
+        run_from_stage="task-g",
+        run_to_stage="task-g",
+        delivery_policy={"video_source": "original", "audio_source": "both", "subtitle_source": "asr"},
+    )
+
+    monkeypatch.setattr(
+        "translip.orchestration.runner.resolve_template_plan",
+        lambda template_id: type(
+            "Plan",
+            (),
+            {
+                "template_id": template_id,
+                "node_order": ["task-g"],
+                "nodes": {"task-g": type("Node", (), {"required": True})()},
+            },
+        )(),
+    )
+
+    executed: list[str] = []
+
+    def fake_execute_node(stage_name: str, *_args, **_kwargs):
+        executed.append(stage_name)
+        final_dub = task_g_dir / "final-dub" / "final_dub.en.mp4"
+        final_dub.parent.mkdir(parents=True)
+        final_dub.write_bytes(b"dub")
+        return {
+            "manifest_path": str(task_g_dir / "delivery-manifest.json"),
+            "artifact_paths": [str(task_g_dir / "delivery-manifest.json"), str(final_dub)],
+        }
+
+    monkeypatch.setattr("translip.orchestration.runner.execute_node", fake_execute_node)
+
+    result = run_pipeline(request)
+
+    assert executed == ["task-g"]
+    payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert payload["stages"][0]["status"] == "succeeded"
+    assert payload["stages"][0]["cache_hit"] is False
+
+
+def test_task_g_cache_treats_preview_audio_source_as_preview_mix(tmp_path: Path, monkeypatch) -> None:
+    from translip.orchestration.runner import run_pipeline
+    from translip.types import PipelineRequest
+
+    input_path = tmp_path / "sample.mp4"
+    input_path.write_text("placeholder", encoding="utf-8")
+    output_root = tmp_path / "pipeline-out"
+    task_g_dir = output_root / "task-g"
+    task_g_dir.mkdir(parents=True)
+    (task_g_dir / "delivery-manifest.json").write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
+    (task_g_dir / "delivery-report.json").write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
+
+    request = PipelineRequest(
+        input_path=input_path,
+        output_root=output_root,
+        run_from_stage="task-g",
+        run_to_stage="task-g",
+        delivery_policy={"video_source": "original", "audio_source": "preview", "subtitle_source": "asr"},
+    )
+
+    monkeypatch.setattr(
+        "translip.orchestration.runner.resolve_template_plan",
+        lambda template_id: type(
+            "Plan",
+            (),
+            {
+                "template_id": template_id,
+                "node_order": ["task-g"],
+                "nodes": {"task-g": type("Node", (), {"required": True})()},
+            },
+        )(),
+    )
+
+    executed: list[str] = []
+
+    def fake_execute_node(stage_name: str, *_args, **_kwargs):
+        executed.append(stage_name)
+        final_preview = task_g_dir / "final-preview" / "final_preview.en.mp4"
+        final_preview.parent.mkdir(parents=True)
+        final_preview.write_bytes(b"preview")
+        return {
+            "manifest_path": str(task_g_dir / "delivery-manifest.json"),
+            "artifact_paths": [str(task_g_dir / "delivery-manifest.json"), str(final_preview)],
+        }
+
+    monkeypatch.setattr("translip.orchestration.runner.execute_node", fake_execute_node)
+
+    result = run_pipeline(request)
+
+    assert executed == ["task-g"]
+    payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert payload["stages"][0]["status"] == "succeeded"
+    assert payload["stages"][0]["cache_hit"] is False
+
+
+def test_task_g_cache_rejects_manifest_that_omits_requested_dub_export(tmp_path: Path, monkeypatch) -> None:
+    from translip.orchestration.runner import run_pipeline
+    from translip.types import PipelineRequest
+
+    input_path = tmp_path / "sample.mp4"
+    input_path.write_text("placeholder", encoding="utf-8")
+    output_root = tmp_path / "pipeline-out"
+    task_g_dir = output_root / "task-g"
+    task_g_dir.mkdir(parents=True)
+    final_preview = task_g_dir / "final-preview" / "final_preview.en.mp4"
+    final_preview.parent.mkdir(parents=True)
+    final_preview.write_bytes(b"preview")
+    stale_dub = task_g_dir / "final-dub" / "final_dub.en.mp4"
+    stale_dub.parent.mkdir(parents=True)
+    stale_dub.write_bytes(b"stale dub")
+    (task_g_dir / "delivery-manifest.json").write_text(
+        json.dumps(
+            {
+                "status": "succeeded",
+                "request": {"export_preview": True, "export_dub": False},
+                "artifacts": {"final_preview_video": str(final_preview), "final_dub_video": None},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (task_g_dir / "delivery-report.json").write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
+
+    request = PipelineRequest(
+        input_path=input_path,
+        output_root=output_root,
+        run_from_stage="task-g",
+        run_to_stage="task-g",
+        delivery_policy={"video_source": "original", "audio_source": "both", "subtitle_source": "asr"},
+    )
+
+    monkeypatch.setattr(
+        "translip.orchestration.runner.resolve_template_plan",
+        lambda template_id: type(
+            "Plan",
+            (),
+            {
+                "template_id": template_id,
+                "node_order": ["task-g"],
+                "nodes": {"task-g": type("Node", (), {"required": True})()},
+            },
+        )(),
+    )
+
+    executed: list[str] = []
+
+    def fake_execute_node(stage_name: str, *_args, **_kwargs):
+        executed.append(stage_name)
+        return {
+            "manifest_path": str(task_g_dir / "delivery-manifest.json"),
+            "artifact_paths": [str(task_g_dir / "delivery-manifest.json"), str(stale_dub)],
+        }
+
+    monkeypatch.setattr("translip.orchestration.runner.execute_node", fake_execute_node)
+
+    result = run_pipeline(request)
+
+    assert executed == ["task-g"]
+    payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert payload["stages"][0]["status"] == "succeeded"
+    assert payload["stages"][0]["cache_hit"] is False
+
+
 def test_run_pipeline_executes_nodes_from_template_plan(tmp_path: Path, monkeypatch) -> None:
     from translip.orchestration.runner import run_pipeline
     from translip.types import PipelineRequest

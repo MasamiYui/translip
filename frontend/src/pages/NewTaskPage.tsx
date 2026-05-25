@@ -7,6 +7,7 @@ import { worksApi } from '../api/works'
 import { configApi, systemApi } from '../api/config'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { buildTemplatePreviewGraph } from '../lib/workflowPreview'
+import { DUBBING_BACKEND_OPTIONS } from '../lib/dubbingBackends'
 import { PipelineGraph } from '../components/pipeline/PipelineGraph'
 import { getOutputIntentLabel, getQualityPresetLabel } from '../lib/taskPresentation'
 import type {
@@ -756,10 +757,7 @@ export function NewTaskPage() {
                   <Select
                     value={config.tts_backend ?? 'moss-tts-nano-onnx'}
                     onChange={value => patchConfig({ tts_backend: value })}
-                    options={[
-                      { value: 'moss-tts-nano-onnx', label: 'MOSS-TTS-Nano ONNX' },
-                      { value: 'qwen3tts', label: 'Qwen3TTS' },
-                    ]}
+                    options={DUBBING_BACKEND_OPTIONS}
                   />
                 </Field>
                 <Field

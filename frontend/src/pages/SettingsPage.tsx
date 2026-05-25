@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { configApi, modelsApi, systemApi } from '../api/config'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { CacheSection } from '../components/settings/CacheSection'
+import { DUBBING_BACKEND_OPTIONS } from '../lib/dubbingBackends'
 import { formatBytes } from '../lib/utils'
 import {
   CheckCircle,
@@ -567,10 +568,7 @@ function AdvancedSettingsSection({
           <SettingsSelect
             label="TTS 后端"
             value={config.tts_backend ?? 'moss-tts-nano-onnx'}
-            options={[
-              { value: 'moss-tts-nano-onnx', label: 'MOSS-TTS-Nano ONNX' },
-              { value: 'qwen3tts', label: 'Qwen3TTS' },
-            ]}
+            options={DUBBING_BACKEND_OPTIONS}
             onChange={value => onPatch({ tts_backend: value })}
           />
           <SettingsOptionalNumber
@@ -598,12 +596,12 @@ function AdvancedSettingsSection({
           </SettingsField>
           <SettingsField label="修复后端">
             <div className="grid gap-2 sm:grid-cols-2">
-              {['moss-tts-nano-onnx', 'qwen3tts'].map(backend => (
+              {DUBBING_BACKEND_OPTIONS.map(backend => (
                 <SettingsCheckbox
-                  key={backend}
-                  label={backend}
-                  checked={repairBackends.includes(backend)}
-                  onChange={value => patchRepairBackend(backend, value)}
+                  key={backend.value}
+                  label={backend.label}
+                  checked={repairBackends.includes(backend.value)}
+                  onChange={value => patchRepairBackend(backend.value, value)}
                 />
               ))}
             </div>

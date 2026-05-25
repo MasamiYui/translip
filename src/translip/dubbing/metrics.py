@@ -28,6 +28,7 @@ class SegmentEvaluation:
     duration_ratio: float
     duration_status: str
     overall_status: str
+    quality_flags: tuple[str, ...] = ()
 
 
 @lru_cache(maxsize=4)

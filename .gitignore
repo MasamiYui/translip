@@ -14,6 +14,7 @@ node_modules/
 .playwright-mcp/
 .superpowers/brainstorm/
 output/
+output-pipeline/
 output-task-a/
 output-task-b/
 tmp/

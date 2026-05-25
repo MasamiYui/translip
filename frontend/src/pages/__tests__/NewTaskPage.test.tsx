@@ -173,7 +173,7 @@ describe('NewTaskPage redesigned flow', () => {
     expect(screen.getByText(/OCR 有但 ASR 没有的字幕只报告/)).toBeInTheDocument()
   })
 
-  it('defaults task synthesis to MOSS-TTS-Nano ONNX while keeping Qwen selectable', async () => {
+  it('defaults task synthesis to MOSS-TTS-Nano ONNX while keeping Qwen and VoxCPM selectable', async () => {
     vi.mocked(configApi.getPresets).mockResolvedValue([])
 
     renderStepTwo()
@@ -186,6 +186,7 @@ describe('NewTaskPage redesigned flow', () => {
     expect(ttsSelect.value).toBe('moss-tts-nano-onnx')
     expect(screen.getByRole('option', { name: 'MOSS-TTS-Nano ONNX' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Qwen3TTS' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'VoxCPM2' })).toBeInTheDocument()
   })
 
   it('applies global advanced ASR defaults to created task config', async () => {

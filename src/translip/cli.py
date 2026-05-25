@@ -44,6 +44,7 @@ from .pipeline.runner import separate_file
 from .quality import DubBenchmarkRequest, build_dub_benchmark
 from .rendering.runner import render_dub
 from .repair import RepairPlanRequest, RepairRunRequest, plan_dub_repair, run_dub_repair
+from .server.cache_manager import ModelDownloadError, downloadable_model_keys, model_download_manager
 from .speakers.runner import build_speaker_registry
 from .subtitles.preview import SubtitlePreviewRequest, preview_subtitle
 from .translation.runner import translate_script
@@ -410,7 +411,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         dest="tts_backends",
         default=None,
-        choices=["moss-tts-nano-onnx", "qwen3tts"],
+        choices=list(SUPPORTED_DUBBING_BACKENDS),
         help="TTS backend to try; may be passed multiple times",
     )
     repair_run_parser.add_argument("--device", default=DEFAULT_DEVICE, choices=["auto", "cpu", "cuda", "mps"])
@@ -467,7 +468,7 @@ def build_parser() -> argparse.ArgumentParser:
     download_parser.add_argument(
         "--backend",
         default="cdx23",
-        choices=["cdx23"],
+        choices=["cdx23", *downloadable_model_keys()],
         help="Model backend to download",
     )
     download_parser.add_argument(
@@ -538,7 +539,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--dub-repair-backend",
         action="append",
         dest="dub_repair_backend",
-        choices=["moss-tts-nano-onnx", "qwen3tts"],
+        choices=list(SUPPORTED_DUBBING_BACKENDS),
         default=None,
     )
     pipeline_parser.add_argument("--dub-repair-max-items", type=int, default=None)
@@ -692,8 +693,19 @@ def main(argv: list[str] | None = None) -> int:
             for path in downloaded:
                 print(path)
             return 0
-        parser.error(f"Unsupported backend: {args.backend}")
-        return 2
+        try:
+            job = model_download_manager.start_missing(
+                run_in_thread=False,
+                only_keys=[args.backend],
+            )
+        except ModelDownloadError as exc:
+            parser.error(str(exc))
+            return 2
+        for item in job.items.values():
+            print(f"{item.key}: {item.state}")
+            if item.error:
+                print(f"{item.key}: {item.error}")
+        return 0 if job.state == "succeeded" else 1
 
     if args.command == "run":
         request = SeparationRequest(
