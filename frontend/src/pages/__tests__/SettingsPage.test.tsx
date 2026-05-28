@@ -87,6 +87,9 @@ beforeEach(() => {
     separation_quality: 'high',
     stage1_output_format: 'wav',
     asr_model: 'medium',
+    asr_backend: 'faster-whisper',
+    diarizer_backend: 'ecapa',
+    enable_diarization: true,
     generate_srt: true,
     vad_filter: false,
     vad_min_silence_duration_ms: 650,
@@ -139,6 +142,11 @@ describe('SettingsPage global and advanced settings', () => {
     fireEvent.click(screen.getByRole('button', { name: '任务默认参数' }))
 
     expect(screen.getByText('语音转写')).toBeInTheDocument()
+    expect(screen.getByLabelText('ASR 后端')).toHaveValue('faster-whisper')
+    expect(screen.getByLabelText('ASR 模型')).toHaveValue('medium')
+    expect(within(screen.getByLabelText('ASR 后端')).getByRole('option', { name: 'FunASR' })).toBeInTheDocument()
+    expect(screen.getByLabelText('启用说话人分离')).toBeChecked()
+    expect(screen.getByLabelText('说话人后端')).toHaveValue('ecapa')
     expect(screen.getByLabelText('启用 VAD')).not.toBeChecked()
     expect(screen.getByLabelText('VAD 最小静音毫秒')).toHaveValue(650)
     expect(screen.getByLabelText('Beam Size')).toHaveValue(3)
@@ -191,6 +199,9 @@ describe('SettingsPage global and advanced settings', () => {
     fireEvent.click(await screen.findByRole('button', { name: '任务默认参数' }))
 
     fireEvent.change(screen.getByLabelText('Beam Size'), { target: { value: '4' } })
+    fireEvent.change(screen.getByLabelText('ASR 后端'), { target: { value: 'funasr' } })
+    fireEvent.change(screen.getByLabelText('说话人后端'), { target: { value: 'pyannote' } })
+    fireEvent.click(screen.getByLabelText('启用说话人分离'))
     fireEvent.change(screen.getByLabelText('背景音量 dB'), { target: { value: '-12' } })
     fireEvent.click(screen.getByLabelText('允许修复风险段落'))
     fireEvent.click(screen.getByRole('button', { name: '保存默认参数' }))
@@ -198,7 +209,10 @@ describe('SettingsPage global and advanced settings', () => {
     await waitFor(() => {
       expect(configApi.updateGlobal).toHaveBeenCalledWith(
         expect.objectContaining({
-          asr_model: 'medium',
+          asr_model: 'iic/SenseVoiceSmall',
+          asr_backend: 'funasr',
+          diarizer_backend: 'pyannote',
+          enable_diarization: false,
           vad_filter: false,
           vad_min_silence_duration_ms: 650,
           beam_size: 4,

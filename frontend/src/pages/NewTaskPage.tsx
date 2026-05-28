@@ -79,6 +79,25 @@ const defaultConfig: Partial<TaskConfig> = {
   subtitle_render_source: 'ocr',
 }
 
+const FASTER_WHISPER_MODEL_OPTIONS = ['tiny', 'base', 'small', 'medium', 'large-v3'].map(value => ({
+  value,
+  label: value,
+}))
+
+const FUNASR_MODEL_OPTIONS = [
+  { value: 'iic/SenseVoiceSmall', label: 'SenseVoiceSmall' },
+]
+
+const ASR_BACKEND_OPTIONS = [
+  { value: 'faster-whisper', label: 'faster-whisper' },
+  { value: 'funasr', label: 'FunASR' },
+]
+
+const DIARIZER_BACKEND_OPTIONS = [
+  { value: 'ecapa', label: 'ECAPA' },
+  { value: 'pyannote', label: 'pyannote' },
+]
+
 const globalDefaultKeys: Array<keyof TaskConfig> = [
   'device',
   'use_cache',
@@ -485,6 +504,22 @@ export function NewTaskPage() {
     setConfig(prev => ({ ...prev, ...patch }))
   }
 
+  const asrBackend = config.asr_backend ?? 'faster-whisper'
+  const asrModelOptions = useMemo(
+    () => (asrBackend === 'funasr' ? FUNASR_MODEL_OPTIONS : FASTER_WHISPER_MODEL_OPTIONS),
+    [asrBackend],
+  )
+  const asrModelValue = asrModelOptions.some(option => option.value === config.asr_model)
+    ? String(config.asr_model)
+    : asrModelOptions[0].value
+
+  function patchAsrBackend(backend: string) {
+    patchConfig({
+      asr_backend: backend as TaskConfig['asr_backend'],
+      asr_model: backend === 'funasr' ? FUNASR_MODEL_OPTIONS[0].value : 'small',
+    })
+  }
+
   function patchTranscriptionCorrection(patch: Partial<TranscriptionCorrectionConfig>) {
     setConfig(prev => ({
       ...prev,
@@ -818,29 +853,23 @@ export function NewTaskPage() {
                 </Field>
                 <Field label={t.newTask.fields.asrModel}>
                   <Select
-                    value={config.asr_model ?? 'small'}
+                    value={asrModelValue}
                     onChange={value => patchConfig({ asr_model: value })}
-                    options={['tiny', 'base', 'small', 'medium', 'large-v3'].map(value => ({ value, label: value }))}
+                    options={asrModelOptions}
                   />
                 </Field>
                 <Field label={locale === 'zh-CN' ? 'ASR 后端' : 'ASR Backend'}>
                   <Select
-                    value={config.asr_backend ?? 'faster-whisper'}
-                    onChange={value => patchConfig({ asr_backend: value as TaskConfig['asr_backend'] })}
-                    options={[
-                      { value: 'faster-whisper', label: 'faster-whisper' },
-                      { value: 'funasr', label: 'FunASR' },
-                    ]}
+                    value={asrBackend}
+                    onChange={patchAsrBackend}
+                    options={ASR_BACKEND_OPTIONS}
                   />
                 </Field>
                 <Field label={locale === 'zh-CN' ? '说话人后端' : 'Diarizer Backend'}>
                   <Select
                     value={config.diarizer_backend ?? 'ecapa'}
                     onChange={value => patchConfig({ diarizer_backend: value as TaskConfig['diarizer_backend'] })}
-                    options={[
-                      { value: 'ecapa', label: 'ECAPA' },
-                      { value: 'pyannote', label: 'pyannote' },
-                    ]}
+                    options={DIARIZER_BACKEND_OPTIONS}
                   />
                 </Field>
               </div>

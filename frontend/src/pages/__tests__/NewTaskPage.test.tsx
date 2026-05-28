@@ -194,7 +194,10 @@ describe('NewTaskPage redesigned flow', () => {
       separation_mode: 'dialogue',
       separation_quality: 'high',
       stage1_output_format: 'wav',
-      asr_model: 'medium',
+      asr_model: 'iic/SenseVoiceSmall',
+      asr_backend: 'funasr',
+      diarizer_backend: 'pyannote',
+      enable_diarization: false,
       vad_filter: false,
       vad_min_silence_duration_ms: 650,
       beam_size: 3,
@@ -238,7 +241,10 @@ describe('NewTaskPage redesigned flow', () => {
     const request = vi.mocked(tasksApi.create).mock.calls[0][0]
     expect(request.config).toEqual(
       expect.objectContaining({
-        asr_model: 'medium',
+        asr_model: 'iic/SenseVoiceSmall',
+        asr_backend: 'funasr',
+        diarizer_backend: 'pyannote',
+        enable_diarization: false,
         separation_mode: 'dialogue',
         separation_quality: 'high',
         stage1_output_format: 'wav',

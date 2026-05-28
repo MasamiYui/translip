@@ -31,6 +31,9 @@ const defaultGlobalConfig: GlobalConfigDraft = {
   stage1_output_format: 'mp3',
   audio_stream_index: 0,
   asr_model: 'small',
+  asr_backend: 'faster-whisper',
+  diarizer_backend: 'ecapa',
+  enable_diarization: true,
   generate_srt: true,
   vad_filter: true,
   vad_min_silence_duration_ms: 400,
@@ -61,6 +64,25 @@ const defaultGlobalConfig: GlobalConfigDraft = {
   subtitle_mode: 'none',
   subtitle_render_source: 'ocr',
 }
+
+const FASTER_WHISPER_MODEL_OPTIONS = ['tiny', 'base', 'small', 'medium', 'large-v3'].map(value => ({
+  value,
+  label: value,
+}))
+
+const FUNASR_MODEL_OPTIONS = [
+  { value: 'iic/SenseVoiceSmall', label: 'SenseVoiceSmall' },
+]
+
+const ASR_BACKEND_OPTIONS = [
+  { value: 'faster-whisper', label: 'faster-whisper' },
+  { value: 'funasr', label: 'FunASR' },
+]
+
+const DIARIZER_BACKEND_OPTIONS = [
+  { value: 'ecapa', label: 'ECAPA' },
+  { value: 'pyannote', label: 'pyannote' },
+]
 
 export function SettingsPage() {
   const { t } = useI18n()
@@ -431,11 +453,22 @@ function AdvancedSettingsSection({
 }) {
   const { t } = useI18n()
   const repairBackends = config.dub_repair_backend ?? config.dub_repair_backends ?? []
+  const asrBackend = config.asr_backend ?? 'faster-whisper'
+  const asrModelOptions = asrBackend === 'funasr' ? FUNASR_MODEL_OPTIONS : FASTER_WHISPER_MODEL_OPTIONS
+  const asrModelValue = asrModelOptions.some(option => option.value === config.asr_model)
+    ? String(config.asr_model)
+    : asrModelOptions[0].value
   const patchRepairBackend = (backend: string, enabled: boolean) => {
     const next = enabled
       ? Array.from(new Set([...repairBackends, backend]))
       : repairBackends.filter(item => item !== backend)
     onPatch({ dub_repair_backend: next, dub_repair_backends: next })
+  }
+  const patchAsrBackend = (backend: string) => {
+    onPatch({
+      asr_backend: backend as TaskConfig['asr_backend'],
+      asr_model: backend === 'funasr' ? FUNASR_MODEL_OPTIONS[0].value : 'small',
+    })
   }
 
   return (
@@ -481,10 +514,29 @@ function AdvancedSettingsSection({
 
         <AdvancedSettingsGroup title="语音转写" description="Task A 生成带说话人和时间轴的字幕文本。">
           <SettingsSelect
+            label="ASR 后端"
+            value={asrBackend}
+            options={ASR_BACKEND_OPTIONS}
+            onChange={patchAsrBackend}
+          />
+          <SettingsSelect
             label="ASR 模型"
-            value={config.asr_model ?? 'small'}
-            options={['tiny', 'base', 'small', 'medium', 'large-v3'].map(value => ({ value, label: value }))}
+            value={asrModelValue}
+            options={asrModelOptions}
             onChange={value => onPatch({ asr_model: value })}
+          />
+          <SettingsField label="说话人分离">
+            <SettingsCheckbox
+              label="启用说话人分离"
+              checked={config.enable_diarization ?? true}
+              onChange={value => onPatch({ enable_diarization: value })}
+            />
+          </SettingsField>
+          <SettingsSelect
+            label="说话人后端"
+            value={config.diarizer_backend ?? 'ecapa'}
+            options={DIARIZER_BACKEND_OPTIONS}
+            onChange={value => onPatch({ diarizer_backend: value as TaskConfig['diarizer_backend'] })}
           />
           <SettingsField label="生成 SRT">
             <SettingsCheckbox
