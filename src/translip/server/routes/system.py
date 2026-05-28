@@ -204,7 +204,7 @@ def list_missing_models():
             {
                 "key": key,
                 "label": group.label if group else key,
-                "auto_downloadable": key in cache_manager._MODEL_HF_REPOS,
+                "auto_downloadable": cache_manager.is_auto_downloadable(key),
             }
         )
     return {"items": items}

@@ -96,6 +96,8 @@ class TranscriptionToolRequest(BaseModel):
     file_id: str
     language: str = "zh"
     asr_model: str = "small"
+    asr_backend: Literal["faster-whisper", "funasr"] = "faster-whisper"
+    diarizer_backend: Literal["ecapa", "pyannote"] = "ecapa"
     enable_diarization: bool = False
     generate_srt: bool = True
 

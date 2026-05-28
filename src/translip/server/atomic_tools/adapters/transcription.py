@@ -28,6 +28,9 @@ class TranscriptionAdapter(ToolAdapter):
             output_dir=output_dir,
             language=params.get("language", "zh"),
             asr_model=params.get("asr_model", "small"),
+            asr_backend=params.get("asr_backend", "faster-whisper"),
+            diarizer_backend=params.get("diarizer_backend", "ecapa"),
+            enable_diarization=bool(params.get("enable_diarization", False)),
             write_srt=params.get("generate_srt", True),
         ).normalized()
         on_progress(10.0, "transcribing")
@@ -49,6 +52,8 @@ class TranscriptionAdapter(ToolAdapter):
             "total_segments": len(result.segments),
             "total_duration_sec": result.media_info.duration_sec,
             "language": params.get("language", "zh"),
+            "asr_backend": request.asr_backend,
+            "diarizer_backend": request.diarizer_backend if request.enable_diarization else "disabled",
             "speaker_count": len(unique_speakers),
             "speakers": unique_speakers,
             "segments": [

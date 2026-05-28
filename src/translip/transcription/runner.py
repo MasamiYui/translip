@@ -6,7 +6,8 @@ from pathlib import Path
 
 from ..exceptions import TranslipError
 from ..pipeline.ingest import prepare_transcription_audio
-from ..transcription.asr import AsrOptions, transcribe_audio
+from ..transcription.asr import AsrOptions, AsrSegment
+from ..transcription.asr import transcribe_audio as transcribe_audio_faster_whisper
 from ..transcription.export import (
     build_transcription_manifest,
     now_iso,
@@ -15,7 +16,7 @@ from ..transcription.export import (
     write_segments_json,
     write_segments_srt,
 )
-from ..transcription.speaker import assign_speaker_labels
+from ..transcription.speaker import assign_speaker_labels as assign_speaker_labels_ecapa
 from ..types import (
     MediaInfo,
     TranscriptionArtifacts,
@@ -33,6 +34,60 @@ def _validate_request(request: TranscriptionRequest) -> TranscriptionRequest:
     if not Path(normalized.input_path).exists():
         raise TranslipError(f"Input file does not exist: {normalized.input_path}")
     return normalized
+
+
+def _run_asr(
+    audio_path: Path,
+    *,
+    backend: str,
+    model_name: str,
+    language: str,
+    requested_device: str,
+    options: AsrOptions,
+) -> tuple[list[AsrSegment], dict[str, str | float | int | bool]]:
+    if backend == "funasr":
+        from ..transcription.funasr_backend import transcribe_audio as transcribe_audio_funasr
+
+        return transcribe_audio_funasr(
+            audio_path,
+            model_name=model_name,
+            language=language,
+            requested_device=requested_device,
+            options=options,
+        )
+    if backend not in {"faster-whisper", ""}:
+        logger.warning("Unknown asr_backend=%s, falling back to faster-whisper.", backend)
+    return transcribe_audio_faster_whisper(
+        audio_path,
+        model_name=model_name,
+        language=language,
+        requested_device=requested_device,
+        options=options,
+    )
+
+
+def _run_diarization(
+    audio_path: Path,
+    asr_segments: list[AsrSegment],
+    *,
+    backend: str,
+    requested_device: str,
+) -> tuple[list[str], dict[str, int | float | str]]:
+    if backend == "pyannote":
+        from ..transcription.pyannote_diarizer import assign_speaker_labels as assign_pyannote
+
+        return assign_pyannote(
+            audio_path,
+            asr_segments,
+            requested_device=requested_device,
+        )
+    if backend not in {"ecapa", ""}:
+        logger.warning("Unknown diarizer_backend=%s, falling back to ECAPA clustering.", backend)
+    return assign_speaker_labels_ecapa(
+        audio_path,
+        asr_segments,
+        requested_device=requested_device,
+    )
 
 
 def transcribe_file(
@@ -55,8 +110,9 @@ def transcribe_file(
 
     try:
         media_info, working_audio = prepare_transcription_audio(normalized_request, work_dir)
-        asr_segments, asr_metadata = transcribe_audio(
+        asr_segments, asr_metadata = _run_asr(
             working_audio,
+            backend=normalized_request.asr_backend,
             model_name=normalized_request.asr_model,
             language=normalized_request.language,
             requested_device=normalized_request.device,
@@ -69,11 +125,19 @@ def transcribe_file(
                 condition_on_previous_text=normalized_request.condition_on_previous_text,
             ),
         )
-        speaker_labels, speaker_metadata = assign_speaker_labels(
-            working_audio,
-            asr_segments,
-            requested_device=normalized_request.device,
-        )
+        if normalized_request.enable_diarization:
+            speaker_labels, speaker_metadata = _run_diarization(
+                working_audio,
+                asr_segments,
+                backend=normalized_request.diarizer_backend,
+                requested_device=normalized_request.device,
+            )
+        else:
+            speaker_labels = ["SPEAKER_00"] * len(asr_segments)
+            speaker_metadata = {
+                "speaker_backend": "disabled",
+                "speaker_count": 1 if asr_segments else 0,
+            }
         metadata = {**asr_metadata, **speaker_metadata, "segment_count": len(asr_segments)}
 
         segments = [

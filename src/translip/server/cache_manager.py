@@ -131,6 +131,12 @@ def _huggingface_cache_root() -> Path:
     return hf_home / "hub"
 
 
+def _modelscope_cache_root() -> Path:
+    if cache_root := os.environ.get("MODELSCOPE_CACHE"):
+        return Path(cache_root)
+    return Path.home() / ".cache" / "modelscope" / "hub"
+
+
 def _glob_dirs(root: Path, pattern: str) -> list[Path]:
     if not root.exists():
         return []
@@ -190,6 +196,57 @@ CACHE_REGISTRY: list[CacheGroup] = [
         paths=lambda r, h: [
             r / "models" / "qwen3tts",
             *_glob_dirs(h, "models--Qwen--Qwen3-TTS-*"),
+        ],
+    ),
+    CacheGroup(
+        key="pyannote_speaker_diarization_31",
+        label="pyannote speaker-diarization 3.1",
+        group="model",
+        paths=lambda r, h: [
+            r / "models" / "pyannote" / "speaker-diarization-3.1",
+            *_glob_dirs(h, "models--pyannote--speaker-diarization-3.1*"),
+        ],
+    ),
+    CacheGroup(
+        key="pyannote_segmentation_30",
+        label="pyannote segmentation 3.0",
+        group="model",
+        paths=lambda r, h: [
+            r / "models" / "pyannote" / "segmentation-3.0",
+            *_glob_dirs(h, "models--pyannote--segmentation-3.0*"),
+        ],
+    ),
+    CacheGroup(
+        key="funasr_sensevoice_small",
+        label="FunASR SenseVoiceSmall",
+        group="model",
+        paths=lambda r, _h: [
+            r / "models" / "funasr" / "SenseVoiceSmall",
+            _modelscope_cache_root() / "iic" / "SenseVoiceSmall",
+            _modelscope_cache_root() / "models" / "iic" / "SenseVoiceSmall",
+        ],
+    ),
+    CacheGroup(
+        key="funasr_fsmn_vad",
+        label="FunASR FSMN-VAD",
+        group="model",
+        paths=lambda r, _h: [
+            r / "models" / "funasr" / "speech_fsmn_vad_zh-cn-16k-common-pytorch",
+            _modelscope_cache_root() / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch",
+            _modelscope_cache_root() / "models" / "iic" / "speech_fsmn_vad_zh-cn-16k-common-pytorch",
+        ],
+    ),
+    CacheGroup(
+        key="funasr_ct_punc",
+        label="FunASR CT-Punc",
+        group="model",
+        paths=lambda r, _h: [
+            r / "models" / "funasr" / "punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
+            _modelscope_cache_root() / "iic" / "punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
+            _modelscope_cache_root()
+            / "models"
+            / "iic"
+            / "punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
         ],
     ),
     CacheGroup(
@@ -765,6 +822,26 @@ migration_manager = MigrationManager()
 # ---------------------------------------------------------------------------
 
 
+def _hf_snapshot_download(**kwargs: Any) -> Any:
+    """Indirection for tests: defer import + allow monkeypatch."""
+    from huggingface_hub import snapshot_download as _impl
+
+    return _impl(**kwargs)
+
+
+def _ms_snapshot_download(**kwargs: Any) -> Any:
+    """Indirection for tests: defer import + raise a clear error if missing."""
+    try:
+        import modelscope.hub.snapshot_download as _ms_mod
+    except ImportError as exc:  # pragma: no cover - depends on env
+        raise RuntimeError(
+            "modelscope_not_installed: please run "
+            "`python -m pip install modelscope` and restart the server "
+            f"(original error: {exc})"
+        ) from exc
+    return _ms_mod.snapshot_download(**kwargs)
+
+
 # Map registry keys -> list of HF repo_ids that should be snapshot-downloaded.
 # Models that cannot be auto-downloaded (e.g. CDX23 weights distributed
 # manually) are intentionally absent from this map.
@@ -784,6 +861,49 @@ _MODEL_HF_REPOS: dict[str, list[str]] = {
         "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
     ],
 }
+
+
+# Gated HuggingFace repos: only auto-downloadable when a HF token is detected
+# in the environment. These models require the user to accept their model
+# license on HuggingFace before downloading. We surface them to the
+# "download missing" flow opportunistically rather than letting the job
+# always fail with 401.
+_MODEL_HF_REPOS_GATED: dict[str, list[str]] = {
+    "pyannote_speaker_diarization_31": ["pyannote/speaker-diarization-3.1"],
+    "pyannote_segmentation_30": ["pyannote/segmentation-3.0"],
+}
+
+
+# Map registry keys -> list of ModelScope model_ids. These are downloaded via
+# `modelscope.hub.snapshot_download.snapshot_download` into
+# `_modelscope_cache_root()` so that FunASR's `AutoModel(...)` finds them
+# offline at runtime.
+_MODEL_MS_REPOS: dict[str, list[str]] = {
+    "funasr_sensevoice_small": ["iic/SenseVoiceSmall"],
+    "funasr_fsmn_vad": ["iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"],
+    "funasr_ct_punc": ["iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch"],
+}
+
+
+def _resolve_hf_token() -> str | None:
+    """Best-effort HF token discovery, mirroring pyannote_diarizer behaviour."""
+    for env_name in ("HF_TOKEN", "HUGGINGFACE_HUB_TOKEN", "PYANNOTE_AUTH_TOKEN"):
+        token = os.environ.get(env_name)
+        if token:
+            return token
+    return None
+
+
+def _auto_downloadable_keys() -> set[str]:
+    """Return the set of registry keys eligible for the one-click downloader."""
+    keys = set(_MODEL_HF_REPOS.keys()) | set(_MODEL_MS_REPOS.keys())
+    if _resolve_hf_token():
+        keys |= set(_MODEL_HF_REPOS_GATED.keys())
+    return keys
+
+
+def is_auto_downloadable(key: str) -> bool:
+    return key in _auto_downloadable_keys()
 
 
 def list_missing_model_keys(
@@ -916,15 +1036,16 @@ class ModelDownloadManager:
         run_in_thread: bool = True,
         only_keys: list[str] | None = None,
     ) -> ModelDownloadJob:
+        eligible = _auto_downloadable_keys()
         if only_keys:
-            requested = [k for k in only_keys if k in _MODEL_HF_REPOS]
-            unknown = [k for k in only_keys if k not in _MODEL_HF_REPOS]
+            requested = [k for k in only_keys if k in eligible]
+            unknown = [k for k in only_keys if k not in eligible]
             if unknown:
                 raise ModelDownloadError(f"unsupported_keys:{','.join(unknown)}")
             missing_keys = requested
         else:
             all_missing = list_missing_model_keys()
-            missing_keys = [k for k in all_missing if k in _MODEL_HF_REPOS]
+            missing_keys = [k for k in all_missing if k in eligible]
 
         with self._lock:
             if self._active_job_id and self._jobs[self._active_job_id].state in {
@@ -975,15 +1096,19 @@ class ModelDownloadManager:
             self._jobs.pop(jid, None)
 
     def _run(self, job: ModelDownloadJob) -> None:
-        from huggingface_hub import snapshot_download
         from huggingface_hub.utils import HfHubHTTPError
 
         job.state = "running"
         job.started_at = time.time()
         cache_root = resolve_active_cache_root()
         hf_root = _huggingface_cache_root()
+        ms_root = _modelscope_cache_root()
         ensure_directory(cache_root)
         ensure_directory(hf_root)
+        hf_token = _resolve_hf_token()
+        gated_repo_ids = {
+            r for repos in _MODEL_HF_REPOS_GATED.values() for r in repos
+        }
         try:
             for key in job.keys:
                 if job.cancel_event.is_set():
@@ -992,21 +1117,34 @@ class ModelDownloadManager:
                 job.current_key = key
                 entry.state = "running"
                 entry.started_at = time.time()
-                repos = _MODEL_HF_REPOS.get(key, [])
-                if not repos:
+                hf_repos = _MODEL_HF_REPOS.get(key, []) + _MODEL_HF_REPOS_GATED.get(key, [])
+                ms_repos = _MODEL_MS_REPOS.get(key, [])
+                if not hf_repos and not ms_repos:
                     entry.state = "skipped"
                     entry.error = "no_auto_download_source"
                     entry.finished_at = time.time()
                     continue
                 try:
-                    for repo_id in repos:
+                    for repo_id in hf_repos:
                         if job.cancel_event.is_set():
                             break
-                        snapshot_download(
-                            repo_id=repo_id,
-                            cache_dir=str(hf_root),
-                            local_files_only=False,
-                            resume_download=True,
+                        kwargs: dict[str, Any] = {
+                            "repo_id": repo_id,
+                            "cache_dir": str(hf_root),
+                            "local_files_only": False,
+                            "resume_download": True,
+                        }
+                        if repo_id in gated_repo_ids and hf_token:
+                            kwargs["token"] = hf_token
+                        _hf_snapshot_download(**kwargs)
+                    if ms_repos:
+                        ensure_directory(ms_root)
+                    for model_id in ms_repos:
+                        if job.cancel_event.is_set():
+                            break
+                        _ms_snapshot_download(
+                            model_id=model_id,
+                            cache_dir=str(ms_root),
                         )
                     if job.cancel_event.is_set():
                         entry.state = "failed"

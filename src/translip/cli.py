@@ -111,6 +111,23 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_TRANSCRIPTION_ASR_MODEL,
         help="faster-whisper model name, e.g. small, medium, large-v3",
     )
+    transcribe_parser.add_argument(
+        "--asr-backend",
+        default="faster-whisper",
+        choices=["faster-whisper", "funasr"],
+        help="ASR backend implementation",
+    )
+    transcribe_parser.add_argument(
+        "--diarizer-backend",
+        default="ecapa",
+        choices=["ecapa", "pyannote"],
+        help="Speaker diarization backend (only used when --enable-diarization is set)",
+    )
+    transcribe_parser.add_argument(
+        "--enable-diarization",
+        action="store_true",
+        help="Enable speaker diarization (default off)",
+    )
     transcribe_parser.add_argument("--device", default=DEFAULT_DEVICE, choices=["auto", "cpu", "cuda", "mps"])
     transcribe_parser.add_argument("--audio-stream-index", type=int, default=0)
     transcribe_parser.add_argument("--keep-intermediate", action="store_true")
@@ -701,6 +718,9 @@ def main(argv: list[str] | None = None) -> int:
             output_dir=args.output_dir,
             language=args.language,
             asr_model=args.asr_model,
+            asr_backend=args.asr_backend,
+            diarizer_backend=args.diarizer_backend,
+            enable_diarization=args.enable_diarization,
             device=args.device,
             audio_stream_index=args.audio_stream_index,
             keep_intermediate=args.keep_intermediate,

@@ -175,7 +175,7 @@ def build_stage1_command(request: PipelineRequest) -> list[str]:
 
 
 def build_task_a_command(request: PipelineRequest) -> list[str]:
-    return [
+    command = [
         *_cli_prefix(),
         "transcribe",
         "--input",
@@ -186,9 +186,16 @@ def build_task_a_command(request: PipelineRequest) -> list[str]:
         request.transcription_language,
         "--asr-model",
         request.asr_model,
+        "--asr-backend",
+        request.asr_backend,
+        "--diarizer-backend",
+        request.diarizer_backend,
         "--device",
         request.device,
     ]
+    if request.enable_diarization:
+        command.append("--enable-diarization")
+    return command
 
 
 def build_task_b_command(request: PipelineRequest) -> list[str]:
