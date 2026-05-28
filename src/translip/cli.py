@@ -44,6 +44,7 @@ from .pipeline.runner import separate_file
 from .quality import DubBenchmarkRequest, build_dub_benchmark
 from .rendering.runner import render_dub
 from .repair import RepairPlanRequest, RepairRunRequest, plan_dub_repair, run_dub_repair
+from .server.cache_manager import ModelDownloadError, downloadable_model_keys, model_download_manager
 from .speakers.runner import build_speaker_registry
 from .subtitles.preview import SubtitlePreviewRequest, preview_subtitle
 from .translation.runner import translate_script
@@ -132,6 +133,17 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser.add_argument("--audio-stream-index", type=int, default=0)
     transcribe_parser.add_argument("--keep-intermediate", action="store_true")
     transcribe_parser.add_argument("--no-srt", action="store_true")
+    transcribe_parser.add_argument("--vad-filter", dest="vad_filter", action=argparse.BooleanOptionalAction, default=True)
+    transcribe_parser.add_argument("--vad-min-silence-duration-ms", type=int, default=400)
+    transcribe_parser.add_argument("--beam-size", type=int, default=5)
+    transcribe_parser.add_argument("--best-of", type=int, default=5)
+    transcribe_parser.add_argument("--temperature", type=float, default=0.0)
+    transcribe_parser.add_argument(
+        "--condition-on-previous-text",
+        dest="condition_on_previous_text",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
 
     correction_parser = subparsers.add_parser(
         "correct-asr-with-ocr",
@@ -416,7 +428,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         dest="tts_backends",
         default=None,
-        choices=["moss-tts-nano-onnx", "qwen3tts"],
+        choices=list(SUPPORTED_DUBBING_BACKENDS),
         help="TTS backend to try; may be passed multiple times",
     )
     repair_run_parser.add_argument("--device", default=DEFAULT_DEVICE, choices=["auto", "cpu", "cuda", "mps"])
@@ -473,7 +485,7 @@ def build_parser() -> argparse.ArgumentParser:
     download_parser.add_argument(
         "--backend",
         default="cdx23",
-        choices=["cdx23"],
+        choices=["cdx23", *downloadable_model_keys()],
         help="Model backend to download",
     )
     download_parser.add_argument(
@@ -544,7 +556,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--dub-repair-backend",
         action="append",
         dest="dub_repair_backend",
-        choices=["moss-tts-nano-onnx", "qwen3tts"],
+        choices=list(SUPPORTED_DUBBING_BACKENDS),
         default=None,
     )
     pipeline_parser.add_argument("--dub-repair-max-items", type=int, default=None)
@@ -582,6 +594,21 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument("--stage1-output-format", default=None, choices=["wav", "mp3", "flac", "aac", "opus"])
     pipeline_parser.add_argument("--transcription-language", default=None)
     pipeline_parser.add_argument("--asr-model", default=None)
+    pipeline_parser.add_argument("--asr-backend", default=None, choices=["faster-whisper", "funasr"])
+    pipeline_parser.add_argument("--diarizer-backend", default=None, choices=["ecapa", "pyannote"])
+    pipeline_parser.add_argument("--enable-diarization", dest="enable_diarization", action=argparse.BooleanOptionalAction, default=None)
+    pipeline_parser.add_argument("--generate-srt", dest="generate_srt", action=argparse.BooleanOptionalAction, default=None)
+    pipeline_parser.add_argument("--vad-filter", dest="vad_filter", action=argparse.BooleanOptionalAction, default=None)
+    pipeline_parser.add_argument("--vad-min-silence-duration-ms", type=int, default=None)
+    pipeline_parser.add_argument("--beam-size", type=int, default=None)
+    pipeline_parser.add_argument("--best-of", type=int, default=None)
+    pipeline_parser.add_argument("--temperature", type=float, default=None)
+    pipeline_parser.add_argument(
+        "--condition-on-previous-text",
+        dest="condition_on_previous_text",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+    )
     pipeline_parser.add_argument("--audio-stream-index", type=int, default=None)
     pipeline_parser.add_argument("--top-k", type=int, default=None)
     pipeline_parser.add_argument("--update-registry", dest="update_registry", action=argparse.BooleanOptionalAction, default=None)
@@ -686,8 +713,19 @@ def main(argv: list[str] | None = None) -> int:
             for path in downloaded:
                 print(path)
             return 0
-        parser.error(f"Unsupported backend: {args.backend}")
-        return 2
+        try:
+            job = model_download_manager.start_missing(
+                run_in_thread=False,
+                only_keys=[args.backend],
+            )
+        except ModelDownloadError as exc:
+            parser.error(str(exc))
+            return 2
+        for item in job.items.values():
+            print(f"{item.key}: {item.state}")
+            if item.error:
+                print(f"{item.key}: {item.error}")
+        return 0 if job.state == "succeeded" else 1
 
     if args.command == "run":
         request = SeparationRequest(
@@ -725,6 +763,12 @@ def main(argv: list[str] | None = None) -> int:
             audio_stream_index=args.audio_stream_index,
             keep_intermediate=args.keep_intermediate,
             write_srt=not args.no_srt,
+            vad_filter=args.vad_filter,
+            vad_min_silence_duration_ms=args.vad_min_silence_duration_ms,
+            beam_size=args.beam_size,
+            best_of=args.best_of,
+            temperature=args.temperature,
+            condition_on_previous_text=args.condition_on_previous_text,
         )
         result = transcribe_file(request)
         print(f"segments={result.artifacts.segments_json_path}")

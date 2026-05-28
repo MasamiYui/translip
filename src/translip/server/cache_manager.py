@@ -250,6 +250,16 @@ CACHE_REGISTRY: list[CacheGroup] = [
         ],
     ),
     CacheGroup(
+        key="voxcpm2",
+        label="VoxCPM2",
+        group="model",
+        paths=lambda r, h: [
+            r / "models" / "VoxCPM2",
+            *_glob_dirs(h, "models--openbmb--VoxCPM2*"),
+            *_glob_dirs(h, "models--OpenBMB--VoxCPM2*"),
+        ],
+    ),
+    CacheGroup(
         key="hf_hub",
         label="HuggingFace Hub",
         group="hub",
@@ -860,8 +870,10 @@ _MODEL_HF_REPOS: dict[str, list[str]] = {
     "qwen3tts": [
         "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
     ],
+    "voxcpm2": [
+        "openbmb/VoxCPM2",
+    ],
 }
-
 
 # Gated HuggingFace repos: only auto-downloadable when a HF token is detected
 # in the environment. These models require the user to accept their model
@@ -904,6 +916,10 @@ def _auto_downloadable_keys() -> set[str]:
 
 def is_auto_downloadable(key: str) -> bool:
     return key in _auto_downloadable_keys()
+
+
+def downloadable_model_keys() -> tuple[str, ...]:
+    return tuple(sorted(_auto_downloadable_keys()))
 
 
 def list_missing_model_keys(
@@ -1208,8 +1224,10 @@ __all__ = [
     "compute_breakdown",
     "default_cache_root",
     "dir_size",
+    "downloadable_model_keys",
     "find_group",
     "get_user_config_path",
+    "is_auto_downloadable",
     "list_missing_model_keys",
     "migration_manager",
     "model_download_manager",

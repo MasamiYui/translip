@@ -39,6 +39,16 @@ def test_cli_transcribe_parser() -> None:
             "zh",
             "--asr-model",
             "small",
+            "--no-vad-filter",
+            "--vad-min-silence-duration-ms",
+            "650",
+            "--beam-size",
+            "3",
+            "--best-of",
+            "2",
+            "--temperature",
+            "0.2",
+            "--condition-on-previous-text",
             "--no-srt",
         ]
     )
@@ -47,6 +57,12 @@ def test_cli_transcribe_parser() -> None:
     assert args.output_dir == "output-transcribe"
     assert args.language == "zh"
     assert args.asr_model == "small"
+    assert args.vad_filter is False
+    assert args.vad_min_silence_duration_ms == 650
+    assert args.beam_size == 3
+    assert args.best_of == 2
+    assert args.temperature == 0.2
+    assert args.condition_on_previous_text is True
     assert args.no_srt is True
 
 
@@ -292,6 +308,37 @@ def test_cli_synthesize_speaker_accepts_moss_tts_nano_onnx() -> None:
     assert args.backend == "moss-tts-nano-onnx"
 
 
+def test_cli_synthesize_speaker_accepts_voxcpm2() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "synthesize-speaker",
+            "--translation",
+            "translation.en.json",
+            "--profiles",
+            "speaker_profiles.json",
+            "--speaker-id",
+            "spk_0000",
+            "--backend",
+            "voxcpm2",
+        ]
+    )
+    assert args.backend == "voxcpm2"
+
+
+def test_cli_download_models_accepts_voxcpm2() -> None:
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "download-models",
+            "--backend",
+            "voxcpm2",
+        ]
+    )
+
+    assert args.backend == "voxcpm2"
+
+
 def test_cli_render_dub_parser() -> None:
     parser = build_parser()
     args = parser.parse_args(
@@ -357,6 +404,8 @@ def test_cli_run_dub_repair_parser() -> None:
             "moss-tts-nano-onnx",
             "--tts-backend",
             "qwen3tts",
+            "--tts-backend",
+            "voxcpm2",
             "--segment-id",
             "seg-0001",
             "--max-items",
@@ -371,7 +420,7 @@ def test_cli_run_dub_repair_parser() -> None:
     assert args.rewrite_plan == "rewrite_plan.en.json"
     assert args.reference_plan == "reference_plan.en.json"
     assert args.character_ledger == "character_ledger.en.json"
-    assert args.tts_backends == ["moss-tts-nano-onnx", "qwen3tts"]
+    assert args.tts_backends == ["moss-tts-nano-onnx", "qwen3tts", "voxcpm2"]
     assert args.segment_ids == ["seg-0001"]
     assert args.max_items == 5
     assert args.attempts_per_item == 4
@@ -408,6 +457,11 @@ def test_cli_run_pipeline_parser() -> None:
             "pipeline-output",
             "--target-lang",
             "en",
+            "--asr-backend",
+            "funasr",
+            "--diarizer-backend",
+            "pyannote",
+            "--no-enable-diarization",
             "--resume",
             "--write-status",
         ]
@@ -416,6 +470,9 @@ def test_cli_run_pipeline_parser() -> None:
     assert args.input == "sample.mp4"
     assert args.output_root == "pipeline-output"
     assert args.target_lang == "en"
+    assert args.asr_backend == "funasr"
+    assert args.diarizer_backend == "pyannote"
+    assert args.enable_diarization is False
     assert args.resume is True
     assert args.write_status is True
 

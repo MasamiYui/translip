@@ -85,6 +85,12 @@ describe('Sidebar', () => {
     expect(container.querySelector('[data-ui-sidebar-brand]')).toHaveClass('h-[60px]')
   })
 
+  it('uses the selected Voice Stems logo for the sidebar brand mark', () => {
+    renderSidebar('/tasks')
+
+    expect(screen.getByRole('img', { name: 'Translip Voice Stems logo' })).toBeInTheDocument()
+  })
+
   it('highlights the pipeline task entry on the task list page', () => {
     renderSidebar('/tasks')
 

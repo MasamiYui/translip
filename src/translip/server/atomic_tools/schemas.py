@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class ToolInfo(BaseModel):
@@ -100,6 +100,12 @@ class TranscriptionToolRequest(BaseModel):
     diarizer_backend: Literal["ecapa", "pyannote"] = "ecapa"
     enable_diarization: bool = False
     generate_srt: bool = True
+    vad_filter: bool = True
+    vad_min_silence_duration_ms: int = Field(default=400, gt=0)
+    beam_size: int = Field(default=5, gt=0)
+    best_of: int = Field(default=5, gt=0)
+    temperature: float = Field(default=0.0, ge=0)
+    condition_on_previous_text: bool = False
 
 
 class TranscriptCorrectionToolRequest(BaseModel):

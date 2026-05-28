@@ -32,6 +32,12 @@ class TranscriptionAdapter(ToolAdapter):
             diarizer_backend=params.get("diarizer_backend", "ecapa"),
             enable_diarization=bool(params.get("enable_diarization", False)),
             write_srt=params.get("generate_srt", True),
+            vad_filter=params.get("vad_filter", True),
+            vad_min_silence_duration_ms=params.get("vad_min_silence_duration_ms", 400),
+            beam_size=params.get("beam_size", 5),
+            best_of=params.get("best_of", 5),
+            temperature=params.get("temperature", 0.0),
+            condition_on_previous_text=params.get("condition_on_previous_text", False),
         ).normalized()
         on_progress(10.0, "transcribing")
         result = transcribe_file(request)

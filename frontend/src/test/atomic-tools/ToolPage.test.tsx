@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { configApi } from '../../api/config'
 import { I18nProvider } from '../../i18n/I18nProvider'
 import { ToolPage } from '../../pages/ToolPage'
 
@@ -19,6 +20,12 @@ const atomicToolMocks = vi.hoisted(() => ({
 
 vi.mock('../../api/atomic-tools', () => ({
   atomicToolsApi: apiMocks,
+}))
+
+vi.mock('../../api/config', () => ({
+  configApi: {
+    getDefaults: vi.fn(),
+  },
 }))
 
 vi.mock('../../hooks/useAtomicTool', () => ({
@@ -51,6 +58,10 @@ function createWrapper(initialEntries = ['/tools/transcription']) {
     )
   }
 }
+
+beforeEach(() => {
+  vi.mocked(configApi.getDefaults).mockResolvedValue({})
+})
 
 afterEach(() => {
   cleanup()
@@ -94,6 +105,57 @@ describe('ToolPage', () => {
         language: 'ja',
         asr_model: 'small',
         generate_srt: true,
+      }),
+    )
+  })
+
+  it('applies global transcription defaults to atomic transcription params', async () => {
+    vi.mocked(configApi.getDefaults).mockResolvedValue({
+      asr_model: 'medium',
+      vad_filter: false,
+      vad_min_silence_duration_ms: 650,
+      beam_size: 3,
+      best_of: 2,
+      temperature: 0.2,
+      condition_on_previous_text: true,
+      generate_srt: false,
+    })
+    apiMocks.listTools.mockResolvedValue([
+      {
+        tool_id: 'transcription',
+        name_zh: '语音转文字',
+        name_en: 'Speech to Text',
+        description_zh: '语音识别并生成带时间戳的文字与字幕',
+        description_en: 'Transcribe audio/video into timestamped text and subtitles',
+        category: 'speech',
+        icon: 'MessageSquareText',
+        accept_formats: ['.mp4'],
+        max_file_size_mb: 500,
+        max_files: 1,
+      },
+    ])
+
+    render(
+      <Routes>
+        <Route path="/tools/:toolId" element={<ToolPage />} />
+      </Routes>,
+      { wrapper: createWrapper() },
+    )
+
+    expect(await screen.findByRole('heading', { name: '语音转文字' })).toBeInTheDocument()
+    await screen.findByDisplayValue('medium')
+    fireEvent.click(screen.getByRole('button', { name: '开始处理' }))
+
+    expect(atomicToolMocks.runTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        asr_model: 'medium',
+        generate_srt: false,
+        vad_filter: false,
+        vad_min_silence_duration_ms: 650,
+        beam_size: 3,
+        best_of: 2,
+        temperature: 0.2,
+        condition_on_previous_text: true,
       }),
     )
   })

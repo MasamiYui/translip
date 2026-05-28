@@ -16,6 +16,11 @@ def _write_tone(path: Path, *, duration_sec: float, sample_rate: int = 24_000, f
     sf.write(path, waveform, sample_rate)
 
 
+def _write_waveform(path: Path, waveform: np.ndarray, *, sample_rate: int = 24_000) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    sf.write(path, waveform.astype(np.float32), sample_rate)
+
+
 def _write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -284,6 +289,112 @@ def test_render_dub_writes_outputs_and_places_failed_segments_when_audio_exists(
     assert preview_sample_rate == 24_000
     assert len(dub_waveform) == len(preview_waveform)
     assert len(dub_waveform) == int(round(4.0 * 24_000))
+
+
+def test_render_dub_ducks_background_where_source_voice_stem_is_active(tmp_path: Path) -> None:
+    sample_rate = 24_000
+    duration_sec = 4.0
+    sample_count = int(duration_sec * sample_rate)
+    time_axis = np.linspace(0.0, duration_sec, sample_count, endpoint=False, dtype=np.float32)
+    stage1_dir = tmp_path / "stage1" / "demo"
+    background_path = stage1_dir / "background.wav"
+    voice_path = stage1_dir / "voice.wav"
+    background = (0.1 * np.sin(2 * np.pi * 110.0 * time_axis)).astype(np.float32)
+    source_voice = np.zeros(sample_count, dtype=np.float32)
+    source_voice[int(1.0 * sample_rate): int(2.0 * sample_rate)] = (
+        0.12 * np.sin(2 * np.pi * 330.0 * time_axis[: sample_rate])
+    )
+    _write_waveform(background_path, background, sample_rate=sample_rate)
+    _write_waveform(voice_path, source_voice, sample_rate=sample_rate)
+
+    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.json"
+    _write_json(
+        segments_path,
+        {
+            "segments": [
+                {
+                    "id": "seg-0001",
+                    "start": 0.0,
+                    "end": 0.5,
+                    "duration": 0.5,
+                    "speaker_label": "SPEAKER_00",
+                    "text": "第一句",
+                    "language": "zh",
+                }
+            ]
+        },
+    )
+    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
+    _write_json(
+        translation_path,
+        {
+            "backend": {"target_lang": "en", "output_tag": "en"},
+            "segments": [
+                {
+                    "segment_id": "seg-0001",
+                    "speaker_id": "spk_0000",
+                    "speaker_label": "SPEAKER_00",
+                    "start": 0.0,
+                    "end": 0.5,
+                    "duration": 0.5,
+                    "target_text": "first line",
+                    "qa_flags": [],
+                }
+            ],
+        },
+    )
+    seg_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    _write_tone(seg_audio, duration_sec=0.4, frequency=220.0)
+    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    _write_json(
+        report_path,
+        {
+            "backend": {"target_lang": "en"},
+            "segments": [
+                {
+                    "segment_id": "seg-0001",
+                    "speaker_id": "spk_0000",
+                    "target_text": "first line",
+                    "source_duration_sec": 0.5,
+                    "generated_duration_sec": 0.4,
+                    "speaker_similarity": 0.8,
+                    "duration_status": "passed",
+                    "speaker_status": "passed",
+                    "text_similarity": 0.99,
+                    "intelligibility_status": "passed",
+                    "overall_status": "passed",
+                    "audio_path": str(seg_audio),
+                }
+            ],
+        },
+    )
+
+    result = render_dub(
+        RenderDubRequest(
+            background_path=background_path,
+            segments_path=segments_path,
+            translation_path=translation_path,
+            task_d_report_paths=[report_path],
+            output_dir=tmp_path / "output-task-e",
+            target_lang="en",
+            fit_policy="conservative",
+            fit_backend="atempo",
+            mix_profile="preview",
+            ducking_mode="static",
+            background_gain_db=0.0,
+            window_ducking_db=-24.0,
+            output_sample_rate=sample_rate,
+            preview_format="wav",
+        )
+    )
+
+    preview_waveform, _ = sf.read(result.artifacts.preview_mix_wav_path, dtype="float32")
+    source_voice_gap = preview_waveform[int(1.2 * sample_rate): int(1.8 * sample_rate)]
+    untouched_gap = preview_waveform[int(3.3 * sample_rate): int(3.7 * sample_rate)]
+
+    source_voice_rms = float(np.sqrt(np.mean(source_voice_gap * source_voice_gap)))
+    untouched_rms = float(np.sqrt(np.mean(untouched_gap * untouched_gap)))
+    assert source_voice_rms < untouched_rms * 0.2
 
 
 def test_render_dub_uses_selected_segments_override(tmp_path: Path) -> None:

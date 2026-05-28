@@ -134,7 +134,22 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
             }
         )
     elif stage_name == "task-a":
-        common.update({"language": request.transcription_language, "asr_model": request.asr_model})
+        common.update(
+            {
+                "language": request.transcription_language,
+                "asr_model": request.asr_model,
+                "asr_backend": request.asr_backend,
+                "diarizer_backend": request.diarizer_backend,
+                "enable_diarization": request.enable_diarization,
+                "generate_srt": request.generate_srt,
+                "vad_filter": request.vad_filter,
+                "vad_min_silence_duration_ms": request.vad_min_silence_duration_ms,
+                "beam_size": request.beam_size,
+                "best_of": request.best_of,
+                "temperature": request.temperature,
+                "condition_on_previous_text": request.condition_on_previous_text,
+            }
+        )
     elif stage_name == "asr-ocr-correct":
         common.update({"transcription_correction": dict(request.transcription_correction)})
     elif stage_name == "task-b":
@@ -175,8 +190,11 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "fit_backend": request.fit_backend,
                 "mix_profile": request.mix_profile,
                 "ducking_mode": request.ducking_mode,
+                "background_gain_db": request.background_gain_db,
+                "window_ducking_db": request.window_ducking_db,
                 "preview_format": request.preview_format,
                 "max_compress_ratio": request.max_compress_ratio,
+                "output_sample_rate": request.output_sample_rate,
                 "dub_repair_enabled": request.dub_repair_enabled,
                 "dub_repair_backends": request.dub_repair_backends,
                 "dub_repair_max_items": request.dub_repair_max_items,
@@ -185,6 +203,53 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
             }
         )
     return common
+
+
+def _task_g_expected_artifact_paths(request: PipelineRequest) -> list[Path]:
+    task_g_dir = request.output_root / "task-g"
+    artifact_paths = [task_g_dir / "delivery-manifest.json", task_g_dir / "delivery-report.json"]
+    audio_source = _delivery_audio_source(request)
+    if audio_source in {"preview_mix", "both"}:
+        artifact_paths.append(task_g_dir / "final-preview" / f"final_preview.{request.target_lang}.mp4")
+    if audio_source in {"dub_voice", "both"}:
+        artifact_paths.append(task_g_dir / "final-dub" / f"final_dub.{request.target_lang}.mp4")
+    return artifact_paths
+
+
+def _delivery_audio_source(request: PipelineRequest) -> str:
+    audio_source = str(request.delivery_policy.get("audio_source", "both") or "both")
+    aliases = {
+        "preview": "preview_mix",
+        "final_preview": "preview_mix",
+        "dub": "dub_voice",
+        "final_dub": "dub_voice",
+    }
+    return aliases.get(audio_source, audio_source)
+
+
+def _is_node_cache_hit(cache_spec: StageCacheSpec) -> bool:
+    if not is_stage_cache_hit(cache_spec):
+        return False
+    if cache_spec.stage_name != "task-g":
+        return True
+    return _task_g_manifest_declares_expected_outputs(cache_spec)
+
+
+def _task_g_manifest_declares_expected_outputs(cache_spec: StageCacheSpec) -> bool:
+    try:
+        manifest = _load_json(cache_spec.manifest_path)
+    except Exception:
+        return False
+    request = manifest.get("request", {})
+    artifacts = manifest.get("artifacts", {})
+    expected_paths = {str(path) for path in cache_spec.artifact_paths}
+    if any("/final-preview/" in path for path in expected_paths):
+        if request.get("export_preview") is not True or not artifacts.get("final_preview_video"):
+            return False
+    if any("/final-dub/" in path for path in expected_paths):
+        if request.get("export_dub") is not True or not artifacts.get("final_dub_video"):
+            return False
+    return True
 
 
 def _node_cache_spec(
@@ -220,7 +285,7 @@ def _node_cache_spec(
         artifact_paths = [task_e_dub_voice_path(request), task_e_preview_mix_path(request), task_e_mix_report_path(request)]
     elif stage_name == "task-g":
         manifest_path = request.output_root / "task-g" / "delivery-manifest.json"
-        artifact_paths = [manifest_path, request.output_root / "task-g" / "delivery-report.json"]
+        artifact_paths = _task_g_expected_artifact_paths(request)
     elif stage_name == "ocr-detect":
         manifest_path = ocr_detect_manifest_path(request)
         artifact_paths = [ocr_events_path(request), ocr_detection_path(request), ocr_source_srt_path(request)]
@@ -561,7 +626,7 @@ def _repair_backends_for_request(request: PipelineRequest) -> list[str]:
     configured = [
         str(backend)
         for backend in (request.dub_repair_backends or [])
-        if str(backend) in {"moss-tts-nano-onnx", "qwen3tts"}
+        if str(backend) in {"moss-tts-nano-onnx", "qwen3tts", "voxcpm2"}
     ]
     if configured:
         return _dedupe(configured)
@@ -586,7 +651,7 @@ def execute_delivery_node(
     from ..types import ExportVideoRequest
 
     delivery_inputs = resolve_delivery_inputs(request)
-    audio_source = request.delivery_policy.get("audio_source", "both")
+    audio_source = _delivery_audio_source(request)
     export_preview = audio_source in {"preview_mix", "both"}
     export_dub = audio_source in {"dub_voice", "both"}
     monitor.update_stage_progress("task-g", 5.0, "assembling delivery")
@@ -730,7 +795,7 @@ def run_pipeline(
                 "error": None,
             }
             stage_rows.append(stage_row)
-            if request.reuse_existing and node_name not in force_stages and is_stage_cache_hit(cache_spec):
+            if request.reuse_existing and node_name not in force_stages and _is_node_cache_hit(cache_spec):
                 monitor.start_stage(node_name, current_step="cached")
                 monitor.complete_stage(node_name, status="cached", current_step="cached")
                 stage_row["status"] = "cached"

@@ -11,6 +11,7 @@ from ..dubbing.metrics import SegmentEvaluation, evaluate_segment
 from ..dubbing.moss_tts_nano_backend import MossTtsNanoOnnxBackend
 from ..dubbing.qwen_tts_backend import QwenTTSBackend
 from ..dubbing.reference import ReferenceCandidate, prepare_reference_package
+from ..dubbing.voxcpm_tts_backend import VoxCPMTTSBackend
 from ..exceptions import TranslipError
 from ..quality.audio_signature import pitch_class_distance, voice_signature
 from .export import now_iso, write_json
@@ -503,6 +504,8 @@ def _backend_for(
         backend: TTSBackend = MossTtsNanoOnnxBackend(requested_device=request.device)
     elif backend_name == "qwen3tts":
         backend = QwenTTSBackend(requested_device=request.device)
+    elif backend_name == "voxcpm2":
+        backend = VoxCPMTTSBackend(requested_device=request.device)
     else:
         raise TranslipError(f"Unsupported repair TTS backend: {backend_name}")
     backend_cache[backend_name] = backend

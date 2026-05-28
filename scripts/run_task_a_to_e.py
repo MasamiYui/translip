@@ -7,6 +7,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from translip.config import SUPPORTED_DUBBING_BACKENDS
 from translip.dubbing.planning import (
     pick_segment_ids_for_speaker,
     pick_task_d_speaker_ids,
@@ -27,7 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--tts-backend",
         default="moss-tts-nano-onnx",
-        choices=["moss-tts-nano-onnx", "qwen3tts"],
+        choices=list(SUPPORTED_DUBBING_BACKENDS),
     )
     parser.add_argument("--glossary", default="config/glossary.example.json", help="Optional glossary path")
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])

@@ -28,7 +28,7 @@ describe('WorkflowGraph', () => {
     expect(screen.getByText('音频主干')).toBeInTheDocument()
     expect(screen.getByText('OCR 字幕线')).toBeInTheDocument()
     expect(screen.getByText('交付线')).toBeInTheDocument()
-    expect(screen.getByText('OCR Detect: 字幕定位')).toBeInTheDocument()
+    expect(screen.getByText('字幕定位')).toBeInTheDocument()
     expect(screen.getByText('状态图例')).toBeInTheDocument()
   })
 })

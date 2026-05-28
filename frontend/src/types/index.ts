@@ -187,8 +187,19 @@ export interface TaskConfig {
   separation_quality: string
   music_backend: string
   dialogue_backend: string
+  stage1_output_format?: string
+  audio_stream_index?: number
   asr_model: string
+  asr_backend?: 'faster-whisper' | 'funasr'
+  diarizer_backend?: 'ecapa' | 'pyannote'
+  enable_diarization?: boolean
   generate_srt: boolean
+  vad_filter: boolean
+  vad_min_silence_duration_ms: number
+  beam_size: number
+  best_of: number
+  temperature: number
+  condition_on_previous_text: boolean
   transcription_correction?: Partial<TranscriptionCorrectionConfig>
   top_k: number
   translation_backend: string
@@ -212,6 +223,10 @@ export interface TaskConfig {
   mix_profile: string
   ducking_mode: string
   background_gain_db: number
+  window_ducking_db?: number
+  max_compress_ratio?: number
+  output_sample_rate?: number
+  preview_format?: string
   ocr_project_root?: string
   erase_project_root?: string
 }

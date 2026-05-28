@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { configApi } from '../../api/config'
 import { tasksApi } from '../../api/tasks'
 import { worksApi } from '../../api/works'
@@ -69,6 +69,10 @@ function renderReviewStep() {
   fireEvent.click(screen.getByRole('button', { name: '下一步' }))
   fireEvent.click(screen.getByRole('button', { name: '下一步' }))
 }
+
+beforeEach(() => {
+  vi.mocked(configApi.getDefaults).mockResolvedValue({})
+})
 
 afterEach(() => {
   cleanup()
@@ -169,7 +173,7 @@ describe('NewTaskPage redesigned flow', () => {
     expect(screen.getByText(/OCR 有但 ASR 没有的字幕只报告/)).toBeInTheDocument()
   })
 
-  it('defaults task synthesis to MOSS-TTS-Nano ONNX while keeping Qwen selectable', async () => {
+  it('defaults task synthesis to MOSS-TTS-Nano ONNX while keeping Qwen and VoxCPM selectable', async () => {
     vi.mocked(configApi.getPresets).mockResolvedValue([])
 
     renderStepTwo()
@@ -182,6 +186,89 @@ describe('NewTaskPage redesigned flow', () => {
     expect(ttsSelect.value).toBe('moss-tts-nano-onnx')
     expect(screen.getByRole('option', { name: 'MOSS-TTS-Nano ONNX' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Qwen3TTS' })).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: 'VoxCPM2' })).toBeInTheDocument()
+  })
+
+  it('applies global advanced ASR defaults to created task config', async () => {
+    vi.mocked(configApi.getDefaults).mockResolvedValue({
+      separation_mode: 'dialogue',
+      separation_quality: 'high',
+      stage1_output_format: 'wav',
+      asr_model: 'medium',
+      vad_filter: false,
+      vad_min_silence_duration_ms: 650,
+      beam_size: 3,
+      best_of: 2,
+      temperature: 0.2,
+      condition_on_previous_text: true,
+      top_k: 4,
+      translation_backend: 'siliconflow',
+      translation_batch_size: 8,
+      condense_mode: 'smart',
+      tts_backend: 'qwen3tts',
+      dubbing_workers: 2,
+      dubbing_quality_check: 'duration-only',
+      dub_repair_enabled: true,
+      dub_repair_max_items: 6,
+      dub_repair_attempts_per_item: 2,
+      fit_policy: 'high_quality',
+      fit_backend: 'rubberband',
+      mix_profile: 'enhanced',
+      ducking_mode: 'sidechain',
+      background_gain_db: -10,
+      window_ducking_db: -4,
+      max_compress_ratio: 1.35,
+      subtitle_mode: 'bilingual',
+      subtitle_render_source: 'asr',
+    })
+    vi.mocked(configApi.getPresets).mockResolvedValue([])
+    vi.mocked(tasksApi.create).mockResolvedValue({ id: 'task-asr-defaults' } as never)
+    vi.mocked(worksApi.autoBindTask).mockResolvedValue({ ok: true, bound: false, candidates: [] } as never)
+
+    renderReviewStep()
+
+    await waitFor(() => {
+      expect(configApi.getDefaults).toHaveBeenCalled()
+    })
+    fireEvent.click(screen.getByRole('button', { name: '创建任务' }))
+
+    await waitFor(() => {
+      expect(tasksApi.create).toHaveBeenCalled()
+    })
+    const request = vi.mocked(tasksApi.create).mock.calls[0][0]
+    expect(request.config).toEqual(
+      expect.objectContaining({
+        asr_model: 'medium',
+        separation_mode: 'dialogue',
+        separation_quality: 'high',
+        stage1_output_format: 'wav',
+        vad_filter: false,
+        vad_min_silence_duration_ms: 650,
+        beam_size: 3,
+        best_of: 2,
+        temperature: 0.2,
+        condition_on_previous_text: true,
+        top_k: 4,
+        translation_backend: 'siliconflow',
+        translation_batch_size: 8,
+        condense_mode: 'smart',
+        tts_backend: 'qwen3tts',
+        dubbing_workers: 2,
+        dubbing_quality_check: 'duration-only',
+        dub_repair_enabled: true,
+        dub_repair_max_items: 6,
+        dub_repair_attempts_per_item: 2,
+        fit_policy: 'high_quality',
+        fit_backend: 'rubberband',
+        mix_profile: 'enhanced',
+        ducking_mode: 'sidechain',
+        background_gain_db: -10,
+        window_ducking_db: -4,
+        max_compress_ratio: 1.35,
+        subtitle_mode: 'bilingual',
+        subtitle_render_source: 'asr',
+      }),
+    )
   })
 
   it('keeps delivery-only subtitle styling out of the new task flow', async () => {

@@ -95,9 +95,20 @@ class TaskConfigInput(BaseModel):
     separation_quality: str = "balanced"
     music_backend: str = "demucs"
     dialogue_backend: str = "cdx23"
+    stage1_output_format: str = "mp3"
+    audio_stream_index: int = Field(default=0, ge=0)
     # Task A
     asr_model: str = "small"
+    asr_backend: Literal["faster-whisper", "funasr"] = "faster-whisper"
+    diarizer_backend: Literal["ecapa", "pyannote"] = "ecapa"
+    enable_diarization: bool = True
     generate_srt: bool = True
+    vad_filter: bool = True
+    vad_min_silence_duration_ms: int = Field(default=400, gt=0)
+    beam_size: int = Field(default=5, gt=0)
+    best_of: int = Field(default=5, gt=0)
+    temperature: float = Field(default=0.0, ge=0)
+    condition_on_previous_text: bool = False
     transcription_correction: Dict[str, Any] = {
         "enabled": True,
         "preset": "standard",
@@ -106,11 +117,11 @@ class TaskConfigInput(BaseModel):
     }
     # Task B
     existing_registry: Optional[str] = None
-    top_k: int = 3
+    top_k: int = Field(default=3, gt=0)
     # Task C
     translation_backend: str = "local-m2m100"
     translation_glossary: Optional[str] = None
-    translation_batch_size: int = 4
+    translation_batch_size: int = Field(default=4, gt=0)
     siliconflow_base_url: Optional[str] = None
     siliconflow_model: Optional[str] = None
     condense_mode: str = "off"
@@ -121,8 +132,8 @@ class TaskConfigInput(BaseModel):
     dubbing_quality_check: Literal["standard", "duration-only"] = "standard"
     dub_repair_enabled: bool = False
     dub_repair_backend: List[str] = []
-    dub_repair_max_items: int = 12
-    dub_repair_attempts_per_item: int = 3
+    dub_repair_max_items: int = Field(default=12, gt=0)
+    dub_repair_attempts_per_item: int = Field(default=3, gt=0)
     dub_repair_include_risk: bool = False
     # Task E
     fit_policy: str = "conservative"
@@ -130,6 +141,10 @@ class TaskConfigInput(BaseModel):
     mix_profile: str = "preview"
     ducking_mode: str = "static"
     background_gain_db: float = -8.0
+    window_ducking_db: float = -3.0
+    max_compress_ratio: float = Field(default=1.45, gt=0)
+    output_sample_rate: int = Field(default=24000, gt=0)
+    preview_format: str = "wav"
     # Task G
     export_preview: bool = True
     export_dub: bool = True

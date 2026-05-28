@@ -102,3 +102,64 @@ def test_transcription_adapter_uses_requested_language_in_artifact_names(
     assert result["language"] == "ja"
     assert result["segments_file"] == "segments.ja.json"
     assert result["srt_file"] == "segments.ja.srt"
+
+
+def test_transcription_adapter_passes_advanced_asr_options(
+    tmp_path: Path, monkeypatch
+) -> None:
+    from translip.server.atomic_tools.adapters.transcription import TranscriptionAdapter
+
+    input_file = tmp_path / "input" / "file" / "demo.wav"
+    input_file.parent.mkdir(parents=True, exist_ok=True)
+    input_file.write_bytes(b"audio")
+    output_dir = tmp_path / "output"
+    captured = {}
+
+    def fake_transcribe_file(request):
+        captured["request"] = request
+        bundle_dir = tmp_path / "runner-output" / "demo"
+        bundle_dir.mkdir(parents=True, exist_ok=True)
+        segments_path = bundle_dir / "segments.zh.json"
+        segments_path.write_text(json.dumps({"segments": []}), encoding="utf-8")
+        return SimpleNamespace(
+            media_info=SimpleNamespace(duration_sec=8.5),
+            segments=[],
+            artifacts=SimpleNamespace(
+                segments_json_path=segments_path,
+                srt_path=None,
+                manifest_path=bundle_dir / "task-a-manifest.json",
+            ),
+        )
+
+    monkeypatch.setattr(
+        "translip.server.atomic_tools.adapters.transcription.transcribe_file",
+        fake_transcribe_file,
+    )
+
+    TranscriptionAdapter().run(
+        {
+            "file_id": "fake",
+            "language": "zh",
+            "asr_model": "medium",
+            "generate_srt": False,
+            "vad_filter": False,
+            "vad_min_silence_duration_ms": 650,
+            "beam_size": 3,
+            "best_of": 2,
+            "temperature": 0.2,
+            "condition_on_previous_text": True,
+        },
+        input_file.parent.parent,
+        output_dir,
+        lambda *_args, **_kwargs: None,
+    )
+
+    request = captured["request"]
+    assert request.asr_model == "medium"
+    assert request.write_srt is False
+    assert request.vad_filter is False
+    assert request.vad_min_silence_duration_ms == 650
+    assert request.beam_size == 3
+    assert request.best_of == 2
+    assert request.temperature == 0.2
+    assert request.condition_on_previous_text is True

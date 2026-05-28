@@ -104,6 +104,52 @@ def test_build_pipeline_request_keeps_dubbing_speed_controls() -> None:
     assert request.dubbing_quality_check == "duration-only"
 
 
+def test_build_pipeline_request_keeps_transcription_advanced_controls() -> None:
+    request = build_pipeline_request(
+        {
+            "input": "sample.mp4",
+            "output_root": "out",
+            "asr_model": "medium",
+            "asr_backend": "funasr",
+            "diarizer_backend": "pyannote",
+            "enable_diarization": False,
+            "vad_filter": False,
+            "vad_min_silence_duration_ms": 650,
+            "beam_size": 3,
+            "best_of": 2,
+            "temperature": 0.2,
+            "condition_on_previous_text": True,
+        }
+    )
+
+    assert request.asr_model == "medium"
+    assert request.asr_backend == "funasr"
+    assert request.diarizer_backend == "pyannote"
+    assert request.enable_diarization is False
+    assert request.vad_filter is False
+    assert request.vad_min_silence_duration_ms == 650
+    assert request.beam_size == 3
+    assert request.best_of == 2
+    assert request.temperature == 0.2
+    assert request.condition_on_previous_text is True
+
+
+def test_pipeline_request_normalized_preserves_transcription_backend_controls(tmp_path: Path) -> None:
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(
+        input_path=tmp_path / "sample.mp4",
+        output_root=tmp_path / "out",
+        asr_backend="funasr",
+        diarizer_backend="pyannote",
+        enable_diarization=False,
+    ).normalized()
+
+    assert request.asr_backend == "funasr"
+    assert request.diarizer_backend == "pyannote"
+    assert request.enable_diarization is False
+
+
 def test_build_pipeline_request_rejects_invalid_dubbing_speed_controls() -> None:
     import pytest
 
@@ -161,6 +207,25 @@ def test_task_e_command_passes_selected_repair_segments(tmp_path: Path) -> None:
     assert str(selected_path) in command
 
 
+def test_task_e_cache_payload_includes_render_mix_controls(tmp_path: Path) -> None:
+    from translip.orchestration.runner import _stage_cache_payload
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(
+        input_path=tmp_path / "sample.mp4",
+        output_root=tmp_path / "out",
+        background_gain_db=-12.0,
+        window_ducking_db=-5.0,
+        output_sample_rate=48000,
+    )
+
+    payload = _stage_cache_payload(request, "task-e")
+
+    assert payload["background_gain_db"] == -12.0
+    assert payload["window_ducking_db"] == -5.0
+    assert payload["output_sample_rate"] == 48000
+
+
 def test_task_d_command_passes_dubbing_speed_controls(tmp_path: Path) -> None:
     from translip.orchestration.commands import build_task_d_command
     from translip.types import PipelineRequest
@@ -177,6 +242,70 @@ def test_task_d_command_passes_dubbing_speed_controls(tmp_path: Path) -> None:
     assert "6" in command
     assert "--quality-check-mode" in command
     assert "duration-only" in command
+
+
+def test_task_a_command_passes_transcription_advanced_controls(tmp_path: Path) -> None:
+    from translip.orchestration.commands import build_task_a_command
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(
+        input_path=tmp_path / "sample.mp4",
+        output_root=tmp_path / "out",
+        asr_model="medium",
+        asr_backend="funasr",
+        diarizer_backend="pyannote",
+        enable_diarization=False,
+        generate_srt=False,
+        vad_filter=False,
+        vad_min_silence_duration_ms=650,
+        beam_size=3,
+        best_of=2,
+        temperature=0.2,
+        condition_on_previous_text=True,
+    )
+    command = build_task_a_command(request)
+
+    assert "--asr-model" in command
+    assert "medium" in command
+    assert "--asr-backend" in command
+    assert "funasr" in command
+    assert "--diarizer-backend" in command
+    assert "pyannote" in command
+    assert "--enable-diarization" not in command
+    assert "--no-srt" in command
+    assert "--no-vad-filter" in command
+    assert "--vad-min-silence-duration-ms" in command
+    assert "650" in command
+    assert "--beam-size" in command
+    assert "3" in command
+    assert "--best-of" in command
+    assert "2" in command
+    assert "--temperature" in command
+    assert "0.2" in command
+    assert "--condition-on-previous-text" in command
+
+
+def test_task_a_cache_payload_includes_transcription_backend_controls(tmp_path: Path) -> None:
+    from translip.orchestration.runner import _stage_cache_payload
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(
+        input_path=tmp_path / "sample.mp4",
+        output_root=tmp_path / "out",
+        asr_model="medium",
+        asr_backend="funasr",
+        diarizer_backend="pyannote",
+        enable_diarization=False,
+        generate_srt=False,
+    )
+
+    payload = _stage_cache_payload(request, "task-a")
+
+    assert payload["asr_model"] == "medium"
+    assert payload["asr_backend"] == "funasr"
+    assert payload["diarizer_backend"] == "pyannote"
+    assert payload["enable_diarization"] is False
+    assert payload["generate_srt"] is False
 
 
 def test_execute_task_e_writes_character_ledger_and_dub_benchmark(tmp_path: Path, monkeypatch) -> None:
@@ -470,6 +599,186 @@ def test_pipeline_runner_marks_cached_stage_when_manifest_reusable(tmp_path: Pat
     assert executed == []
     payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert payload["stages"][0]["status"] == "cached"
+
+
+def test_task_g_cache_requires_requested_delivery_outputs(tmp_path: Path, monkeypatch) -> None:
+    from translip.orchestration.runner import run_pipeline
+    from translip.types import PipelineRequest
+
+    input_path = tmp_path / "sample.mp4"
+    input_path.write_text("placeholder", encoding="utf-8")
+    output_root = tmp_path / "pipeline-out"
+    task_g_dir = output_root / "task-g"
+    task_g_dir.mkdir(parents=True)
+    (task_g_dir / "delivery-manifest.json").write_text(
+        json.dumps({"status": "succeeded", "request": {"export_preview": True, "export_dub": False}}),
+        encoding="utf-8",
+    )
+    (task_g_dir / "delivery-report.json").write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
+
+    request = PipelineRequest(
+        input_path=input_path,
+        output_root=output_root,
+        run_from_stage="task-g",
+        run_to_stage="task-g",
+        delivery_policy={"video_source": "original", "audio_source": "both", "subtitle_source": "asr"},
+    )
+
+    monkeypatch.setattr(
+        "translip.orchestration.runner.resolve_template_plan",
+        lambda template_id: type(
+            "Plan",
+            (),
+            {
+                "template_id": template_id,
+                "node_order": ["task-g"],
+                "nodes": {"task-g": type("Node", (), {"required": True})()},
+            },
+        )(),
+    )
+
+    executed: list[str] = []
+
+    def fake_execute_node(stage_name: str, *_args, **_kwargs):
+        executed.append(stage_name)
+        final_dub = task_g_dir / "final-dub" / "final_dub.en.mp4"
+        final_dub.parent.mkdir(parents=True)
+        final_dub.write_bytes(b"dub")
+        return {
+            "manifest_path": str(task_g_dir / "delivery-manifest.json"),
+            "artifact_paths": [str(task_g_dir / "delivery-manifest.json"), str(final_dub)],
+        }
+
+    monkeypatch.setattr("translip.orchestration.runner.execute_node", fake_execute_node)
+
+    result = run_pipeline(request)
+
+    assert executed == ["task-g"]
+    payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert payload["stages"][0]["status"] == "succeeded"
+    assert payload["stages"][0]["cache_hit"] is False
+
+
+def test_task_g_cache_treats_preview_audio_source_as_preview_mix(tmp_path: Path, monkeypatch) -> None:
+    from translip.orchestration.runner import run_pipeline
+    from translip.types import PipelineRequest
+
+    input_path = tmp_path / "sample.mp4"
+    input_path.write_text("placeholder", encoding="utf-8")
+    output_root = tmp_path / "pipeline-out"
+    task_g_dir = output_root / "task-g"
+    task_g_dir.mkdir(parents=True)
+    (task_g_dir / "delivery-manifest.json").write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
+    (task_g_dir / "delivery-report.json").write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
+
+    request = PipelineRequest(
+        input_path=input_path,
+        output_root=output_root,
+        run_from_stage="task-g",
+        run_to_stage="task-g",
+        delivery_policy={"video_source": "original", "audio_source": "preview", "subtitle_source": "asr"},
+    )
+
+    monkeypatch.setattr(
+        "translip.orchestration.runner.resolve_template_plan",
+        lambda template_id: type(
+            "Plan",
+            (),
+            {
+                "template_id": template_id,
+                "node_order": ["task-g"],
+                "nodes": {"task-g": type("Node", (), {"required": True})()},
+            },
+        )(),
+    )
+
+    executed: list[str] = []
+
+    def fake_execute_node(stage_name: str, *_args, **_kwargs):
+        executed.append(stage_name)
+        final_preview = task_g_dir / "final-preview" / "final_preview.en.mp4"
+        final_preview.parent.mkdir(parents=True)
+        final_preview.write_bytes(b"preview")
+        return {
+            "manifest_path": str(task_g_dir / "delivery-manifest.json"),
+            "artifact_paths": [str(task_g_dir / "delivery-manifest.json"), str(final_preview)],
+        }
+
+    monkeypatch.setattr("translip.orchestration.runner.execute_node", fake_execute_node)
+
+    result = run_pipeline(request)
+
+    assert executed == ["task-g"]
+    payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert payload["stages"][0]["status"] == "succeeded"
+    assert payload["stages"][0]["cache_hit"] is False
+
+
+def test_task_g_cache_rejects_manifest_that_omits_requested_dub_export(tmp_path: Path, monkeypatch) -> None:
+    from translip.orchestration.runner import run_pipeline
+    from translip.types import PipelineRequest
+
+    input_path = tmp_path / "sample.mp4"
+    input_path.write_text("placeholder", encoding="utf-8")
+    output_root = tmp_path / "pipeline-out"
+    task_g_dir = output_root / "task-g"
+    task_g_dir.mkdir(parents=True)
+    final_preview = task_g_dir / "final-preview" / "final_preview.en.mp4"
+    final_preview.parent.mkdir(parents=True)
+    final_preview.write_bytes(b"preview")
+    stale_dub = task_g_dir / "final-dub" / "final_dub.en.mp4"
+    stale_dub.parent.mkdir(parents=True)
+    stale_dub.write_bytes(b"stale dub")
+    (task_g_dir / "delivery-manifest.json").write_text(
+        json.dumps(
+            {
+                "status": "succeeded",
+                "request": {"export_preview": True, "export_dub": False},
+                "artifacts": {"final_preview_video": str(final_preview), "final_dub_video": None},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (task_g_dir / "delivery-report.json").write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
+
+    request = PipelineRequest(
+        input_path=input_path,
+        output_root=output_root,
+        run_from_stage="task-g",
+        run_to_stage="task-g",
+        delivery_policy={"video_source": "original", "audio_source": "both", "subtitle_source": "asr"},
+    )
+
+    monkeypatch.setattr(
+        "translip.orchestration.runner.resolve_template_plan",
+        lambda template_id: type(
+            "Plan",
+            (),
+            {
+                "template_id": template_id,
+                "node_order": ["task-g"],
+                "nodes": {"task-g": type("Node", (), {"required": True})()},
+            },
+        )(),
+    )
+
+    executed: list[str] = []
+
+    def fake_execute_node(stage_name: str, *_args, **_kwargs):
+        executed.append(stage_name)
+        return {
+            "manifest_path": str(task_g_dir / "delivery-manifest.json"),
+            "artifact_paths": [str(task_g_dir / "delivery-manifest.json"), str(stale_dub)],
+        }
+
+    monkeypatch.setattr("translip.orchestration.runner.execute_node", fake_execute_node)
+
+    result = run_pipeline(request)
+
+    assert executed == ["task-g"]
+    payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert payload["stages"][0]["status"] == "succeeded"
+    assert payload["stages"][0]["cache_hit"] is False
 
 
 def test_run_pipeline_executes_nodes_from_template_plan(tmp_path: Path, monkeypatch) -> None:

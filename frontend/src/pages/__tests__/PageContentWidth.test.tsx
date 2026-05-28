@@ -22,6 +22,8 @@ vi.mock('../../api/tasks', () => ({
 vi.mock('../../api/config', () => ({
   configApi: {
     getDefaults: vi.fn(),
+    getGlobal: vi.fn(() => Promise.resolve({})),
+    updateGlobal: vi.fn(),
     getPresets: vi.fn(() => Promise.resolve([])),
     createPreset: vi.fn(),
     deletePreset: vi.fn(),

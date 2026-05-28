@@ -244,6 +244,189 @@ def test_qwen_backend_supports_xvec_clone_mode(tmp_path: Path, monkeypatch) -> N
     assert fake_model.prompt_calls[0]["x_vector_only_mode"] is True
 
 
+def test_voxcpm_backend_uses_prompt_and_reference_clone_inputs(tmp_path: Path, monkeypatch) -> None:
+    from translip.dubbing.backend import ReferencePackage, SynthSegmentInput
+    from translip.dubbing.voxcpm_tts_backend import VoxCPMTTSBackend
+
+    class FakeTtsModel:
+        sample_rate = 48_000
+
+    class FakeModel:
+        def __init__(self) -> None:
+            self.tts_model = FakeTtsModel()
+            self.generate_calls = []
+
+        def generate(self, **kwargs):
+            self.generate_calls.append(kwargs)
+            return np.ones(int(0.7 * self.tts_model.sample_rate), dtype=np.float32) * 0.05
+
+    fake_model = FakeModel()
+    monkeypatch.setattr(
+        "translip.dubbing.voxcpm_tts_backend._load_voxcpm_model",
+        lambda *_args, **_kwargs: fake_model,
+    )
+
+    reference_path = tmp_path / "reference.wav"
+    _write_audio(reference_path, 8.0)
+    reference = ReferencePackage(
+        speaker_id="spk_0000",
+        profile_id="profile_0000",
+        original_audio_path=reference_path,
+        prepared_audio_path=reference_path,
+        text="This is the exact reference transcript.",
+        duration_sec=8.0,
+        score=0.9,
+        selection_reason="test",
+    )
+    segment = SynthSegmentInput(
+        segment_id="seg-0001",
+        speaker_id="spk_0000",
+        target_lang="en",
+        target_text="Hello from Dubai.",
+        source_duration_sec=1.0,
+        duration_budget_sec=1.1,
+    )
+
+    backend = VoxCPMTTSBackend(requested_device="cpu")
+    result = backend.synthesize(reference=reference, segment=segment, output_path=tmp_path / "out.wav")
+
+    assert result.audio_path.exists()
+    assert result.sample_rate == 48_000
+    assert result.generated_duration_sec == 0.7
+    assert backend.backend_name == "voxcpm2"
+    assert backend.resolved_model == "openbmb/VoxCPM2"
+    assert backend.resolved_device == "cpu"
+    assert backend.optimize is False
+    assert fake_model.generate_calls == [
+        {
+            "text": "Hello from Dubai.",
+            "prompt_wav_path": str(reference.prepared_audio_path),
+            "prompt_text": reference.text,
+            "reference_wav_path": str(reference.prepared_audio_path),
+            "cfg_value": 2.0,
+            "inference_timesteps": 10,
+            "normalize": True,
+            "denoise": False,
+            "retry_badcase": True,
+            "retry_badcase_max_times": 3,
+        }
+    ]
+    assert result.backend_metadata["reference_score"] == 0.9
+    assert result.backend_metadata["clone_mode"] == "ultimate"
+
+
+def test_voxcpm_backend_forces_cpu_when_mps_is_not_explicitly_allowed(monkeypatch) -> None:
+    from translip.dubbing.voxcpm_tts_backend import VoxCPMTTSBackend
+
+    monkeypatch.setattr(
+        "translip.dubbing.voxcpm_tts_backend.resolve_tts_device",
+        lambda _requested: "mps",
+    )
+    monkeypatch.delenv("VOXCPM_ALLOW_MPS", raising=False)
+
+    backend = VoxCPMTTSBackend(requested_device="mps")
+
+    assert backend.requested_device == "mps"
+    assert backend.resolved_device == "cpu"
+    assert backend.backend_metadata_device_reason == "mps_disabled_for_voxcpm2"
+
+
+def test_voxcpm_backend_can_disable_internal_badcase_retry(tmp_path: Path, monkeypatch) -> None:
+    from translip.dubbing.backend import ReferencePackage, SynthSegmentInput
+    from translip.dubbing.voxcpm_tts_backend import VoxCPMTTSBackend
+
+    monkeypatch.setenv("VOXCPM_RETRY_BADCASE", "0")
+    reference_path = tmp_path / "reference.wav"
+    _write_audio(reference_path, 8.0)
+    reference = ReferencePackage(
+        speaker_id="spk_0000",
+        profile_id="profile_0000",
+        original_audio_path=reference_path,
+        prepared_audio_path=reference_path,
+        text="Reference transcript.",
+        duration_sec=8.0,
+        score=0.9,
+        selection_reason="test",
+    )
+    segment = SynthSegmentInput(
+        segment_id="seg-0001",
+        speaker_id="spk_0000",
+        target_lang="en",
+        target_text="Hello.",
+        source_duration_sec=1.0,
+        duration_budget_sec=1.0,
+    )
+
+    backend = VoxCPMTTSBackend(requested_device="cpu")
+    kwargs, _clone_mode = backend._generate_kwargs(reference=reference, segment=segment)
+
+    assert kwargs["retry_badcase"] is False
+
+
+def test_voxcpm_model_loader_prefers_local_cache(monkeypatch) -> None:
+    from translip.dubbing import voxcpm_tts_backend
+
+    calls = []
+    model = object()
+
+    class FakeVoxCPM:
+        @classmethod
+        def from_pretrained(cls, model_name, **kwargs):
+            calls.append((model_name, kwargs))
+            return model
+
+    monkeypatch.setattr(voxcpm_tts_backend, "_load_voxcpm_package", lambda: FakeVoxCPM)
+    monkeypatch.delenv("VOXCPM_PREFER_LOCAL_FILES", raising=False)
+    monkeypatch.delenv("VOXCPM_ALLOW_DOWNLOAD", raising=False)
+    voxcpm_tts_backend._load_voxcpm_model.cache_clear()
+
+    try:
+        result = voxcpm_tts_backend._load_voxcpm_model("openbmb/VoxCPM2", "cpu", False, False)
+    finally:
+        voxcpm_tts_backend._load_voxcpm_model.cache_clear()
+
+    assert result is model
+    assert calls == [
+        (
+            "openbmb/VoxCPM2",
+            {
+                "device": "cpu",
+                "optimize": False,
+                "load_denoiser": False,
+                "local_files_only": True,
+            },
+        )
+    ]
+
+
+def test_voxcpm_model_loader_falls_back_to_download_when_cache_missing(monkeypatch) -> None:
+    from translip.dubbing import voxcpm_tts_backend
+
+    calls = []
+    model = object()
+
+    class FakeVoxCPM:
+        @classmethod
+        def from_pretrained(cls, model_name, **kwargs):
+            calls.append((model_name, kwargs))
+            if kwargs["local_files_only"]:
+                raise RuntimeError("cache miss")
+            return model
+
+    monkeypatch.setattr(voxcpm_tts_backend, "_load_voxcpm_package", lambda: FakeVoxCPM)
+    monkeypatch.delenv("VOXCPM_PREFER_LOCAL_FILES", raising=False)
+    monkeypatch.delenv("VOXCPM_ALLOW_DOWNLOAD", raising=False)
+    voxcpm_tts_backend._load_voxcpm_model.cache_clear()
+
+    try:
+        result = voxcpm_tts_backend._load_voxcpm_model("openbmb/VoxCPM2", "cpu", False, False)
+    finally:
+        voxcpm_tts_backend._load_voxcpm_model.cache_clear()
+
+    assert result is model
+    assert [call[1]["local_files_only"] for call in calls] == [True, False]
+
+
 def test_qwen_max_new_tokens_is_calibrated_to_12hz_audio_budget() -> None:
     from translip.dubbing.backend import SynthSegmentInput
     from translip.dubbing.qwen_tts_backend import _max_new_tokens_for
@@ -396,6 +579,20 @@ def test_build_backend_returns_qwen_backend() -> None:
         )
     )
     assert backend.backend_name == "qwen3tts"
+
+
+def test_build_backend_returns_voxcpm_backend() -> None:
+    from translip.dubbing.runner import _build_backend
+
+    backend = _build_backend(
+        DubbingRequest(
+            translation_path="translation.en.json",
+            profiles_path="speaker_profiles.json",
+            backend="voxcpm2",
+            device="cpu",
+        )
+    )
+    assert backend.backend_name == "voxcpm2"
 
 
 def test_synthesize_speaker_writes_report_and_manifest(tmp_path: Path, monkeypatch) -> None:
@@ -575,6 +772,514 @@ def test_synthesize_speaker_duration_only_quality_check_skips_backread(
     assert manifest["resolved"]["quality_check_mode"] == "duration-only"
 
 
+def test_synthesize_speaker_duration_only_fails_near_silent_audio(tmp_path: Path) -> None:
+    class QuietBackend(FakeBackend):
+        def synthesize(self, *, reference, segment, output_path):
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            sample_rate = 24_000
+            waveform = np.zeros(int(segment.source_duration_sec * sample_rate), dtype=np.float32)
+            sf.write(output_path, waveform, sample_rate)
+            return type(
+                "SynthOutput",
+                (),
+                {
+                    "segment_id": segment.segment_id,
+                    "audio_path": output_path,
+                    "sample_rate": sample_rate,
+                    "generated_duration_sec": segment.source_duration_sec,
+                    "backend_metadata": {},
+                },
+            )()
+
+    reference_clip = tmp_path / "reference.wav"
+    _write_audio(reference_clip, 9.0)
+    translation_path = tmp_path / "translation.en.json"
+    profiles_path = tmp_path / "speaker_profiles.json"
+    translation_path.write_text(
+        json.dumps(
+            {
+                "backend": {"target_lang": "en", "output_tag": "en"},
+                "segments": [
+                    {
+                        "segment_id": "seg-0001",
+                        "speaker_id": "spk_0000",
+                        "speaker_label": "SPEAKER_00",
+                        "start": 0.0,
+                        "duration": 1.0,
+                        "target_text": "Hello.",
+                        "duration_budget": {"estimated_target_sec": 1.0},
+                        "qa_flags": [],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    profiles_path.write_text(
+        json.dumps(
+            {
+                "profiles": [
+                    {
+                        "profile_id": "profile_0000",
+                        "speaker_id": "spk_0000",
+                        "reference_clips": [
+                            {
+                                "path": str(reference_clip),
+                                "text": "这是声音参考文本",
+                                "duration": 9.0,
+                                "rms": 0.05,
+                            }
+                        ],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = synthesize_speaker(
+        DubbingRequest(
+            translation_path=translation_path,
+            profiles_path=profiles_path,
+            output_dir=tmp_path / "output",
+            speaker_id="spk_0000",
+            quality_check_mode="duration-only",
+        ),
+        backend_override=QuietBackend(),
+    )
+
+    report = json.loads(result.artifacts.report_path.read_text(encoding="utf-8"))
+    row = report["segments"][0]
+    assert row["duration_status"] == "passed"
+    assert row["intelligibility_status"] == "failed"
+    assert row["overall_status"] == "failed"
+    assert row["quality_retry_reasons"] == ["silent_audio"]
+
+
+def test_synthesize_speaker_retries_silent_audio_with_same_reference(tmp_path: Path) -> None:
+    class FirstSilentBackend(FakeBackend):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def synthesize(self, *, reference, segment, output_path):
+            self.calls += 1
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            sample_rate = 24_000
+            if self.calls == 1:
+                waveform = np.zeros(int(segment.source_duration_sec * sample_rate), dtype=np.float32)
+            else:
+                waveform = 0.05 * np.sin(
+                    np.linspace(0, np.pi * 8, int(segment.source_duration_sec * sample_rate), dtype=np.float32)
+                )
+            sf.write(output_path, waveform, sample_rate)
+            return type(
+                "SynthOutput",
+                (),
+                {
+                    "segment_id": segment.segment_id,
+                    "audio_path": output_path,
+                    "sample_rate": sample_rate,
+                    "generated_duration_sec": segment.source_duration_sec,
+                    "backend_metadata": {},
+                },
+            )()
+
+    reference_clip = tmp_path / "reference.wav"
+    _write_audio(reference_clip, 9.0)
+    translation_path = tmp_path / "translation.en.json"
+    profiles_path = tmp_path / "speaker_profiles.json"
+    translation_path.write_text(
+        json.dumps(
+            {
+                "backend": {"target_lang": "en", "output_tag": "en"},
+                "segments": [
+                    {
+                        "segment_id": "seg-0001",
+                        "speaker_id": "spk_0000",
+                        "speaker_label": "SPEAKER_00",
+                        "start": 0.0,
+                        "duration": 1.0,
+                        "target_text": "Hello.",
+                        "duration_budget": {"estimated_target_sec": 1.0},
+                        "qa_flags": [],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    profiles_path.write_text(
+        json.dumps(
+            {
+                "profiles": [
+                    {
+                        "profile_id": "profile_0000",
+                        "speaker_id": "spk_0000",
+                        "reference_clips": [
+                            {
+                                "path": str(reference_clip),
+                                "text": "这是声音参考文本",
+                                "duration": 9.0,
+                                "rms": 0.05,
+                            }
+                        ],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    backend = FirstSilentBackend()
+
+    result = synthesize_speaker(
+        DubbingRequest(
+            translation_path=translation_path,
+            profiles_path=profiles_path,
+            output_dir=tmp_path / "output",
+            speaker_id="spk_0000",
+            quality_check_mode="duration-only",
+        ),
+        backend_override=backend,
+    )
+
+    report = json.loads(result.artifacts.report_path.read_text(encoding="utf-8"))
+    row = report["segments"][0]
+    assert backend.calls == 2
+    assert row["attempt_count"] == 2
+    assert row["selected_attempt_index"] == 2
+    assert row["overall_status"] == "review"
+    assert row["quality_retry_reasons"] == ["silent_audio"]
+
+
+def test_synthesize_speaker_prefers_audible_retry_over_silent_duration_match(tmp_path: Path) -> None:
+    class SilentThenLongBackend(FakeBackend):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def synthesize(self, *, reference, segment, output_path):
+            self.calls += 1
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            sample_rate = 24_000
+            if self.calls == 1:
+                duration_sec = 0.8
+                waveform = np.zeros(int(duration_sec * sample_rate), dtype=np.float32)
+            else:
+                duration_sec = 2.7
+                waveform = 0.05 * np.sin(
+                    np.linspace(0, np.pi * 8, int(duration_sec * sample_rate), dtype=np.float32)
+                )
+            sf.write(output_path, waveform, sample_rate)
+            return type(
+                "SynthOutput",
+                (),
+                {
+                    "segment_id": segment.segment_id,
+                    "audio_path": output_path,
+                    "sample_rate": sample_rate,
+                    "generated_duration_sec": duration_sec,
+                    "backend_metadata": {},
+                },
+            )()
+
+    reference_clip = tmp_path / "reference.wav"
+    _write_audio(reference_clip, 9.0)
+    translation_path = tmp_path / "translation.en.json"
+    profiles_path = tmp_path / "speaker_profiles.json"
+    translation_path.write_text(
+        json.dumps(
+            {
+                "backend": {"target_lang": "en", "output_tag": "en"},
+                "segments": [
+                    {
+                        "segment_id": "seg-0001",
+                        "speaker_id": "spk_0000",
+                        "speaker_label": "SPEAKER_00",
+                        "start": 0.0,
+                        "duration": 1.4,
+                        "target_text": "The thief is the detective.",
+                        "duration_budget": {"estimated_target_sec": 1.4},
+                        "qa_flags": [],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    profiles_path.write_text(
+        json.dumps(
+            {
+                "profiles": [
+                    {
+                        "profile_id": "profile_0000",
+                        "speaker_id": "spk_0000",
+                        "reference_clips": [
+                            {
+                                "path": str(reference_clip),
+                                "text": "这是声音参考文本",
+                                "duration": 9.0,
+                                "rms": 0.05,
+                            }
+                        ],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    backend = SilentThenLongBackend()
+
+    result = synthesize_speaker(
+        DubbingRequest(
+            translation_path=translation_path,
+            profiles_path=profiles_path,
+            output_dir=tmp_path / "output",
+            speaker_id="spk_0000",
+            quality_check_mode="duration-only",
+        ),
+        backend_override=backend,
+    )
+
+    report = json.loads(result.artifacts.report_path.read_text(encoding="utf-8"))
+    row = report["segments"][0]
+    assert backend.calls == 2
+    assert row["attempt_count"] == 2
+    assert row["selected_attempt_index"] == 2
+    assert row["duration_status"] == "failed"
+    assert row["intelligibility_status"] == "review"
+    assert row["quality_retry_reasons"] == ["silent_audio"]
+    assert row["attempts"][0]["quality_flags"] == ["silent_audio"]
+    assert row["attempts"][1]["quality_flags"] == []
+
+
+def test_synthesize_speaker_marks_silent_dubbing_unit_piece_failed(tmp_path: Path) -> None:
+    class UnitWithSilentMiddleBackend(FakeBackend):
+        def synthesize(self, *, reference, segment, output_path):
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            sample_rate = 24_000
+            audible = 0.05 * np.sin(np.linspace(0, np.pi * 12, sample_rate, dtype=np.float32))
+            silence = np.zeros(sample_rate, dtype=np.float32)
+            waveform = np.concatenate([audible, silence, audible])
+            sf.write(output_path, waveform, sample_rate)
+            return type(
+                "SynthOutput",
+                (),
+                {
+                    "segment_id": segment.segment_id,
+                    "audio_path": output_path,
+                    "sample_rate": sample_rate,
+                    "generated_duration_sec": 3.0,
+                    "backend_metadata": {},
+                },
+            )()
+
+    reference_clip = tmp_path / "reference.wav"
+    _write_audio(reference_clip, 9.0)
+    translation_path = tmp_path / "translation.en.json"
+    profiles_path = tmp_path / "speaker_profiles.json"
+    translation_path.write_text(
+        json.dumps(
+            {
+                "backend": {"target_lang": "en", "output_tag": "en"},
+                "segments": [
+                    {
+                        "segment_id": "seg-0001",
+                        "speaker_id": "spk_0000",
+                        "speaker_label": "SPEAKER_00",
+                        "start": 0.0,
+                        "end": 1.0,
+                        "duration": 1.0,
+                        "target_text": "First.",
+                        "context_unit_id": "unit-a",
+                        "duration_budget": {"estimated_target_sec": 1.0},
+                        "qa_flags": ["too_short_source"],
+                    },
+                    {
+                        "segment_id": "seg-0002",
+                        "speaker_id": "spk_0000",
+                        "speaker_label": "SPEAKER_00",
+                        "start": 1.0,
+                        "end": 2.0,
+                        "duration": 1.0,
+                        "target_text": "Second.",
+                        "context_unit_id": "unit-a",
+                        "duration_budget": {"estimated_target_sec": 1.0},
+                        "qa_flags": [],
+                    },
+                    {
+                        "segment_id": "seg-0003",
+                        "speaker_id": "spk_0000",
+                        "speaker_label": "SPEAKER_00",
+                        "start": 2.0,
+                        "end": 3.0,
+                        "duration": 1.0,
+                        "target_text": "Third.",
+                        "context_unit_id": "unit-a",
+                        "duration_budget": {"estimated_target_sec": 1.0},
+                        "qa_flags": [],
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    profiles_path.write_text(
+        json.dumps(
+            {
+                "profiles": [
+                    {
+                        "profile_id": "profile_0000",
+                        "speaker_id": "spk_0000",
+                        "reference_clips": [
+                            {
+                                "path": str(reference_clip),
+                                "text": "这是声音参考文本",
+                                "duration": 9.0,
+                                "rms": 0.05,
+                            }
+                        ],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    result = synthesize_speaker(
+        DubbingRequest(
+            translation_path=translation_path,
+            profiles_path=profiles_path,
+            output_dir=tmp_path / "output",
+            speaker_id="spk_0000",
+            quality_check_mode="duration-only",
+        ),
+        backend_override=UnitWithSilentMiddleBackend(),
+    )
+
+    report = json.loads(result.artifacts.report_path.read_text(encoding="utf-8"))
+    rows = {row["segment_id"]: row for row in report["segments"]}
+    assert rows["seg-0001"]["overall_status"] == "review"
+    assert rows["seg-0002"]["overall_status"] == "failed"
+    assert rows["seg-0002"]["intelligibility_status"] == "failed"
+    assert rows["seg-0002"]["quality_flags"] == ["silent_audio"]
+    assert rows["seg-0002"]["quality_retry_reasons"] == ["silent_audio"]
+    assert rows["seg-0003"]["overall_status"] == "review"
+
+
+def test_synthesize_speaker_retries_voxcpm_silent_audio_with_next_reference(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    class VoxSilentThenGoodBackend(FakeBackend):
+        backend_name = "voxcpm2"
+        resolved_model = "openbmb/VoxCPM2"
+
+        def synthesize(self, *, reference, segment, output_path):
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            sample_rate = 24_000
+            if reference.original_audio_path.name == "reference_bad.wav":
+                waveform = np.zeros(int(segment.source_duration_sec * sample_rate), dtype=np.float32)
+            else:
+                waveform = 0.05 * np.sin(
+                    np.linspace(0, np.pi * 8, int(segment.source_duration_sec * sample_rate), dtype=np.float32)
+                )
+            sf.write(output_path, waveform, sample_rate)
+            return type(
+                "SynthOutput",
+                (),
+                {
+                    "segment_id": segment.segment_id,
+                    "audio_path": output_path,
+                    "sample_rate": sample_rate,
+                    "generated_duration_sec": segment.source_duration_sec,
+                    "backend_metadata": {},
+                },
+            )()
+
+    bad_reference = tmp_path / "reference_bad.wav"
+    good_reference = tmp_path / "reference_good.wav"
+    _write_audio(bad_reference, 9.0)
+    _write_audio(good_reference, 8.5)
+    translation_path = tmp_path / "translation.en.json"
+    profiles_path = tmp_path / "speaker_profiles.json"
+    translation_path.write_text(
+        json.dumps(
+            {
+                "backend": {"target_lang": "en", "output_tag": "en"},
+                "segments": [
+                    {
+                        "segment_id": "seg-0001",
+                        "speaker_id": "spk_0000",
+                        "speaker_label": "SPEAKER_00",
+                        "start": 0.0,
+                        "duration": 1.0,
+                        "target_text": "Hello.",
+                        "duration_budget": {"estimated_target_sec": 1.0},
+                        "qa_flags": [],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    profiles_path.write_text(
+        json.dumps(
+            {
+                "profiles": [
+                    {
+                        "profile_id": "profile_0000",
+                        "speaker_id": "spk_0000",
+                        "reference_clips": [
+                            {
+                                "path": str(bad_reference),
+                                "text": "这是第一段声音参考文本",
+                                "duration": 9.0,
+                                "rms": 0.05,
+                            },
+                            {
+                                "path": str(good_reference),
+                                "text": "这是第二段声音参考文本",
+                                "duration": 8.5,
+                                "rms": 0.05,
+                            },
+                        ],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.delenv("VOXCPM_REFERENCE_RETRY", raising=False)
+
+    result = synthesize_speaker(
+        DubbingRequest(
+            translation_path=translation_path,
+            profiles_path=profiles_path,
+            output_dir=tmp_path / "output",
+            speaker_id="spk_0000",
+            quality_check_mode="duration-only",
+        ),
+        backend_override=VoxSilentThenGoodBackend(),
+    )
+
+    report = json.loads(result.artifacts.report_path.read_text(encoding="utf-8"))
+    row = report["segments"][0]
+    assert row["attempt_count"] == 4
+    assert row["selected_attempt_index"] == 4
+    assert row["reference_path"] == str(good_reference.resolve())
+    assert row["overall_status"] == "review"
+    assert row["quality_retry_reasons"] == ["silent_audio"]
+
+
 def test_synthesize_speaker_retries_second_reference_for_pathological_duration(
     tmp_path: Path,
     monkeypatch,
@@ -674,6 +1379,107 @@ def test_synthesize_speaker_retries_second_reference_for_pathological_duration(
     assert segment["reference_path"] == str(good_reference.resolve())
     assert segment["attempts"][0]["selected"] is False
     assert segment["attempts"][1]["selected"] is True
+
+
+def test_synthesize_speaker_limits_voxcpm_reference_retry_by_default(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    class VoxFakeBackend(FakeBackend):
+        backend_name = "voxcpm2"
+        resolved_model = "openbmb/VoxCPM2"
+
+    bad_reference = tmp_path / "reference_bad.wav"
+    good_reference = tmp_path / "reference_good.wav"
+    _write_audio(bad_reference, 9.0)
+    _write_audio(good_reference, 8.5)
+    translation_path = tmp_path / "translation.en.json"
+    profiles_path = tmp_path / "speaker_profiles.json"
+    translation_path.write_text(
+        json.dumps(
+            {
+                "backend": {"target_lang": "en", "output_tag": "en"},
+                "segments": [
+                    {
+                        "segment_id": "seg-0001",
+                        "speaker_id": "spk_0000",
+                        "speaker_label": "SPEAKER_00",
+                        "start": 0.0,
+                        "duration": 0.9,
+                        "target_text": "My bag.",
+                        "duration_budget": {"estimated_target_sec": 0.8},
+                        "qa_flags": ["condensed"],
+                    }
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    profiles_path.write_text(
+        json.dumps(
+            {
+                "profiles": [
+                    {
+                        "profile_id": "profile_0000",
+                        "speaker_id": "spk_0000",
+                        "reference_clips": [
+                            {
+                                "path": str(bad_reference),
+                                "text": "这是第一段声音参考文本",
+                                "duration": 9.0,
+                                "rms": 0.05,
+                            },
+                            {
+                                "path": str(good_reference),
+                                "text": "这是第二段声音参考文本",
+                                "duration": 8.5,
+                                "rms": 0.05,
+                            },
+                        ],
+                    }
+                ]
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_evaluate(**_kwargs):
+        return type(
+            "Eval",
+            (),
+            {
+                "speaker_similarity": 0.3,
+                "speaker_status": "review",
+                "backread_text": "my bag",
+                "text_similarity": 1.0,
+                "intelligibility_status": "passed",
+                "duration_ratio": 7.0,
+                "duration_status": "failed",
+                "overall_status": "failed",
+            },
+        )()
+
+    monkeypatch.setattr("translip.dubbing.runner.evaluate_segment", fake_evaluate)
+    monkeypatch.delenv("VOXCPM_REFERENCE_RETRY", raising=False)
+
+    result = synthesize_speaker(
+        DubbingRequest(
+            translation_path=translation_path,
+            profiles_path=profiles_path,
+            output_dir=tmp_path / "output",
+            speaker_id="spk_0000",
+        ),
+        backend_override=VoxFakeBackend(),
+    )
+
+    report = json.loads(result.artifacts.report_path.read_text(encoding="utf-8"))
+    segment = report["segments"][0]
+    assert segment["attempt_count"] == 1
+    assert segment["selected_attempt_index"] == 1
+    assert segment["quality_retry_reasons"] == ["pathological_duration"]
+    assert segment["reference_path"] == str(bad_reference.resolve())
 
 
 def test_synthesize_speaker_groups_short_context_as_dubbing_unit(

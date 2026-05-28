@@ -81,7 +81,7 @@ flowchart LR
 - 基于 `faster-whisper` + `SpeechBrain` 生成带说话人标签的转写结果。
 - 为说话人建立 profile / registry，支持跨任务复用。
 - 使用本地 `M2M100` 或 `SiliconFlow API` 生成目标语言配音脚本。
-- 默认基于 `MOSS-TTS-Nano ONNX` 在本地 CPU 合成目标语言语音，也可切换到 `Qwen3-TTS`。
+- 默认基于 `MOSS-TTS-Nano ONNX` 在本地 CPU 合成目标语言语音，也可切换到 `Qwen3-TTS` 或 `VoxCPM2`。
 - 将配音按原始时间轴回贴，并导出预览版与最终成片。
 - 提供任务管理、进度追踪、配置预设和产物下载 Web UI。
 
@@ -316,7 +316,7 @@ uv run translip translate-script \
 
 ### Task D: 单说话人合成
 
-`moss-tts-nano-onnx` 是默认后端，需要先按 OpenMOSS/MOSS-TTS-Nano 文档安装 `moss-tts-nano` CLI。未安装时，Task D 会给出明确依赖错误；如需使用原有模型，可传 `--backend qwen3tts`。
+`moss-tts-nano-onnx` 是默认后端，需要先按 OpenMOSS/MOSS-TTS-Nano 文档安装 `moss-tts-nano` CLI。未安装时，Task D 会给出明确依赖错误；也可以传 `--backend qwen3tts` 或 `--backend voxcpm2` 切换到其他 TTS 后端。`voxcpm2` 使用 `openbmb/VoxCPM2`，Apple Silicon 上默认回退 CPU；如需强制尝试 MPS，可设置 `VOXCPM_ALLOW_MPS=1`。
 
 ```bash
 uv run translip synthesize-speaker \
@@ -382,6 +382,10 @@ uv run translip export-video \
 | `MOSS_TTS_NANO_CLI` | `moss-tts-nano` | `moss-tts-nano-onnx` 后端调用的 CLI 路径 |
 | `MOSS_TTS_NANO_MODEL_DIR` | `~/.cache/translip/models` | MOSS ONNX 模型目录，传给 `--onnx-model-dir` |
 | `MOSS_TTS_NANO_CPU_THREADS` | `4` | MOSS ONNX CPU 推理线程数 |
+| `VOXCPM_MODEL` | `openbmb/VoxCPM2` | 覆盖 `voxcpm2` 后端加载的模型 |
+| `VOXCPM_ALLOW_MPS` | `0` | 允许 `voxcpm2` 在 Apple Silicon MPS 上运行；默认回退 CPU |
+| `VOXCPM_INFERENCE_TIMESTEPS` | `10` | `voxcpm2` 推理步数 |
+| `VOXCPM_RETRY_BADCASE` | `1` | 是否启用 VoxCPM 内部坏例重试 |
 
 更细的默认参数可以查看 [src/translip/config.py](src/translip/config.py)。
 

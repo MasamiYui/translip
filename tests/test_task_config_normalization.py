@@ -23,6 +23,86 @@ def test_task_config_validates_dubbing_speed_controls() -> None:
         TaskConfigInput(dubbing_quality_check="fast")
 
 
+def test_task_config_accepts_transcription_advanced_controls() -> None:
+    config = TaskConfigInput(
+        asr_backend="funasr",
+        diarizer_backend="pyannote",
+        enable_diarization=False,
+        vad_filter=False,
+        vad_min_silence_duration_ms=650,
+        beam_size=3,
+        best_of=2,
+        temperature=0.2,
+        condition_on_previous_text=True,
+    )
+
+    assert config.asr_backend == "funasr"
+    assert config.diarizer_backend == "pyannote"
+    assert config.enable_diarization is False
+    assert config.vad_filter is False
+    assert config.vad_min_silence_duration_ms == 650
+    assert config.beam_size == 3
+    assert config.best_of == 2
+    assert config.temperature == 0.2
+    assert config.condition_on_previous_text is True
+
+    with pytest.raises(ValidationError):
+        TaskConfigInput(vad_min_silence_duration_ms=0)
+    with pytest.raises(ValidationError):
+        TaskConfigInput(beam_size=0)
+    with pytest.raises(ValidationError):
+        TaskConfigInput(best_of=0)
+    with pytest.raises(ValidationError):
+        TaskConfigInput(temperature=-0.1)
+    with pytest.raises(ValidationError):
+        TaskConfigInput(asr_backend="unknown")
+    with pytest.raises(ValidationError):
+        TaskConfigInput(diarizer_backend="unknown")
+
+
+def test_task_config_accepts_node_advanced_controls() -> None:
+    config = TaskConfigInput(
+        stage1_output_format="wav",
+        audio_stream_index=1,
+        top_k=4,
+        translation_batch_size=8,
+        siliconflow_model="deepseek-ai/DeepSeek-V3",
+        dubbing_workers=2,
+        dub_repair_enabled=True,
+        dub_repair_max_items=6,
+        dub_repair_attempts_per_item=2,
+        fit_policy="high_quality",
+        window_ducking_db=-4.0,
+        max_compress_ratio=1.35,
+        output_sample_rate=48000,
+        preview_format="mp3",
+    )
+
+    assert config.stage1_output_format == "wav"
+    assert config.audio_stream_index == 1
+    assert config.top_k == 4
+    assert config.translation_batch_size == 8
+    assert config.siliconflow_model == "deepseek-ai/DeepSeek-V3"
+    assert config.dubbing_workers == 2
+    assert config.dub_repair_enabled is True
+    assert config.dub_repair_max_items == 6
+    assert config.dub_repair_attempts_per_item == 2
+    assert config.fit_policy == "high_quality"
+    assert config.window_ducking_db == -4.0
+    assert config.max_compress_ratio == 1.35
+    assert config.output_sample_rate == 48000
+    assert config.preview_format == "mp3"
+
+    with pytest.raises(ValidationError):
+        TaskConfigInput(audio_stream_index=-1)
+    with pytest.raises(ValidationError):
+        TaskConfigInput(translation_batch_size=0)
+    with pytest.raises(ValidationError):
+        TaskConfigInput(dub_repair_max_items=0)
+    with pytest.raises(ValidationError):
+        TaskConfigInput(max_compress_ratio=0)
+
+
 def test_normalize_task_storage_splits_legacy_flat_config() -> None:
     from translip.server.task_config import (
         normalize_task_config,
@@ -138,6 +218,118 @@ def test_build_pipeline_request_maps_transcription_correction(tmp_path: Path) ->
 
     assert request.transcription_correction["enabled"] is False
     assert request.transcription_correction["preset"] == "conservative"
+
+
+def test_build_pipeline_request_maps_transcription_advanced_controls(tmp_path: Path) -> None:
+    from translip.server.task_manager import _build_pipeline_request
+
+    task = Task(
+        id="task-transcription-advanced",
+        name="Transcription Advanced",
+        status="pending",
+        input_path=str(tmp_path / "input.mp4"),
+        output_root=str(tmp_path / "output"),
+        source_lang="zh",
+        target_lang="en",
+        config={
+            "pipeline": {
+                "asr_model": "medium",
+                "asr_backend": "funasr",
+                "diarizer_backend": "pyannote",
+                "enable_diarization": False,
+                "vad_filter": False,
+                "vad_min_silence_duration_ms": 650,
+                "beam_size": 3,
+                "best_of": 2,
+                "temperature": 0.2,
+                "condition_on_previous_text": True,
+            }
+        },
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    request = _build_pipeline_request(task)
+
+    assert request.asr_model == "medium"
+    assert request.asr_backend == "funasr"
+    assert request.diarizer_backend == "pyannote"
+    assert request.enable_diarization is False
+    assert request.vad_filter is False
+    assert request.vad_min_silence_duration_ms == 650
+    assert request.beam_size == 3
+    assert request.best_of == 2
+    assert request.temperature == 0.2
+    assert request.condition_on_previous_text is True
+
+
+def test_build_pipeline_request_maps_node_advanced_controls(tmp_path: Path) -> None:
+    from translip.server.task_manager import _build_pipeline_request
+
+    task = Task(
+        id="task-node-advanced",
+        name="Node Advanced",
+        status="pending",
+        input_path=str(tmp_path / "input.mp4"),
+        output_root=str(tmp_path / "output"),
+        source_lang="zh",
+        target_lang="en",
+        config={
+            "pipeline": {
+                "stage1_output_format": "wav",
+                "audio_stream_index": 1,
+                "top_k": 4,
+                "translation_batch_size": 8,
+                "siliconflow_model": "deepseek-ai/DeepSeek-V3",
+                "dubbing_workers": 2,
+                "dub_repair_enabled": True,
+                "dub_repair_backend": ["moss-tts-nano-onnx", "qwen3tts"],
+                "dub_repair_max_items": 6,
+                "dub_repair_attempts_per_item": 2,
+                "dub_repair_include_risk": True,
+                "fit_policy": "high_quality",
+                "fit_backend": "rubberband",
+                "mix_profile": "enhanced",
+                "ducking_mode": "sidechain",
+                "background_gain_db": -10.0,
+                "window_ducking_db": -4.0,
+                "max_compress_ratio": 1.35,
+                "output_sample_rate": 48000,
+                "preview_format": "mp3",
+            },
+            "delivery": {
+                "subtitle_mode": "bilingual",
+                "subtitle_render_source": "asr",
+            },
+        },
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    request = _build_pipeline_request(task)
+
+    assert request.stage1_output_format == "wav"
+    assert request.audio_stream_index == 1
+    assert request.top_k == 4
+    assert request.translation_batch_size == 8
+    assert request.api_model == "deepseek-ai/DeepSeek-V3"
+    assert request.dubbing_workers == 2
+    assert request.dub_repair_enabled is True
+    assert request.dub_repair_backends == ["moss-tts-nano-onnx", "qwen3tts"]
+    assert request.dub_repair_max_items == 6
+    assert request.dub_repair_attempts_per_item == 2
+    assert request.dub_repair_include_risk is True
+    assert request.fit_policy == "high_quality"
+    assert request.fit_backend == "rubberband"
+    assert request.mix_profile == "enhanced"
+    assert request.ducking_mode == "sidechain"
+    assert request.background_gain_db == -10.0
+    assert request.window_ducking_db == -4.0
+    assert request.max_compress_ratio == 1.35
+    assert request.output_sample_rate == 48000
+    assert request.preview_format == "mp3"
+    assert request.subtitle_mode == "bilingual"
+    assert request.subtitle_source == "asr"
 
 
 def test_task_manager_create_task_normalizes_legacy_erase_defaults(
