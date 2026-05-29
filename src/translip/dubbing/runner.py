@@ -38,7 +38,12 @@ logger = logging.getLogger(__name__)
 
 
 _DUBBING_WORKERS_ENV = "TRANSLIP_DUBBING_WORKERS"
-_MOSS_DEFAULT_WORKERS = 4
+_MOSS_MAX_WORKERS = 4
+# MOSS ONNX decode scales well with intra-op threads but parallel worker
+# processes contend on memory bandwidth, so a few well-threaded workers beat
+# many thin ones. Benchmarked on a 10-core box: 2 workers x 5 threads ran ~36%
+# faster than 4 workers x 2 threads. Target ~this many threads per worker.
+_MOSS_TARGET_THREADS_PER_WORKER = 5
 _OTHER_DEFAULT_WORKERS = 1
 _MIN_AUDIBLE_PEAK = 0.01
 _MIN_AUDIBLE_RMS_DBFS = -60.0
@@ -85,7 +90,8 @@ def _resolve_dubbing_concurrency_for_request(
 def _default_dubbing_concurrency_for_backend_name(backend_name: str) -> int:
     if backend_name == "moss-tts-nano-onnx":
         cpu_count = os.cpu_count() or 4
-        return max(1, min(_MOSS_DEFAULT_WORKERS, cpu_count // 2))
+        workers = round(cpu_count / _MOSS_TARGET_THREADS_PER_WORKER)
+        return max(1, min(_MOSS_MAX_WORKERS, workers))
     return _OTHER_DEFAULT_WORKERS
 
 

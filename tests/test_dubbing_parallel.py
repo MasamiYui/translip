@@ -170,7 +170,7 @@ def test_resolve_dubbing_concurrency_defaults_for_moss(monkeypatch) -> None:
 
     workers = _resolve_dubbing_concurrency(FakeMoss())
     assert workers >= 1
-    assert workers <= 4  # bounded by _MOSS_DEFAULT_WORKERS
+    assert workers <= 4  # bounded by _MOSS_MAX_WORKERS
 
 
 def test_resolve_dubbing_concurrency_defaults_to_one_for_qwen(monkeypatch) -> None:
