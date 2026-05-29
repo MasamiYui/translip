@@ -295,6 +295,9 @@ def synthesize_speaker(
     started_monotonic = time.monotonic()
     copied_intermediates: dict[str, Path] = {}
 
+    backend: object | None = None
+    owns_backend = backend_override is None
+
     try:
         segments = _filtered_segments(translation_payload, normalized_request)
         groups = list(_synthesis_groups(segments))
@@ -482,6 +485,14 @@ def synthesize_speaker(
         )
         write_json(manifest, manifest_path)
         raise
+    finally:
+        # Free the persistent TTS worker pool we own (no-op for backends that
+        # don't hold one, and skipped for caller-supplied overrides).
+        if owns_backend and backend is not None and hasattr(backend, "close"):
+            try:
+                backend.close()
+            except Exception:
+                logger.warning("Failed to close dubbing backend cleanly.", exc_info=True)
 
 
 def _validate_request(request: DubbingRequest) -> DubbingRequest:

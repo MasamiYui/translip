@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import numpy as np
+import pytest
 import soundfile as sf
 
 from translip.dubbing.reference import prepare_reference_package, select_reference_candidates
@@ -480,6 +481,7 @@ def test_moss_tts_nano_backend_invokes_onnx_cli_for_voice_clone(tmp_path: Path, 
     monkeypatch.setattr("translip.dubbing.moss_tts_nano_backend.subprocess.run", fake_run)
     monkeypatch.setenv("MOSS_TTS_NANO_CLI", "moss-tts-nano")
     monkeypatch.setenv("MOSS_TTS_NANO_MODEL_DIR", str(tmp_path / "moss-models"))
+    monkeypatch.setenv("MOSS_TTS_NANO_PERSISTENT", "0")  # exercise the legacy one-shot path
 
     reference_path = tmp_path / "reference.wav"
     _write_audio(reference_path, 8.0)
@@ -1703,3 +1705,139 @@ def test_synthesize_speaker_prefers_voice_bank_references(
 
     report = json.loads(result.artifacts.report_path.read_text(encoding="utf-8"))
     assert report["segments"][0]["reference_path"] == str(bank_reference.resolve())
+
+
+class _FakeWorker:
+    """Stand-in for a persistent MOSS worker subprocess used in unit tests."""
+
+    def __init__(self, *, on_request=None) -> None:
+        self.requests: list[dict] = []
+        self.closed = False
+        self.ready = False
+        self._on_request = on_request
+
+    def wait_ready(self) -> None:
+        self.ready = True
+
+    def request(self, payload: dict) -> dict:
+        self.requests.append(payload)
+        if self._on_request is not None:
+            return self._on_request(self, payload)
+        sample_rate = 48_000
+        waveform = np.ones(int(0.6 * sample_rate), dtype=np.float32) * 0.04
+        sf.write(payload["output"], waveform, sample_rate)
+        return {"id": payload["id"], "ok": True, "audio_path": payload["output"], "sample_rate": sample_rate}
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def _moss_reference_and_segment(tmp_path: Path):
+    from translip.dubbing.backend import ReferencePackage, SynthSegmentInput
+
+    reference_path = tmp_path / "reference.wav"
+    _write_audio(reference_path, 8.0)
+    reference = ReferencePackage(
+        speaker_id="spk_0000",
+        profile_id="profile_0000",
+        original_audio_path=reference_path,
+        prepared_audio_path=reference_path,
+        text="Reference transcript.",
+        duration_sec=8.0,
+        score=0.9,
+        selection_reason="test",
+    )
+    segment = SynthSegmentInput(
+        segment_id="seg-0001",
+        speaker_id="spk_0000",
+        target_lang="en",
+        target_text="Hello from Dubai.",
+        source_duration_sec=1.0,
+        duration_budget_sec=1.1,
+    )
+    return reference, segment
+
+
+def test_moss_persistent_reuses_single_worker_across_segments(tmp_path: Path, monkeypatch) -> None:
+    from translip.dubbing.moss_tts_nano_backend import MossTtsNanoOnnxBackend
+
+    monkeypatch.delenv("MOSS_TTS_NANO_PERSISTENT", raising=False)
+    reference, segment = _moss_reference_and_segment(tmp_path)
+
+    spawned: list[_FakeWorker] = []
+
+    def fake_spawn(self):
+        worker = _FakeWorker()
+        spawned.append(worker)
+        return worker
+
+    monkeypatch.setattr(MossTtsNanoOnnxBackend, "_spawn_worker", fake_spawn)
+
+    backend = MossTtsNanoOnnxBackend(requested_device="cpu", worker_count_hint=1)
+    assert backend.persistent is True
+
+    first = backend.synthesize(reference=reference, segment=segment, output_path=tmp_path / "a.wav")
+    second = backend.synthesize(reference=reference, segment=segment, output_path=tmp_path / "b.wav")
+
+    assert first.audio_path.exists() and second.audio_path.exists()
+    assert first.sample_rate == 48_000
+    assert first.backend_metadata["persistent"] is True
+    # The model is loaded once: a single worker serves both segments.
+    assert len(spawned) == 1
+    assert spawned[0].requests[0]["text"] == "Hello from Dubai."
+    assert spawned[0].requests[0]["prompt_speech"] == str(reference.prepared_audio_path)
+
+    backend.close()
+    assert spawned[0].closed is True
+
+
+def test_moss_persistent_raises_on_error_ack(tmp_path: Path, monkeypatch) -> None:
+    from translip.dubbing.moss_tts_nano_backend import MossTtsNanoOnnxBackend
+
+    monkeypatch.delenv("MOSS_TTS_NANO_PERSISTENT", raising=False)
+    reference, segment = _moss_reference_and_segment(tmp_path)
+
+    def erroring(worker, payload):
+        return {"id": payload["id"], "ok": False, "error": "boom"}
+
+    monkeypatch.setattr(
+        MossTtsNanoOnnxBackend,
+        "_spawn_worker",
+        lambda self: _FakeWorker(on_request=erroring),
+    )
+
+    backend = MossTtsNanoOnnxBackend(requested_device="cpu", worker_count_hint=1)
+    with pytest.raises(RuntimeError, match="boom"):
+        backend.synthesize(reference=reference, segment=segment, output_path=tmp_path / "a.wav")
+    backend.close()
+
+
+def test_moss_persistent_respawns_after_worker_death(tmp_path: Path, monkeypatch) -> None:
+    from translip.dubbing.moss_tts_nano_backend import MossTtsNanoOnnxBackend, _WorkerDied
+
+    monkeypatch.delenv("MOSS_TTS_NANO_PERSISTENT", raising=False)
+    reference, segment = _moss_reference_and_segment(tmp_path)
+
+    spawned: list[_FakeWorker] = []
+
+    def dying(worker, payload):
+        raise _WorkerDied("pipe broke")
+
+    def fake_spawn(self):
+        # First worker dies on use; replacement behaves normally.
+        worker = _FakeWorker(on_request=dying if not spawned else None)
+        spawned.append(worker)
+        return worker
+
+    monkeypatch.setattr(MossTtsNanoOnnxBackend, "_spawn_worker", fake_spawn)
+
+    backend = MossTtsNanoOnnxBackend(requested_device="cpu", worker_count_hint=1)
+    with pytest.raises(RuntimeError, match="died"):
+        backend.synthesize(reference=reference, segment=segment, output_path=tmp_path / "a.wav")
+
+    # The dead worker was closed and replaced, so the pool keeps serving.
+    assert len(spawned) == 2
+    assert spawned[0].closed is True
+    result = backend.synthesize(reference=reference, segment=segment, output_path=tmp_path / "b.wav")
+    assert result.audio_path.exists()
+    backend.close()
