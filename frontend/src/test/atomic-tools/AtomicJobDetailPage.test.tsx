@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -36,6 +36,7 @@ function createWrapper(initialEntry = '/tools/jobs/job-probe-1') {
 }
 
 afterEach(() => {
+  cleanup()
   vi.clearAllMocks()
 })
 
@@ -115,5 +116,59 @@ describe('AtomicJobDetailPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: '停止任务' }))
 
     await waitFor(() => expect(apiMocks.stopJob).toHaveBeenCalledWith('job-erase-1'))
+  })
+
+  it('previews a JSON artifact inline (via fetch) instead of downloading', async () => {
+    apiMocks.getJobDetail.mockResolvedValue({
+      job_id: 'job-probe-1',
+      tool_id: 'probe',
+      tool_name: '媒体信息探测',
+      status: 'completed',
+      progress_percent: 100,
+      current_step: 'completed',
+      created_at: '2026-05-09T08:00:00Z',
+      updated_at: '2026-05-09T08:00:05Z',
+      started_at: '2026-05-09T08:00:01Z',
+      finished_at: '2026-05-09T08:00:05Z',
+      elapsed_sec: 4,
+      error_message: null,
+      params: { file_id: 'file-1' },
+      result: { format_name: 'mp4' },
+      input_files: [{ file_id: 'file-1', filename: 'demo.mp4', size_bytes: 10, content_type: 'video/mp4' }],
+      artifact_count: 1,
+      artifacts: [
+        {
+          filename: 'segments.zh.json',
+          size_bytes: 20,
+          content_type: 'application/json',
+          download_url: '/api/atomic-tools/probe/jobs/job-probe-1/artifacts/segments.zh.json',
+          file_id: 'artifact-1',
+        },
+      ],
+    })
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve('{"preview_only_field": 7}'),
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(
+      <Routes>
+        <Route path="/tools/jobs/:jobId" element={<AtomicJobDetailPage />} />
+      </Routes>,
+      { wrapper: createWrapper() },
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: '预览' }))
+
+    expect(await screen.findByText(/preview_only_field/)).toBeInTheDocument()
+    expect(fetchMock).toHaveBeenCalledWith('/api/atomic-tools/probe/jobs/job-probe-1/artifacts/segments.zh.json')
+    // The explicit download affordance is preserved alongside preview.
+    expect(screen.getByRole('link', { name: /下载 segments\.zh\.json/ })).toHaveAttribute(
+      'href',
+      '/api/atomic-tools/probe/jobs/job-probe-1/artifacts/segments.zh.json',
+    )
+
+    vi.unstubAllGlobals()
   })
 })
