@@ -209,7 +209,7 @@ describe('SettingsPage global and advanced settings', () => {
     await waitFor(() => {
       expect(configApi.updateGlobal).toHaveBeenCalledWith(
         expect.objectContaining({
-          asr_model: 'iic/SenseVoiceSmall',
+          asr_model: 'paraformer-zh',
           asr_backend: 'funasr',
           diarizer_backend: 'pyannote',
           enable_diarization: false,

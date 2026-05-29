@@ -95,13 +95,14 @@ class MixingToolRequest(BaseModel):
 class TranscriptionToolRequest(BaseModel):
     file_id: str
     language: str = "zh"
-    asr_model: str = "small"
-    asr_backend: Literal["faster-whisper", "funasr"] = "faster-whisper"
+    asr_model: str = "paraformer-zh"
+    asr_backend: Literal["faster-whisper", "funasr"] = "funasr"
     diarizer_backend: Literal["ecapa", "pyannote"] = "ecapa"
     enable_diarization: bool = False
     generate_srt: bool = True
     vad_filter: bool = True
     vad_min_silence_duration_ms: int = Field(default=400, gt=0)
+    vad_max_segment_sec: float = Field(default=30.0, gt=0)
     beam_size: int = Field(default=5, gt=0)
     best_of: int = Field(default=5, gt=0)
     temperature: float = Field(default=0.0, ge=0)

@@ -103,7 +103,7 @@ describe('ToolPage', () => {
     expect(atomicToolMocks.runTool).toHaveBeenCalledWith(
       expect.objectContaining({
         language: 'ja',
-        asr_model: 'small',
+        asr_model: 'paraformer-zh',
         generate_srt: true,
       }),
     )
@@ -111,6 +111,7 @@ describe('ToolPage', () => {
 
   it('applies global transcription defaults to atomic transcription params', async () => {
     vi.mocked(configApi.getDefaults).mockResolvedValue({
+      asr_backend: 'faster-whisper',
       asr_model: 'medium',
       vad_filter: false,
       vad_min_silence_duration_ms: 650,

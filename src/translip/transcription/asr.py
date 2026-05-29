@@ -41,6 +41,10 @@ class AsrSegment:
 class AsrOptions:
     vad_filter: bool = True
     vad_min_silence_duration_ms: int = 400
+    # Cap on a single VAD speech region. Lower it to split long pauses that would
+    # otherwise glue several utterances into one segment. Applies to faster-whisper
+    # (max_speech_duration_s) and FunASR/FSMN-VAD (max_single_segment_time).
+    vad_max_segment_sec: float = 30.0
     beam_size: int = 5
     best_of: int = 5
     temperature: float = 0.0
@@ -128,6 +132,7 @@ def transcribe_audio(
     if resolved_options.vad_filter:
         transcribe_kwargs["vad_parameters"] = {
             "min_silence_duration_ms": resolved_options.vad_min_silence_duration_ms,
+            "max_speech_duration_s": resolved_options.vad_max_segment_sec,
         }
 
     segments_iter, info = model.transcribe(

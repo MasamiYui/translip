@@ -119,6 +119,7 @@ def transcribe_file(
             options=AsrOptions(
                 vad_filter=normalized_request.vad_filter,
                 vad_min_silence_duration_ms=normalized_request.vad_min_silence_duration_ms,
+                vad_max_segment_sec=normalized_request.vad_max_segment_sec,
                 beam_size=normalized_request.beam_size,
                 best_of=normalized_request.best_of,
                 temperature=normalized_request.temperature,

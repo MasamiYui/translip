@@ -71,6 +71,7 @@ const FASTER_WHISPER_MODEL_OPTIONS = ['tiny', 'base', 'small', 'medium', 'large-
 }))
 
 const FUNASR_MODEL_OPTIONS = [
+  { value: 'paraformer-zh', label: 'Paraformer-zh' },
   { value: 'iic/SenseVoiceSmall', label: 'SenseVoiceSmall' },
 ]
 

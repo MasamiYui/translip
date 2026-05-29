@@ -26,7 +26,10 @@ const SOURCE_LANGUAGE_CODES = ['auto', 'zh', 'en', 'ja'] as const
 const TARGET_LANGUAGE_CODES = ['zh', 'en', 'ja'] as const
 
 const FASTER_WHISPER_MODEL_OPTIONS: SelectOption[] = ['tiny', 'base', 'small', 'medium', 'large-v3']
-const FUNASR_MODEL_OPTIONS: SelectOption[] = [{ value: 'iic/SenseVoiceSmall', label: 'SenseVoiceSmall' }]
+const FUNASR_MODEL_OPTIONS: SelectOption[] = [
+  { value: 'paraformer-zh', label: 'Paraformer-zh' },
+  { value: 'iic/SenseVoiceSmall', label: 'SenseVoiceSmall' },
+]
 const ASR_BACKEND_OPTIONS: SelectOption[] = [
   { value: 'faster-whisper', label: 'faster-whisper' },
   { value: 'funasr', label: 'FunASR' },
@@ -364,6 +367,14 @@ function renderControls(
           <CheckboxField label={atomicTools.fields.enableDiarization} checked={Boolean(params.enable_diarization)} onChange={value => setField('enable_diarization', value)} />
           <CheckboxField label={atomicTools.fields.generateSrt} checked={Boolean(params.generate_srt)} onChange={value => setField('generate_srt', value)} />
         </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <TextField
+            label={atomicTools.fields.asrMaxSegmentSec}
+            type="number"
+            value={String(params.vad_max_segment_sec ?? 30)}
+            onChange={value => setField('vad_max_segment_sec', Number(value))}
+          />
+        </div>
       </div>
     )
   }
@@ -638,12 +649,13 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
     case 'transcription':
       params = {
         language: 'zh',
-        asr_backend: 'faster-whisper',
-        asr_model: 'small',
+        asr_backend: 'funasr',
+        asr_model: 'paraformer-zh',
         enable_diarization: true,
         generate_srt: true,
         vad_filter: true,
         vad_min_silence_duration_ms: 400,
+        vad_max_segment_sec: 30,
         beam_size: 5,
         best_of: 5,
         temperature: 0,
