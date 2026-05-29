@@ -142,6 +142,20 @@ export function SettingsPage() {
     saveMutation.mutate()
   }
 
+  // ---------- HuggingFace token ----------
+  const { data: hfTokenConfig } = useQuery({
+    queryKey: ['hf-token'],
+    queryFn: systemApi.getHfToken,
+  })
+  const [hfToken, setHfToken] = useState('')
+  const saveHfTokenMutation = useMutation({
+    mutationFn: () => systemApi.saveHfToken(hfToken),
+    onSuccess: () => {
+      setHfToken('')
+      queryClient.invalidateQueries({ queryKey: ['hf-token'] })
+    },
+  })
+
   const patchGlobalConfig = (patch: GlobalConfigDraft) => {
     setSaveGlobalStatus('idle')
     setGlobalConfig(prev => ({ ...prev, ...patch }))
@@ -331,6 +345,61 @@ export function SettingsPage() {
               <Save size={16} />
               {saveMutation.isPending ? '保存中...' : '保存配置'}
             </button>
+          </div>
+        </div>
+
+        {/* HuggingFace token */}
+        <div className="border-b border-slate-100 px-6 py-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+              {t.settings.hfToken.title}
+            </h2>
+            {hfTokenConfig?.hf_token_set ? (
+              <div className="flex items-center gap-1.5 text-sm text-emerald-600">
+                <CheckCircle size={14} />
+                <span>{t.settings.hfToken.configured}</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-sm text-amber-600">
+                <XCircle size={14} />
+                <span>{t.settings.hfToken.notConfigured}</span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 text-sm">
+              <Lock size={14} className="mt-0.5 shrink-0 text-slate-400" />
+              <span className="text-slate-500">{t.settings.hfToken.description}</span>
+            </div>
+
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                {t.settings.hfToken.title}
+              </label>
+              <input
+                type="password"
+                value={hfToken}
+                onChange={e => setHfToken(e.target.value)}
+                placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxx"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+              />
+              {hfTokenConfig?.hf_token_set && !hfToken && (
+                <p className="mt-1 text-xs text-slate-500">{t.settings.hfToken.savedHint}</p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => saveHfTokenMutation.mutate()}
+                disabled={saveHfTokenMutation.isPending || !hfToken}
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Save size={16} />
+                {saveHfTokenMutation.isPending ? t.settings.hfToken.saving : t.settings.hfToken.save}
+              </button>
+              <span className="text-xs text-amber-600">{t.settings.hfToken.restartHint}</span>
+            </div>
           </div>
         </div>
 

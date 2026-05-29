@@ -902,13 +902,39 @@ _MODEL_MS_REPOS: dict[str, list[str]] = {
 }
 
 
+_HF_TOKEN_ENV_NAMES = ("HF_TOKEN", "HUGGINGFACE_HUB_TOKEN", "PYANNOTE_AUTH_TOKEN")
+
+
 def _resolve_hf_token() -> str | None:
-    """Best-effort HF token discovery, mirroring pyannote_diarizer behaviour."""
-    for env_name in ("HF_TOKEN", "HUGGINGFACE_HUB_TOKEN", "PYANNOTE_AUTH_TOKEN"):
+    """Best-effort HF token discovery.
+
+    Priority: environment variables (mirroring pyannote_diarizer behaviour) >
+    the token persisted via the settings UI (``read_user_setting("hf_token")``).
+    """
+    for env_name in _HF_TOKEN_ENV_NAMES:
         token = os.environ.get(env_name)
         if token:
             return token
+    stored = read_user_setting("hf_token")
+    if stored:
+        return str(stored)
     return None
+
+
+def apply_hf_token_to_env() -> None:
+    """Inject the persisted HF token into the process environment if unset.
+
+    pyannote diarization runs in an isolated subprocess that only reads the HF
+    token from ``os.environ``. Calling this at server startup lets a token saved
+    through the settings UI propagate to those subprocesses (which inherit the
+    server environment) without coupling the transcription layer to the server.
+    No-op when any HF token env var is already present.
+    """
+    if any(os.environ.get(name) for name in _HF_TOKEN_ENV_NAMES):
+        return
+    stored = read_user_setting("hf_token")
+    if stored:
+        os.environ["HF_TOKEN"] = str(stored)
 
 
 def _auto_downloadable_keys() -> set[str]:
@@ -1223,6 +1249,7 @@ __all__ = [
     "ModelDownloadJob",
     "ModelDownloadManager",
     "apply_active_cache_root",
+    "apply_hf_token_to_env",
     "cleanup_group",
     "cleanup_groups",
     "collect_model_statuses",

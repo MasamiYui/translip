@@ -260,6 +260,16 @@ const zhMessages = {
       cacheDir: '缓存目录',
       cacheSize: '缓存大小',
     },
+    hfToken: {
+      title: 'HuggingFace 令牌',
+      description: 'pyannote 说话人分离等门控模型需要 HuggingFace 令牌才能下载和使用。请先在 HuggingFace 网站接受对应模型的许可，再粘贴 read 权限的访问令牌。令牌仅保存在本地配置文件中，不会上传。',
+      configured: '已配置',
+      notConfigured: '未配置',
+      savedHint: '已保存（输入新令牌可覆盖）',
+      save: '保存令牌',
+      saving: '保存中…',
+      restartHint: '保存后下载即可生效；运行时（说话人分离）需重启服务后生效。',
+    },
     models: {
       downloaded: '已下载',
       missing: '未下载',
@@ -1414,6 +1424,16 @@ const enMessages: LocaleMessages = {
       device: 'Compute Device',
       cacheDir: 'Cache Directory',
       cacheSize: 'Cache Size',
+    },
+    hfToken: {
+      title: 'HuggingFace Token',
+      description: 'Gated models such as the pyannote diarization pipeline need a HuggingFace token to download and run. Accept the model license on HuggingFace first, then paste a read-scoped access token. The token is stored only in your local config file and never uploaded.',
+      configured: 'Configured',
+      notConfigured: 'Not configured',
+      savedHint: 'Saved (enter a new token to overwrite)',
+      save: 'Save token',
+      saving: 'Saving…',
+      restartHint: 'Takes effect for downloads immediately; runtime diarization requires a server restart.',
     },
     models: {
       downloaded: 'Downloaded',

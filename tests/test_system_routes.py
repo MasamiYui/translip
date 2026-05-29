@@ -72,17 +72,27 @@ def test_collect_model_statuses_detects_cdx23_weights_in_runtime_cache(
     assert status_by_name["FunASR SenseVoiceSmall"] == "missing"
 
 
-def _clear_hf_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
+def _clear_hf_tokens(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Clear HF token env vars and isolate the user-config store to a temp path.
+
+    `_resolve_hf_token()` also reads the persisted `hf_token` user setting, so
+    tests must point that store at an empty temp file to stay deterministic.
+    """
+    from translip.server import cache_manager
+
     for env_name in ("HF_TOKEN", "HUGGINGFACE_HUB_TOKEN", "PYANNOTE_AUTH_TOKEN"):
         monkeypatch.delenv(env_name, raising=False)
+    monkeypatch.setattr(
+        cache_manager, "_USER_CONFIG_PATH", tmp_path / "settings.json"
+    )
 
 
 def test_auto_downloadable_includes_funasr_modelscope_keys(
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from translip.server import cache_manager
 
-    _clear_hf_tokens(monkeypatch)
+    _clear_hf_tokens(monkeypatch, tmp_path)
 
     assert cache_manager.is_auto_downloadable("funasr_sensevoice_small")
     assert cache_manager.is_auto_downloadable("funasr_fsmn_vad")
@@ -95,15 +105,62 @@ def test_auto_downloadable_includes_funasr_modelscope_keys(
 
 
 def test_auto_downloadable_includes_gated_keys_when_token_present(
-    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from translip.server import cache_manager
 
-    _clear_hf_tokens(monkeypatch)
+    _clear_hf_tokens(monkeypatch, tmp_path)
     monkeypatch.setenv("HF_TOKEN", "hf_dummy_token")
 
     assert cache_manager.is_auto_downloadable("pyannote_speaker_diarization_31")
     assert cache_manager.is_auto_downloadable("pyannote_segmentation_30")
+
+
+def test_saved_hf_token_makes_gated_keys_downloadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A token persisted via the settings UI (no env var) unlocks gated models."""
+    from translip.server import cache_manager
+
+    _clear_hf_tokens(monkeypatch, tmp_path)
+
+    # No token yet -> gated models stay hidden.
+    assert not cache_manager.is_auto_downloadable("pyannote_speaker_diarization_31")
+
+    cache_manager.update_user_setting("hf_token", "hf_saved_token")
+
+    assert cache_manager._resolve_hf_token() == "hf_saved_token"
+    assert cache_manager.is_auto_downloadable("pyannote_speaker_diarization_31")
+    assert cache_manager.is_auto_downloadable("pyannote_segmentation_30")
+
+    # Clearing it (empty string semantics) hides them again.
+    cache_manager.update_user_setting("hf_token", None)
+    assert not cache_manager.is_auto_downloadable("pyannote_speaker_diarization_31")
+
+
+def test_hf_token_endpoints_roundtrip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from translip.server import cache_manager
+    from translip.server.app import app
+
+    _clear_hf_tokens(monkeypatch, tmp_path)
+    client = TestClient(app)
+
+    assert client.get("/api/system/hf-token").json() == {"ok": True, "hf_token_set": False}
+
+    resp = client.post("/api/system/hf-token", json={"hf_token": "  hf_from_ui  "})
+    assert resp.json() == {"ok": True, "hf_token_set": True}
+    # Stored trimmed, and now resolvable for downloads.
+    assert cache_manager.read_user_setting("hf_token") == "hf_from_ui"
+    assert client.get("/api/system/hf-token").json()["hf_token_set"] is True
+
+    # Empty string clears it.
+    resp = client.post("/api/system/hf-token", json={"hf_token": ""})
+    assert resp.json() == {"ok": True, "hf_token_set": False}
+    assert cache_manager.read_user_setting("hf_token") is None
 
 
 def test_start_missing_dispatches_to_modelscope_for_funasr(
@@ -111,7 +168,7 @@ def test_start_missing_dispatches_to_modelscope_for_funasr(
 ) -> None:
     from translip.server import cache_manager
 
-    _clear_hf_tokens(monkeypatch)
+    _clear_hf_tokens(monkeypatch, tmp_path)
     monkeypatch.setenv("MODELSCOPE_CACHE", str(tmp_path / "modelscope" / "hub"))
     monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "huggingface" / "hub"))
     monkeypatch.setattr(
@@ -155,7 +212,7 @@ def test_start_missing_rejects_gated_keys_without_token(
 ) -> None:
     from translip.server import cache_manager
 
-    _clear_hf_tokens(monkeypatch)
+    _clear_hf_tokens(monkeypatch, tmp_path)
     monkeypatch.setattr(
         cache_manager, "resolve_active_cache_root", lambda: tmp_path / "translip-cache"
     )
@@ -175,7 +232,7 @@ def test_start_missing_passes_token_for_gated_repo(
 ) -> None:
     from translip.server import cache_manager
 
-    _clear_hf_tokens(monkeypatch)
+    _clear_hf_tokens(monkeypatch, tmp_path)
     monkeypatch.setenv("HF_TOKEN", "hf_dummy_token")
     monkeypatch.setattr(
         cache_manager, "resolve_active_cache_root", lambda: tmp_path / "translip-cache"

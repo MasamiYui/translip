@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from . import cache_manager
 from .database import init_db
 from .atomic_tools.job_manager import job_manager
 from .routes.artifacts import router as artifacts_router
@@ -53,6 +54,7 @@ app.add_middleware(
 def startup_event():
     init_db()
     job_manager.mark_interrupted_jobs()
+    cache_manager.apply_hf_token_to_env()
     logger.info("Database initialized")
 
 

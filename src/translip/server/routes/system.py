@@ -53,6 +53,10 @@ class ModelDownloadRequest(BaseModel):
     keys: list[str] | None = None
 
 
+class HfTokenRequest(BaseModel):
+    hf_token: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # Generic system info
 # ---------------------------------------------------------------------------
@@ -234,6 +238,26 @@ def cancel_model_download(job_id: str):
     if not ok:
         raise HTTPException(status_code=404, detail="job_not_cancellable")
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
+# HuggingFace token (for gated models like pyannote diarization)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/hf-token")
+def get_hf_token():
+    """Report whether a HuggingFace token is configured (never returns the value)."""
+    return {"ok": True, "hf_token_set": bool(cache_manager.read_user_setting("hf_token"))}
+
+
+@router.post("/hf-token")
+def save_hf_token(body: HfTokenRequest):
+    """Persist (or clear, when empty) the HuggingFace token used for gated models."""
+    token = (body.hf_token or "").strip() or None
+    cache_manager.update_user_setting("hf_token", token)
+    cache_manager.apply_hf_token_to_env()
+    return {"ok": True, "hf_token_set": bool(token)}
 
 
 # ---------------------------------------------------------------------------

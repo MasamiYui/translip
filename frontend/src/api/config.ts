@@ -30,6 +30,12 @@ export const systemApi = {
   getInfo: () => api.get<SystemInfo>('/api/system/info').then(r => r.data),
   probe: (path: string) =>
     api.get('/api/system/probe', { params: { path } }).then(r => r.data),
+  getHfToken: () =>
+    api.get<{ ok: boolean; hf_token_set: boolean }>('/api/system/hf-token').then(r => r.data),
+  saveHfToken: (hf_token: string) =>
+    api
+      .post<{ ok: boolean; hf_token_set: boolean }>('/api/system/hf-token', { hf_token })
+      .then(r => r.data),
 }
 
 export const modelsApi = {
