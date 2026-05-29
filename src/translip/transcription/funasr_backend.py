@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 
+import librosa
+import numpy as np
+import soundfile as sf
 import torch
 
 from .asr import AsrOptions, AsrSegment
@@ -12,7 +17,12 @@ from .asr import AsrOptions, AsrSegment
 logger = logging.getLogger(__name__)
 
 
-_SENSEVOICE_TAG_PATTERN = re.compile(r"<\|[^|]*\|>")
+_TARGET_SAMPLE_RATE = 16000
+# Match SenseVoice rich-text tags such as <|zh|><|NEUTRAL|><|Speech|><|woitn|>.
+# The spaced form (e.g. "< | zh | >") is tolerated too, in case a tag ever
+# survives into a downstream tokenizer, so emotion/event/language markers never
+# leak into the transcript or subtitles.
+_SENSEVOICE_TAG_PATTERN = re.compile(r"<\s*\|.*?\|\s*>")
 _LANGUAGE_TAG_MAP = {
     "zh": "zh",
     "yue": "yue",
@@ -21,6 +31,12 @@ _LANGUAGE_TAG_MAP = {
     "ko": "ko",
     "auto": "auto",
 }
+# FSMN-VAD already caps individual speech regions at this length; keep merged
+# regions within the same bound so a chunk never grows unbounded.
+_MAX_SEGMENT_SEC = 30.0
+# Bridge speech regions separated by a tiny silence so we do not over-fragment
+# a single utterance into many sub-second segments.
+_MAX_MERGE_GAP_SEC = 0.5
 
 
 def _resolve_funasr_device(requested_device: str) -> str:
@@ -57,27 +73,110 @@ def _resolve_model_id(model_name: str | None) -> str:
     return candidate
 
 
-@lru_cache(maxsize=2)
-def _load_sensevoice_model(model_id: str, device: str):
+def _import_automodel():
     try:
         from funasr import AutoModel
     except ImportError as exc:  # pragma: no cover - import guard
         raise RuntimeError(
             "FunASR is not installed. Run `pip install funasr` to enable the FunASR backend."
         ) from exc
+    return AutoModel
 
+
+@lru_cache(maxsize=2)
+def _load_asr_model(model_id: str, device: str):
+    AutoModel = _import_automodel()
+    return AutoModel(model=model_id, device=device, disable_update=True)
+
+
+@lru_cache(maxsize=2)
+def _load_vad_model(device: str):
+    AutoModel = _import_automodel()
     return AutoModel(
-        model=model_id,
-        vad_model="fsmn-vad",
-        vad_kwargs={"max_single_segment_time": 30000},
-        punc_model="ct-punc",
+        model="fsmn-vad",
+        vad_kwargs={"max_single_segment_time": int(_MAX_SEGMENT_SEC * 1000)},
         device=device,
         disable_update=True,
     )
 
 
+@lru_cache(maxsize=2)
+def _load_punc_model(device: str):
+    AutoModel = _import_automodel()
+    try:
+        return AutoModel(model="ct-punc", device=device, disable_update=True)
+    except Exception as exc:  # pragma: no cover - optional dependency / download failure
+        logger.warning("Failed to load ct-punc model; transcripts will be unpunctuated. %s", exc)
+        return None
+
+
 def _strip_sensevoice_tags(text: str) -> str:
     return _SENSEVOICE_TAG_PATTERN.sub("", text or "").strip()
+
+
+def _extract_vad_intervals(vad_results: object) -> list[tuple[float, float]]:
+    """Turn FunASR FSMN-VAD output (``[{"value": [[start_ms, end_ms], ...]}]``) into seconds."""
+    intervals: list[tuple[float, float]] = []
+    if not isinstance(vad_results, (list, tuple)) or not vad_results:
+        return intervals
+    first = vad_results[0]
+    value = first.get("value") if isinstance(first, dict) else None
+    if not value:
+        return intervals
+    for pair in value:
+        try:
+            start = max(0.0, float(pair[0]) / 1000.0)
+            end = max(start, float(pair[1]) / 1000.0)
+        except (TypeError, ValueError, IndexError):
+            continue
+        if end > start:
+            intervals.append((start, end))
+    return intervals
+
+
+def _merge_intervals(intervals: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Merge speech regions separated by short silences, capped at ``_MAX_SEGMENT_SEC``."""
+    merged: list[tuple[float, float]] = []
+    for start, end in intervals:
+        if (
+            merged
+            and start - merged[-1][1] <= _MAX_MERGE_GAP_SEC
+            and end - merged[-1][0] <= _MAX_SEGMENT_SEC
+        ):
+            merged[-1] = (merged[-1][0], end)
+        else:
+            merged.append((start, end))
+    return merged
+
+
+def _run_asr_on_chunk(asr_model, chunk: np.ndarray, *, language: str) -> list:
+    """Transcribe one audio chunk. Prefers the in-memory array, falling back to a temp WAV."""
+    kwargs = {"cache": {}, "language": language, "use_itn": True, "batch_size_s": 60}
+    try:
+        return asr_model.generate(input=chunk, **kwargs)
+    except Exception as exc:  # pragma: no cover - depends on FunASR version's input handling
+        logger.debug("In-memory ASR input failed (%s); retrying via a temporary WAV file.", exc)
+        fd, tmp_path = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        try:
+            sf.write(tmp_path, chunk, _TARGET_SAMPLE_RATE)
+            return asr_model.generate(input=tmp_path, **kwargs)
+        finally:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+
+
+def _apply_punctuation(punc_model, text: str) -> str:
+    try:
+        results = punc_model.generate(input=text)
+    except Exception as exc:  # pragma: no cover - punctuation is best-effort
+        logger.debug("Punctuation restoration failed: %s", exc)
+        return text
+    if results and isinstance(results[0], dict):
+        return results[0].get("text") or text
+    return text
 
 
 def transcribe_audio(
@@ -90,41 +189,57 @@ def transcribe_audio(
 ) -> tuple[list[AsrSegment], dict[str, str | float | int | bool]]:
     """FunASR (SenseVoice-Small + FSMN-VAD + CT-Punc) ASR backend.
 
-    The returned shape mirrors :func:`translip.transcription.asr.transcribe_audio` so that
-    the caller can swap backends without further changes.
+    Speech is first segmented with FSMN-VAD and each region is transcribed
+    independently, so every :class:`AsrSegment` carries real start/end times.
+    That segmentation is what lets speaker diarization and the SRT export work;
+    without it the whole file collapses into a single zero-length segment.
+
+    The returned shape mirrors :func:`translip.transcription.asr.transcribe_audio`
+    so the caller can swap backends without further changes.
     """
     device = _resolve_funasr_device(requested_device)
     model_id = _resolve_model_id(model_name)
     resolved_options = options or AsrOptions()
     normalized_language = _normalize_language(language)
 
-    model = _load_sensevoice_model(model_id, device)
-    raw_results = model.generate(
-        input=str(audio_path),
-        cache={},
-        language=normalized_language,
-        use_itn=True,
-        batch_size_s=60,
-        merge_vad=True,
-        merge_length_s=15,
-    )
+    waveform, _ = librosa.load(str(audio_path), sr=_TARGET_SAMPLE_RATE, mono=True)
+    waveform = np.ascontiguousarray(waveform, dtype=np.float32)
+    audio_duration = round(len(waveform) / _TARGET_SAMPLE_RATE, 3)
+
+    vad_model = _load_vad_model(device)
+    intervals = _merge_intervals(_extract_vad_intervals(vad_model.generate(input=str(audio_path))))
+    if not intervals:
+        # No speech detected (or VAD returned nothing): transcribe the whole file
+        # as one window so we still emit a span with a real end time.
+        intervals = [(0.0, audio_duration)]
+
+    asr_model = _load_asr_model(model_id, device)
+    punc_model = _load_punc_model(device)
 
     segments: list[AsrSegment] = []
     detected_language = normalized_language if normalized_language != "auto" else "unknown"
-    for index, item in enumerate(raw_results, start=1):
+    index = 0
+    for start, end in intervals:
+        start_sample = max(0, int(round(start * _TARGET_SAMPLE_RATE)))
+        end_sample = min(len(waveform), int(round(end * _TARGET_SAMPLE_RATE)))
+        if end_sample <= start_sample:
+            continue
+        chunk = waveform[start_sample:end_sample]
+        asr_results = _run_asr_on_chunk(asr_model, chunk, language=normalized_language)
+        if not asr_results:
+            continue
+        item = asr_results[0]
+        # Strip rich-text tags BEFORE punctuation: feeding tags into ct-punc is
+        # what previously mangled them into un-strippable "< | zh | >" forms.
         text = _strip_sensevoice_tags(item.get("text", ""))
         if not text:
             continue
-        timestamp = item.get("timestamp")
-        if timestamp:
-            start = max(0.0, float(timestamp[0][0]) / 1000.0)
-            end = max(start, float(timestamp[-1][1]) / 1000.0)
-        else:
-            start = 0.0
-            end = 0.0
+        if punc_model is not None:
+            text = _apply_punctuation(punc_model, text)
         sentence_lang = (item.get("lang") or normalized_language or "unknown").lower()
         if normalized_language == "auto" and sentence_lang and sentence_lang != "auto":
             detected_language = sentence_lang
+        index += 1
         segments.append(
             AsrSegment(
                 segment_id=f"seg-{index:04d}",
@@ -140,7 +255,9 @@ def transcribe_audio(
         "asr_model": model_id,
         "asr_model_resolved": model_id,
         "asr_device": device,
+        "vad_backend": "fsmn-vad",
         "detected_language": detected_language,
+        "audio_duration_sec": audio_duration,
         "segment_count": len(segments),
         **resolved_options.metadata(),
     }
