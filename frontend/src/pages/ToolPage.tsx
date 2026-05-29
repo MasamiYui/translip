@@ -22,6 +22,17 @@ type SelectOption = string | { value: string; label: string }
 const SOURCE_LANGUAGE_CODES = ['auto', 'zh', 'en', 'ja'] as const
 const TARGET_LANGUAGE_CODES = ['zh', 'en', 'ja'] as const
 
+const FASTER_WHISPER_MODEL_OPTIONS: SelectOption[] = ['tiny', 'base', 'small', 'medium', 'large-v3']
+const FUNASR_MODEL_OPTIONS: SelectOption[] = [{ value: 'iic/SenseVoiceSmall', label: 'SenseVoiceSmall' }]
+const ASR_BACKEND_OPTIONS: SelectOption[] = [
+  { value: 'faster-whisper', label: 'faster-whisper' },
+  { value: 'funasr', label: 'FunASR' },
+]
+
+function selectOptionValue(option: SelectOption): string {
+  return typeof option === 'string' ? option : option.value
+}
+
 export function ToolPage() {
   const { toolId = 'probe' } = useParams()
   const [searchParams] = useSearchParams()
@@ -328,10 +339,23 @@ function renderControls(
   }
 
   if (toolId === 'transcription') {
+    const asrBackend = String(params.asr_backend ?? 'faster-whisper')
+    const asrModelOptions = asrBackend === 'funasr' ? FUNASR_MODEL_OPTIONS : FASTER_WHISPER_MODEL_OPTIONS
+    const asrModelValue = asrModelOptions.some(option => selectOptionValue(option) === String(params.asr_model))
+      ? String(params.asr_model)
+      : selectOptionValue(asrModelOptions[0])
+    const handleAsrBackendChange = (value: string) => {
+      setParams(prev => ({
+        ...prev,
+        asr_backend: value,
+        asr_model: value === 'funasr' ? selectOptionValue(FUNASR_MODEL_OPTIONS[0]) : 'small',
+      }))
+    }
     return (
       <div className="grid gap-4 md:grid-cols-2">
         <SelectField label={atomicTools.fields.language} value={String(params.language)} options={sourceLanguageOptions} onChange={value => setField('language', value)} />
-        <SelectField label={atomicTools.fields.asrModel} value={String(params.asr_model)} options={['tiny', 'base', 'small', 'medium', 'large-v3']} onChange={value => setField('asr_model', value)} />
+        <SelectField label={atomicTools.fields.asrBackend} value={asrBackend} options={ASR_BACKEND_OPTIONS} onChange={handleAsrBackendChange} />
+        <SelectField label={atomicTools.fields.asrModel} value={asrModelValue} options={asrModelOptions} onChange={value => setField('asr_model', value)} />
         <CheckboxField label={atomicTools.fields.enableDiarization} checked={Boolean(params.enable_diarization)} onChange={value => setField('enable_diarization', value)} />
         <CheckboxField label={atomicTools.fields.generateSrt} checked={Boolean(params.generate_srt)} onChange={value => setField('generate_srt', value)} />
       </div>
@@ -569,6 +593,7 @@ function buildRunPayload(
 }
 
 const transcriptionGlobalDefaultKeys = [
+  'asr_backend',
   'asr_model',
   'generate_srt',
   'vad_filter',
@@ -607,6 +632,7 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
     case 'transcription':
       params = {
         language: 'zh',
+        asr_backend: 'faster-whisper',
         asr_model: 'small',
         enable_diarization: false,
         generate_srt: true,
