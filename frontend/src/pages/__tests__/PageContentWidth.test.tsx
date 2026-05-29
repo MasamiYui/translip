@@ -9,7 +9,7 @@ import { NewTaskPage } from '../NewTaskPage'
 import { SettingsPage } from '../SettingsPage'
 import { TaskListPage } from '../TaskListPage'
 import { ToolListPage } from '../ToolListPage'
-import { ToolPage } from '../ToolPage'
+import { ToolPage, TOOL_PAGE_MAX_WIDTH } from '../ToolPage'
 
 vi.mock('../../api/tasks', () => ({
   tasksApi: {
@@ -145,7 +145,7 @@ describe('page content widths', () => {
     expect(container.firstChild).toHaveClass(APP_CONTENT_MAX_WIDTH)
   })
 
-  it('keeps tool detail aligned with the dashboard content width', async () => {
+  it('renders tool detail as a focused, centered column', async () => {
     const { container } = render(
       <Routes>
         <Route path="/tools/:toolId" element={<ToolPage />} />
@@ -154,6 +154,7 @@ describe('page content widths', () => {
     )
 
     expect(await screen.findByRole('heading', { name: '探测' })).toBeInTheDocument()
-    expect(container.firstChild).toHaveClass(APP_CONTENT_MAX_WIDTH)
+    expect(container.firstChild).toHaveClass(TOOL_PAGE_MAX_WIDTH)
+    expect(container.firstChild).not.toHaveClass(APP_CONTENT_MAX_WIDTH)
   })
 })

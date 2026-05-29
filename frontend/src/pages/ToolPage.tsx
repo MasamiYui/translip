@@ -7,7 +7,7 @@ import { configApi } from '../api/config'
 import { FileUploadZone } from '../components/atomic-tools/FileUploadZone'
 import { ResultPanel } from '../components/atomic-tools/ResultPanel'
 import { ToolProgressBar } from '../components/atomic-tools/ToolProgressBar'
-import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
+import { PageContainer } from '../components/layout/PageContainer'
 import { useAtomicTool } from '../hooks/useAtomicTool'
 import { useI18n } from '../i18n/useI18n'
 import type { Locale, LocaleMessages } from '../i18n/messages'
@@ -18,6 +18,9 @@ import type { FileUploadResponse } from '../types/atomic-tools'
 type FileRefMap = Record<string, FileUploadResponse | null>
 type ToolParams = Record<string, string | number | boolean>
 type SelectOption = string | { value: string; label: string }
+
+// Atomic tool pages render as a focused, centered single column rather than the app's full content width.
+export const TOOL_PAGE_MAX_WIDTH = 'max-w-3xl'
 
 const SOURCE_LANGUAGE_CODES = ['auto', 'zh', 'en', 'ja'] as const
 const TARGET_LANGUAGE_CODES = ['zh', 'en', 'ja'] as const
@@ -70,7 +73,7 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
 
   if (!tool) {
     return (
-      <PageContainer className={APP_CONTENT_MAX_WIDTH}>
+      <PageContainer className={TOOL_PAGE_MAX_WIDTH}>
         <div className="rounded-3xl border border-slate-200 bg-white p-6 text-sm text-slate-500">
           {t.common.loading}
         </div>
@@ -103,7 +106,7 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
   }
 
   return (
-    <PageContainer className={`${APP_CONTENT_MAX_WIDTH} space-y-5`}>
+    <PageContainer className={`${TOOL_PAGE_MAX_WIDTH} space-y-5`}>
       {/* Page header */}
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -124,45 +127,44 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
         </button>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-        {/* Left: inputs + controls */}
-        <section className="space-y-4">
-          <div className={uploadGridClass}>
-            {renderUploadZones(toolId, fileRefs, handleFileSelected, t.atomicTools.uploadHints)}
-          </div>
+      {/* Inputs + controls — single centered column */}
+      <section className="space-y-4">
+        <div className={uploadGridClass}>
+          {renderUploadZones(toolId, fileRefs, handleFileSelected, t.atomicTools.uploadHints)}
+        </div>
 
-          <div className="rounded-xl border border-[#e5e7eb] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,.04)]">
-            {renderControls(
-              toolId,
-              params,
-              setParams,
-              textInput,
-              setTextInput,
-              translationInputMode,
-              setTranslationInputMode,
-              t.atomicTools,
-              getLanguageLabel,
-              locale,
-            )}
-          </div>
+        <div className="rounded-xl border border-[#e5e7eb] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,.04)]">
+          {renderControls(
+            toolId,
+            params,
+            setParams,
+            textInput,
+            setTextInput,
+            translationInputMode,
+            setTranslationInputMode,
+            t.atomicTools,
+            getLanguageLabel,
+            locale,
+          )}
+        </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={() => void handleRun()}
-              disabled={isRunning}
-              className="rounded-lg bg-[#3b5bdb] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7] hover:shadow-[0_4px_12px_rgba(59,91,219,.3)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {isRunning ? t.atomicTools.actions.running : t.atomicTools.actions.run}
-            </button>
-            {errorMessage && <span className="text-sm font-medium text-red-500">{errorMessage}</span>}
-          </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => void handleRun()}
+            disabled={isRunning}
+            className="rounded-lg bg-[#3b5bdb] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7] hover:shadow-[0_4px_12px_rgba(59,91,219,.3)] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isRunning ? t.atomicTools.actions.running : t.atomicTools.actions.run}
+          </button>
+          {errorMessage && <span className="text-sm font-medium text-red-500">{errorMessage}</span>}
+        </div>
 
-          <ToolProgressBar job={job} />
-        </section>
+        <ToolProgressBar job={job} />
+      </section>
 
-        <ResultPanel toolId={toolId} job={job} artifacts={artifacts} getDownloadUrl={getDownloadUrl} />
-      </div>
+      {/* Results render below the controls */}
+      <ResultPanel toolId={toolId} job={job} artifacts={artifacts} getDownloadUrl={getDownloadUrl} />
     </PageContainer>
   )
 }
@@ -352,12 +354,16 @@ function renderControls(
       }))
     }
     return (
-      <div className="grid gap-4 md:grid-cols-2">
-        <SelectField label={atomicTools.fields.language} value={String(params.language)} options={sourceLanguageOptions} onChange={value => setField('language', value)} />
-        <SelectField label={atomicTools.fields.asrBackend} value={asrBackend} options={ASR_BACKEND_OPTIONS} onChange={handleAsrBackendChange} />
-        <SelectField label={atomicTools.fields.asrModel} value={asrModelValue} options={asrModelOptions} onChange={value => setField('asr_model', value)} />
-        <CheckboxField label={atomicTools.fields.enableDiarization} checked={Boolean(params.enable_diarization)} onChange={value => setField('enable_diarization', value)} />
-        <CheckboxField label={atomicTools.fields.generateSrt} checked={Boolean(params.generate_srt)} onChange={value => setField('generate_srt', value)} />
+      <div className="space-y-4">
+        <div className="grid gap-4 md:grid-cols-3">
+          <SelectField label={atomicTools.fields.language} value={String(params.language)} options={sourceLanguageOptions} onChange={value => setField('language', value)} />
+          <SelectField label={atomicTools.fields.asrBackend} value={asrBackend} options={ASR_BACKEND_OPTIONS} onChange={handleAsrBackendChange} />
+          <SelectField label={atomicTools.fields.asrModel} value={asrModelValue} options={asrModelOptions} onChange={value => setField('asr_model', value)} />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <CheckboxField label={atomicTools.fields.enableDiarization} checked={Boolean(params.enable_diarization)} onChange={value => setField('enable_diarization', value)} />
+          <CheckboxField label={atomicTools.fields.generateSrt} checked={Boolean(params.generate_srt)} onChange={value => setField('generate_srt', value)} />
+        </div>
       </div>
     )
   }
@@ -634,7 +640,7 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
         language: 'zh',
         asr_backend: 'faster-whisper',
         asr_model: 'small',
-        enable_diarization: false,
+        enable_diarization: true,
         generate_srt: true,
         vad_filter: true,
         vad_min_silence_duration_ms: 400,
