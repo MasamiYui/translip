@@ -507,6 +507,17 @@ const zhMessages = {
       temporalConsensus: '时序一致性',
       temporalStd: '时序标准差阈值',
     },
+    options: {
+      mode: {
+        auto: '自动',
+        music: '音乐',
+        dialogue: '对白',
+      },
+      quality: {
+        balanced: '均衡',
+        high: '高质量',
+      },
+    },
     uploadHints: {
       fileLabel: '输入文件',
       fileHint: '拖入或选择文件以上传',
@@ -1674,6 +1685,17 @@ const enMessages: LocaleMessages = {
       cleanupCoverage: 'Cleanup Coverage',
       temporalConsensus: 'Temporal Consensus',
       temporalStd: 'Temporal Std Threshold',
+    },
+    options: {
+      mode: {
+        auto: 'Auto',
+        music: 'Music',
+        dialogue: 'Dialogue',
+      },
+      quality: {
+        balanced: 'Balanced',
+        high: 'High',
+      },
     },
     uploadHints: {
       fileLabel: 'Input File',

@@ -328,8 +328,18 @@ function renderControls(
     const showOverlap = separationMode === 'auto' || separationMode === 'dialogue'
     return (
       <div className="grid gap-4 md:grid-cols-3">
-        <SelectField label={atomicTools.fields.mode} value={separationMode} options={['auto', 'music', 'dialogue']} onChange={value => setField('mode', value)} />
-        <SelectField label={atomicTools.fields.quality} value={String(params.quality)} options={['balanced', 'high']} onChange={value => setField('quality', value)} />
+        <SelectField
+          label={atomicTools.fields.mode}
+          value={separationMode}
+          options={(['auto', 'music', 'dialogue'] as const).map(value => ({ value, label: atomicTools.options.mode[value] }))}
+          onChange={value => setField('mode', value)}
+        />
+        <SelectField
+          label={atomicTools.fields.quality}
+          value={String(params.quality)}
+          options={(['balanced', 'high'] as const).map(value => ({ value, label: atomicTools.options.quality[value] }))}
+          onChange={value => setField('quality', value)}
+        />
         <SelectField label={atomicTools.fields.outputFormat} value={String(params.output_format)} options={['wav', 'mp3', 'flac']} onChange={value => setField('output_format', value)} />
         {showOverlap && (
           <SelectField
