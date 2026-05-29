@@ -240,13 +240,18 @@ CACHE_REGISTRY: list[CacheGroup] = [
         key="funasr_ct_punc",
         label="FunASR CT-Punc",
         group="model",
+        # Must stay in sync with the model FunASR's "ct-punc" alias resolves to
+        # (see funasr_backend._load_punc_model). The alias maps to the cn-en
+        # 471067-large model, NOT the zh-cn 272727 one; tracking the wrong id
+        # makes the status show "downloaded" while a 1.1GB on-demand fetch still
+        # blocks the first transcription run.
         paths=lambda r, _h: [
-            r / "models" / "funasr" / "punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
-            _modelscope_cache_root() / "iic" / "punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
+            r / "models" / "funasr" / "punc_ct-transformer_cn-en-common-vocab471067-large",
+            _modelscope_cache_root() / "iic" / "punc_ct-transformer_cn-en-common-vocab471067-large",
             _modelscope_cache_root()
             / "models"
             / "iic"
-            / "punc_ct-transformer_zh-cn-common-vocab272727-pytorch",
+            / "punc_ct-transformer_cn-en-common-vocab471067-large",
         ],
     ),
     CacheGroup(
@@ -893,7 +898,7 @@ _MODEL_HF_REPOS_GATED: dict[str, list[str]] = {
 _MODEL_MS_REPOS: dict[str, list[str]] = {
     "funasr_sensevoice_small": ["iic/SenseVoiceSmall"],
     "funasr_fsmn_vad": ["iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"],
-    "funasr_ct_punc": ["iic/punc_ct-transformer_zh-cn-common-vocab272727-pytorch"],
+    "funasr_ct_punc": ["iic/punc_ct-transformer_cn-en-common-vocab471067-large"],
 }
 
 
