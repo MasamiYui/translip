@@ -26,8 +26,6 @@ logger = logging.getLogger(__name__)
 
 
 def _resolve_music_model(request: SeparationRequest) -> str:
-    if request.music_model:
-        return request.music_model
     return DEFAULT_DEMUCS_HIGH_MODEL if request.quality == "high" else DEFAULT_DEMUCS_BALANCED_MODEL
 
 

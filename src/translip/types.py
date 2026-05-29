@@ -117,7 +117,6 @@ class SeparationRequest:
     output_dir: Path | str = Path("output")
     output_format: OutputFormat = "wav"
     quality: Quality = "balanced"
-    music_model: str | None = None
     cdx23_overlap: float | None = None
     cdx23_shifts: int | None = None
     sample_rate: int | None = None
@@ -136,7 +135,6 @@ class SeparationRequest:
             output_dir=Path(self.output_dir).expanduser().resolve(),
             output_format=self.output_format,
             quality=self.quality,
-            music_model=self.music_model,
             cdx23_overlap=self.cdx23_overlap,
             cdx23_shifts=self.cdx23_shifts,
             sample_rate=self.sample_rate,

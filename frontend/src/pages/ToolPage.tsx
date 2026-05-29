@@ -326,24 +326,11 @@ function renderControls(
   if (toolId === 'separation') {
     const separationMode = String(params.mode)
     const showOverlap = separationMode === 'auto' || separationMode === 'dialogue'
-    const showMusicModel = separationMode === 'auto' || separationMode === 'music'
     return (
       <div className="grid gap-4 md:grid-cols-3">
         <SelectField label={atomicTools.fields.mode} value={separationMode} options={['auto', 'music', 'dialogue']} onChange={value => setField('mode', value)} />
         <SelectField label={atomicTools.fields.quality} value={String(params.quality)} options={['balanced', 'high']} onChange={value => setField('quality', value)} />
         <SelectField label={atomicTools.fields.outputFormat} value={String(params.output_format)} options={['wav', 'mp3', 'flac']} onChange={value => setField('output_format', value)} />
-        {showMusicModel && (
-          <SelectField
-            label={atomicTools.fields.musicModel}
-            value={String(params.music_model ?? '')}
-            options={[
-              { value: '', label: atomicTools.fields.musicModelAuto },
-              { value: 'htdemucs', label: 'htdemucs' },
-              { value: 'htdemucs_ft', label: 'htdemucs_ft' },
-            ]}
-            onChange={value => setField('music_model', value)}
-          />
-        )}
         {showOverlap && (
           <SelectField
             label={atomicTools.fields.cdx23Overlap}
@@ -664,7 +651,7 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
 
   switch (toolId) {
     case 'separation':
-      params = { mode: 'auto', quality: 'balanced', output_format: 'wav', music_model: '', cdx23_overlap: 0.5 }
+      params = { mode: 'auto', quality: 'balanced', output_format: 'wav', cdx23_overlap: 0.5 }
       break
     case 'mixing':
       params = { background_gain_db: -8, ducking_mode: 'static', output_format: 'wav' }

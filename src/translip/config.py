@@ -20,8 +20,7 @@ DEFAULT_TRANSCRIPTION_ASR_BACKEND = "funasr"
 DEFAULT_MUSIC_BACKEND = "demucs"
 DEFAULT_DIALOGUE_BACKEND = "cdx23"
 # Demucs model tiers (the music route). `quality=balanced` uses the faster single
-# model, `quality=high` uses the fine-tuned bag-of-4. Override per-run with
-# --music-model / SeparationRequest.music_model.
+# model, `quality=high` uses the fine-tuned bag-of-4.
 DEFAULT_DEMUCS_BALANCED_MODEL = "htdemucs"
 DEFAULT_DEMUCS_HIGH_MODEL = "htdemucs_ft"
 # CDX23 (dialogue route) inference window overlap. The upstream leaderboard uses
