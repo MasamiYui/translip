@@ -193,8 +193,8 @@ class TranscriptionRequest:
     input_path: Path | str
     output_dir: Path | str = Path("output")
     language: str = "zh"
-    asr_model: str = "small"
-    asr_backend: AsrBackendName = "faster-whisper"
+    asr_model: str = "paraformer-zh"
+    asr_backend: AsrBackendName = "funasr"
     diarizer_backend: DiarizerBackendName = "ecapa"
     enable_diarization: bool = True
     device: Device = "auto"
@@ -552,8 +552,8 @@ class PipelineRequest:
     separation_quality: Quality = "balanced"
     stage1_output_format: OutputFormat = "mp3"
     transcription_language: str = "zh"
-    asr_model: str = "small"
-    asr_backend: AsrBackendName = "faster-whisper"
+    asr_model: str = "paraformer-zh"
+    asr_backend: AsrBackendName = "funasr"
     diarizer_backend: DiarizerBackendName = "ecapa"
     enable_diarization: bool = True
     generate_srt: bool = True

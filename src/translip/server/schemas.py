@@ -98,8 +98,8 @@ class TaskConfigInput(BaseModel):
     stage1_output_format: str = "mp3"
     audio_stream_index: int = Field(default=0, ge=0)
     # Task A
-    asr_model: str = "small"
-    asr_backend: Literal["faster-whisper", "funasr"] = "faster-whisper"
+    asr_model: str = "paraformer-zh"
+    asr_backend: Literal["faster-whisper", "funasr"] = "funasr"
     diarizer_backend: Literal["ecapa", "pyannote"] = "ecapa"
     enable_diarization: bool = True
     generate_srt: bool = True

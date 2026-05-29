@@ -24,6 +24,7 @@ from ..config import (
     DEFAULT_TRANSLATION_BACKEND,
     DEFAULT_TRANSLATION_BATCH_SIZE,
     DEFAULT_TRANSLATION_TARGET_LANG,
+    DEFAULT_TRANSCRIPTION_ASR_BACKEND,
     DEFAULT_TRANSCRIPTION_ASR_MODEL,
     DEFAULT_TRANSCRIPTION_LANGUAGE,
 )
@@ -141,7 +142,7 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
         stage1_output_format=merged.get("stage1_output_format", "mp3"),
         transcription_language=merged.get("transcription_language", DEFAULT_TRANSCRIPTION_LANGUAGE),
         asr_model=merged.get("asr_model", DEFAULT_TRANSCRIPTION_ASR_MODEL),
-        asr_backend=merged.get("asr_backend", "faster-whisper"),
+        asr_backend=merged.get("asr_backend", DEFAULT_TRANSCRIPTION_ASR_BACKEND),
         diarizer_backend=merged.get("diarizer_backend", "ecapa"),
         enable_diarization=bool(merged.get("enable_diarization", True)),
         generate_srt=bool(merged.get("generate_srt", True)),

@@ -39,8 +39,8 @@ const defaultConfig: Partial<TaskConfig> = {
   dialogue_backend: 'cdx23',
   stage1_output_format: 'mp3',
   audio_stream_index: 0,
-  asr_model: 'small',
-  asr_backend: 'faster-whisper',
+  asr_model: 'paraformer-zh',
+  asr_backend: 'funasr',
   diarizer_backend: 'ecapa',
   enable_diarization: true,
   generate_srt: true,
@@ -505,7 +505,7 @@ export function NewTaskPage() {
     setConfig(prev => ({ ...prev, ...patch }))
   }
 
-  const asrBackend = config.asr_backend ?? 'faster-whisper'
+  const asrBackend = config.asr_backend ?? 'funasr'
   const asrModelOptions = useMemo(
     () => (asrBackend === 'funasr' ? FUNASR_MODEL_OPTIONS : FASTER_WHISPER_MODEL_OPTIONS),
     [asrBackend],
@@ -1190,19 +1190,16 @@ function getQualityDefaults(preset: TaskQualityPreset): Partial<TaskConfig> {
   switch (preset) {
     case 'fast':
       return {
-        asr_model: 'tiny',
         fit_policy: 'conservative',
         mix_profile: 'preview',
       }
     case 'high_quality':
       return {
-        asr_model: 'medium',
         fit_policy: 'high_quality',
         mix_profile: 'enhanced',
       }
     default:
       return {
-        asr_model: 'small',
         fit_policy: 'conservative',
         mix_profile: 'preview',
       }

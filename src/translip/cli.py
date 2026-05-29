@@ -29,6 +29,7 @@ from .config import (
     DEFAULT_TRANSLATION_LOCAL_MODEL,
     DEFAULT_TRANSLATION_SOURCE_LANG,
     DEFAULT_TRANSLATION_TARGET_LANG,
+    DEFAULT_TRANSCRIPTION_ASR_BACKEND,
     DEFAULT_TRANSCRIPTION_ASR_MODEL,
     DEFAULT_TRANSCRIPTION_LANGUAGE,
     SUPPORTED_DUBBING_BACKENDS,
@@ -110,11 +111,11 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser.add_argument(
         "--asr-model",
         default=DEFAULT_TRANSCRIPTION_ASR_MODEL,
-        help="faster-whisper model name, e.g. small, medium, large-v3",
+        help="ASR model name, e.g. paraformer-zh, iic/SenseVoiceSmall, small, large-v3",
     )
     transcribe_parser.add_argument(
         "--asr-backend",
-        default="faster-whisper",
+        default=DEFAULT_TRANSCRIPTION_ASR_BACKEND,
         choices=["faster-whisper", "funasr"],
         help="ASR backend implementation",
     )
