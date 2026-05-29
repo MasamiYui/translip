@@ -118,6 +118,8 @@ class SeparationRequest:
     output_format: OutputFormat = "wav"
     quality: Quality = "balanced"
     music_model: str | None = None
+    cdx23_overlap: float | None = None
+    cdx23_shifts: int | None = None
     sample_rate: int | None = None
     bitrate: str | None = None
     enhance_voice: bool = False
@@ -135,6 +137,8 @@ class SeparationRequest:
             output_format=self.output_format,
             quality=self.quality,
             music_model=self.music_model,
+            cdx23_overlap=self.cdx23_overlap,
+            cdx23_shifts=self.cdx23_shifts,
             sample_rate=self.sample_rate,
             bitrate=self.bitrate,
             enhance_voice=self.enhance_voice,

@@ -12,7 +12,7 @@ import torch
 from demucs.apply import apply_model
 from demucs.states import set_state
 
-from ..config import CACHE_ROOT
+from ..config import CACHE_ROOT, DEFAULT_CDX23_OVERLAP, DEFAULT_CDX23_SHIFTS
 from ..exceptions import BackendUnavailableError
 from ..types import DialogueSeparationOutput
 from .base import DialogueSeparator
@@ -36,6 +36,9 @@ def _resolve_device(requested: str) -> str:
         return requested
     if torch.cuda.is_available():
         return "cuda"
+    mps = getattr(torch.backends, "mps", None)
+    if mps is not None and mps.is_available():
+        return "mps"
     return "cpu"
 
 
@@ -46,10 +49,14 @@ class Cdx23DialogueSeparator(DialogueSeparator):
         quality: str = "balanced",
         device: str = "auto",
         cache_dir: Path | None = None,
+        overlap: float | None = None,
+        shifts: int | None = None,
     ) -> None:
         self.quality = quality
         self.device = _resolve_device(device)
         self.cache_dir = (cache_dir or CACHE_ROOT / "models" / "cdx23").expanduser().resolve()
+        self.overlap = DEFAULT_CDX23_OVERLAP if overlap is None else float(overlap)
+        self.shifts = DEFAULT_CDX23_SHIFTS if shifts is None else int(shifts)
         self._models = None
 
     @property
@@ -115,21 +122,39 @@ class Cdx23DialogueSeparator(DialogueSeparator):
             audio = np.stack([audio, audio], axis=0)
         return audio, sample_rate
 
-    def separate(self, wav_path: Path, work_dir: Path) -> DialogueSeparationOutput:
+    def _infer(self, audio: np.ndarray) -> np.ndarray:
         models = self._load_models()
-        audio, sample_rate = self._load_audio(wav_path)
         audio_tensor = torch.from_numpy(np.expand_dims(audio, axis=0)).float().to(self.device)
-
         outputs = []
-        try:
-            with torch.no_grad():
-                for model in models:
-                    prediction = apply_model(model, audio_tensor, shifts=1, overlap=0.8)[0]
-                    outputs.append(prediction.cpu().numpy())
-        except Exception as exc:
-            raise BackendUnavailableError(f"CDX23 inference failed: {exc}") from exc
+        with torch.no_grad():
+            for model in models:
+                prediction = apply_model(
+                    model, audio_tensor, shifts=self.shifts, overlap=self.overlap
+                )[0]
+                outputs.append(prediction.cpu().numpy())
+        return np.mean(np.stack(outputs, axis=0), axis=0)
 
-        averaged = np.mean(np.stack(outputs, axis=0), axis=0)
+    def separate(self, wav_path: Path, work_dir: Path) -> DialogueSeparationOutput:
+        audio, sample_rate = self._load_audio(wav_path)
+
+        try:
+            averaged = self._infer(audio)
+        except Exception as exc:
+            if self.device != "cpu":
+                logger.warning(
+                    "CDX23 failed on device '%s' (%s); retrying on CPU.", self.device, exc
+                )
+                self.device = "cpu"
+                self._models = None
+                try:
+                    averaged = self._infer(audio)
+                except Exception as cpu_exc:
+                    raise BackendUnavailableError(
+                        f"CDX23 inference failed: {cpu_exc}"
+                    ) from cpu_exc
+            else:
+                raise BackendUnavailableError(f"CDX23 inference failed: {exc}") from exc
+
         music = averaged[0].T
         effect = averaged[1].T
         dialog = averaged[2].T

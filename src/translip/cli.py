@@ -88,6 +88,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Override the Demucs model name directly, e.g. htdemucs or htdemucs_ft",
     )
+    run_parser.add_argument(
+        "--cdx23-overlap",
+        type=float,
+        default=None,
+        help="CDX23 (dialogue) inference window overlap, 0-1 (default 0.5). "
+        "Higher is slightly better quality but slower.",
+    )
+    run_parser.add_argument(
+        "--cdx23-shifts",
+        type=int,
+        default=None,
+        help="CDX23 (dialogue) test-time-augmentation shifts (default 1).",
+    )
     run_parser.add_argument("--sample-rate", type=int, default=None)
     run_parser.add_argument("--bitrate", default=None)
     run_parser.add_argument("--enhance-voice", action="store_true")
@@ -736,6 +749,8 @@ def main(argv: list[str] | None = None) -> int:
             output_format=args.output_format,
             quality=args.quality,
             music_model=args.music_model,
+            cdx23_overlap=args.cdx23_overlap,
+            cdx23_shifts=args.cdx23_shifts,
             sample_rate=args.sample_rate,
             bitrate=args.bitrate,
             enhance_voice=args.enhance_voice,

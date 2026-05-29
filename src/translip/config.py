@@ -4,6 +4,10 @@ import os
 from pathlib import Path
 
 os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
+# Let unsupported MPS ops fall back to CPU instead of raising, so Apple Silicon
+# acceleration degrades gracefully for both the in-process CDX23 backend and the
+# Demucs subprocess (which inherits this environment).
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
 DEFAULT_SAMPLE_RATE = 44_100
 TRANSCRIPTION_SAMPLE_RATE = 16_000
@@ -15,6 +19,16 @@ DEFAULT_TRANSCRIPTION_ASR_MODEL = "paraformer-zh"
 DEFAULT_TRANSCRIPTION_ASR_BACKEND = "funasr"
 DEFAULT_MUSIC_BACKEND = "demucs"
 DEFAULT_DIALOGUE_BACKEND = "cdx23"
+# Demucs model tiers (the music route). `quality=balanced` uses the faster single
+# model, `quality=high` uses the fine-tuned bag-of-4. Override per-run with
+# --music-model / SeparationRequest.music_model.
+DEFAULT_DEMUCS_BALANCED_MODEL = "htdemucs"
+DEFAULT_DEMUCS_HIGH_MODEL = "htdemucs_ft"
+# CDX23 (dialogue route) inference window overlap. The upstream leaderboard uses
+# 0.8; 0.5 is a near-lossless speed/quality trade-off and a far better default on
+# CPU/MPS. Adjustable per-run via --cdx23-overlap / SeparationRequest.cdx23_overlap.
+DEFAULT_CDX23_OVERLAP = 0.5
+DEFAULT_CDX23_SHIFTS = 1
 DEFAULT_TRANSLATION_BACKEND = "local-m2m100"
 DEFAULT_TRANSLATION_SOURCE_LANG = "zh"
 DEFAULT_TRANSLATION_TARGET_LANG = "en"

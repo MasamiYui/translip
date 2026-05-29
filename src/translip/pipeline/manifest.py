@@ -40,6 +40,8 @@ def build_manifest(
             "output_format": request.output_format,
             "quality": request.quality,
             "music_model": request.music_model,
+            "cdx23_overlap": request.cdx23_overlap,
+            "cdx23_shifts": request.cdx23_shifts,
             "enhance_voice": request.enhance_voice,
             "device": request.device,
         },

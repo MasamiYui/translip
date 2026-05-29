@@ -23,6 +23,9 @@ class SeparationAdapter(ToolAdapter):
             mode=params.get("mode", "auto"),
             quality=params.get("quality", "balanced"),
             output_format=params.get("output_format", "wav"),
+            music_model=params.get("music_model"),
+            cdx23_overlap=params.get("cdx23_overlap"),
+            cdx23_shifts=params.get("cdx23_shifts"),
         ).normalized()
         on_progress(10.0, "separating")
         result = separate_file(request)

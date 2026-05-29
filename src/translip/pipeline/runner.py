@@ -4,7 +4,12 @@ import logging
 import time
 from pathlib import Path
 
-from ..config import OUTPUT_ROOT, SUPPORTED_OUTPUT_FORMATS
+from ..config import (
+    DEFAULT_DEMUCS_BALANCED_MODEL,
+    DEFAULT_DEMUCS_HIGH_MODEL,
+    OUTPUT_ROOT,
+    SUPPORTED_OUTPUT_FORMATS,
+)
 from ..exceptions import TranslipError
 from ..models.cdx23_dialogue import Cdx23DialogueSeparator
 from ..models.clearervoice import NoOpVoiceEnhancer
@@ -23,7 +28,7 @@ logger = logging.getLogger(__name__)
 def _resolve_music_model(request: SeparationRequest) -> str:
     if request.music_model:
         return request.music_model
-    return "htdemucs_ft" if request.quality == "high" else "htdemucs"
+    return DEFAULT_DEMUCS_HIGH_MODEL if request.quality == "high" else DEFAULT_DEMUCS_BALANCED_MODEL
 
 
 def _validate_request(request: SeparationRequest) -> SeparationRequest:
@@ -64,6 +69,8 @@ def separate_file(request: SeparationRequest | str, **kwargs) -> SeparationResul
         dialogue_separator = Cdx23DialogueSeparator(
             quality=normalized_request.quality,
             device=normalized_request.device,
+            overlap=normalized_request.cdx23_overlap,
+            shifts=normalized_request.cdx23_shifts,
         )
 
         if route.route == "music":

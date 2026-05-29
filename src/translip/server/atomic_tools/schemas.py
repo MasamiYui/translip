@@ -82,6 +82,9 @@ class SeparationToolRequest(BaseModel):
     mode: str = "auto"
     quality: str = "balanced"
     output_format: str = "wav"
+    music_model: str | None = None
+    cdx23_overlap: float | None = Field(default=None, gt=0, le=1)
+    cdx23_shifts: int | None = Field(default=None, ge=0)
 
 
 class MixingToolRequest(BaseModel):
