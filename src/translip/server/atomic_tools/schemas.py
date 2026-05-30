@@ -5,6 +5,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from ...config import SUPPORTED_DUBBING_BACKENDS
+
 
 class ToolInfo(BaseModel):
     tool_id: str
@@ -138,7 +140,21 @@ class TranslationToolRequest(BaseModel):
 class TtsToolRequest(BaseModel):
     text: str
     language: str = "auto"
+    backend: str = "qwen3tts"
     reference_audio_file_id: str | None = None
+
+    @model_validator(mode="after")
+    def validate_backend(self) -> "TtsToolRequest":
+        if self.backend not in SUPPORTED_DUBBING_BACKENDS:
+            raise ValueError(
+                f"Unsupported TTS backend: {self.backend}. "
+                f"Choose one of: {', '.join(SUPPORTED_DUBBING_BACKENDS)}"
+            )
+        if self.backend in {"moss-tts-nano-onnx", "voxcpm2"} and not self.reference_audio_file_id:
+            raise ValueError(
+                f"The {self.backend} backend requires a reference audio upload for voice cloning."
+            )
+        return self
 
 
 class ProbeToolRequest(BaseModel):

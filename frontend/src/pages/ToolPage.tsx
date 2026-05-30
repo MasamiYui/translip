@@ -14,6 +14,7 @@ import type { Locale, LocaleMessages } from '../i18n/messages'
 import { readAtomicToolPrefill, type AtomicToolPrefill } from '../lib/atomicToolPrefill'
 import type { TaskConfig } from '../types'
 import type { FileUploadResponse } from '../types/atomic-tools'
+import { DUBBING_BACKEND_OPTIONS } from '../lib/dubbingBackends'
 
 type FileRefMap = Record<string, FileUploadResponse | null>
 type ToolParams = Record<string, string | number | boolean>
@@ -100,6 +101,12 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     await runTool(payload)
   }
 
+  // Clone-only TTS backends (moss/voxcpm) cannot run without a reference upload.
+  const ttsNeedsReference =
+    toolId === 'tts' &&
+    (params.backend === 'moss-tts-nano-onnx' || params.backend === 'voxcpm2') &&
+    !fileRefs.reference_audio_file?.file_id
+
   function handleReset() {
     setFileRefs({})
     setTextInput('')
@@ -155,11 +162,14 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
           <button
             type="button"
             onClick={() => void handleRun()}
-            disabled={isRunning}
+            disabled={isRunning || ttsNeedsReference}
             className="rounded-lg bg-[#3b5bdb] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7] hover:shadow-[0_4px_12px_rgba(59,91,219,.3)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isRunning ? t.atomicTools.actions.running : t.atomicTools.actions.run}
           </button>
+          {ttsNeedsReference && (
+            <span className="text-sm font-medium text-amber-600">{t.atomicTools.fields.ttsReferenceRequiredHint}</span>
+          )}
           {errorMessage && <span className="text-sm font-medium text-red-500">{errorMessage}</span>}
         </div>
 
@@ -449,6 +459,7 @@ function renderControls(
         <TextAreaField label={atomicTools.fields.text} value={textInput} onChange={setTextInput} />
         <div className="grid gap-4 md:grid-cols-2">
           <TextField label={atomicTools.fields.language} value={String(params.language)} onChange={value => setField('language', value)} />
+          <SelectField label={atomicTools.fields.ttsBackend} value={String(params.backend ?? 'qwen3tts')} options={DUBBING_BACKEND_OPTIONS} onChange={value => setField('backend', value)} />
         </div>
       </div>
     )
@@ -760,7 +771,7 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
       params = { source_lang: 'zh', target_lang: 'en', backend: 'local-m2m100' }
       break
     case 'tts':
-      params = { language: 'auto' }
+      params = { language: 'auto', backend: 'qwen3tts' }
       break
     case 'muxing':
       params = { video_codec: 'copy', audio_codec: 'aac', audio_bitrate: '192k' }

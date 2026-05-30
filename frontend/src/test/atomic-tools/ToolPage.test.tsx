@@ -261,4 +261,75 @@ describe('ToolPage', () => {
       }),
     )
   })
+
+  it('defaults the tts backend to qwen3tts and runs without a reference', async () => {
+    apiMocks.listTools.mockResolvedValue([
+      {
+        tool_id: 'tts',
+        name_zh: '语音合成',
+        name_en: 'Text to Speech',
+        description_zh: '将文本转为语音，并可选参考音色克隆',
+        description_en: 'Synthesize speech from text with optional reference voice cloning',
+        category: 'speech',
+        icon: 'Mic',
+        accept_formats: ['.wav', '.mp3', '.flac', '.m4a', '.ogg', '.txt'],
+        max_file_size_mb: 100,
+        max_files: 1,
+      },
+    ])
+
+    render(
+      <Routes>
+        <Route path="/tools/:toolId" element={<ToolPage />} />
+      </Routes>,
+      { wrapper: createWrapper(['/tools/tts']) },
+    )
+
+    expect(await screen.findByRole('heading', { name: '语音合成' })).toBeInTheDocument()
+
+    const backendSelect = screen.getByRole('combobox', { name: 'TTS 后端' }) as HTMLSelectElement
+    expect(backendSelect.value).toBe('qwen3tts')
+    // qwen3tts can synthesize without a reference (voice design), so run stays enabled.
+    expect(screen.getByRole('button', { name: '开始处理' })).not.toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText('文本内容'), { target: { value: 'Hello there' } })
+    fireEvent.click(screen.getByRole('button', { name: '开始处理' }))
+
+    expect(atomicToolMocks.runTool).toHaveBeenCalledWith(
+      expect.objectContaining({ backend: 'qwen3tts', text: 'Hello there' }),
+    )
+  })
+
+  it('disables run and shows a hint when a clone-only tts backend has no reference', async () => {
+    apiMocks.listTools.mockResolvedValue([
+      {
+        tool_id: 'tts',
+        name_zh: '语音合成',
+        name_en: 'Text to Speech',
+        description_zh: '将文本转为语音，并可选参考音色克隆',
+        description_en: 'Synthesize speech from text with optional reference voice cloning',
+        category: 'speech',
+        icon: 'Mic',
+        accept_formats: ['.wav', '.mp3', '.flac', '.m4a', '.ogg', '.txt'],
+        max_file_size_mb: 100,
+        max_files: 1,
+      },
+    ])
+
+    render(
+      <Routes>
+        <Route path="/tools/:toolId" element={<ToolPage />} />
+      </Routes>,
+      { wrapper: createWrapper(['/tools/tts']) },
+    )
+
+    expect(await screen.findByRole('heading', { name: '语音合成' })).toBeInTheDocument()
+
+    const backendSelect = screen.getByRole('combobox', { name: 'TTS 后端' }) as HTMLSelectElement
+    fireEvent.change(backendSelect, { target: { value: 'voxcpm2' } })
+
+    expect(backendSelect.value).toBe('voxcpm2')
+    expect(screen.getByRole('button', { name: '开始处理' })).toBeDisabled()
+    expect(screen.getByText(/所选后端需要上传参考音频/)).toBeInTheDocument()
+  })
 })
