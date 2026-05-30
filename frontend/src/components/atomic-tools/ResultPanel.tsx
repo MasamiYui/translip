@@ -153,6 +153,7 @@ function buildArtifactActions(
     toTranslation: string
     toMuxing: string
     toSubtitleErase: string
+    toTranscriptCorrection: string
   },
 ) {
   const fileId = artifact.file_id ?? undefined
@@ -178,11 +179,19 @@ function buildArtifactActions(
   }
 
   if (toolId === 'transcription') {
-    return [
+    const actions = [
       buildArtifactAction(labels.toTranslation, 'translation', {
         files: { file: { file_id: fileId, filename: artifact.filename } },
       }),
     ]
+    if (/\.json$/i.test(artifact.filename)) {
+      actions.push(
+        buildArtifactAction(labels.toTranscriptCorrection, 'transcript-correction', {
+          files: { segments_file: { file_id: fileId, filename: artifact.filename } },
+        }),
+      )
+    }
+    return actions
   }
 
   if (toolId === 'tts') {
@@ -212,6 +221,14 @@ function buildArtifactActions(
     return [
       buildArtifactAction(labels.toSubtitleErase, 'subtitle-erase', {
         files: { detection_file: { file_id: fileId, filename: artifact.filename } },
+      }),
+    ]
+  }
+
+  if (toolId === 'subtitle-detect' && /ocr_events\.json$/i.test(artifact.filename)) {
+    return [
+      buildArtifactAction(labels.toTranscriptCorrection, 'transcript-correction', {
+        files: { ocr_events_file: { file_id: fileId, filename: artifact.filename } },
       }),
     ]
   }

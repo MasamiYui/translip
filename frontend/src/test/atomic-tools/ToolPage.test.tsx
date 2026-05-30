@@ -209,4 +209,56 @@ describe('ToolPage', () => {
       }),
     )
   })
+
+  it('sends both ASR and OCR file ids plus preset for transcript-correction', async () => {
+    apiMocks.listTools.mockResolvedValue([
+      {
+        tool_id: 'transcript-correction',
+        name_zh: '台词校正',
+        name_en: 'Transcript Correction',
+        description_zh: '使用 OCR 字幕校正 ASR 文稿，保留 ASR 时间轴和说话人',
+        description_en: 'Correct ASR transcript text with OCR subtitle events',
+        category: 'speech',
+        icon: 'ScanText',
+        accept_formats: ['.json'],
+        max_file_size_mb: 500,
+        max_files: 2,
+      },
+    ])
+    atomicToolMocks.uploadFile
+      .mockResolvedValueOnce({ file_id: 'asr-1', filename: 'segments.zh.json' })
+      .mockResolvedValueOnce({ file_id: 'ocr-1', filename: 'ocr_events.json' })
+
+    render(
+      <Routes>
+        <Route path="/tools/:toolId" element={<ToolPage />} />
+      </Routes>,
+      { wrapper: createWrapper(['/tools/transcript-correction']) },
+    )
+
+    expect(await screen.findByRole('heading', { name: '台词校正' })).toBeInTheDocument()
+
+    const asrInput = screen.getByLabelText('ASR 文稿') as HTMLInputElement
+    const ocrInput = screen.getByLabelText('OCR 字幕事件') as HTMLInputElement
+    fireEvent.change(asrInput, {
+      target: { files: [new File(['{}'], 'segments.zh.json', { type: 'application/json' })] },
+    })
+    fireEvent.change(ocrInput, {
+      target: { files: [new File(['{}'], 'ocr_events.json', { type: 'application/json' })] },
+    })
+
+    await screen.findByText('segments.zh.json')
+    await screen.findByText('ocr_events.json')
+
+    fireEvent.click(screen.getByRole('button', { name: /激进/ }))
+    fireEvent.click(screen.getByRole('button', { name: '开始处理' }))
+
+    expect(atomicToolMocks.runTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preset: 'aggressive',
+        segments_file_id: 'asr-1',
+        ocr_events_file_id: 'ocr-1',
+      }),
+    )
+  })
 })

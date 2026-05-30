@@ -5,9 +5,13 @@ from datetime import datetime, timezone
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
+
+from ..subtitles.parse import parse_subtitle_file
 
 ALGORITHM_VERSION = "ocr-guided-asr-correction-v1"
+
+_SUBTITLE_SUFFIXES = {".srt", ".vtt"}
 
 _PUNCTUATION_RE = re.compile(r"[\s\[\]（）()【】,，.。!?！？:：;；、\"'‘’“”\-—_]+")
 
@@ -23,6 +27,7 @@ class CorrectionConfig:
     min_length_ratio: float = 0.45
     max_length_ratio: float = 2.2
     ocr_only_policy: str = "report_only"
+    llm_arbitration: str = "off"
     algorithm_version: str = ALGORITHM_VERSION
 
     @classmethod
@@ -57,9 +62,31 @@ class CorrectionResult:
 
 
 @dataclass(frozen=True, slots=True)
+class ArbitrationRequest:
+    segment_id: str
+    asr_text: str
+    ocr_text: str
+    start: float
+    end: float
+    speaker_label: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ArbitrationVerdict:
+    decision: str  # "use_asr" | "use_ocr" | "merge"
+    text: str
+    reason: str
+
+
+# Resolves an ambiguous (review) segment. Returns None to defer to deterministic behavior.
+Arbitrator = Callable[[ArbitrationRequest], "ArbitrationVerdict | None"]
+
+
+@dataclass(frozen=True, slots=True)
 class CorrectionArtifacts:
     corrected_segments_path: Path
     corrected_srt_path: Path
+    clean_srt_path: Path
     report_path: Path
     manifest_path: Path
 
@@ -83,6 +110,61 @@ class _OcrEvent:
 
 def load_json_payload(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _is_subtitle(path: Path) -> bool:
+    return path.suffix.lower() in _SUBTITLE_SUFFIXES
+
+
+def load_segments_payload(path: Path) -> dict[str, Any]:
+    """Load ASR segments from JSON, or parse an SRT/VTT subtitle into the segments shape.
+
+    Subtitles carry no diarization, so a missing speaker prefix falls back to a single
+    speaker. The ``[LABEL] text`` prefix this project writes is parsed back out.
+    """
+    if not _is_subtitle(path):
+        return load_json_payload(path)
+    cues = parse_subtitle_file(path)
+    segments = [
+        {
+            "id": f"seg-{cue.index:04d}",
+            "start": cue.start,
+            "end": cue.end,
+            "duration": round(max(0.0, cue.end - cue.start), 3),
+            "speaker_label": cue.speaker_label or "SPEAKER_00",
+            "text": cue.text,
+        }
+        for cue in cues
+    ]
+    return {
+        "input": {"path": str(path), "source_format": path.suffix.lower().lstrip(".")},
+        "segments": segments,
+    }
+
+
+def load_ocr_payload(path: Path) -> dict[str, Any]:
+    """Load OCR events from JSON, or parse an SRT/VTT subtitle into the events shape.
+
+    Subtitles carry no per-event confidence, so it defaults to 1.0 — meaning the OCR
+    confidence gate is effectively bypassed for subtitle-sourced input.
+    """
+    if not _is_subtitle(path):
+        return load_json_payload(path)
+    cues = parse_subtitle_file(path)
+    events = [
+        {
+            "event_id": f"evt-{cue.index:04d}",
+            "start": cue.start,
+            "end": cue.end,
+            "text": cue.text,
+            "confidence": 1.0,
+        }
+        for cue in cues
+    ]
+    return {
+        "source": {"path": str(path), "source_format": path.suffix.lower().lstrip(".")},
+        "events": events,
+    }
 
 
 def _clean_text(text: str) -> str:
@@ -193,12 +275,21 @@ def _build_timing_metadata(
     }
 
 
+def _first_number(raw: dict[str, Any], *keys: str, default: float = 0.0) -> float:
+    for key in keys:
+        value = raw.get(key)
+        if value is not None:
+            return float(value)
+    return default
+
+
 def _normalize_event(raw: dict[str, Any], index: int) -> _OcrEvent | None:
     text = str(raw.get("text") or "").strip()
     if not text:
         return None
-    start = float(raw.get("start", 0.0))
-    end = float(raw.get("end", start))
+    # Accept both the OCR-events schema (start/end) and the detection schema (start_time/end_time).
+    start = _first_number(raw, "start", "start_time", default=0.0)
+    end = _first_number(raw, "end", "end_time", default=start)
     if end < start:
         start, end = end, start
     return _OcrEvent(
@@ -211,7 +302,7 @@ def _normalize_event(raw: dict[str, Any], index: int) -> _OcrEvent | None:
 
 
 def _load_events(ocr_payload: dict[str, Any]) -> list[_OcrEvent]:
-    raw_events = ocr_payload.get("events") or []
+    raw_events = ocr_payload.get("events") or ocr_payload.get("results") or []
     events = [_normalize_event(raw, index) for index, raw in enumerate(raw_events, start=1)]
     return sorted((event for event in events if event is not None), key=lambda event: (event.start, event.end))
 
@@ -260,11 +351,56 @@ def _build_disabled_result(segments_payload: dict[str, Any], config: CorrectionC
     return CorrectionResult(corrected_payload=corrected_payload, report=report)
 
 
+def _is_faithful(candidate: str, *sources: str) -> bool:
+    """True when every meaningful character of ``candidate`` also appears in some source."""
+    candidate_chars = set(_clean_text(candidate))
+    if not candidate_chars:
+        return False
+    allowed: set[str] = set()
+    for source in sources:
+        allowed |= set(_clean_text(source))
+    return candidate_chars <= allowed
+
+
+def _arbitration_request(segment: dict[str, Any], asr_text: str, ocr_text: str) -> ArbitrationRequest:
+    start = float(segment.get("start", 0.0))
+    return ArbitrationRequest(
+        segment_id=str(segment.get("id") or ""),
+        asr_text=asr_text,
+        ocr_text=ocr_text,
+        start=start,
+        end=float(segment.get("end", start)),
+        speaker_label=segment.get("speaker_label"),
+    )
+
+
+def _apply_arbitration(
+    verdict: ArbitrationVerdict | None,
+    asr_text: str,
+    ocr_text: str,
+) -> tuple[str, str] | None:
+    """Map a verdict to (decision_label, text). None defers to the deterministic review path.
+
+    ``use_asr``/``use_ocr`` reuse our own known-good text; ``merge`` trusts the model's text
+    only after it passes the faithfulness check (no characters outside the two sources).
+    """
+    if verdict is None:
+        return None
+    if verdict.decision == "use_asr":
+        return "llm_use_asr", asr_text
+    if verdict.decision == "use_ocr":
+        return "llm_use_ocr", ocr_text
+    if verdict.decision == "merge" and _is_faithful(verdict.text, asr_text, ocr_text):
+        return "llm_merge", verdict.text.strip()
+    return None
+
+
 def correct_asr_segments_with_ocr(
     *,
     segments_payload: dict[str, Any],
     ocr_payload: dict[str, Any],
     config: CorrectionConfig,
+    arbitrator: Arbitrator | None = None,
 ) -> CorrectionResult:
     if not config.enabled:
         return _build_disabled_result(segments_payload, config)
@@ -278,6 +414,7 @@ def correct_asr_segments_with_ocr(
     corrected_count = 0
     kept_asr_count = 0
     review_count = 0
+    arbitrated_count = 0
 
     for segment in segments:
         original_text = str(segment.get("text") or "")
@@ -302,38 +439,58 @@ def correct_asr_segments_with_ocr(
         )
 
         corrected = dict(segment)
+        reason: str | None = None
+        arbitration_record: dict[str, Any] | None = None
         if should_replace:
             corrected["text"] = merged_text
             decision = "merge_ocr" if len(high_confidence_candidates) > 1 else "use_ocr"
             needs_review = False
             corrected_count += 1
             used_event_ids.update(event.event_id for event in high_confidence_candidates)
+        elif candidates and not high_confidence_candidates:
+            corrected["text"] = original_text
+            decision = "use_asr"
+            needs_review = False
+            reason = "low_ocr_confidence"
+            kept_asr_count += 1
+        elif high_confidence_candidates:
+            # Ambiguous "review" bucket: high-confidence OCR that failed alignment/length.
+            # Only here do we ask the LLM to arbitrate (when one is provided).
+            verdict = arbitrator(_arbitration_request(segment, original_text, merged_text)) if arbitrator else None
+            outcome = _apply_arbitration(verdict, original_text, merged_text)
+            if outcome is not None:
+                decision, corrected["text"] = outcome
+                needs_review = False
+                arbitrated_count += 1
+                arbitration_record = {"decision": verdict.decision, "reason": verdict.reason, "applied": True}
+                if decision == "llm_use_asr":
+                    kept_asr_count += 1
+                else:
+                    corrected_count += 1
+                    used_event_ids.update(event.event_id for event in high_confidence_candidates)
+            else:
+                corrected["text"] = original_text
+                decision = "review"
+                needs_review = True
+                reason = "weak_alignment_or_length_mismatch"
+                review_count += 1
+                if verdict is not None:
+                    arbitration_record = {"decision": verdict.decision, "reason": verdict.reason, "applied": False}
         else:
             corrected["text"] = original_text
             decision = "use_asr"
             needs_review = False
+            reason = "no_ocr_candidate"
             kept_asr_count += 1
-            if candidates and not high_confidence_candidates:
-                reason = "low_ocr_confidence"
-            elif high_confidence_candidates:
-                reason = "weak_alignment_or_length_mismatch"
-                decision = "review"
-                needs_review = True
-                review_count += 1
-                kept_asr_count -= 1
-            else:
-                reason = "no_ocr_candidate"
 
-        if should_replace:
-            reason = None
-
+        replaced_with_ocr = should_replace or decision in {"llm_use_ocr", "llm_merge"}
         timing_metadata = (
             _build_timing_metadata(
                 segment=segment,
                 events=high_confidence_candidates,
                 config=config,
             )
-            if should_replace
+            if replaced_with_ocr
             else None
         )
         if timing_metadata is not None:
@@ -362,6 +519,8 @@ def correct_asr_segments_with_ocr(
         }
         if timing_metadata is not None:
             report_row["timing"] = timing_metadata
+        if arbitration_record is not None:
+            report_row["arbitration"] = arbitration_record
         report_segments.append(report_row)
 
     segment_windows = [(float(segment.get("start", 0.0)), float(segment.get("end", 0.0))) for segment in segments]
@@ -392,9 +551,10 @@ def correct_asr_segments_with_ocr(
         "algorithm_version": config.algorithm_version,
         "source": "ocr",
         "preset": config.preset,
-        "report_path": "asr-ocr-correct/voice/correction-report.json",
+        "llm_arbitration": config.llm_arbitration,
         "corrected_count": corrected_count,
         "review_count": review_count,
+        "arbitrated_count": arbitrated_count,
         "ocr_only_count": ocr_only_count,
     }
     report = {
@@ -403,9 +563,11 @@ def correct_asr_segments_with_ocr(
             "corrected_count": corrected_count,
             "kept_asr_count": kept_asr_count,
             "review_count": review_count,
+            "arbitrated_count": arbitrated_count,
             "ocr_only_count": ocr_only_count,
             "auto_correction_rate": round(corrected_count / segment_count, 3) if segment_count else 0.0,
             "review_rate": round(review_count / segment_count, 3) if segment_count else 0.0,
+            "llm_arbitration": config.llm_arbitration,
             "fallback_reason": None,
             "algorithm_version": config.algorithm_version,
         },
@@ -423,16 +585,24 @@ def _srt_timestamp(seconds: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{secs:02d},{ms:03d}"
 
 
-def _write_srt(segments: list[dict[str, Any]], output_path: Path) -> Path:
+def _write_srt(
+    segments: list[dict[str, Any]],
+    output_path: Path,
+    *,
+    include_speaker: bool = True,
+) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     lines: list[str] = []
     for index, segment in enumerate(segments, start=1):
-        speaker_label = segment.get("speaker_label") or "SPEAKER_00"
+        text = segment.get("text") or ""
+        if include_speaker:
+            speaker_label = segment.get("speaker_label") or "SPEAKER_00"
+            text = f"[{speaker_label}] {text}"
         lines.extend(
             [
                 str(index),
                 f"{_srt_timestamp(float(segment.get('start', 0.0)))} --> {_srt_timestamp(float(segment.get('end', 0.0)))}",
-                f"[{speaker_label}] {segment.get('text') or ''}",
+                text,
                 "",
             ]
         )
@@ -444,14 +614,17 @@ def write_correction_artifacts(result: CorrectionResult, *, output_dir: Path) ->
     output_dir.mkdir(parents=True, exist_ok=True)
     corrected_segments_path = output_dir / "segments.zh.corrected.json"
     corrected_srt_path = output_dir / "segments.zh.corrected.srt"
+    clean_srt_path = output_dir / "segments.zh.corrected.clean.srt"
     report_path = output_dir / "correction-report.json"
     manifest_path = output_dir / "correction-manifest.json"
 
+    corrected_segments = result.corrected_payload.get("segments") or []
     corrected_segments_path.write_text(
         json.dumps(result.corrected_payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
-    _write_srt(result.corrected_payload.get("segments") or [], corrected_srt_path)
+    _write_srt(corrected_segments, corrected_srt_path)
+    _write_srt(corrected_segments, clean_srt_path, include_speaker=False)
     report_path.write_text(
         json.dumps(result.report, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
@@ -461,6 +634,7 @@ def write_correction_artifacts(result: CorrectionResult, *, output_dir: Path) ->
         "artifacts": {
             "corrected_segments": str(corrected_segments_path),
             "corrected_srt": str(corrected_srt_path),
+            "corrected_clean_srt": str(clean_srt_path),
             "report": str(report_path),
         },
         "config": {
@@ -481,6 +655,7 @@ def write_correction_artifacts(result: CorrectionResult, *, output_dir: Path) ->
     return CorrectionArtifacts(
         corrected_segments_path=corrected_segments_path,
         corrected_srt_path=corrected_srt_path,
+        clean_srt_path=clean_srt_path,
         report_path=report_path,
         manifest_path=manifest_path,
     )
@@ -488,10 +663,15 @@ def write_correction_artifacts(result: CorrectionResult, *, output_dir: Path) ->
 
 __all__ = [
     "ALGORITHM_VERSION",
+    "ArbitrationRequest",
+    "ArbitrationVerdict",
+    "Arbitrator",
     "CorrectionArtifacts",
     "CorrectionConfig",
     "CorrectionResult",
     "correct_asr_segments_with_ocr",
     "load_json_payload",
+    "load_ocr_payload",
+    "load_segments_payload",
     "write_correction_artifacts",
 ]

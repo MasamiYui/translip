@@ -86,7 +86,7 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
 
   const title = locale === 'zh-CN' ? tool.name_zh : tool.name_en
   const description = locale === 'zh-CN' ? tool.description_zh : tool.description_en
-  const uploadGridClass = toolId === 'mixing' || toolId === 'muxing'
+  const uploadGridClass = toolId === 'mixing' || toolId === 'muxing' || toolId === 'transcript-correction'
     ? 'grid gap-4 md:grid-cols-2'
     : 'grid gap-4'
 
@@ -274,6 +274,27 @@ function renderUploadZones(
           onFileSelected={file => onFileSelected('detection_file', file)}
           optional
           optionalLabel={hints.optionalBadge}
+        />
+      </>
+    )
+  }
+
+  if (toolId === 'transcript-correction') {
+    return (
+      <>
+        <FileUploadZone
+          label={hints.segmentsLabel}
+          hint={hints.segmentsHint}
+          accept=".json,.srt,.vtt"
+          value={fileRefs.segments_file ?? null}
+          onFileSelected={file => onFileSelected('segments_file', file)}
+        />
+        <FileUploadZone
+          label={hints.ocrEventsLabel}
+          hint={hints.ocrEventsHint}
+          accept=".json,.srt,.vtt"
+          value={fileRefs.ocr_events_file ?? null}
+          onFileSelected={file => onFileSelected('ocr_events_file', file)}
         />
       </>
     )
@@ -561,6 +582,51 @@ function renderControls(
     )
   }
 
+  if (toolId === 'transcript-correction') {
+    const preset = String(params.preset ?? 'standard')
+    const arbitration = String(params.llm_arbitration ?? 'off')
+    return (
+      <div className="space-y-4">
+        <div>
+          <div className="mb-2 text-sm font-medium text-slate-700">{atomicTools.fields.preset}</div>
+          <div className="grid gap-2 md:grid-cols-3">
+            {(['conservative', 'standard', 'aggressive'] as const).map(option => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setField('preset', option)}
+                className={`rounded-2xl border p-3 text-left transition ${
+                  preset === option
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="text-sm font-semibold text-slate-900">
+                  {atomicTools.correctionPresetLabels[option]}
+                </div>
+                <div className="mt-1 text-xs leading-5 text-slate-500">
+                  {atomicTools.correctionPresetHints[option]}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div>
+          <SelectField
+            label={atomicTools.fields.llmArbitration}
+            value={arbitration}
+            options={(['off', 'deepseek', 'siliconflow'] as const).map(value => ({
+              value,
+              label: atomicTools.arbitrationOptions[value],
+            }))}
+            onChange={value => setField('llm_arbitration', value)}
+          />
+          <p className="mt-1.5 text-xs leading-5 text-slate-500">{atomicTools.arbitrationHint}</p>
+        </div>
+      </div>
+    )
+  }
+
   return null
 }
 
@@ -623,6 +689,14 @@ function buildRunPayload(
       ...params,
       video_file_id: fileRefs.video_file?.file_id,
       audio_file_id: fileRefs.audio_file?.file_id,
+    }
+  }
+
+  if (toolId === 'transcript-correction') {
+    return {
+      ...params,
+      segments_file_id: fileRefs.segments_file?.file_id,
+      ocr_events_file_id: fileRefs.ocr_events_file?.file_id,
     }
   }
 
@@ -700,6 +774,9 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
       break
     case 'subtitle-erase':
       params = { preset: 'fast', mode: 'auto', backend: '', auto_tune: false }
+      break
+    case 'transcript-correction':
+      params = { preset: 'standard', llm_arbitration: 'off' }
       break
     default:
       params = {}

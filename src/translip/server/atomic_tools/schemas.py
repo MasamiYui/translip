@@ -117,6 +117,7 @@ class TranscriptCorrectionToolRequest(BaseModel):
     enabled: bool = True
     preset: Literal["conservative", "standard", "aggressive"] = "standard"
     ocr_only_policy: Literal["report_only"] = "report_only"
+    llm_arbitration: Literal["off", "deepseek", "siliconflow"] = "off"
 
 
 class TranslationToolRequest(BaseModel):

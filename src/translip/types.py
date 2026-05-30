@@ -75,7 +75,7 @@ class TranscriptionCorrectionConfig(TypedDict, total=False):
     min_length_ratio: float
     max_length_ratio: float
     ocr_only_policy: Literal["report_only"]
-    llm_arbitration: Literal["off"]
+    llm_arbitration: Literal["off", "deepseek", "siliconflow"]
 
 
 @dataclass(slots=True)

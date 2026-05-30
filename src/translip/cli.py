@@ -166,6 +166,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="standard",
         choices=["conservative", "standard", "aggressive"],
     )
+    correction_parser.add_argument(
+        "--llm-arbitration",
+        default="off",
+        choices=["off", "deepseek", "siliconflow"],
+        help="LLM arbitration for ambiguous (review) segments (requires DEEPSEEK_API_KEY / SILICONFLOW_API_KEY)",
+    )
     correction_parser.add_argument("--disabled", action="store_true")
 
     analyze_speakers_parser = subparsers.add_parser(
@@ -791,22 +797,32 @@ def main(argv: list[str] | None = None) -> int:
         from .transcription.ocr_correction import (
             CorrectionConfig,
             correct_asr_segments_with_ocr,
-            load_json_payload,
+            load_ocr_payload,
+            load_segments_payload,
             write_correction_artifacts,
         )
+
+        from dataclasses import replace as _replace
 
         preset_map = {
             "conservative": CorrectionConfig.conservative,
             "standard": CorrectionConfig.standard,
             "aggressive": CorrectionConfig.aggressive,
         }
-        config = preset_map[args.preset]()
         if args.disabled:
-            config = CorrectionConfig(enabled=False, preset=args.preset)
+            config = CorrectionConfig(enabled=False, preset=args.preset, llm_arbitration=args.llm_arbitration)
+        else:
+            config = _replace(preset_map[args.preset](), llm_arbitration=args.llm_arbitration)
+        arbitrator = None
+        if config.llm_arbitration != "off":
+            from .transcription.arbitration import make_arbitrator
+
+            arbitrator = make_arbitrator(config.llm_arbitration)
         result = correct_asr_segments_with_ocr(
-            segments_payload=load_json_payload(Path(args.segments)),
-            ocr_payload=load_json_payload(Path(args.ocr_events)),
+            segments_payload=load_segments_payload(Path(args.segments)),
+            ocr_payload=load_ocr_payload(Path(args.ocr_events)),
             config=config,
+            arbitrator=arbitrator,
         )
         artifacts = write_correction_artifacts(result, output_dir=Path(args.output_dir) / "voice")
         print(f"corrected_segments={artifacts.corrected_segments_path}")

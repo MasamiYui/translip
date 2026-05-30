@@ -69,7 +69,7 @@ class TranscriptionAdapter(ToolAdapter):
                     "start": segment.start,
                     "end": segment.end,
                     "text": segment.text,
-                    "speaker": segment.speaker_label,
+                    "speaker_label": segment.speaker_label,
                 }
                 for segment in result.segments
             ],

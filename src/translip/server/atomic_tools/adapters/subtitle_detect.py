@@ -84,8 +84,11 @@ class SubtitleDetectAdapter(ToolAdapter):
         self.write_json(summary_path, summary)
 
         on_progress(95.0, "collecting_artifacts")
+        ocr_events_path = stage_dir / "ocr_events.json"
         return {
             "detection_file": detection_path.name,
+            # ocr_events.json carries start/end/event_id and is the transcript-correction-friendly OCR export.
+            "ocr_events_file": ocr_events_path.name if ocr_events_path.exists() else None,
             "summary_file": summary_path.name,
             "event_count": summary["event_count"],
             "total_subtitle_seconds": summary["total_subtitle_seconds"],
