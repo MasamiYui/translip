@@ -160,6 +160,44 @@ def _clean_sentence(text: str) -> str:
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
+# Sentence-final marks (CJK + ASCII) used to split a multi-utterance VAD region
+# into subtitle-sized lines. Runs such as a doubled "？？" collapse to one split.
+_SENTENCE_END_RE = re.compile(r"[。！？!?]+")
+
+
+def _split_region_sentences(text: str) -> list[str]:
+    """Split a punctuated VAD-region transcript into cleaned per-sentence lines.
+
+    SenseVoice emits one transcript per (possibly multi-utterance) VAD region.
+    Splitting on its sentence punctuation recovers subtitle-sized lines, and the
+    shared ``_clean_sentence`` collapses the doubled punctuation that SenseVoice +
+    CT-Punc would otherwise leave (e.g. ``？？``/``，，``).
+    """
+    cleaned = (_clean_sentence(piece) for piece in _SENTENCE_END_RE.split(text or ""))
+    return [piece for piece in cleaned if piece]
+
+
+def _distribute_region_time(
+    start: float, end: float, sentences: list[str]
+) -> list[tuple[float, float, str]]:
+    """Allocate a VAD region's ``[start, end]`` across sentences ∝ character length.
+
+    SenseVoice exposes no token timestamps, so per-sentence times are an
+    approximation — but far better for subtitles than one multi-sentence block.
+    """
+    total_chars = sum(len(sentence) for sentence in sentences) or 1
+    span = max(0.0, end - start)
+    spans: list[tuple[float, float, str]] = []
+    cursor = start
+    for offset, sentence in enumerate(sentences):
+        is_last = offset == len(sentences) - 1
+        seg_end = end if is_last else round(cursor + span * len(sentence) / total_chars, 3)
+        seg_end = max(seg_end, cursor)
+        spans.append((round(cursor, 3), seg_end, sentence))
+        cursor = seg_end
+    return spans
+
+
 def _extract_vad_intervals(vad_results: object) -> list[tuple[float, float]]:
     """Turn FunASR FSMN-VAD output (``[{"value": [[start_ms, end_ms], ...]}]``) into seconds."""
     intervals: list[tuple[float, float]] = []
@@ -237,10 +275,11 @@ def _transcribe_sensevoice(
 ) -> tuple[list[AsrSegment], dict[str, str | float | int | bool]]:
     """FunASR SenseVoice-Small + FSMN-VAD + CT-Punc.
 
-    Speech is first segmented with FSMN-VAD and each region is transcribed
-    independently. SenseVoice does not expose token timestamps, so each segment
-    inherits its VAD-region bounds — a region can therefore span several
-    utterances of different speakers, which caps downstream diarization.
+    Speech is segmented with FSMN-VAD and each region is transcribed independently.
+    A region can span several utterances, so its punctuated transcript is split on
+    sentence-final marks into subtitle-sized lines (``_split_region_sentences``) with
+    times distributed across them (``_distribute_region_time``). SenseVoice exposes
+    no token timestamps, so per-sentence times are proportional approximations.
     """
     resolved_options = options
     normalized_language = _normalize_language(language)
@@ -282,19 +321,23 @@ def _transcribe_sensevoice(
             continue
         if punc_model is not None:
             text = _apply_punctuation(punc_model, text)
+        sentences = _split_region_sentences(text)
+        if not sentences:
+            continue
         sentence_lang = (item.get("lang") or normalized_language or "unknown").lower()
         if normalized_language == "auto" and sentence_lang and sentence_lang != "auto":
             detected_language = sentence_lang
-        index += 1
-        segments.append(
-            AsrSegment(
-                segment_id=f"seg-{index:04d}",
-                start=round(start, 3),
-                end=round(end, 3),
-                text=text,
-                language=sentence_lang or detected_language,
+        for seg_start, seg_end, sentence in _distribute_region_time(start, end, sentences):
+            index += 1
+            segments.append(
+                AsrSegment(
+                    segment_id=f"seg-{index:04d}",
+                    start=seg_start,
+                    end=seg_end,
+                    text=sentence,
+                    language=sentence_lang or detected_language,
+                )
             )
-        )
 
     metadata: dict[str, str | float | int | bool] = {
         "asr_backend": "funasr-sensevoice",

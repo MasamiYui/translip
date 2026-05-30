@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from translip.transcription.funasr_backend import (
+    _distribute_region_time,
     _extract_vad_intervals,
     _merge_intervals,
     _normalize_language,
     _resolve_model_id,
+    _split_region_sentences,
     _strip_sensevoice_tags,
 )
 
@@ -58,3 +60,31 @@ def test_normalize_language_and_model_resolution() -> None:
     assert _resolve_model_id("small") == "iic/SenseVoiceSmall"
     assert _resolve_model_id("iic/SenseVoiceSmall") == "iic/SenseVoiceSmall"
     assert _resolve_model_id("custom/model") == "custom/model"
+
+
+def test_split_region_sentences_splits_and_collapses_double_punctuation() -> None:
+    # A multi-utterance region with the doubled SenseVoice+CT-Punc marks.
+    text = "你知道哈利法塔吗？？哈利法塔是全世界最高的塔。哦，，那他在哪儿啊？"
+    assert _split_region_sentences(text) == [
+        "你知道哈利法塔吗",
+        "哈利法塔是全世界最高的塔",
+        "哦 那他在哪儿啊",  # internal pause commas become a space, no trailing mark
+    ]
+
+
+def test_split_region_sentences_keeps_single_short_utterance() -> None:
+    assert _split_region_sentences("奶奶") == ["奶奶"]
+    assert _split_region_sentences("。？！") == []
+    assert _split_region_sentences("") == []
+
+
+def test_distribute_region_time_allocates_by_length_and_is_monotonic() -> None:
+    spans = _distribute_region_time(10.0, 16.0, ["四个字呀", "两字"])
+    # 6s split ∝ length (4 vs 2 chars) → 4s + 2s, contiguous, last ends exactly at region end.
+    assert spans == [(10.0, 14.0, "四个字呀"), (14.0, 16.0, "两字")]
+    starts_ends = [(s, e) for s, e, _ in spans]
+    assert all(s <= e for s, e in starts_ends)
+    assert starts_ends[0][1] == starts_ends[1][0]  # no gap/overlap between lines
+
+    single = _distribute_region_time(3.0, 5.0, ["一句话"])
+    assert single == [(3.0, 5.0, "一句话")]
