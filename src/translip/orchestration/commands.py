@@ -358,6 +358,8 @@ def build_asr_ocr_correction_command(request: PipelineRequest) -> list[str]:
         str(request.output_root / "asr-ocr-correct"),
         "--preset",
         str(config.get("preset", "standard")),
+        "--llm-arbitration",
+        str(config.get("llm_arbitration", "off")),
     ]
     if config.get("enabled", True) is False:
         command.append("--disabled")
