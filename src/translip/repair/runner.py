@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +7,7 @@ from typing import Any
 
 from ..exceptions import TranslipError
 from ..translation.glossary import load_glossary
+from ..utils.io import read_json
 from .export import now_iso, write_json
 from .planner import build_repair_plan
 
@@ -152,7 +152,7 @@ def _validate_request(request: RepairPlanRequest) -> RepairPlanRequest:
 
 
 def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return read_json(path)
 
 
 __all__ = [

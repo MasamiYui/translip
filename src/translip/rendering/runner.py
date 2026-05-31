@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import time
 from dataclasses import dataclass, field
@@ -13,6 +12,7 @@ from ..exceptions import TranslipError
 from ..types import RenderDubArtifacts, RenderDubRequest, RenderDubResult
 from ..utils.ffmpeg import export_audio, render_wav
 from ..utils.files import ensure_directory, remove_tree, work_directory
+from ..utils.io import read_json
 from .audio import (
     apply_fade,
     audio_duration_sec,
@@ -311,7 +311,7 @@ def _validate_request(request: RenderDubRequest) -> RenderDubRequest:
 
 
 def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return read_json(path)
 
 
 def _load_candidates(

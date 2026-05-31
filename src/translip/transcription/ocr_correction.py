@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..subtitles.parse import parse_subtitle_file
+from ..utils.io import read_json
 
 ALGORITHM_VERSION = "ocr-guided-asr-correction-v1"
 
@@ -109,7 +110,7 @@ class _OcrEvent:
 
 
 def load_json_payload(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return read_json(path)
 
 
 def _is_subtitle(path: Path) -> bool:

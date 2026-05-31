@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,6 +7,7 @@ from typing import Any
 
 from ..pipeline.manifest import now_iso
 from ..utils.files import ensure_directory
+from ..utils.io import read_json, write_json as _write_json_impl
 
 
 @dataclass(slots=True)
@@ -331,15 +331,14 @@ def _read_json(path: Path) -> dict[str, Any]:
     if not path.exists() or not path.is_file():
         return {}
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = read_json(path)
     except Exception:
         return {}
     return payload if isinstance(payload, dict) else {}
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _write_json_impl(payload, path, atomic=False, trailing_newline=True)
 
 
 __all__ = ["DubBenchmarkArtifacts", "DubBenchmarkRequest", "DubBenchmarkResult", "build_dub_benchmark"]

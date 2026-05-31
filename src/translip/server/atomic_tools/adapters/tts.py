@@ -10,14 +10,13 @@ import numpy as np
 import soundfile as sf
 
 from ....dubbing.backend import ReferencePackage, SynthSegmentInput, resolve_tts_device
-from ....dubbing.moss_tts_nano_backend import MossTtsNanoOnnxBackend
 from ....dubbing.qwen_tts_backend import (
     _language_name,
     _load_qwen_model,
     _max_new_tokens_for,
     _normalize_waveform,
 )
-from ....dubbing.voxcpm_tts_backend import VoxCPMTTSBackend
+from ....dubbing.registry import TTS_BACKENDS
 from ..registry import ToolSpec, register_tool
 from ..schemas import TtsToolRequest
 from . import ToolAdapter

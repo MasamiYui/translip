@@ -1,18 +1,17 @@
 from __future__ import annotations
 
-import json
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
 from ..types import PipelineRequest
 from ..utils.files import ensure_directory
+from ..utils.io import write_json as _write_json_impl
 
 
 def write_json(payload: dict[str, Any], output_path: Path) -> Path:
     ensure_directory(output_path.parent)
-    output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return output_path
+    return _write_json_impl(payload, output_path, atomic=False, trailing_newline=True)
 
 
 def _jsonable(value: Any) -> Any:

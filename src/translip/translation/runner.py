@@ -154,18 +154,15 @@ def translate_script(
 
 
 def build_translation_backend(request: TranslationRequest) -> object:
-    if request.backend == "local-m2m100":
-        from .m2m100_backend import M2M100Backend
+    from .registry import TRANSLATION_BACKENDS
 
-        return M2M100Backend(model_name=request.local_model, requested_device=request.device)
-    if request.backend == "siliconflow":
-        from .siliconflow_backend import SiliconFlowBackend
-
-        return SiliconFlowBackend(
-            base_url=request.api_base_url,
-            model_name=request.api_model,
-        )
-    raise TranslipError(f"Unsupported translation backend: {request.backend}")
+    return TRANSLATION_BACKENDS.create(
+        request.backend,
+        local_model=request.local_model,
+        device=request.device,
+        api_model=request.api_model,
+        api_base_url=request.api_base_url,
+    )
 
 
 def _validate_request(request: TranslationRequest) -> TranslationRequest:

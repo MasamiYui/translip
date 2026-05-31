@@ -1,6 +1,6 @@
 from __future__ import annotations
+import logging
 
-import json
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +15,7 @@ from ..repair import RepairPlanRequest, RepairRunRequest, plan_dub_repair, run_d
 from ..types import PipelineRequest, PipelineResult, PipelineStageName
 from ..translation.backend import output_tag_for_language
 from ..utils.files import ensure_directory
+from ..utils.io import read_json
 from .cache import StageCacheSpec, compute_cache_key, is_stage_cache_hit
 from .erase_bridge import run_subtitle_erase
 from .graph import resolve_template_plan
@@ -64,13 +65,15 @@ from .monitor import PipelineMonitor
 from .stages import resolve_stage_sequence
 from .subprocess_runner import StageSubprocessError, run_stage_command
 
+logger = logging.getLogger(__name__)
+
 
 def _now_job_id() -> str:
     return "pipeline-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
 
 
 def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return read_json(path)
 
 
 def _count_renderable_task_d_segments(payload: dict[str, Any]) -> int:

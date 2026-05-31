@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -9,12 +8,11 @@ import soundfile as sf
 
 from ..pipeline.manifest import now_iso
 from ..types import DubbingRequest
+from ..utils.io import write_json as _write_json_impl
 
 
 def write_json(payload: dict[str, Any], output_path: Path) -> Path:
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return output_path
+    return _write_json_impl(payload, output_path, atomic=False, trailing_newline=True)
 
 
 def render_demo_audio(segment_paths: list[Path], output_path: Path, *, gap_sec: float = 0.2) -> Path | None:

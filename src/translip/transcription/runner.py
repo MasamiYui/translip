@@ -7,7 +7,6 @@ from pathlib import Path
 from ..exceptions import TranslipError
 from ..pipeline.ingest import prepare_transcription_audio
 from ..transcription.asr import AsrOptions, AsrSegment
-from ..transcription.asr import transcribe_audio as transcribe_audio_faster_whisper
 from ..transcription.export import (
     build_transcription_manifest,
     now_iso,
@@ -16,7 +15,7 @@ from ..transcription.export import (
     write_segments_json,
     write_segments_srt,
 )
-from ..transcription.speaker import assign_speaker_labels as assign_speaker_labels_ecapa
+from ..transcription.registry import DIARIZER_BACKENDS
 from ..types import (
     MediaInfo,
     TranscriptionArtifacts,
@@ -45,20 +44,14 @@ def _run_asr(
     requested_device: str,
     options: AsrOptions,
 ) -> tuple[list[AsrSegment], dict[str, str | float | int | bool]]:
-    if backend == "funasr":
-        from ..transcription.funasr_backend import transcribe_audio as transcribe_audio_funasr
+    from ..transcription.registry import ASR_BACKENDS, DEFAULT_ASR_BACKEND
 
-        return transcribe_audio_funasr(
-            audio_path,
-            model_name=model_name,
-            language=language,
-            requested_device=requested_device,
-            options=options,
-        )
-    if backend not in {"faster-whisper", ""}:
+    if backend not in ASR_BACKENDS:
         logger.warning("Unknown asr_backend=%s, falling back to faster-whisper.", backend)
-    return transcribe_audio_faster_whisper(
-        audio_path,
+        backend = DEFAULT_ASR_BACKEND
+    return ASR_BACKENDS.create(
+        backend,
+        audio_path=audio_path,
         model_name=model_name,
         language=language,
         requested_device=requested_device,
@@ -73,17 +66,17 @@ def _run_diarization(
     backend: str,
     requested_device: str,
 ) -> tuple[list[str], dict[str, int | float | str]]:
-    if backend == "pyannote":
-        from ..transcription.pyannote_diarizer import assign_speaker_labels as assign_pyannote
-
-        return assign_pyannote(
+    if backend in DIARIZER_BACKENDS:
+        assign = DIARIZER_BACKENDS.create(backend)
+        return assign(
             audio_path,
             asr_segments,
             requested_device=requested_device,
         )
     if backend not in {"ecapa", ""}:
         logger.warning("Unknown diarizer_backend=%s, falling back to ECAPA clustering.", backend)
-    return assign_speaker_labels_ecapa(
+    assign = DIARIZER_BACKENDS.create("ecapa")
+    return assign(
         audio_path,
         asr_segments,
         requested_device=requested_device,

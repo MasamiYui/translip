@@ -8,6 +8,7 @@ from pathlib import Path
 import torch
 
 from .asr import AsrSegment
+from ..utils.torch_device import resolve_torch_device
 
 logger = logging.getLogger(__name__)
 
@@ -16,19 +17,7 @@ _DEFAULT_PIPELINE = "pyannote/speaker-diarization-3.1"
 
 
 def _resolve_pyannote_device(requested_device: str) -> str:
-    if requested_device == "cuda" and torch.cuda.is_available():
-        return "cuda"
-    if requested_device == "mps":
-        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
-            return "mps"
-        return "cpu"
-    if requested_device == "auto":
-        if torch.cuda.is_available():
-            return "cuda"
-        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
-            return "mps"
-        return "cpu"
-    return "cpu"
+    return resolve_torch_device(requested_device)
 
 
 @lru_cache(maxsize=2)

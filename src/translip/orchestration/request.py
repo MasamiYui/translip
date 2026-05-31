@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
@@ -34,12 +33,13 @@ from ..types import (
     PipelineRequest,
     normalize_dubbing_quality_check_mode,
 )
+from ..utils.io import read_json
 
 
 def _load_json_config(path: str | Path | None) -> dict[str, Any]:
     if not path:
         return {}
-    payload = json.loads(Path(path).expanduser().resolve().read_text(encoding="utf-8"))
+    payload = read_json(Path(path).expanduser().resolve())
     if not isinstance(payload, dict):
         raise ValueError("Pipeline config must be a JSON object")
     return payload

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,6 +8,7 @@ from typing import Any
 from ..pipeline.manifest import now_iso
 from ..quality.audio_signature import pitch_class_distance, voice_signature
 from ..utils.files import ensure_directory
+from ..utils.io import read_json, write_json as _write_json_impl
 
 
 @dataclass(slots=True)
@@ -273,12 +273,11 @@ def _markdown_report(ledger: dict[str, Any]) -> str:
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return read_json(path)
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    _write_json_impl(payload, path, atomic=False, trailing_newline=True)
 
 
 __all__ = ["CharacterLedgerArtifacts", "CharacterLedgerRequest", "CharacterLedgerResult", "build_character_ledger"]

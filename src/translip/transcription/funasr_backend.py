@@ -13,6 +13,7 @@ import soundfile as sf
 import torch
 
 from .asr import AsrOptions, AsrSegment
+from ..utils.torch_device import resolve_torch_device
 
 logger = logging.getLogger(__name__)
 
@@ -40,23 +41,7 @@ _MAX_MERGE_GAP_SEC = 0.5
 
 
 def _resolve_funasr_device(requested_device: str) -> str:
-    if requested_device == "cuda":
-        if not torch.cuda.is_available():
-            logger.warning("CUDA requested for FunASR but is unavailable. Falling back to CPU.")
-            return "cpu"
-        return "cuda"
-    if requested_device == "auto":
-        if torch.cuda.is_available():
-            return "cuda"
-        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
-            return "mps"
-        return "cpu"
-    if requested_device == "mps":
-        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
-            return "mps"
-        logger.info("MPS requested but unavailable; falling back to CPU for FunASR.")
-        return "cpu"
-    return "cpu"
+    return resolve_torch_device(requested_device, logger=logger)
 
 
 def _normalize_language(language: str | None) -> str:

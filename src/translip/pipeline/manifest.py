@@ -1,15 +1,12 @@
 from __future__ import annotations
 
-import json
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from ..types import MediaInfo, RouteDecision, SeparationRequest
+from ..utils.io import now_iso, write_json as _write_json_impl
 
-
-def now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
+__all__ = ["now_iso", "build_manifest", "write_manifest"]
 
 
 def build_manifest(
@@ -65,8 +62,4 @@ def build_manifest(
 
 
 def write_manifest(manifest: dict[str, Any], manifest_path: Path) -> Path:
-    manifest_path.write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    return manifest_path
+    return _write_json_impl(manifest, manifest_path, atomic=False, trailing_newline=True)

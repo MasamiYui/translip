@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +11,7 @@ from ..subtitles.burn import merge_bilingual_ass, recommend_style, srt_to_ass
 from ..types import ExportVideoArtifacts, ExportVideoRequest, ExportVideoResult, PipelineRequest, SubtitleStyle
 from ..utils.ffmpeg import burn_subtitle_and_mux, mux_video_with_audio, probe_media, probe_video_resolution
 from ..utils.files import ensure_directory
+from ..utils.io import read_json
 from .export import build_delivery_manifest, build_delivery_report, now_iso, write_json
 
 
@@ -550,7 +550,7 @@ def _output_payload(*, kind: str, output_path: Path) -> dict[str, Any]:
 
 
 def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return read_json(path)
 
 
 __all__ = ["export_video"]

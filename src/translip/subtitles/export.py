@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 from ..translation.backend import output_tag_for_language
 from ..utils.files import ensure_directory
+from ..utils.io import write_json as _write_json_impl
 
 
 def _seconds_to_srt_time(seconds: float) -> str:
@@ -18,8 +18,7 @@ def _seconds_to_srt_time(seconds: float) -> str:
 
 def _write_json(output_path: Path, payload: dict[str, Any]) -> Path:
     ensure_directory(output_path.parent)
-    output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return output_path
+    return _write_json_impl(payload, output_path, atomic=False, trailing_newline=True)
 
 
 def write_ocr_translation_bundle(

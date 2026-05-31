@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
 
-import torch
+from ..utils.torch_device import resolve_torch_device
 
 
 @dataclass(slots=True)
@@ -56,14 +56,4 @@ class TTSBackend(Protocol):
 
 
 def resolve_tts_device(requested_device: str) -> str:
-    if requested_device == "cuda":
-        return "cuda" if torch.cuda.is_available() else "cpu"
-    if requested_device == "mps":
-        return "mps" if torch.backends.mps.is_available() else "cpu"
-    if requested_device == "auto":
-        if torch.cuda.is_available():
-            return "cuda"
-        if torch.backends.mps.is_available():
-            return "mps"
-        return "cpu"
-    return "cpu"
+    return resolve_torch_device(requested_device)

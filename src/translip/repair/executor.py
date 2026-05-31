@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -8,12 +7,11 @@ from typing import Any, Callable
 
 from ..dubbing.backend import ReferencePackage, SynthSegmentInput, TTSBackend
 from ..dubbing.metrics import SegmentEvaluation, evaluate_segment
-from ..dubbing.moss_tts_nano_backend import MossTtsNanoOnnxBackend
-from ..dubbing.qwen_tts_backend import QwenTTSBackend
 from ..dubbing.reference import ReferenceCandidate, prepare_reference_package
-from ..dubbing.voxcpm_tts_backend import VoxCPMTTSBackend
+from ..dubbing.registry import TTS_BACKENDS
 from ..exceptions import TranslipError
 from ..quality.audio_signature import pitch_class_distance, voice_signature
+from ..utils.io import read_json
 from .export import now_iso, write_json
 
 
@@ -790,7 +788,7 @@ def _validate_request(request: RepairRunRequest) -> RepairRunRequest:
 
 
 def _load_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    return read_json(path)
 
 
 __all__ = [

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import math
 import re
 import statistics
@@ -14,6 +13,7 @@ import soundfile as sf
 
 from ..pipeline.manifest import now_iso
 from ..utils.files import ensure_directory
+from ..utils.io import read_json, write_json as _write_json_impl
 
 IDEAL_REFERENCE_MIN_SEC = 8.0
 IDEAL_REFERENCE_MAX_SEC = 10.5
@@ -625,7 +625,7 @@ def _build_markdown_report(voice_bank: dict[str, Any]) -> str:
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = read_json(path)
     if isinstance(payload, dict):
         return payload
     if isinstance(payload, list):
@@ -634,9 +634,7 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _write_json(payload: dict[str, Any], path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return path
+    return _write_json_impl(payload, path, atomic=False, trailing_newline=True)
 
 
 def _status_counts(values: Any) -> dict[str, int]:

@@ -8,22 +8,12 @@ from transformers import M2M100ForConditionalGeneration, M2M100Tokenizer
 
 from ..config import CACHE_ROOT
 from ..exceptions import BackendUnavailableError
+from ..utils.torch_device import resolve_torch_device
 from .backend import BackendSegmentInput, BackendSegmentOutput, m2m100_language_code
 
 
 def resolve_translation_device(requested_device: str) -> str:
-    mps_available = bool(getattr(torch.backends, "mps", None) and torch.backends.mps.is_available())
-    if requested_device == "cuda":
-        return "cuda" if torch.cuda.is_available() else "cpu"
-    if requested_device == "mps":
-        return "mps" if mps_available else "cpu"
-    if requested_device == "auto":
-        if torch.cuda.is_available():
-            return "cuda"
-        if mps_available:
-            return "mps"
-        return "cpu"
-    return "cpu"
+    return resolve_torch_device(requested_device)
 
 
 @lru_cache(maxsize=4)

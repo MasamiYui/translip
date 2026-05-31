@@ -7,6 +7,7 @@ from typing import Any, Callable
 
 from ..config import DEFAULT_TRANSLATION_BATCH_SIZE
 from ..translation.backend import BackendSegmentInput, canonical_language_code
+from ..translation.registry import TRANSLATION_BACKENDS
 from .export import write_ocr_translation_bundle
 
 
@@ -25,15 +26,16 @@ def _build_backend(
     api_model: str | None,
     api_base_url: str | None,
 ) -> object:
-    if backend_name == "local-m2m100":
-        from ..translation.m2m100_backend import M2M100Backend
-
-        return M2M100Backend(model_name=local_model, requested_device=device)
-    if backend_name == "siliconflow":
-        from ..translation.siliconflow_backend import SiliconFlowBackend
-
-        return SiliconFlowBackend(base_url=api_base_url, model_name=api_model)
-    raise ValueError(f"Unsupported OCR translation backend: {backend_name}")
+    try:
+        return TRANSLATION_BACKENDS.create(
+            backend_name,
+            local_model=local_model,
+            device=device,
+            api_model=api_model,
+            api_base_url=api_base_url,
+        )
+    except KeyError as exc:
+        raise ValueError(f"Unsupported OCR translation backend: {backend_name}") from exc
 
 
 def _resolve_source_lang(payload: dict[str, Any], requested: str | None = None) -> str:

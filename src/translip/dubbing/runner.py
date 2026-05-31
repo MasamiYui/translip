@@ -24,15 +24,12 @@ from ..utils.files import ensure_directory, remove_tree, work_directory
 from .backend import ReferencePackage, SynthSegmentInput, SynthSegmentOutput
 from .export import build_dubbing_manifest, build_dubbing_report, now_iso, render_demo_audio, write_json
 from .metrics import SegmentEvaluation, evaluate_segment
-from .moss_tts_nano_backend import MossTtsNanoOnnxBackend
-from .qwen_tts_backend import QwenTTSBackend
 from .reference import (
     load_profiles_payload,
     prepare_reference_package,
     select_reference_candidates,
     select_voice_bank_reference_candidates,
 )
-from .voxcpm_tts_backend import VoxCPMTTSBackend
 
 logger = logging.getLogger(__name__)
 
@@ -1151,10 +1148,8 @@ def _status_score(status: str) -> float:
 
 
 def _build_backend(request: DubbingRequest, *, worker_count_hint: int | None = None) -> object:
-    if request.backend == "moss-tts-nano-onnx":
-        return MossTtsNanoOnnxBackend(requested_device=request.device, worker_count_hint=worker_count_hint)
-    if request.backend == "qwen3tts":
-        return QwenTTSBackend(requested_device=request.device)
-    if request.backend == "voxcpm2":
-        return VoxCPMTTSBackend(requested_device=request.device)
-    raise TranslipError(f"Unsupported dubbing backend: {request.backend}")
+    from .registry import TTS_BACKENDS
+
+    return TTS_BACKENDS.create(
+        request.backend, device=request.device, worker_count_hint=worker_count_hint
+    )

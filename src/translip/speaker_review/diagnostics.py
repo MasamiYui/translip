@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-import json
+from ..utils.io import now_iso, read_json as _read_json_impl, write_json as _write_json_impl
 
 SHORT_SEGMENT_SEC = 1.2
 LOW_SAMPLE_SEGMENT_COUNT = 2
@@ -30,21 +29,13 @@ class NormalizedSegment:
     language: str
 
 
-def now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
-
-
 def load_json(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = _read_json_impl(path)
     return payload if isinstance(payload, dict) else {}
 
 
 def write_json(payload: dict[str, Any], path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    tmp_path.replace(path)
-    return path
+    return _write_json_impl(payload, path, atomic=True, trailing_newline=True)
 
 
 def normalize_segments(segments_payload: dict[str, Any]) -> list[NormalizedSegment]:

@@ -1,23 +1,18 @@
 from __future__ import annotations
 
-import json
 import shutil
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 
 from ..speaker_embedding import normalize_embedding
+from ..utils.io import now_iso as _now_iso, read_json, write_json as _write_json_impl
 
 MATCH_THRESHOLD = 0.55
 REVIEW_THRESHOLD = 0.35
 SECOND_MARGIN_THRESHOLD = 0.05
 MAX_EXEMPLARS = 12
-
-
-def _now_iso() -> str:
-    return datetime.now().astimezone().isoformat(timespec="seconds")
 
 
 def _default_registry(*, backend_name: str, embedding_dim: int) -> dict[str, Any]:
@@ -34,13 +29,11 @@ def _default_registry(*, backend_name: str, embedding_dim: int) -> dict[str, Any
 def load_registry(path: Path | None, *, backend_name: str, embedding_dim: int) -> dict[str, Any]:
     if path is None or not path.exists():
         return _default_registry(backend_name=backend_name, embedding_dim=embedding_dim)
-    return json.loads(path.read_text(encoding="utf-8"))
+    return read_json(path)
 
 
 def write_registry(registry: dict[str, Any], path: Path) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(registry, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    return path
+    return _write_json_impl(registry, path, atomic=False, trailing_newline=True)
 
 
 def _cosine_list(a: list[float], b: list[float]) -> float:
