@@ -70,7 +70,7 @@ export interface TranscriptionCorrectionConfig {
   enabled: boolean
   preset: TranscriptionCorrectionPreset
   ocr_only_policy: 'report_only'
-  llm_arbitration: 'off'
+  llm_arbitration: 'off' | 'deepseek' | 'siliconflow'
 }
 
 export interface TranscriptionCorrectionSummary {

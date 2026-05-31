@@ -51,6 +51,7 @@ _DEFAULT_CONFIG = {
     "siliconflow_base_url": None,
     "siliconflow_model": None,
     "condense_mode": "off",
+    "transcription_correction": {"enabled": True, "preset": "standard", "ocr_only_policy": "report_only", "llm_arbitration": "off"},
     "tts_backend": "moss-tts-nano-onnx",
     "dubbing_quality_check": "standard",
     "dubbing_workers": None,
@@ -149,6 +150,7 @@ class GlobalConfigRequest(BaseModel):
     siliconflow_base_url: Optional[str] = None
     siliconflow_model: Optional[str] = None
     condense_mode: Optional[str] = None
+    transcription_correction: Optional[dict] = None
     tts_backend: Optional[str] = None
     dubbing_quality_check: Optional[str] = None
     dubbing_workers: Optional[int] = None

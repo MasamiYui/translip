@@ -163,6 +163,21 @@ function applyGlobalDefaults(
       next[key] = defaults[key] as never
     }
   }
+  const globalArbitration = (defaults as Partial<TaskConfig>).transcription_correction?.llm_arbitration
+  const currentArbitration = current.transcription_correction?.llm_arbitration ?? 'off'
+  if (globalArbitration && globalArbitration !== 'off' && currentArbitration === 'off') {
+    const base = current.transcription_correction ??
+      defaultConfig.transcription_correction ?? {
+        enabled: true,
+        preset: 'standard',
+        ocr_only_policy: 'report_only',
+        llm_arbitration: 'off',
+      }
+    next.transcription_correction = {
+      ...base,
+      llm_arbitration: globalArbitration,
+    }
+  }
   return next
 }
 
@@ -780,6 +795,26 @@ export function NewTaskPage() {
                     ]}
                   />
                 </div>
+                {(config.transcription_correction?.enabled ?? true) && (
+                  <Field
+                    label={locale === 'zh-CN' ? 'LLM 仲裁' : 'LLM Arbitration'}
+                    hint={locale === 'zh-CN'
+                      ? '仅对疑难段（高置信 OCR 但对齐/长度不达标）调用大模型在 ASR/OCR 间裁决，受忠实回校约束。需配置 DEEPSEEK_API_KEY 或 SILICONFLOW_API_KEY。'
+                      : 'Calls an LLM to arbitrate ASR vs OCR only on ambiguous segments, bounded by a faithfulness check. Requires DEEPSEEK_API_KEY or SILICONFLOW_API_KEY.'}
+                  >
+                    <Select
+                      value={config.transcription_correction?.llm_arbitration ?? 'off'}
+                      onChange={value =>
+                        patchTranscriptionCorrection({ llm_arbitration: value as 'off' | 'deepseek' | 'siliconflow' })
+                      }
+                      options={[
+                        { value: 'off', label: locale === 'zh-CN' ? '关闭' : 'Off' },
+                        { value: 'deepseek', label: 'DeepSeek' },
+                        { value: 'siliconflow', label: 'SiliconFlow' },
+                      ]}
+                    />
+                  </Field>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowCorrectionExplanation(prev => !prev)}

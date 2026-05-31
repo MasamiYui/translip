@@ -234,6 +234,24 @@ describe('SettingsPage global and advanced settings', () => {
     })
   })
 
+  it('saves the transcript-correction LLM arbitration default', async () => {
+    render(<SettingsPage />, { wrapper: createWrapper() })
+    fireEvent.click(await screen.findByRole('button', { name: '任务默认参数' }))
+
+    const arbitration = screen.getByLabelText('文稿校正 LLM 仲裁')
+    expect(arbitration).toHaveValue('off')
+    fireEvent.change(arbitration, { target: { value: 'deepseek' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存默认参数' }))
+
+    await waitFor(() => {
+      expect(configApi.updateGlobal).toHaveBeenCalledWith(
+        expect.objectContaining({
+          transcription_correction: expect.objectContaining({ llm_arbitration: 'deepseek' }),
+        }),
+      )
+    })
+  })
+
   it('sends null when optional advanced defaults are cleared', async () => {
     render(<SettingsPage />, { wrapper: createWrapper() })
     fireEvent.click(await screen.findByRole('button', { name: '任务默认参数' }))

@@ -173,6 +173,32 @@ describe('NewTaskPage redesigned flow', () => {
     expect(screen.getByText(/OCR 有但 ASR 没有的字幕只报告/)).toBeInTheDocument()
   })
 
+  it('submits the selected transcript-correction LLM arbitration backend', async () => {
+    vi.mocked(configApi.getPresets).mockResolvedValue([])
+    vi.mocked(tasksApi.create).mockResolvedValue({ id: 'task-arbitration' } as never)
+    vi.mocked(worksApi.autoBindTask).mockResolvedValue({ ok: true, bound: false, candidates: [] } as never)
+
+    renderStepTwo()
+
+    // bilingual_review selects the asr-dub+ocr-subs template, which enables transcript correction.
+    fireEvent.click(screen.getByRole('button', { name: /双语审片版/ }))
+    fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+
+    const arbitrationField = screen.getByText('LLM 仲裁').parentElement as HTMLElement
+    const arbitrationSelect = within(arbitrationField).getByRole('combobox') as HTMLSelectElement
+    expect(arbitrationSelect.value).toBe('off')
+    fireEvent.change(arbitrationSelect, { target: { value: 'deepseek' } })
+
+    fireEvent.click(screen.getByRole('button', { name: '下一步' }))
+    fireEvent.click(screen.getByRole('button', { name: '创建任务' }))
+
+    await waitFor(() => {
+      expect(tasksApi.create).toHaveBeenCalled()
+    })
+    const request = vi.mocked(tasksApi.create).mock.calls[0][0]
+    expect(request.config.transcription_correction?.llm_arbitration).toBe('deepseek')
+  })
+
   it('defaults task synthesis to MOSS-TTS-Nano ONNX while keeping Qwen and VoxCPM selectable', async () => {
     vi.mocked(configApi.getPresets).mockResolvedValue([])
 

@@ -48,6 +48,7 @@ const defaultGlobalConfig: GlobalConfigDraft = {
   translation_backend: 'local-m2m100',
   translation_batch_size: 4,
   condense_mode: 'off',
+  transcription_correction: { enabled: true, preset: 'standard', ocr_only_policy: 'report_only', llm_arbitration: 'off' },
   tts_backend: 'moss-tts-nano-onnx',
   dubbing_quality_check: 'standard',
   dub_repair_enabled: false,
@@ -717,6 +718,28 @@ function AdvancedSettingsSection({
             value={config.siliconflow_model ?? ''}
             placeholder="deepseek-ai/DeepSeek-V3"
             onChange={value => onPatch({ siliconflow_model: value || null })}
+          />
+          <SettingsSelect
+            label="文稿校正 LLM 仲裁"
+            value={config.transcription_correction?.llm_arbitration ?? 'off'}
+            options={[
+              { value: 'off', label: '关闭' },
+              { value: 'deepseek', label: 'DeepSeek' },
+              { value: 'siliconflow', label: 'SiliconFlow' },
+            ]}
+            onChange={value =>
+              onPatch({
+                transcription_correction: {
+                  ...(config.transcription_correction ?? {
+                    enabled: true,
+                    preset: 'standard',
+                    ocr_only_policy: 'report_only',
+                    llm_arbitration: 'off',
+                  }),
+                  llm_arbitration: value as 'off' | 'deepseek' | 'siliconflow',
+                },
+              })
+            }
           />
         </AdvancedSettingsGroup>
 
