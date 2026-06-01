@@ -42,6 +42,17 @@ ocr = [
   "paddlex==3.2.0",
   "pydantic-settings>=2,<3",
 ]
+# In-tree hard-subtitle erasure (subtitle-erase node + atomic tool). The STTN /
+# big-LaMa inpainting backends run on torch (already pulled transitively by the
+# base install); this extra only adds the cv2 + settings stack. Everything is
+# imported lazily, so the base install and other stages are unaffected when it
+# is absent. Model weights download to TRANSLIP_CACHE_DIR on first use. Reuses
+# opencv-contrib-python so it does not add a second opencv distribution next to
+# the `ocr` extra.
+erase = [
+  "opencv-contrib-python>=4.10,<5",
+  "pydantic-settings>=2,<3",
+]
 
 [project.scripts]
 translip = "translip.cli:main"

@@ -15,10 +15,6 @@ if TYPE_CHECKING:
 _OCR_PROGRESS_PREFIX = "__OCR_PROGRESS__"
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
-
-
 def _map_ocr_language(language: str) -> str:
     normalized = language.strip().lower()
     return {
@@ -29,18 +25,6 @@ def _map_ocr_language(language: str) -> str:
         "jp": "japan",
         "ko": "korean",
     }.get(normalized, normalized or "auto")
-
-
-def resolve_ocr_project_root(request: PipelineRequest) -> Path:
-    """Path passed to the (still-external) subtitle-erase tool as ``--subtitle-ocr-project``.
-
-    OCR *detection* is now fully in-tree (see ``translip.ocr``); this only remains
-    for the erase bridge, which shells out to the external ``video-subtitle-erasure``
-    project and hands it an OCR-project hint. Override via ``ocr_project_root``.
-    """
-    if request.ocr_project_root is not None:
-        return Path(request.ocr_project_root).expanduser().resolve()
-    return (_repo_root().parent / "subtitle-ocr").resolve()
 
 
 def ocr_events_path(request: PipelineRequest) -> Path:

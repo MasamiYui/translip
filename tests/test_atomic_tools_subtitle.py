@@ -31,27 +31,26 @@ def test_resolve_preset_params_maps_each_preset_to_its_profile() -> None:
         assert resolved["backend"] == profile.backend
         assert resolved["mask_dilate_x"] == profile.mask_dilate_x
         assert resolved["mask_dilate_y"] == profile.mask_dilate_y
-        assert resolved["mask_temporal_radius"] == profile.mask_temporal_radius
-        assert resolved["cleanup_max_coverage"] == profile.cleanup_max_coverage
-        assert resolved["temporal_consensus"] == profile.temporal_consensus
-        assert resolved["temporal_std_threshold"] == profile.temporal_std_threshold
-        assert resolved["lama_device"] == profile.lama_device
+        assert resolved["neighbor_stride"] == profile.neighbor_stride
+        assert resolved["reference_length"] == profile.reference_length
+        assert resolved["max_load"] == profile.max_load
+        assert resolved["device"] == "auto"
 
 
 def test_resolve_preset_params_advanced_overrides_take_priority() -> None:
     resolved = resolve_preset_params({
         "preset": "fast",
         "backend": "lama",
+        "device": "cpu",
         "mask_dilate_x": 99,
-        "cleanup_max_coverage": 0.05,
-        "auto_tune": True,
+        "max_load": 12,
     })
     assert resolved["backend"] == "lama"
+    assert resolved["device"] == "cpu"
     assert resolved["mask_dilate_x"] == 99
-    assert resolved["cleanup_max_coverage"] == 0.05
-    assert resolved["auto_tune"] is True
+    assert resolved["max_load"] == 12
     # Untouched fields stay on the preset baseline.
-    assert resolved["mask_temporal_radius"] == PRESETS["fast"].mask_temporal_radius
+    assert resolved["neighbor_stride"] == PRESETS["fast"].neighbor_stride
 
 
 # ---------------------------------------------------------------------------
@@ -62,13 +61,13 @@ def test_resolve_preset_params_advanced_overrides_take_priority() -> None:
 def test_subtitle_erase_request_allows_missing_detection_file_id() -> None:
     request = SubtitleEraseToolRequest(file_id="abc")
     assert request.detection_file_id is None
-    assert request.preset == "fast"
+    assert request.preset == "balanced"
 
 
 def test_subtitle_erase_request_accepts_explicit_detection() -> None:
     request = SubtitleEraseToolRequest(file_id="abc", detection_file_id="det")
     assert request.detection_file_id == "det"
-    assert request.preset == "fast"
+    assert request.preset == "balanced"
 
 
 def test_subtitle_erase_request_accepts_advanced_overrides() -> None:
@@ -77,15 +76,17 @@ def test_subtitle_erase_request_accepts_advanced_overrides() -> None:
         detection_file_id="det",
         preset="quality",
         backend="lama",
+        device="cpu",
         regions=[(0.0, 0.7, 1.0, 0.95)],
         mask_dilate_x=20,
-        auto_tune=True,
+        max_load=24,
     )
     assert request.preset == "quality"
     assert request.backend == "lama"
+    assert request.device == "cpu"
     assert request.regions == [(0.0, 0.7, 1.0, 0.95)]
     assert request.mask_dilate_x == 20
-    assert request.auto_tune is True
+    assert request.max_load == 24
 
 
 def test_subtitle_detect_request_defaults() -> None:
@@ -104,32 +105,35 @@ def test_build_eraser_command_includes_preset_parameters(tmp_path: Path) -> None
     resolved = resolve_preset_params({"preset": "balanced"})
     cmd = build_eraser_command(
         input_video=tmp_path / "in.mp4",
-        output_video=tmp_path / "out.mp4",
+        output_dir=tmp_path,
+        output_name="erased.mp4",
         detection_json=tmp_path / "detection.json",
-        debug_dir=tmp_path / "debug",
         resolved=resolved,
     )
-    assert "--inpaint-backend" in cmd
-    assert cmd[cmd.index("--inpaint-backend") + 1] == "flow-guided"
-    assert cmd[cmd.index("--mask-temporal-radius") + 1] == str(PRESETS["balanced"].mask_temporal_radius)
-    assert cmd[cmd.index("--cleanup-max-coverage") + 1] == f"{PRESETS['balanced'].cleanup_max_coverage:.4f}"
-    assert "--auto-tune" not in cmd
+    assert "translip.erase.extract" in cmd
+    assert "subtitle_eraser.cli" not in cmd
+    assert cmd[cmd.index("--backend") + 1] == "sttn"
+    assert cmd[cmd.index("--device") + 1] == "auto"
+    assert cmd[cmd.index("--max-load") + 1] == str(PRESETS["balanced"].max_load)
+    assert cmd[cmd.index("--neighbor-stride") + 1] == str(PRESETS["balanced"].neighbor_stride)
+    assert cmd[cmd.index("--output-name") + 1] == "erased.mp4"
+    assert cmd[cmd.index("--detection") + 1] == str(tmp_path / "detection.json")
 
 
-def test_build_eraser_command_appends_regions_and_auto_tune(tmp_path: Path) -> None:
+def test_build_eraser_command_appends_regions(tmp_path: Path) -> None:
     resolved = resolve_preset_params({
         "preset": "fast",
         "regions": [(0.0, 0.7, 1.0, 0.95)],
-        "auto_tune": True,
     })
     cmd = build_eraser_command(
         input_video=tmp_path / "in.mp4",
-        output_video=tmp_path / "out.mp4",
-        detection_json=tmp_path / "detection.json",
-        debug_dir=tmp_path / "debug",
+        output_dir=tmp_path,
+        output_name="erased.mp4",
+        detection_json=None,
         resolved=resolved,
     )
-    assert "--auto-tune" in cmd
+    assert cmd[cmd.index("--backend") + 1] == "opencv"
+    assert "--detection" not in cmd
     region_index = cmd.index("--region")
     assert cmd[region_index + 1] == "0.0000,0.7000,1.0000,0.9500"
 
@@ -171,7 +175,7 @@ def test_subtitle_erase_adapter_expands_reused_detection_before_command(tmp_path
 
     def fake_run_stage_command(cmd, *, log_path, env_overrides=None, on_stdout_line=None, should_cancel=None):
         captured["cmd"] = list(cmd)
-        out_video = Path(cmd[cmd.index("--output") + 1])
+        out_video = Path(cmd[cmd.index("--output-dir") + 1]) / cmd[cmd.index("--output-name") + 1]
         out_video.parent.mkdir(parents=True, exist_ok=True)
         out_video.write_bytes(b"\x00" * 16)
 
@@ -191,7 +195,7 @@ def test_subtitle_erase_adapter_expands_reused_detection_before_command(tmp_path
 
     cmd = captured["cmd"]
     assert isinstance(cmd, list)
-    reuse_path = Path(cmd[cmd.index("--reuse-detection") + 1])
+    reuse_path = Path(cmd[cmd.index("--detection") + 1])
     assert reuse_path != detection_path
     expanded = json.loads(reuse_path.read_text(encoding="utf-8"))
     assert expanded["events"][0]["start_frame"] == 22
@@ -436,7 +440,7 @@ def test_subtitle_erase_adapter_run_auto_detects_when_detection_missing(
     def fake_run_stage_command(cmd, *, log_path, env_overrides=None, on_stdout_line=None, should_cancel=None):
         captured["cmd"] = list(cmd)
         captured["should_cancel"] = should_cancel
-        out_video = Path(cmd[cmd.index("--output") + 1])
+        out_video = Path(cmd[cmd.index("--output-dir") + 1]) / cmd[cmd.index("--output-name") + 1]
         out_video.parent.mkdir(parents=True, exist_ok=True)
         out_video.write_bytes(b"\x00" * 16)
 
@@ -508,17 +512,16 @@ def test_subtitle_erase_adapter_run_invokes_command_and_writes_report(tmp_path: 
 
     def fake_run_stage_command(cmd, *, log_path, env_overrides=None, on_stdout_line=None, should_cancel=None):
         captured["cmd"] = list(cmd)
-        captured["env"] = dict(env_overrides or {})
         captured["should_cancel"] = should_cancel
         # Simulate the eraser writing its output video.
-        out_video = Path(cmd[cmd.index("--output") + 1])
+        out_video = Path(cmd[cmd.index("--output-dir") + 1]) / cmd[cmd.index("--output-name") + 1]
         out_video.parent.mkdir(parents=True, exist_ok=True)
         out_video.write_bytes(b"\x00" * 16)
-        # Simulate progress lines so the adapter's tqdm parser is exercised.
+        # Simulate the in-tree extractor's __ERASE_PROGRESS__ lines.
         if on_stdout_line is not None:
-            on_stdout_line("Erasing subtitles:  10%|#         | 10/100 [00:01<00:09, 9.50frame/s]")
-            on_stdout_line("Erasing subtitles:  50%|#####     | 50/100 [00:05<00:05, 9.80frame/s]")
-            on_stdout_line("Erasing subtitles: 100%|##########| 100/100 [00:10<00:00, 9.90frame/s]")
+            on_stdout_line("__ERASE_PROGRESS__\t10\terasing subtitles (10/100)")
+            on_stdout_line("__ERASE_PROGRESS__\t50\terasing subtitles (50/100)")
+            on_stdout_line("__ERASE_PROGRESS__\t100\tdone")
 
     def fake_metrics(*_args, **_kwargs):
         return {"sampled_frames": 0, "band_diff_mean": 0.0, "spill_mean": 0.0}
@@ -544,16 +547,16 @@ def test_subtitle_erase_adapter_run_invokes_command_and_writes_report(tmp_path: 
 
     assert result["erased_file"] == "erased.mp4"
     assert result["preset"] == "fast"
-    assert result["backend"] == "telea"
+    assert result["backend"] == "opencv"
     assert result["detection_source"] == "uploaded"
     assert (output_dir / "report.json").exists()
     report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
     assert report["preset"] == "fast"
-    assert report["resolved_parameters"]["backend"] == "telea"
+    assert report["resolved_parameters"]["backend"] == "opencv"
     assert report["detection_source"] == "uploaded"
     cmd = captured["cmd"]
-    assert "--inpaint-backend" in cmd
-    assert cmd[cmd.index("--inpaint-backend") + 1] == "telea"
+    assert "translip.erase.extract" in cmd
+    assert cmd[cmd.index("--backend") + 1] == "opencv"
     assert captured["should_cancel"] is not None
 
 

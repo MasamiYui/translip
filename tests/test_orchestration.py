@@ -53,18 +53,23 @@ def test_build_pipeline_request_keeps_template_and_delivery_policy() -> None:
     assert request.delivery_policy["video_source"] == "clean_if_available"
 
 
-def test_build_pipeline_request_keeps_external_project_roots() -> None:
+def test_build_pipeline_request_reads_erase_params() -> None:
     request = build_pipeline_request(
         {
             "input": "sample.mp4",
             "output_root": "out",
-            "ocr_project_root": "/tmp/subtitle-ocr",
-            "erase_project_root": "/tmp/video-subtitle-erasure",
+            "erase_backend": "lama",
+            "erase_device": "cpu",
+            "erase_max_load": 24,
         }
     )
 
-    assert Path(request.ocr_project_root) == Path("/tmp/subtitle-ocr").resolve()
-    assert Path(request.erase_project_root) == Path("/tmp/video-subtitle-erasure").resolve()
+    assert request.erase_backend == "lama"
+    assert request.erase_device == "cpu"
+    assert request.erase_max_load == 24
+    # Sensible defaults remain when unset.
+    assert request.erase_neighbor_stride == 5
+    assert request.erase_reference_length == 10
 
 
 def test_build_pipeline_request_defaults_to_moss_tts_nano_onnx() -> None:
@@ -464,7 +469,7 @@ def test_run_subtitle_erase_expands_ocr_detection_before_reuse(tmp_path: Path, m
     )
     captured: dict[str, object] = {}
 
-    def fake_run_stage_command(command, *, log_path, env_overrides=None):
+    def fake_run_stage_command(command, *, log_path, on_stdout_line=None, env_overrides=None, should_cancel=None):
         captured["command"] = list(command)
         log_path.parent.mkdir(parents=True, exist_ok=True)
         log_path.write_text("ok", encoding="utf-8")
@@ -475,7 +480,9 @@ def test_run_subtitle_erase_expands_ocr_detection_before_reuse(tmp_path: Path, m
 
     command = captured["command"]
     assert isinstance(command, list)
-    reuse_path = Path(command[command.index("--reuse-detection") + 1])
+    assert "translip.erase.extract" in command
+    assert "subtitle_eraser.cli" not in command
+    reuse_path = Path(command[command.index("--detection") + 1])
     assert reuse_path != detection_path
     expanded = json.loads(reuse_path.read_text(encoding="utf-8"))
     assert expanded["events"][0]["start_frame"] == 6

@@ -1,116 +1,107 @@
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Callable
 
 from ..types import PipelineRequest
-from .ocr_bridge import ocr_detection_path, resolve_ocr_project_root
+from .ocr_bridge import ocr_detection_path
 from .subprocess_runner import run_stage_command
 from .subtitle_erase_detection import prepare_subtitle_erase_detection
 
+if TYPE_CHECKING:
+    from .monitor import PipelineMonitor
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]
-
-
-def resolve_erase_project_root(request: PipelineRequest) -> Path:
-    if request.erase_project_root is not None:
-        return Path(request.erase_project_root).expanduser().resolve()
-    return (_repo_root().parent / "video-subtitle-erasure").resolve()
+# Must match translip.erase.extract.PROGRESS_PREFIX (kept as a literal here so
+# this module stays free of the heavy erase stack at import time).
+_ERASE_PROGRESS_PREFIX = "__ERASE_PROGRESS__"
 
 
-def resolve_erase_python(request: PipelineRequest) -> Path:
-    erase_project_root = resolve_erase_project_root(request)
-    venv_python = erase_project_root / ".venv" / "bin" / "python"
-    if venv_python.exists():
-        return venv_python
-    ocr_venv_python = resolve_ocr_project_root(request) / ".venv" / "bin" / "python"
-    if ocr_venv_python.exists():
-        return ocr_venv_python
-    return Path(sys.executable).resolve()
+def subtitle_erase_dir(request: PipelineRequest) -> Path:
+    return request.output_root / "subtitle-erase"
 
 
 def subtitle_erase_output_path(request: PipelineRequest) -> Path:
-    return request.output_root / "subtitle-erase" / "clean_video.mp4"
+    return subtitle_erase_dir(request) / "clean_video.mp4"
 
 
 def subtitle_erase_manifest_path(request: PipelineRequest) -> Path:
-    return request.output_root / "subtitle-erase" / "subtitle-erase-manifest.json"
+    return subtitle_erase_dir(request) / "subtitle-erase-manifest.json"
 
 
 def subtitle_erase_reuse_detection_path(request: PipelineRequest) -> Path:
-    return request.output_root / "subtitle-erase" / "reuse_detection.expanded.json"
+    return subtitle_erase_dir(request) / "reuse_detection.expanded.json"
 
 
-def build_subtitle_erase_command(
-    request: PipelineRequest,
-    *,
-    reuse_detection_path: Path | None = None,
-) -> list[str]:
-    detection_path = reuse_detection_path or ocr_detection_path(request)
+def build_subtitle_erase_command(request: PipelineRequest, *, detection_path: Path) -> list[str]:
+    # Run the in-tree eraser in an isolated subprocess (translip's own
+    # interpreter), freeing the heavy inpainting models on exit — same pattern
+    # as ocr-detect and every other ML stage.
     cmd: list[str] = [
-        str(resolve_erase_python(request)),
+        sys.executable,
         "-m",
-        "subtitle_eraser.cli",
+        "translip.erase.extract",
         "--input",
         str(request.input_path),
-        "--output",
-        str(subtitle_erase_output_path(request)),
-        "--subtitle-ocr-project",
-        str(resolve_ocr_project_root(request)),
-        "--reuse-detection",
+        "--detection",
         str(detection_path),
-        "--debug-dir",
-        str(request.output_root / "subtitle-erase" / "debug"),
-        "--inpaint-backend",
+        "--output-dir",
+        str(subtitle_erase_dir(request)),
+        "--backend",
         str(request.erase_backend),
-        "--mode",
-        str(request.erase_mode),
+        "--device",
+        str(request.erase_device),
         "--mask-dilate-x",
         str(int(request.erase_mask_dilate_x)),
         "--mask-dilate-y",
         str(int(request.erase_mask_dilate_y)),
-        "--mask-temporal-radius",
-        str(int(request.erase_mask_temporal_radius)),
-        "--context-frames",
-        str(int(request.erase_context_frames)),
-        "--event-lead-frames",
-        str(int(request.erase_event_lead_frames)),
-        "--event-trail-frames",
-        str(int(request.erase_event_trail_frames)),
-        "--cleanup-max-coverage",
-        f"{float(request.erase_cleanup_max_coverage):.4f}",
-        "--temporal-consensus",
-        str(int(request.erase_temporal_consensus)),
-        "--temporal-std-threshold",
-        f"{float(request.erase_temporal_std_threshold):.4f}",
-        "--inpaint-radius",
-        str(int(request.erase_inpaint_radius)),
-        "--inpaint-context-margin",
-        str(int(request.erase_inpaint_context_margin)),
-        "--lama-device",
-        str(request.erase_lama_device),
+        "--neighbor-stride",
+        str(int(request.erase_neighbor_stride)),
+        "--reference-length",
+        str(int(request.erase_reference_length)),
+        "--max-load",
+        str(int(request.erase_max_load)),
     ]
     if request.erase_regions:
         for x1, y1, x2, y2 in request.erase_regions:
-            cmd.extend([
-                "--region",
-                f"{float(x1):.4f},{float(y1):.4f},{float(x2):.4f},{float(y2):.4f}",
-            ])
-    if request.erase_auto_tune:
-        cmd.append("--auto-tune")
+            cmd.extend(["--region", f"{float(x1):.4f},{float(y1):.4f},{float(x2):.4f},{float(y2):.4f}"])
     return cmd
 
 
-def build_subtitle_erase_env(request: PipelineRequest) -> dict[str, str]:
-    erase_project_root = resolve_erase_project_root(request)
-    existing = [entry for entry in sys.path if entry]
-    pythonpath = ":".join([str(erase_project_root), *existing])
-    return {"PYTHONPATH": pythonpath}
+def parse_erase_progress_line(line: str) -> tuple[float, str] | None:
+    """Parse one `__ERASE_PROGRESS__\\t<pct>\\t<message>` line from the extractor."""
+    if not line.startswith(_ERASE_PROGRESS_PREFIX + "\t"):
+        return None
+    parts = line.split("\t", 2)
+    if len(parts) < 2:
+        return None
+    try:
+        percent = float(parts[1])
+    except ValueError:
+        return None
+    return percent, parts[2] if len(parts) > 2 else "erasing subtitles"
 
 
-def run_subtitle_erase(request: PipelineRequest, *, log_path: Path) -> dict[str, object]:
+def _build_progress_handler(monitor: "PipelineMonitor | None") -> Callable[[str], None] | None:
+    if monitor is None:
+        return None
+
+    def _handle(line: str) -> None:
+        parsed = parse_erase_progress_line(line)
+        if parsed is not None:
+            monitor.update_stage_progress("subtitle-erase", parsed[0], parsed[1])
+
+    return _handle
+
+
+def run_subtitle_erase(
+    request: PipelineRequest,
+    *,
+    log_path: Path,
+    monitor: "PipelineMonitor | None" = None,
+) -> dict[str, object]:
+    # Expand the OCR detection (lead/trail padding + visual-fallback events) and
+    # hand the expanded detection.json to the in-tree extractor.
     prepared_detection_path = prepare_subtitle_erase_detection(
         ocr_detection_path(request),
         subtitle_erase_reuse_detection_path(request),
@@ -119,35 +110,17 @@ def run_subtitle_erase(request: PipelineRequest, *, log_path: Path) -> dict[str,
         video_path=Path(request.input_path),
     )
     run_stage_command(
-        build_subtitle_erase_command(request, reuse_detection_path=prepared_detection_path),
+        build_subtitle_erase_command(request, detection_path=prepared_detection_path),
         log_path=log_path,
-        env_overrides=build_subtitle_erase_env(request),
+        on_stdout_line=_build_progress_handler(monitor),
     )
-    manifest_path = subtitle_erase_manifest_path(request)
-    manifest_path.parent.mkdir(parents=True, exist_ok=True)
-    manifest_path.write_text(
-        json.dumps(
-            {
-                "status": "succeeded",
-                "artifacts": {
-                    "clean_video": str(subtitle_erase_output_path(request)),
-                    "detection_json": str(prepared_detection_path),
-                    "source_detection_json": str(ocr_detection_path(request)),
-                    "debug_dir": str(request.output_root / "subtitle-erase" / "debug"),
-                },
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
+    # The extractor writes subtitle-erase-manifest.json itself (like ocr-detect).
     return {
-        "manifest_path": str(manifest_path),
+        "manifest_path": str(subtitle_erase_manifest_path(request)),
         "artifact_paths": [
             str(subtitle_erase_output_path(request)),
             str(prepared_detection_path),
-            str(manifest_path),
+            str(subtitle_erase_manifest_path(request)),
         ],
         "log_path": str(log_path),
     }

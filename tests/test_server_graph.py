@@ -12,20 +12,21 @@ from translip.server.database import get_session
 from translip.server.models import Task, TaskStage
 
 
-def test_task_manager_build_pipeline_request_keeps_external_roots(tmp_path: Path) -> None:
+def test_task_manager_build_pipeline_request_reads_erase_params(tmp_path: Path) -> None:
     from translip.server.task_manager import _build_pipeline_request
 
     task = Task(
-        id="task-roots",
-        name="Roots Task",
+        id="task-erase",
+        name="Erase Task",
         status="pending",
         input_path=str(tmp_path / "input.mp4"),
         output_root=str(tmp_path / "output"),
         source_lang="zh",
         target_lang="en",
         config={
-            "ocr_project_root": "/tmp/subtitle-ocr",
-            "erase_project_root": "/tmp/video-subtitle-erasure",
+            "erase_backend": "lama",
+            "erase_device": "cpu",
+            "erase_max_load": 24,
         },
         created_at=datetime.now(),
         updated_at=datetime.now(),
@@ -33,8 +34,9 @@ def test_task_manager_build_pipeline_request_keeps_external_roots(tmp_path: Path
 
     request = _build_pipeline_request(task)
 
-    assert str(request.ocr_project_root) == "/tmp/subtitle-ocr"
-    assert str(request.erase_project_root) == "/tmp/video-subtitle-erasure"
+    assert request.erase_backend == "lama"
+    assert request.erase_device == "cpu"
+    assert request.erase_max_load == 24
 
 
 def test_build_workflow_graph_payload_returns_nodes_and_edges() -> None:

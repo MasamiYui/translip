@@ -514,22 +514,25 @@ def test_cli_run_pipeline_parser_accepts_template_and_policy() -> None:
     assert args.video_source == "clean_if_available"
 
 
-def test_cli_run_pipeline_parser_accepts_external_project_roots() -> None:
+def test_cli_run_pipeline_parser_accepts_erase_options() -> None:
     parser = build_parser()
     args = parser.parse_args(
         [
             "run-pipeline",
             "--input",
             "sample.mp4",
-            "--ocr-project-root",
-            "/tmp/subtitle-ocr",
-            "--erase-project-root",
-            "/tmp/video-subtitle-erasure",
+            "--erase-backend",
+            "lama",
+            "--erase-device",
+            "cpu",
+            "--erase-max-load",
+            "24",
         ]
     )
 
-    assert args.ocr_project_root == "/tmp/subtitle-ocr"
-    assert args.erase_project_root == "/tmp/video-subtitle-erasure"
+    assert args.erase_backend == "lama"
+    assert args.erase_device == "cpu"
+    assert args.erase_max_load == 24
 
 
 def test_cli_export_video_parser() -> None:

@@ -513,7 +513,7 @@ function renderControls(
   }
 
   if (toolId === 'subtitle-erase') {
-    const preset = String(params.preset ?? 'fast')
+    const preset = String(params.preset ?? 'balanced')
     return (
       <div className="space-y-4">
         <div>
@@ -547,21 +547,22 @@ function renderControls(
           </summary>
           <div className="mt-3 grid gap-4 md:grid-cols-3">
             <SelectField
-              label={atomicTools.fields.mode}
-              value={String(params.mode ?? 'auto')}
-              options={['auto', 'manual']}
-              onChange={value => setField('mode', value)}
-            />
-            <SelectField
               label={atomicTools.fields.backend}
               value={String(params.backend ?? '')}
-              options={['', 'telea', 'flow-guided', 'lama']}
+              options={['', 'sttn', 'lama', 'opencv']}
               onChange={value => setField('backend', value)}
             />
-            <CheckboxField
-              label={atomicTools.fields.autoTune}
-              checked={Boolean(params.auto_tune)}
-              onChange={value => setField('auto_tune', value)}
+            <SelectField
+              label={atomicTools.fields.device}
+              value={String(params.device ?? 'auto')}
+              options={['auto', 'mps', 'cuda', 'cpu']}
+              onChange={value => setField('device', value)}
+            />
+            <TextField
+              label={atomicTools.fields.maxLoad}
+              type="number"
+              value={String(params.max_load ?? '')}
+              onChange={value => setField('max_load', value === '' ? '' : Number(value))}
             />
             <TextField
               label={atomicTools.fields.maskDilateX}
@@ -576,28 +577,16 @@ function renderControls(
               onChange={value => setField('mask_dilate_y', value === '' ? '' : Number(value))}
             />
             <TextField
-              label={atomicTools.fields.temporalRadius}
+              label={atomicTools.fields.neighborStride}
               type="number"
-              value={String(params.mask_temporal_radius ?? '')}
-              onChange={value => setField('mask_temporal_radius', value === '' ? '' : Number(value))}
+              value={String(params.neighbor_stride ?? '')}
+              onChange={value => setField('neighbor_stride', value === '' ? '' : Number(value))}
             />
             <TextField
-              label={atomicTools.fields.cleanupCoverage}
+              label={atomicTools.fields.referenceLength}
               type="number"
-              value={String(params.cleanup_max_coverage ?? '')}
-              onChange={value => setField('cleanup_max_coverage', value === '' ? '' : Number(value))}
-            />
-            <TextField
-              label={atomicTools.fields.temporalConsensus}
-              type="number"
-              value={String(params.temporal_consensus ?? '')}
-              onChange={value => setField('temporal_consensus', value === '' ? '' : Number(value))}
-            />
-            <TextField
-              label={atomicTools.fields.temporalStd}
-              type="number"
-              value={String(params.temporal_std_threshold ?? '')}
-              onChange={value => setField('temporal_std_threshold', value === '' ? '' : Number(value))}
+              value={String(params.reference_length ?? '')}
+              onChange={value => setField('reference_length', value === '' ? '' : Number(value))}
             />
           </div>
         </details>
@@ -798,7 +787,7 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
       }
       break
     case 'subtitle-erase':
-      params = { preset: 'fast', mode: 'auto', backend: '', auto_tune: false }
+      params = { preset: 'balanced', backend: '', device: 'auto' }
       break
     case 'transcript-correction':
       params = { preset: 'standard', llm_arbitration: 'off' }

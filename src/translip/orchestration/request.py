@@ -93,8 +93,6 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
             "audio_source": delivery_policy.get("audio_source", merged.get("audio_source", "both")),
             "subtitle_source": delivery_policy.get("subtitle_source", merged.get("subtitle_source", "asr")),
         },
-        ocr_project_root=merged.get("ocr_project_root"),
-        erase_project_root=merged.get("erase_project_root"),
         target_lang=merged.get("target_lang", DEFAULT_TRANSLATION_TARGET_LANG),
         translation_backend=merged.get("translation_backend", DEFAULT_TRANSLATION_BACKEND),
         translation_batch_size=int(merged.get("translation_batch_size", DEFAULT_TRANSLATION_BATCH_SIZE)),
@@ -163,7 +161,28 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
             "bilingual_export_strategy",
             "auto_standard_bilingual",
         ),
+        **_erase_overrides(merged),
     ).normalized()
+
+
+# Subtitle-erase tunables passed straight through; absent keys fall back to the
+# PipelineRequest dataclass defaults (no default duplication here).
+_ERASE_KEYS = (
+    "erase_backend",
+    "erase_device",
+    "erase_mask_dilate_x",
+    "erase_mask_dilate_y",
+    "erase_event_lead_frames",
+    "erase_event_trail_frames",
+    "erase_neighbor_stride",
+    "erase_reference_length",
+    "erase_max_load",
+    "erase_regions",
+)
+
+
+def _erase_overrides(merged: dict[str, Any]) -> dict[str, Any]:
+    return {key: merged[key] for key in _ERASE_KEYS if merged.get(key) is not None}
 
 
 __all__ = ["build_pipeline_request"]

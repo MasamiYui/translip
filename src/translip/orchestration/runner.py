@@ -211,6 +211,22 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "ocr_extraction_mode": request.ocr_extraction_mode,
             }
         )
+    elif stage_name == "subtitle-erase":
+        common.update(
+            {
+                "erase_backend": request.erase_backend,
+                "erase_device": request.erase_device,
+                "erase_mask_dilate_x": request.erase_mask_dilate_x,
+                "erase_mask_dilate_y": request.erase_mask_dilate_y,
+                "erase_event_lead_frames": request.erase_event_lead_frames,
+                "erase_event_trail_frames": request.erase_event_trail_frames,
+                "erase_neighbor_stride": request.erase_neighbor_stride,
+                "erase_reference_length": request.erase_reference_length,
+                "erase_max_load": request.erase_max_load,
+                "erase_regions": request.erase_regions,
+                "detection": _file_fingerprint(ocr_detection_path(request)),
+            }
+        )
     return common
 
 
@@ -753,7 +769,7 @@ def execute_node(
         }
     if node_name == "subtitle-erase":
         monitor.update_stage_progress(node_name, 5.0, "erasing hard subtitles")
-        return run_subtitle_erase(request, log_path=_node_log_path(request, node_name))
+        return run_subtitle_erase(request, log_path=_node_log_path(request, node_name), monitor=monitor)
     if node_name == "task-g":
         return execute_delivery_node(request, monitor=monitor)
     raise TranslipError(f"Unsupported workflow node: {node_name}")

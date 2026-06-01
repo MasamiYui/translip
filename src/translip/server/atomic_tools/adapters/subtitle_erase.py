@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import json
-import platform
-import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from ....orchestration.erase_bridge import parse_erase_progress_line
 from ....orchestration.subprocess_runner import run_stage_command
 from ....orchestration.subtitle_erase_detection import prepare_subtitle_erase_detection
 from ..registry import ToolSpec, register_tool
@@ -16,236 +15,100 @@ from ..schemas import SubtitleErasePreset, SubtitleEraseToolRequest
 from . import ProgressCallback, ToolAdapter
 
 
-_TQDM_PERCENT_RE = re.compile(r"(\d{1,3})%\|")
-_LOG_STAGE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"detecting subtitles", re.IGNORECASE), "detecting_subtitles"),
-    (re.compile(r"reading detection", re.IGNORECASE), "reading_detection"),
-    (re.compile(r"building masks", re.IGNORECASE), "building_masks"),
-    (re.compile(r"loading LaMa", re.IGNORECASE), "loading_lama"),
-    (re.compile(r"downloading LaMa", re.IGNORECASE), "downloading_lama"),
-    (re.compile(r"auto[- ]tune", re.IGNORECASE), "auto_tuning"),
-)
-
-
-def _build_progress_line_handler(
-    *,
-    on_progress: ProgressCallback,
-    start_percent: float,
-    end_percent: float,
-    initial_step: str,
-) -> Callable[[str], None]:
-    state = {"step": initial_step, "last_percent": -1.0}
-
-    def _emit(percent: float, step: str) -> None:
-        clamped = max(start_percent, min(end_percent, percent))
-        if clamped <= state["last_percent"] and step == state["step"]:
-            return
-        state["last_percent"] = clamped
-        state["step"] = step
-        on_progress(clamped, step)
-
-    def _handle(line: str) -> None:
-        match = _TQDM_PERCENT_RE.search(line)
-        if match:
-            ratio = max(0.0, min(100.0, float(match.group(1)))) / 100.0
-            mapped = start_percent + (end_percent - start_percent) * ratio
-            _emit(mapped, state["step"])
-            return
-        for pattern, stage in _LOG_STAGE_PATTERNS:
-            if pattern.search(line):
-                _emit(state["last_percent"] if state["last_percent"] >= 0 else start_percent, stage)
-                return
-
-    return _handle
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[5]
-
-
-def _resolve_erase_project_root() -> Path:
-    return (_repo_root().parent / "video-subtitle-erasure").resolve()
-
-
-def _resolve_ocr_project_root() -> Path:
-    return (_repo_root().parent / "subtitle-ocr").resolve()
-
-
-def _resolve_erase_python() -> Path:
-    erase_project_root = _resolve_erase_project_root()
-    venv_python = erase_project_root / ".venv" / "bin" / "python"
-    if venv_python.exists():
-        return venv_python
-    ocr_venv_python = _resolve_ocr_project_root() / ".venv" / "bin" / "python"
-    if ocr_venv_python.exists():
-        return ocr_venv_python
-    return Path(sys.executable).resolve()
-
-
-def _default_lama_device() -> str:
-    if platform.system() == "Darwin":
-        return "mps"
-    return "auto"
-
-
 @dataclass(frozen=True, slots=True)
 class PresetProfile:
     backend: str
     mask_dilate_x: int
     mask_dilate_y: int
-    mask_temporal_radius: int
-    context_frames: int
-    event_lead_frames: int
-    event_trail_frames: int
-    cleanup_max_coverage: float
-    temporal_consensus: int
-    temporal_std_threshold: float
-    inpaint_radius: int
-    inpaint_context_margin: int
-    lama_device: str
+    neighbor_stride: int
+    reference_length: int
+    max_load: int
 
 
 PRESETS: dict[SubtitleErasePreset, PresetProfile] = {
-    "fast": PresetProfile(
-        backend="telea",
-        mask_dilate_x=16,
-        mask_dilate_y=12,
-        mask_temporal_radius=2,
-        context_frames=14,
-        event_lead_frames=3,
-        event_trail_frames=8,
-        cleanup_max_coverage=0.12,
-        temporal_consensus=2,
-        temporal_std_threshold=14.0,
-        inpaint_radius=5,
-        inpaint_context_margin=100,
-        lama_device="cpu",
-    ),
-    "balanced": PresetProfile(
-        backend="flow-guided",
-        mask_dilate_x=18,
-        mask_dilate_y=14,
-        mask_temporal_radius=2,
-        context_frames=16,
-        event_lead_frames=3,
-        event_trail_frames=10,
-        cleanup_max_coverage=0.12,
-        temporal_consensus=2,
-        temporal_std_threshold=14.0,
-        inpaint_radius=5,
-        inpaint_context_margin=120,
-        lama_device="cpu",
-    ),
-    "quality": PresetProfile(
-        backend="lama",
-        mask_dilate_x=18,
-        mask_dilate_y=14,
-        mask_temporal_radius=2,
-        context_frames=16,
-        event_lead_frames=3,
-        event_trail_frames=10,
-        cleanup_max_coverage=0.10,
-        temporal_consensus=2,
-        temporal_std_threshold=12.0,
-        inpaint_radius=5,
-        inpaint_context_margin=140,
-        lama_device=_default_lama_device(),
-    ),
+    # fast: OpenCV Telea — instant, no model, good enough for simple backgrounds.
+    "fast": PresetProfile(backend="opencv", mask_dilate_x=12, mask_dilate_y=8, neighbor_stride=5, reference_length=10, max_load=50),
+    # balanced: STTN video inpainting — temporal coherence, best general default.
+    "balanced": PresetProfile(backend="sttn", mask_dilate_x=12, mask_dilate_y=8, neighbor_stride=5, reference_length=10, max_load=50),
+    # quality: big-LaMa single-frame — sharpest fills (animation/stills); heavier.
+    "quality": PresetProfile(backend="lama", mask_dilate_x=12, mask_dilate_y=8, neighbor_stride=5, reference_length=10, max_load=30),
 }
 
 
 def resolve_preset_params(params: dict[str, Any]) -> dict[str, Any]:
-    preset_name: SubtitleErasePreset = params.get("preset", "fast")
+    preset_name: SubtitleErasePreset = params.get("preset", "balanced")
     base = PRESETS[preset_name]
-    merged = {
+
+    def pick(key: str, default: Any) -> Any:
+        value = params.get(key)
+        return value if value is not None else default
+
+    return {
         "backend": params.get("backend") or base.backend,
-        "mode": params.get("mode", "auto"),
+        "device": params.get("device") or "auto",
+        "mask_dilate_x": pick("mask_dilate_x", base.mask_dilate_x),
+        "mask_dilate_y": pick("mask_dilate_y", base.mask_dilate_y),
+        "neighbor_stride": pick("neighbor_stride", base.neighbor_stride),
+        "reference_length": pick("reference_length", base.reference_length),
+        "max_load": pick("max_load", base.max_load),
+        "event_lead_frames": pick("event_lead_frames", 3),
+        "event_trail_frames": pick("event_trail_frames", 8),
         "regions": params.get("regions") or None,
-        "mask_dilate_x": params.get("mask_dilate_x") if params.get("mask_dilate_x") is not None else base.mask_dilate_x,
-        "mask_dilate_y": params.get("mask_dilate_y") if params.get("mask_dilate_y") is not None else base.mask_dilate_y,
-        "mask_temporal_radius": params.get("mask_temporal_radius") if params.get("mask_temporal_radius") is not None else base.mask_temporal_radius,
-        "context_frames": base.context_frames,
-        "event_lead_frames": params.get("event_lead_frames") if params.get("event_lead_frames") is not None else base.event_lead_frames,
-        "event_trail_frames": params.get("event_trail_frames") if params.get("event_trail_frames") is not None else base.event_trail_frames,
-        "cleanup_max_coverage": params.get("cleanup_max_coverage") if params.get("cleanup_max_coverage") is not None else base.cleanup_max_coverage,
-        "temporal_consensus": params.get("temporal_consensus") if params.get("temporal_consensus") is not None else base.temporal_consensus,
-        "temporal_std_threshold": params.get("temporal_std_threshold") if params.get("temporal_std_threshold") is not None else base.temporal_std_threshold,
-        "inpaint_radius": base.inpaint_radius,
-        "inpaint_context_margin": base.inpaint_context_margin,
-        "lama_device": base.lama_device,
-        "auto_tune": bool(params.get("auto_tune", False)),
     }
-    return merged
 
 
 def build_eraser_command(
     *,
     input_video: Path,
-    output_video: Path,
-    detection_json: Path,
-    debug_dir: Path,
+    output_dir: Path,
+    output_name: str,
+    detection_json: Path | None,
     resolved: dict[str, Any],
 ) -> list[str]:
     cmd: list[str] = [
-        str(_resolve_erase_python()),
+        sys.executable,
         "-m",
-        "subtitle_eraser.cli",
+        "translip.erase.extract",
         "--input",
         str(input_video),
-        "--output",
-        str(output_video),
-        "--subtitle-ocr-project",
-        str(_resolve_ocr_project_root()),
-        "--reuse-detection",
-        str(detection_json),
-        "--debug-dir",
-        str(debug_dir),
-        "--inpaint-backend",
+        "--output-dir",
+        str(output_dir),
+        "--output-name",
+        output_name,
+        "--backend",
         str(resolved["backend"]),
-        "--mode",
-        str(resolved["mode"]),
+        "--device",
+        str(resolved["device"]),
         "--mask-dilate-x",
         str(int(resolved["mask_dilate_x"])),
         "--mask-dilate-y",
         str(int(resolved["mask_dilate_y"])),
-        "--mask-temporal-radius",
-        str(int(resolved["mask_temporal_radius"])),
-        "--context-frames",
-        str(int(resolved["context_frames"])),
-        "--event-lead-frames",
-        str(int(resolved["event_lead_frames"])),
-        "--event-trail-frames",
-        str(int(resolved["event_trail_frames"])),
-        "--cleanup-max-coverage",
-        f"{float(resolved['cleanup_max_coverage']):.4f}",
-        "--temporal-consensus",
-        str(int(resolved["temporal_consensus"])),
-        "--temporal-std-threshold",
-        f"{float(resolved['temporal_std_threshold']):.4f}",
-        "--inpaint-radius",
-        str(int(resolved["inpaint_radius"])),
-        "--inpaint-context-margin",
-        str(int(resolved["inpaint_context_margin"])),
-        "--lama-device",
-        str(resolved["lama_device"]),
+        "--neighbor-stride",
+        str(int(resolved["neighbor_stride"])),
+        "--reference-length",
+        str(int(resolved["reference_length"])),
+        "--max-load",
+        str(int(resolved["max_load"])),
     ]
+    if detection_json is not None:
+        cmd.extend(["--detection", str(detection_json)])
     if resolved.get("regions"):
-        for region in resolved["regions"]:
-            x1, y1, x2, y2 = region
-            cmd.extend([
-                "--region",
-                f"{float(x1):.4f},{float(y1):.4f},{float(x2):.4f},{float(y2):.4f}",
-            ])
-    if resolved.get("auto_tune"):
-        cmd.append("--auto-tune")
+        for x1, y1, x2, y2 in resolved["regions"]:
+            cmd.extend(["--region", f"{float(x1):.4f},{float(y1):.4f},{float(x2):.4f},{float(y2):.4f}"])
     return cmd
 
 
-def build_eraser_env() -> dict[str, str]:
-    erase_project_root = _resolve_erase_project_root()
-    existing = [entry for entry in sys.path if entry]
-    pythonpath = ":".join([str(erase_project_root), *existing])
-    return {"PYTHONPATH": pythonpath}
+def _build_progress_handler(
+    *, on_progress: ProgressCallback, start_percent: float, end_percent: float
+) -> Callable[[str], None]:
+    def _handle(line: str) -> None:
+        parsed = parse_erase_progress_line(line)
+        if parsed is None:
+            return
+        ratio = max(0.0, min(100.0, parsed[0])) / 100.0
+        on_progress(start_percent + (end_percent - start_percent) * ratio, parsed[1])
+
+    return _handle
 
 
 class SubtitleEraseAdapter(ToolAdapter):
@@ -254,64 +117,58 @@ class SubtitleEraseAdapter(ToolAdapter):
 
     def run(self, params, input_dir, output_dir, on_progress):
         input_file = self.first_input(input_dir, "file")
-        detection_file, detection_source = self._resolve_detection(
-            params=params,
-            input_dir=input_dir,
-            output_dir=output_dir,
-            original_video=input_file,
-            on_progress=on_progress,
-        )
+        resolved = resolve_preset_params(params)
+
+        # Manual region mode skips detection entirely; otherwise resolve (or
+        # auto-detect) an OCR detection.json and expand it for fade in/out.
+        detection_file: Path | None = None
+        detection_source = "regions"
+        if not resolved.get("regions"):
+            raw_detection, detection_source = self._resolve_detection(
+                params=params,
+                input_dir=input_dir,
+                output_dir=output_dir,
+                original_video=input_file,
+                on_progress=on_progress,
+            )
+            detection_file = prepare_subtitle_erase_detection(
+                raw_detection,
+                output_dir / "reuse_detection.expanded.json",
+                lead_frames=int(resolved["event_lead_frames"]),
+                trail_frames=int(resolved["event_trail_frames"]),
+                video_path=input_file,
+            )
         on_progress(20.0, "preparing")
 
-        resolved = resolve_preset_params(params)
-        prepared_detection_file = prepare_subtitle_erase_detection(
-            detection_file,
-            output_dir / "reuse_detection.expanded.json",
-            lead_frames=int(resolved["event_lead_frames"]),
-            trail_frames=int(resolved["event_trail_frames"]),
-            video_path=input_file,
-        )
-
         erased_path = output_dir / "erased.mp4"
-        debug_dir = output_dir / "debug"
         log_path = output_dir / "erase.log"
-
         cmd = build_eraser_command(
             input_video=input_file,
-            output_video=erased_path,
-            detection_json=prepared_detection_file,
-            debug_dir=debug_dir,
+            output_dir=output_dir,
+            output_name=erased_path.name,
+            detection_json=detection_file,
             resolved=resolved,
         )
-        env = build_eraser_env()
 
-        on_progress(25.0, f"erasing_{resolved['backend']}")
-        progress_handler = _build_progress_line_handler(
-            on_progress=on_progress,
-            start_percent=25.0,
-            end_percent=88.0,
-            initial_step=f"erasing_{resolved['backend']}",
-        )
+        on_progress(22.0, f"erasing_{resolved['backend']}")
         run_stage_command(
             cmd,
             log_path=log_path,
-            env_overrides=env,
-            on_stdout_line=progress_handler,
+            on_stdout_line=_build_progress_handler(on_progress=on_progress, start_percent=22.0, end_percent=96.0),
             should_cancel=getattr(on_progress, "is_cancelled", None),
         )
 
         if not erased_path.exists():
             raise RuntimeError("Subtitle erasure did not produce an output video")
 
-        on_progress(90.0, "evaluating")
-        metrics = _quick_metrics(input_file, erased_path, prepared_detection_file)
+        on_progress(97.0, "evaluating")
+        metrics = _quick_metrics(input_file, erased_path, detection_file)
 
         report = {
-            "preset": params.get("preset", "fast"),
+            "preset": params.get("preset", "balanced"),
             "resolved_parameters": resolved,
             "metrics": metrics,
             "detection_source": detection_source,
-            "reuse_detection_file": prepared_detection_file.name,
         }
         report_path = output_dir / "report.json"
         self.write_json(report_path, report)
@@ -320,7 +177,7 @@ class SubtitleEraseAdapter(ToolAdapter):
         return {
             "erased_file": erased_path.name,
             "report_file": report_path.name,
-            "preset": params.get("preset", "fast"),
+            "preset": params.get("preset", "balanced"),
             "backend": resolved["backend"],
             "metrics": metrics,
             "detection_source": detection_source,
@@ -351,6 +208,7 @@ class SubtitleEraseAdapter(ToolAdapter):
         auto_output_dir.mkdir(parents=True, exist_ok=True)
 
         from shutil import copy2
+
         copy2(original_video, auto_input_dir / "file" / original_video.name)
 
         detect_adapter = SubtitleDetectAdapter()
@@ -373,8 +231,7 @@ class SubtitleEraseAdapter(ToolAdapter):
         detection_path = auto_output_dir / "detection.json"
         if not detection_path.exists():
             raise RuntimeError(
-                "Auto detection did not produce detection.json; "
-                "please upload a detection file explicitly."
+                "Auto detection did not produce detection.json; please upload a detection file explicitly."
             )
         return detection_path, "auto"
 
@@ -382,7 +239,7 @@ class SubtitleEraseAdapter(ToolAdapter):
 def _quick_metrics(
     original_video: Path,
     erased_video: Path,
-    detection_json: Path,
+    detection_json: Path | None,
     sample_frames: int = 30,
 ) -> dict[str, Any]:
     try:
@@ -391,11 +248,13 @@ def _quick_metrics(
     except ImportError:
         return {"error": "cv2_or_numpy_not_available"}
 
-    try:
-        detection = json.loads(detection_json.read_text(encoding="utf-8"))
-    except Exception:
-        detection = {}
-    events = detection.get("events") or detection.get("results") or []
+    events: list[dict] = []
+    if detection_json is not None:
+        try:
+            detection = json.loads(detection_json.read_text(encoding="utf-8"))
+            events = detection.get("events") or detection.get("results") or []
+        except Exception:
+            events = []
 
     cap_o = cv2.VideoCapture(str(original_video))
     cap_e = cv2.VideoCapture(str(erased_video))
@@ -462,8 +321,8 @@ register_tool(
         tool_id="subtitle-erase",
         name_zh="字幕擦除",
         name_en="Subtitle Erase",
-        description_zh="擦除视频中的硬字幕（支持 fast/balanced/quality 三档预设）",
-        description_en="Remove hardcoded subtitles from video (fast/balanced/quality presets)",
+        description_zh="擦除视频中的硬字幕（fast=OpenCV / balanced=STTN / quality=LaMa 三档预设）",
+        description_en="Remove hardcoded subtitles from video (fast=OpenCV / balanced=STTN / quality=LaMa presets)",
         category="video",
         icon="Eraser",
         accept_formats=[".mp4", ".mkv", ".avi", ".mov", ".json"],

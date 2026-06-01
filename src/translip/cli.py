@@ -550,8 +550,19 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         choices=["asr-dub-basic", "asr-dub+ocr-subs", "asr-dub+ocr-subs+erase"],
     )
-    pipeline_parser.add_argument("--ocr-project-root", default=None)
-    pipeline_parser.add_argument("--erase-project-root", default=None)
+    pipeline_parser.add_argument(
+        "--erase-backend",
+        default=None,
+        choices=["sttn", "lama", "opencv"],
+        help="Subtitle-erase inpainting backend (default sttn)",
+    )
+    pipeline_parser.add_argument(
+        "--erase-device",
+        default=None,
+        choices=["auto", "mps", "cuda", "cpu"],
+        help="Device for the neural erase backends (default auto)",
+    )
+    pipeline_parser.add_argument("--erase-max-load", type=int, default=None, help="Max frames inpainted per batch")
     pipeline_parser.add_argument("--target-lang", default=None)
     pipeline_parser.add_argument(
         "--translation-backend",

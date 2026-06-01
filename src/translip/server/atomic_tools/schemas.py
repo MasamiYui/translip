@@ -184,17 +184,15 @@ class SubtitleDetectToolRequest(BaseModel):
 class SubtitleEraseToolRequest(BaseModel):
     file_id: str
     detection_file_id: str | None = None
-    preset: SubtitleErasePreset = "fast"
-    backend: Literal["telea", "flow-guided", "lama"] | None = None
-    mode: Literal["auto", "manual"] = "auto"
+    preset: SubtitleErasePreset = "balanced"
+    backend: Literal["sttn", "lama", "opencv"] | None = None
+    device: Literal["auto", "mps", "cuda", "cpu"] | None = None
     sample_interval: float | None = None
     regions: list[tuple[float, float, float, float]] | None = None
     mask_dilate_x: int | None = None
     mask_dilate_y: int | None = None
-    mask_temporal_radius: int | None = None
     event_lead_frames: int | None = None
     event_trail_frames: int | None = None
-    cleanup_max_coverage: float | None = None
-    temporal_consensus: int | None = None
-    temporal_std_threshold: float | None = None
-    auto_tune: bool = False
+    neighbor_stride: int | None = None
+    reference_length: int | None = None
+    max_load: int | None = None

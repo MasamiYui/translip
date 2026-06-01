@@ -88,8 +88,10 @@ class TaskConfigInput(BaseModel):
     video_source: str = "original"
     audio_source: str = "both"
     subtitle_source: str = "asr"
-    ocr_project_root: Optional[str] = None
-    erase_project_root: Optional[str] = None
+    # Subtitle erase (subtitle-erase node)
+    erase_backend: Literal["sttn", "lama", "opencv"] = "sttn"
+    erase_device: Literal["auto", "mps", "cuda", "cpu"] = "auto"
+    erase_max_load: int = Field(default=50, gt=0)
     # Stage 1
     separation_mode: str = "auto"
     separation_quality: str = "balanced"
