@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import urllib.error
-import urllib.request
 from typing import Any
 
 from ..config import DEFAULT_SILICONFLOW_BASE_URL, DEFAULT_SILICONFLOW_MODEL
@@ -15,6 +13,13 @@ from .backend import (
     CondenseOutput,
     canonical_language_code,
 )
+from .llm_utils import extract_message_content, parse_json_payload, post_chat_completion
+
+# Backwards-compatible aliases: these helpers used to live here as module-private
+# functions before being extracted into ``llm_utils``. Other modules
+# (transcription.arbitration) and tests still import them under these names.
+_extract_message_content = extract_message_content
+_parse_json_payload = parse_json_payload
 
 
 class SiliconFlowBackend:
@@ -119,8 +124,8 @@ class SiliconFlowBackend:
             "response_format": {"type": "json_object"},
         }
         response = self._post_json(f"{self.base_url}/chat/completions", payload)
-        content = _extract_message_content(response)
-        parsed = _parse_json_payload(content)
+        content = extract_message_content(response)
+        parsed = parse_json_payload(content)
         raw_segments = parsed.get("segments")
         if not isinstance(raw_segments, list):
             raise BackendUnavailableError("SiliconFlow response missing segments array")
@@ -189,8 +194,8 @@ class SiliconFlowBackend:
             "response_format": {"type": "json_object"},
         }
         response = self._post_json(f"{self.base_url}/chat/completions", payload)
-        content = _extract_message_content(response)
-        parsed = _parse_json_payload(content)
+        content = extract_message_content(response)
+        parsed = parse_json_payload(content)
         raw_segments = parsed.get("segments")
         if not isinstance(raw_segments, list):
             raise BackendUnavailableError("SiliconFlow condense response missing segments array")
@@ -208,44 +213,9 @@ class SiliconFlowBackend:
         return outputs
 
     def _post_json(self, url: str, payload: dict[str, Any]) -> dict[str, Any]:
-        data = json.dumps(payload).encode("utf-8")
-        request = urllib.request.Request(
-            url,
-            data=data,
-            headers={
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
+        return post_chat_completion(
+            url=url,
+            api_key=self.api_key,
+            payload=payload,
+            timeout_sec=self.timeout_sec,
         )
-        try:
-            with urllib.request.urlopen(request, timeout=self.timeout_sec) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except urllib.error.HTTPError as exc:
-            body = exc.read().decode("utf-8", errors="replace")
-            raise BackendUnavailableError(f"SiliconFlow HTTP {exc.code}: {body[:500]}") from exc
-        except urllib.error.URLError as exc:
-            raise BackendUnavailableError(f"SiliconFlow request failed: {exc}") from exc
-
-
-def _extract_message_content(response: dict[str, Any]) -> str:
-    choices = response.get("choices")
-    if not isinstance(choices, list) or not choices:
-        raise BackendUnavailableError("SiliconFlow response missing choices")
-    message = choices[0].get("message", {})
-    content = message.get("content")
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        text_parts = [str(item.get("text", "")) for item in content if isinstance(item, dict)]
-        return "".join(text_parts)
-    raise BackendUnavailableError("SiliconFlow response content is empty")
-
-
-def _parse_json_payload(content: str) -> dict[str, Any]:
-    stripped = content.strip()
-    if stripped.startswith("```"):
-        stripped = stripped.strip("`")
-        if stripped.startswith("json"):
-            stripped = stripped[4:].strip()
-    return json.loads(stripped)

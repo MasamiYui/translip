@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Clapperboard,
   Eraser,
+  Gauge,
   Languages,
   LayoutDashboard,
   ListChecks,
@@ -124,6 +125,13 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
     label: t.nav.worksLibrary,
     icon: Clapperboard,
     isActive: currentPath === '/works',
+  }
+
+  const evaluationNavItem = {
+    to: '/evaluation',
+    label: t.nav.evaluation,
+    icon: Gauge,
+    isActive: currentPath === '/evaluation' || currentPath.startsWith('/evaluation/'),
   }
 
   const toolLabels = t.atomicTools.tools as Record<string, string | undefined>
@@ -397,6 +405,25 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
               key={to}
               to={to}
               data-testid="sidebar-link-character-library"
+              aria-current={isActive ? 'page' : undefined}
+              title={collapsed ? label : undefined}
+              aria-label={collapsed ? label : undefined}
+              className={navItemClass(isActive)}
+            >
+              <Icon size={15} className="shrink-0" />
+              {!collapsed && <span className="truncate">{label}</span>}
+            </Link>
+          )
+        })()}
+
+        {/* Dub evaluation */}
+        {(() => {
+          const { to, label, icon: Icon, isActive } = evaluationNavItem
+          return (
+            <Link
+              key={to}
+              to={to}
+              data-testid="sidebar-link-evaluation"
               aria-current={isActive ? 'page' : undefined}
               title={collapsed ? label : undefined}
               aria-label={collapsed ? label : undefined}

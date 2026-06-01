@@ -43,6 +43,12 @@ const CharacterLibraryPage = lazy(() =>
 const WorksPage = lazy(() =>
   import('./pages/WorksPage').then(module => ({ default: module.WorksPage })),
 )
+const EvaluationPage = lazy(() =>
+  import('./pages/EvaluationPage').then(module => ({ default: module.EvaluationPage })),
+)
+const EvaluationDetailPage = lazy(() =>
+  import('./pages/EvaluationDetailPage').then(module => ({ default: module.EvaluationDetailPage })),
+)
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -80,6 +86,8 @@ export default function App() {
                 <Route path="tools/:toolId" element={<ToolPage />} />
                 <Route path="character-library" element={<CharacterLibraryPage />} />
                 <Route path="works" element={<WorksPage />} />
+                <Route path="evaluation" element={<EvaluationPage />} />
+                <Route path="evaluation/:taskId" element={<EvaluationDetailPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
             </Routes>

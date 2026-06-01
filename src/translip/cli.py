@@ -42,7 +42,7 @@ from .orchestration.request import build_pipeline_request
 from .orchestration.runner import run_pipeline
 from .pipeline.ingest import probe_input
 from .pipeline.runner import separate_file
-from .quality import DubBenchmarkRequest, build_dub_benchmark
+from .quality import DubBenchmarkRequest, DubQaRequest, build_dub_benchmark, build_dub_qa
 from .rendering.runner import render_dub
 from .repair import RepairPlanRequest, RepairRunRequest, plan_dub_repair, run_dub_repair
 from .server.cache_manager import ModelDownloadError, downloadable_model_keys, model_download_manager
@@ -474,6 +474,33 @@ def build_parser() -> argparse.ArgumentParser:
         "--target-lang",
         default=DEFAULT_TRANSLATION_TARGET_LANG,
         help="Target language code, e.g. en",
+    )
+
+    dub_qa_parser = subparsers.add_parser(
+        "evaluate-dub",
+        help="Per-segment dub quality analysis (undubbed / timbre / dropout / pacing / translation)",
+    )
+    dub_qa_parser.add_argument("--pipeline-root", required=True, help="Pipeline output root")
+    dub_qa_parser.add_argument("--output-dir", default="analysis/dub-qa", help="Analysis output directory")
+    dub_qa_parser.add_argument(
+        "--target-lang",
+        default=DEFAULT_TRANSLATION_TARGET_LANG,
+        help="Target language code, e.g. en",
+    )
+    dub_qa_parser.add_argument(
+        "--source-lang",
+        default="zh",
+        help="Source language code, used for translation judging",
+    )
+    dub_qa_parser.add_argument(
+        "--translation-judge",
+        action="store_true",
+        help="Score each translation with the SiliconFlow LLM judge (requires SILICONFLOW_API_KEY)",
+    )
+    dub_qa_parser.add_argument(
+        "--judge-scores",
+        default=None,
+        help="Reuse an existing judge_scores.{lang}.json instead of regenerating it",
     )
 
     probe_parser = subparsers.add_parser("probe", help="Inspect a media file")
@@ -1066,6 +1093,27 @@ def main(argv: list[str] | None = None) -> int:
         print(f"manifest={result.artifacts.manifest_path}")
         print(f"status={result.benchmark['status']}")
         print(f"score={result.benchmark['score']}")
+        return 0
+
+    if args.command == "evaluate-dub":
+        result = build_dub_qa(
+            DubQaRequest(
+                pipeline_root=args.pipeline_root,
+                output_dir=args.output_dir,
+                target_lang=args.target_lang,
+                source_lang=args.source_lang,
+                run_translation_judge=args.translation_judge,
+                judge_path=args.judge_scores,
+            )
+        )
+        summary = result.manifest["summary"]
+        print(f"report={result.artifacts.report_path}")
+        print(f"markdown={result.artifacts.markdown_path}")
+        print(f"manifest={result.artifacts.manifest_path}")
+        print(f"score={summary['score']}")
+        print(f"problem_segment_count={summary['problem_segment_count']}")
+        print(f"issue_counts={summary['issue_counts']}")
+        print(f"judge_status={summary['judge_status']}")
         return 0
 
     if args.command == "run-pipeline":

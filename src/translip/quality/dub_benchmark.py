@@ -146,6 +146,8 @@ def _metrics(
     placed_count = _int(stats.get("placed_count"))
     skipped_count = _int(stats.get("skipped_count"))
     coverage_ratio = placed_count / max(total_count, 1)
+    undubbed_count = max(0, total_count - placed_count)
+    skip_reason_counts = stats.get("skip_reason_counts", {}) if isinstance(stats.get("skip_reason_counts"), dict) else {}
     speaker_failed_count = _status_count(quality, "speaker_status_counts", "failed")
     intelligibility_failed_count = _status_count(quality, "intelligibility_status_counts", "failed")
     overall_failed_count = _status_count(quality, "overall_status_counts", "failed")
@@ -153,6 +155,9 @@ def _metrics(
         "total_segment_count": total_count,
         "placed_count": placed_count,
         "skipped_count": skipped_count,
+        "undubbed_count": undubbed_count,
+        "undubbed_ratio": round(undubbed_count / max(total_count, 1), 4),
+        "skip_reason_counts": skip_reason_counts,
         "coverage_ratio": round(coverage_ratio, 4),
         "audible_failed_count": _int(audible.get("failed_count")),
         "audible_failed_segment_ids": audible.get("failed_segment_ids") if isinstance(audible.get("failed_segment_ids"), list) else [],
@@ -255,6 +260,17 @@ def _gates(metrics: dict[str, Any]) -> list[dict[str, Any]]:
             "value": metrics["repair_manual_required_count"],
             "threshold": "manual_required_count == 0",
         },
+        {
+            "id": "undubbed_coverage",
+            "label": "Segments left undubbed in the final mix",
+            "status": "passed" if metrics.get("undubbed_count", 0) == 0 else "failed",
+            "value": {
+                "undubbed_count": metrics.get("undubbed_count", 0),
+                "undubbed_ratio": metrics.get("undubbed_ratio", 0.0),
+                "skip_reason_counts": metrics.get("skip_reason_counts", {}),
+            },
+            "threshold": "undubbed_count == 0",
+        },
     ]
 
 
@@ -275,6 +291,7 @@ def _markdown_report(benchmark: dict[str, Any]) -> str:
     for key in [
         "total_segment_count",
         "coverage_ratio",
+        "undubbed_count",
         "audible_failed_count",
         "speaker_failed_ratio",
         "intelligibility_failed_ratio",

@@ -10,7 +10,7 @@ from sqlmodel import Session, select
 
 from ...orchestration.graph_export import build_workflow_graph_payload
 from ..database import get_session
-from ..models import Task, TaskLog, TaskStage
+from ..models import Analysis, Task, TaskLog, TaskStage
 from ..schemas import (
     CreateTaskRequest,
     RerunTaskRequest,
@@ -187,11 +187,12 @@ def delete_task(
             shutil.rmtree(output_root, ignore_errors=True)
 
     # Delete related records
-    session.exec(select(TaskStage).where(TaskStage.task_id == task_id))
     for stage in session.exec(select(TaskStage).where(TaskStage.task_id == task_id)).all():
         session.delete(stage)
     for log in session.exec(select(TaskLog).where(TaskLog.task_id == task_id)).all():
         session.delete(log)
+    for analysis in session.exec(select(Analysis).where(Analysis.task_id == task_id)).all():
+        session.delete(analysis)
     session.delete(task)
     session.commit()
     return {"ok": True}

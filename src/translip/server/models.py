@@ -57,6 +57,30 @@ class TaskStage(SQLModel, table=True):
     error_message: Optional[str] = Field(default=None)
 
 
+class Analysis(SQLModel, table=True):
+    """Analysis table — one record per dub-quality / evaluation run on a task."""
+
+    __tablename__ = "analyses"
+
+    id: str = Field(primary_key=True)
+    task_id: str = Field(index=True)
+    analysis_type: str = Field(default="dub-qa", index=True)
+    status: str = Field(default="pending", index=True)
+    target_lang: str = Field(default="en")
+    source_lang: str = Field(default="zh")
+    params: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    # Stores the lightweight summary (score / issue counts), not the full per-segment report.
+    result: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    # Path to the full dub_qa_report.{lang}.json, relative to the task output_root.
+    report_path: Optional[str] = Field(default=None)
+    error_message: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.now, index=True)
+    updated_at: datetime = Field(default_factory=datetime.now)
+    started_at: Optional[datetime] = Field(default=None)
+    finished_at: Optional[datetime] = Field(default=None)
+    elapsed_sec: Optional[float] = Field(default=None)
+
+
 class ConfigPreset(SQLModel, table=True):
     """Config presets table — user-saved reusable config templates."""
 

@@ -102,6 +102,7 @@ flowchart LR
 **C. 协作与资产**
 
 - **配音编辑台**：问题队列（静音、音色不匹配、时长拉伸、翻译可信度等）+ 检视面板 + 实时时长预测 + 单段重新合成。
+- **配音评测 / 实验分析**：对完成的配音任务做逐段质检——自动定位「漏配 / 音色不符 / 漏词吞字 / 节奏异常 / 听不清 / 翻译差」，给出综合评分与质量门；菜单栏「配音评测」页可逐段对比原声 vs 配音、查看译文漏词高亮，并可选用 SiliconFlow LLM 给译文打分。
 - **作品库 / 角色库**：把任务挂到「作品 → 剧集」，并维护「角色 → 说话人」台账，支持全局 persona 复用。
 - **模型与令牌管理**：在设置页配置 HuggingFace 令牌（解锁 pyannote 等门控模型）、查看模型状态并一键下载缺失模型。
 
@@ -262,6 +263,11 @@ uv run translip translate-script --segments ./output-task-a/voice/segments.zh.js
 uv run translip synthesize-speaker --translation ./output-task-c/voice/translation.en.json \
   --profiles ./output-task-b/voice/speaker_profiles.json --speaker-id spk_0000 \
   --backend moss-tts-nano-onnx --output-dir ./output-task-d --device auto
+
+# 配音评测：对已完成的流水线产物做逐段质检（漏配/音色/漏词/节奏/翻译）
+uv run translip evaluate-dub --pipeline-root ./output-pipeline/<task_id> --target-lang en \
+  --output-dir ./output-pipeline/<task_id>/analysis/dub-qa
+#   加 --translation-judge 用 SiliconFlow LLM 给译文打分（需 SILICONFLOW_API_KEY）
 
 # 其它：probe（媒体信息）、download-models（预下载模型）
 uv run translip probe --input ./test_video/example.mp4
