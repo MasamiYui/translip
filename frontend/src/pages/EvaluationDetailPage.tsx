@@ -301,8 +301,8 @@ function Scorecard({
         )}
       </div>
 
-      {/* Metric strip: evenly distributed across the full width */}
-      <div className="grid grid-cols-2 divide-y divide-[#f3f4f6] border-t border-[#f3f4f6] sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+      {/* Metric strip: evenly distributed cards, content centered in each */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <MetricCell label={t.evaluation.score}>
           <span className="text-3xl font-bold text-[#111827]">{score}</span>
         </MetricCell>
@@ -343,9 +343,9 @@ function Scorecard({
 
 function MetricCell({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="px-4 py-2 first:pl-0 sm:py-0">
-      <div className="text-lg font-semibold leading-tight text-[#111827]">{children}</div>
-      <div className="mt-0.5 text-xs text-[#9ca3af]">{label}</div>
+    <div className="flex min-h-[5.5rem] flex-col items-center justify-center gap-1 rounded-xl bg-[#f9fafb] px-3 py-4 text-center transition-colors hover:bg-[#f3f4f6]">
+      <div className="text-xl font-bold leading-tight text-[#111827]">{children}</div>
+      <div className="text-xs font-medium text-[#9ca3af]">{label}</div>
     </div>
   )
 }
