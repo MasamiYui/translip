@@ -514,6 +514,10 @@ class PipelineRequest:
     )
     ocr_project_root: Path | str | None = None
     erase_project_root: Path | str | None = None
+    # OCR hard-subtitle detection (ocr-detect node) tunables.
+    ocr_sample_interval: float = 0.25
+    ocr_position_mode: str = "auto"  # auto | bottom | middle | top
+    ocr_extraction_mode: str = "conservative"  # conservative | balanced | variety_recall
     target_lang: str = "en"
     translation_backend: TranslationBackendName = "local-m2m100"
     translation_batch_size: int = 4
@@ -623,6 +627,9 @@ class PipelineRequest:
                 if self.erase_project_root is not None
                 else None
             ),
+            ocr_sample_interval=float(self.ocr_sample_interval),
+            ocr_position_mode=self.ocr_position_mode,
+            ocr_extraction_mode=self.ocr_extraction_mode,
             target_lang=self.target_lang,
             translation_backend=self.translation_backend,
             translation_batch_size=int(self.translation_batch_size),

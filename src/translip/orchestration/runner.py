@@ -202,6 +202,15 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "dub_repair_include_risk": request.dub_repair_include_risk,
             }
         )
+    elif stage_name == "ocr-detect":
+        common.update(
+            {
+                "language": request.transcription_language,
+                "ocr_sample_interval": request.ocr_sample_interval,
+                "ocr_position_mode": request.ocr_position_mode,
+                "ocr_extraction_mode": request.ocr_extraction_mode,
+            }
+        )
     return common
 
 

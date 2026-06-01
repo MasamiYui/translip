@@ -42,6 +42,9 @@ const defaultGlobalConfig: GlobalConfigDraft = {
   temperature: 0,
   condition_on_previous_text: false,
   top_k: 3,
+  ocr_sample_interval: 0.25,
+  ocr_position_mode: 'auto',
+  ocr_extraction_mode: 'conservative',
   translation_backend: 'local-m2m100',
   translation_batch_size: 4,
   condense_mode: 'off',
@@ -648,6 +651,37 @@ function AdvancedSettingsSection({
             min={1}
             step={1}
             onChange={value => onPatch({ top_k: value })}
+          />
+        </AdvancedSettingsGroup>
+
+        <AdvancedSettingsGroup title="OCR 字幕识别" description="ocr-detect 节点用 PaddleOCR 识别原片硬字幕（仅 +OCR 字幕模板生效），影响字幕翻译与擦除的输入。">
+          <SettingsNumber
+            label="采样间隔 (秒)"
+            value={config.ocr_sample_interval ?? 0.25}
+            min={0.1}
+            step={0.05}
+            onChange={value => onPatch({ ocr_sample_interval: value })}
+          />
+          <SettingsSelect
+            label="字幕位置"
+            value={config.ocr_position_mode ?? 'auto'}
+            options={[
+              { value: 'auto', label: '自动检测' },
+              { value: 'bottom', label: '底部' },
+              { value: 'middle', label: '中间' },
+              { value: 'top', label: '顶部' },
+            ]}
+            onChange={value => onPatch({ ocr_position_mode: value as TaskConfig['ocr_position_mode'] })}
+          />
+          <SettingsSelect
+            label="提取策略"
+            value={config.ocr_extraction_mode ?? 'conservative'}
+            options={[
+              { value: 'conservative', label: '保守（高精度）' },
+              { value: 'balanced', label: '均衡' },
+              { value: 'variety_recall', label: '高召回' },
+            ]}
+            onChange={value => onPatch({ ocr_extraction_mode: value as TaskConfig['ocr_extraction_mode'] })}
           />
         </AdvancedSettingsGroup>
 

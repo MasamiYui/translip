@@ -496,6 +496,18 @@ function renderControls(
           value={String(params.preview_frames ?? 3)}
           onChange={value => setField('preview_frames', Number(value))}
         />
+        <SelectField
+          label={atomicTools.fields.positionMode}
+          value={String(params.position_mode ?? 'auto')}
+          options={['auto', 'bottom', 'middle', 'top']}
+          onChange={value => setField('position_mode', value)}
+        />
+        <SelectField
+          label={atomicTools.fields.extractionMode}
+          value={String(params.extraction_mode ?? 'conservative')}
+          options={['conservative', 'balanced', 'variety_recall']}
+          onChange={value => setField('extraction_mode', value)}
+        />
       </div>
     )
   }
@@ -781,6 +793,8 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
         language: 'ch',
         sample_interval: 0.4,
         preview_frames: 3,
+        position_mode: 'auto',
+        extraction_mode: 'conservative',
       }
       break
     case 'subtitle-erase':

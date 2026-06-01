@@ -177,6 +177,8 @@ class SubtitleDetectToolRequest(BaseModel):
     language: Literal["ch", "en", "ch_tra", "japan", "korean"] = "ch"
     sample_interval: float = 0.4
     preview_frames: int = 3
+    position_mode: Literal["auto", "bottom", "middle", "top"] = "auto"
+    extraction_mode: Literal["conservative", "balanced", "variety_recall"] = "conservative"
 
 
 class SubtitleEraseToolRequest(BaseModel):

@@ -37,6 +37,10 @@ class SubtitleDetectAdapter(ToolAdapter):
             params.get("language", "ch"),
             "--sample-interval",
             str(params.get("sample_interval", 0.4)),
+            "--position-mode",
+            params.get("position_mode", "auto"),
+            "--extraction-mode",
+            params.get("extraction_mode", "conservative"),
         ]
 
         on_progress(15.0, "running_ocr")

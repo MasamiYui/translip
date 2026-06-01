@@ -43,6 +43,9 @@ _DEFAULT_CONFIG = {
     "condition_on_previous_text": False,
     "generate_srt": True,
     "top_k": 3,
+    "ocr_sample_interval": 0.25,
+    "ocr_position_mode": "auto",
+    "ocr_extraction_mode": "conservative",
     "translation_backend": "local-m2m100",
     "translation_batch_size": 4,
     "siliconflow_base_url": None,
@@ -138,6 +141,9 @@ class GlobalConfigRequest(BaseModel):
     temperature: Optional[float] = None
     condition_on_previous_text: Optional[bool] = None
     top_k: Optional[int] = None
+    ocr_sample_interval: Optional[float] = None
+    ocr_position_mode: Optional[str] = None
+    ocr_extraction_mode: Optional[str] = None
     translation_backend: Optional[str] = None
     translation_batch_size: Optional[int] = None
     siliconflow_base_url: Optional[str] = None

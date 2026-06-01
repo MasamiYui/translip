@@ -202,6 +202,9 @@ export interface TaskConfig {
   condition_on_previous_text: boolean
   transcription_correction?: Partial<TranscriptionCorrectionConfig>
   top_k: number
+  ocr_sample_interval?: number
+  ocr_position_mode?: 'auto' | 'bottom' | 'middle' | 'top'
+  ocr_extraction_mode?: 'conservative' | 'balanced' | 'variety_recall'
   translation_backend: string
   translation_glossary?: string
   translation_batch_size: number

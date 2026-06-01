@@ -75,7 +75,11 @@ def build_ocr_detect_command(request: PipelineRequest) -> list[str]:
         "--language",
         _map_ocr_language(request.transcription_language),
         "--sample-interval",
-        "0.25",
+        str(request.ocr_sample_interval),
+        "--position-mode",
+        request.ocr_position_mode,
+        "--extraction-mode",
+        request.ocr_extraction_mode,
     ]
 
 

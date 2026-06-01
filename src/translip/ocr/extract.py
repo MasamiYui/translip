@@ -39,6 +39,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--language", default="auto")
     parser.add_argument("--sample-interval", type=float, default=0.25)
+    parser.add_argument(
+        "--position-mode",
+        default="auto",
+        choices=["auto", "bottom", "middle", "top"],
+        help="Where to look for hard subtitles in the frame.",
+    )
+    parser.add_argument(
+        "--extraction-mode",
+        default="conservative",
+        choices=["conservative", "balanced", "variety_recall"],
+        help="Recall/precision trade-off for subtitle extraction.",
+    )
     # Accepted for backward compatibility with the old external-bridge callers; ignored.
     parser.add_argument("--project-root", default=None, help=argparse.SUPPRESS)
     return parser.parse_args(argv)
@@ -155,6 +167,8 @@ def extract_to_dir(
     output_dir: Path,
     language: str = "auto",
     sample_interval: float = 0.25,
+    position_mode: str = "auto",
+    extraction_mode: str = "conservative",
 ) -> dict:
     """Run OCR subtitle extraction and write the four artifact files.
 
@@ -185,6 +199,8 @@ def extract_to_dir(
         language=language,
         sample_interval=float(sample_interval),
         detect_region=True,
+        subtitle_position_mode=position_mode,
+        subtitle_extraction_mode=extraction_mode,
         progress_callback=_on_progress,
     )
     srt_content = service.generate_srt(result)
@@ -288,6 +304,8 @@ def main(argv: list[str] | None = None) -> int:
         output_dir=Path(args.output_dir),
         language=args.language,
         sample_interval=float(args.sample_interval),
+        position_mode=args.position_mode,
+        extraction_mode=args.extraction_mode,
     )
     return 0
 
