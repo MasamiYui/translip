@@ -145,15 +145,8 @@ const zhMessages = {
       start: '开始执行',
     },
     filePicker: {
-      title: '选择视频文件',
-      up: '上一级',
-      home: '主目录',
-      currentPath: '当前位置',
-      emptyDir: '此文件夹中没有视频文件',
-      loadError: '无法读取该目录',
-      noSelection: '请选择一个视频文件',
-      select: '选择',
-      cancel: '取消',
+      title: '选择输入视频',
+      unavailable: '无法在服务器上打开文件选择框，请手动填写路径',
     },
     options: {
       subtitleSource: {
@@ -1355,15 +1348,8 @@ const enMessages: LocaleMessages = {
       start: 'Start Run',
     },
     filePicker: {
-      title: 'Select video file',
-      up: 'Up',
-      home: 'Home',
-      currentPath: 'Current location',
-      emptyDir: 'No video files in this folder',
-      loadError: 'Unable to read this folder',
-      noSelection: 'Select a video file',
-      select: 'Select',
-      cancel: 'Cancel',
+      title: 'Select input video',
+      unavailable: 'Could not open a file dialog on the server; enter the path manually',
     },
     options: {
       subtitleSource: {

@@ -72,52 +72,62 @@ def test_collect_model_statuses_detects_cdx23_weights_in_runtime_cache(
     assert status_by_name["FunASR SenseVoiceSmall"] == "missing"
 
 
-def test_browse_filesystem_lists_dirs_and_media_only(tmp_path: Path) -> None:
+def test_pick_file_returns_selected_path(monkeypatch: pytest.MonkeyPatch) -> None:
     from fastapi.testclient import TestClient
 
     from translip.server.app import app
+    from translip.server.routes import system
 
-    (tmp_path / "sub").mkdir()
-    (tmp_path / "clip.mp4").write_bytes(b"video")
-    (tmp_path / "track.wav").write_bytes(b"audio")
-    (tmp_path / "notes.txt").write_text("ignored")
-    (tmp_path / ".hidden.mp4").write_bytes(b"hidden")
+    monkeypatch.setattr(
+        system, "_open_native_file_dialog", lambda *a, **k: "/videos/clip.mp4"
+    )
 
     client = TestClient(app)
-    resp = client.get("/api/system/browse", params={"path": str(tmp_path)})
+    resp = client.post("/api/system/pick-file", json={"initial_path": "/videos"})
     assert resp.status_code == 200
-    body = resp.json()
-
-    assert body["path"] == str(tmp_path.resolve())
-    names = [e["name"] for e in body["entries"]]
-    # Directories first, then media files; non-media and hidden entries excluded.
-    assert names == ["sub", "clip.mp4", "track.wav"]
-    assert body["entries"][0]["is_dir"] is True
-    assert body["entries"][1]["is_media"] is True
+    assert resp.json() == {"path": "/videos/clip.mp4", "cancelled": False}
 
 
-def test_browse_filesystem_passing_file_opens_parent(tmp_path: Path) -> None:
+def test_pick_file_cancelled_returns_null(monkeypatch: pytest.MonkeyPatch) -> None:
     from fastapi.testclient import TestClient
 
     from translip.server.app import app
+    from translip.server.routes import system
+
+    monkeypatch.setattr(system, "_open_native_file_dialog", lambda *a, **k: None)
+
+    client = TestClient(app)
+    resp = client.post("/api/system/pick-file", json={})
+    assert resp.status_code == 200
+    assert resp.json() == {"path": None, "cancelled": True}
+
+
+def test_pick_file_unavailable_returns_501(monkeypatch: pytest.MonkeyPatch) -> None:
+    from fastapi.testclient import TestClient
+
+    from translip.server.app import app
+    from translip.server.routes import system
+
+    def _boom(*_a, **_k):
+        raise RuntimeError("no_dialog_helper")
+
+    monkeypatch.setattr(system, "_open_native_file_dialog", _boom)
+
+    client = TestClient(app)
+    resp = client.post("/api/system/pick-file", json={})
+    assert resp.status_code == 501
+
+
+def test_resolve_initial_dir_uses_parent_for_file(tmp_path: Path) -> None:
+    from translip.server.routes import system
 
     clip = tmp_path / "clip.mp4"
     clip.write_bytes(b"video")
 
-    client = TestClient(app)
-    resp = client.get("/api/system/browse", params={"path": str(clip)})
-    assert resp.status_code == 200
-    assert resp.json()["path"] == str(tmp_path.resolve())
-
-
-def test_browse_filesystem_missing_path_returns_404(tmp_path: Path) -> None:
-    from fastapi.testclient import TestClient
-
-    from translip.server.app import app
-
-    client = TestClient(app)
-    resp = client.get("/api/system/browse", params={"path": str(tmp_path / "nope")})
-    assert resp.status_code == 404
+    assert system._resolve_initial_dir(str(clip)) == str(tmp_path)
+    assert system._resolve_initial_dir(str(tmp_path)) == str(tmp_path)
+    assert system._resolve_initial_dir(str(tmp_path / "missing" / "x.mp4")) is None
+    assert system._resolve_initial_dir(None) is None
 
 
 def _clear_hf_tokens(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

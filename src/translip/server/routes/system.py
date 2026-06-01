@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import platform
+import subprocess
 import sys
 import threading
 import time
@@ -108,87 +109,118 @@ def probe_media(path: str):
     }
 
 
-# Media file extensions surfaced by the in-app file picker. Non-media files are
-# hidden so the picker stays focused on selectable inputs.
-_MEDIA_EXTENSIONS = frozenset(
-    {
-        ".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".flv",
-        ".ts", ".m2ts", ".mts", ".wmv", ".mpg", ".mpeg", ".3gp", ".ogv",
-        ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma",
-    }
-)
+class PickFileRequest(BaseModel):
+    # A file or directory path used to position the dialog's starting folder.
+    initial_path: str | None = None
+    prompt: str | None = None
 
 
-class FsEntry(BaseModel):
-    name: str
-    path: str
-    is_dir: bool
-    is_media: bool
-    size_bytes: int | None = None
+class PickFileResponse(BaseModel):
+    path: str | None
+    cancelled: bool
 
 
-class BrowseResponse(BaseModel):
-    path: str
-    parent: str | None
-    home: str
-    entries: list[FsEntry]
+def _resolve_initial_dir(initial_path: str | None) -> str | None:
+    """Return an existing directory to open the dialog in, or None.
 
-
-@router.get("/browse", response_model=BrowseResponse)
-def browse_filesystem(
-    path: str | None = Query(default=None),
-    show_hidden: bool = Query(default=False),
-):
-    """List directories and media files for the in-app file picker.
-
-    translip is local-first: the server runs on the user's own machine, so
-    browsing the local filesystem to pick an input video is the intended flow.
-    Directories are always returned (to allow navigation); plain files are
-    limited to recognised media extensions to keep the picker uncluttered.
+    Accepts either a directory or a file path (its parent folder is used).
     """
-    base = Path(path).expanduser() if path else Path.home()
-    try:
-        base = base.resolve()
-    except OSError as exc:
-        raise HTTPException(status_code=400, detail="invalid_path") from exc
+    if not initial_path:
+        return None
+    p = Path(initial_path).expanduser()
+    if p.is_dir():
+        return str(p)
+    if p.parent.is_dir():
+        return str(p.parent)
+    return None
 
-    if not base.exists():
-        raise HTTPException(status_code=404, detail="path_not_found")
-    # If a file was passed, browse its containing directory instead.
-    if not base.is_dir():
-        base = base.parent
 
-    try:
-        children = list(base.iterdir())
-    except PermissionError as exc:
-        raise HTTPException(status_code=403, detail="permission_denied") from exc
+def _escape_applescript(value: str) -> str:
+    return value.replace("\\", "\\\\").replace('"', '\\"')
 
-    entries: list[FsEntry] = []
-    for child in children:
-        if not show_hidden and child.name.startswith("."):
-            continue
+
+def _open_native_file_dialog(initial_path: str | None, prompt: str) -> str | None:
+    """Open a blocking native OS "open file" dialog and return the chosen path.
+
+    Returns None when the user cancels. Raises RuntimeError when the host has no
+    usable dialog helper. translip is local-first, so the dialog renders on the
+    machine running the server; this is unavailable on headless/remote hosts.
+    """
+    initial_dir = _resolve_initial_dir(initial_path)
+
+    if sys.platform == "darwin":
+        choose = f'choose file with prompt "{_escape_applescript(prompt)}"'
+        if initial_dir:
+            choose += f' default location (POSIX file "{_escape_applescript(initial_dir)}")'
+        args = ["osascript", "-e", f"set f to {choose}", "-e", "POSIX path of f"]
         try:
-            is_dir = child.is_dir()
-        except OSError:
-            continue  # broken symlink / unreadable entry
-        if is_dir:
-            entries.append(FsEntry(name=child.name, path=str(child), is_dir=True, is_media=False))
-            continue
-        if child.suffix.lower() not in _MEDIA_EXTENSIONS:
-            continue
-        try:
-            size = child.stat().st_size
-        except OSError:
-            size = None
-        entries.append(
-            FsEntry(name=child.name, path=str(child), is_dir=False, is_media=True, size_bytes=size)
+            result = subprocess.run(args, capture_output=True, text=True, timeout=600)
+        except FileNotFoundError as exc:
+            raise RuntimeError("osascript_unavailable") from exc
+        except subprocess.TimeoutExpired:
+            return None
+        if result.returncode != 0:
+            stderr = result.stderr.lower()
+            if "-128" in stderr or "cancel" in stderr:
+                return None  # user dismissed the dialog
+            raise RuntimeError(result.stderr.strip() or "dialog_failed")
+        return result.stdout.strip() or None
+
+    if sys.platform.startswith("win"):
+        ps = (
+            "Add-Type -AssemblyName System.Windows.Forms;"
+            "$d = New-Object System.Windows.Forms.OpenFileDialog;"
+            + (f'$d.InitialDirectory = "{initial_dir}";' if initial_dir else "")
+            + "if ($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK)"
+            " { [Console]::Out.Write($d.FileName) }"
         )
+        try:
+            result = subprocess.run(
+                ["powershell", "-NoProfile", "-STA", "-Command", ps],
+                capture_output=True,
+                text=True,
+                timeout=600,
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError("powershell_unavailable") from exc
+        except subprocess.TimeoutExpired:
+            return None
+        return result.stdout.strip() or None
 
-    # Directories first, then files; case-insensitive alphabetical within each.
-    entries.sort(key=lambda e: (not e.is_dir, e.name.lower()))
+    # Linux / other POSIX: try common desktop dialog helpers in turn.
+    candidates = [
+        ["zenity", "--file-selection", f"--title={prompt}"]
+        + ([f"--filename={initial_dir}/"] if initial_dir else []),
+        ["kdialog", "--getopenfilename", initial_dir or "."],
+    ]
+    for tool_args in candidates:
+        try:
+            result = subprocess.run(tool_args, capture_output=True, text=True, timeout=600)
+        except FileNotFoundError:
+            continue  # helper not installed; try the next one
+        except subprocess.TimeoutExpired:
+            return None
+        if result.returncode == 0:
+            return result.stdout.strip() or None
+        return None  # non-zero from zenity/kdialog means cancelled
+    raise RuntimeError("no_dialog_helper")
 
-    parent = str(base.parent) if base.parent != base else None
-    return BrowseResponse(path=str(base), parent=parent, home=str(Path.home()), entries=entries)
+
+@router.post("/pick-file", response_model=PickFileResponse)
+def pick_file(body: PickFileRequest | None = None):
+    """Open a native OS file dialog on the server machine and return the path.
+
+    Local-first only: the dialog appears on the host running the server. Returns
+    ``cancelled: true`` when the user dismisses it; 501 when no native dialog is
+    available (e.g. a headless host) so the UI can fall back to manual entry.
+    """
+    initial_path = body.initial_path if body else None
+    prompt = (body.prompt if body else None) or "Select input video"
+    try:
+        path = _open_native_file_dialog(initial_path, prompt)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=501, detail=f"native_dialog_unavailable:{exc}") from exc
+    return PickFileResponse(path=path, cancelled=path is None)
 
 
 # ---------------------------------------------------------------------------

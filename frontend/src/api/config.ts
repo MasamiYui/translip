@@ -4,9 +4,9 @@ import type {
   CacheCleanupResult,
   CacheMigrateTask,
   ConfigPreset,
-  FsBrowseResponse,
   MissingModelsResponse,
   ModelDownloadJob,
+  PickFileResult,
   SystemInfo,
   TaskConfig,
 } from '../types'
@@ -31,10 +31,11 @@ export const systemApi = {
   getInfo: () => api.get<SystemInfo>('/api/system/info').then(r => r.data),
   probe: (path: string) =>
     api.get('/api/system/probe', { params: { path } }).then(r => r.data),
-  browse: (path?: string, showHidden = false) =>
+  pickFile: (initialPath?: string, prompt?: string) =>
     api
-      .get<FsBrowseResponse>('/api/system/browse', {
-        params: { path: path || undefined, show_hidden: showHidden },
+      .post<PickFileResult>('/api/system/pick-file', {
+        initial_path: initialPath || undefined,
+        prompt,
       })
       .then(r => r.data),
   getHfToken: () =>

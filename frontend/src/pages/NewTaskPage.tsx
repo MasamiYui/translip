@@ -5,7 +5,6 @@ import { ChevronLeft, ChevronRight, Cpu, FolderOpen, Loader2 } from 'lucide-reac
 import { tasksApi } from '../api/tasks'
 import { worksApi } from '../api/works'
 import { configApi, systemApi } from '../api/config'
-import { FilePickerModal } from '../components/shared/FilePickerModal'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { buildTemplatePreviewGraph } from '../lib/workflowPreview'
 import { DUBBING_BACKEND_OPTIONS } from '../lib/dubbingBackends'
@@ -442,7 +441,6 @@ export function NewTaskPage() {
   const [saveAsPreset, setSaveAsPreset] = useState(false)
   const [presetName, setPresetName] = useState('')
   const [mediaInfo, setMediaInfo] = useState<Record<string, unknown> | null>(null)
-  const [showFilePicker, setShowFilePicker] = useState(false)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showDeveloperSettings, setShowDeveloperSettings] = useState(false)
   const [showCorrectionExplanation, setShowCorrectionExplanation] = useState(false)
@@ -485,6 +483,19 @@ export function NewTaskPage() {
     mutationFn: (path: string) => systemApi.probe(path),
     onSuccess: data => setMediaInfo(data),
     onError: () => setMediaInfo(null),
+  })
+
+  // Opens a native OS file dialog on the server machine (local-first) and fills
+  // in the chosen absolute path, then auto-inspects it.
+  const pickFileMutation = useMutation({
+    mutationFn: (currentPath: string) =>
+      systemApi.pickFile(currentPath || undefined, t.newTask.filePicker.title),
+    onSuccess: result => {
+      if (!result.path) return // user cancelled the dialog
+      setInputPath(result.path)
+      setMediaInfo(null)
+      probeMutation.mutate(result.path)
+    },
   })
 
   const createMutation = useMutation({
@@ -619,10 +630,11 @@ export function NewTaskPage() {
             />
             <button
               type="button"
-              onClick={() => setShowFilePicker(true)}
-              className="flex shrink-0 items-center gap-1.5 rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm transition-colors hover:bg-slate-200"
+              onClick={() => pickFileMutation.mutate(inputPath)}
+              disabled={pickFileMutation.isPending}
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm transition-colors hover:bg-slate-200 disabled:opacity-50"
             >
-              {probeMutation.isPending ? (
+              {pickFileMutation.isPending || probeMutation.isPending ? (
                 <Loader2 size={14} className="animate-spin" />
               ) : (
                 <FolderOpen size={14} />
@@ -630,18 +642,8 @@ export function NewTaskPage() {
               {t.newTask.actions.browse}
             </button>
           </div>
-          {showFilePicker && (
-            <FilePickerModal
-              initialPath={inputPath || undefined}
-              labels={t.newTask.filePicker}
-              onClose={() => setShowFilePicker(false)}
-              onSelect={path => {
-                setInputPath(path)
-                setMediaInfo(null)
-                setShowFilePicker(false)
-                probeMutation.mutate(path)
-              }}
-            />
+          {pickFileMutation.isError && (
+            <div className="mt-1.5 text-xs text-rose-500">{t.newTask.filePicker.unavailable}</div>
           )}
           {mediaInfo && (
             <div className="mt-2 space-y-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
