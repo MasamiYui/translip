@@ -799,8 +799,8 @@ export function NewTaskPage() {
                   <Field
                     label={locale === 'zh-CN' ? 'LLM 仲裁' : 'LLM Arbitration'}
                     hint={locale === 'zh-CN'
-                      ? '仅对疑难段（高置信 OCR 但对齐/长度不达标）调用大模型在 ASR/OCR 间裁决，受忠实回校约束。需配置 DEEPSEEK_API_KEY 或 SILICONFLOW_API_KEY。'
-                      : 'Calls an LLM to arbitrate ASR vs OCR only on ambiguous segments, bounded by a faithfulness check. Requires DEEPSEEK_API_KEY or SILICONFLOW_API_KEY.'}
+                      ? '仅对疑难段（高置信 OCR 但对齐/长度不达标）调用大模型在 ASR/OCR 间裁决，受忠实回校约束。需配置 DeepSeek 或 SiliconFlow 的 API Key。'
+                      : 'Calls an LLM to arbitrate ASR vs OCR only on ambiguous segments, bounded by a faithfulness check. Requires a DeepSeek or SiliconFlow API key.'}
                   >
                     <Select
                       value={config.transcription_correction?.llm_arbitration ?? 'off'}
@@ -813,6 +813,15 @@ export function NewTaskPage() {
                         { value: 'siliconflow', label: 'SiliconFlow' },
                       ]}
                     />
+                    {(config.transcription_correction?.llm_arbitration ?? 'off') !== 'off' && (
+                      <button
+                        type="button"
+                        onClick={() => navigate('/settings')}
+                        className="mt-1.5 text-xs font-medium text-blue-600 underline-offset-2 hover:underline"
+                      >
+                        {locale === 'zh-CN' ? '前往设置配置 API Key →' : 'Configure the API key in Settings →'}
+                      </button>
+                    )}
                   </Field>
                 )}
                 <button

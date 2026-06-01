@@ -1050,6 +1050,87 @@ def apply_hf_token_to_env() -> None:
         os.environ["HF_TOKEN"] = str(stored)
 
 
+# ---------------------------------------------------------------------------
+# LLM arbitration API keys (DeepSeek / SiliconFlow), used by transcript
+# correction. Like the HF token, arbitration runs in an isolated subprocess
+# that reads the key from os.environ, so persisted keys must be bridged into
+# the environment (at startup and immediately on save).
+# ---------------------------------------------------------------------------
+
+# provider id -> (user-setting key, environment variable name)
+_LLM_KEY_PROVIDERS: dict[str, tuple[str, str]] = {
+    "deepseek": ("deepseek_api_key", "DEEPSEEK_API_KEY"),
+    "siliconflow": ("siliconflow_api_key", "SILICONFLOW_API_KEY"),
+}
+
+
+def llm_key_providers() -> tuple[str, ...]:
+    """Return the provider ids that support a configurable API key."""
+    return tuple(_LLM_KEY_PROVIDERS.keys())
+
+
+def llm_key_is_set(provider: str) -> bool:
+    """True if a key is available for ``provider`` (env var or persisted setting)."""
+    spec = _LLM_KEY_PROVIDERS.get(provider)
+    if spec is None:
+        return False
+    setting_key, env_name = spec
+    return bool(os.environ.get(env_name) or read_user_setting(setting_key))
+
+
+def read_llm_key(provider: str) -> str | None:
+    """Return the effective API key for ``provider`` (env var wins over setting).
+
+    Internal helper — never expose the value through a GET route; the UI only
+    learns whether a key is set via :func:`llm_key_is_set`.
+    """
+    spec = _LLM_KEY_PROVIDERS.get(provider)
+    if spec is None:
+        return None
+    setting_key, env_name = spec
+    from_env = os.environ.get(env_name)
+    if from_env:
+        return from_env
+    stored = read_user_setting(setting_key)
+    return str(stored) if stored else None
+
+
+def set_llm_key(provider: str, value: str | None) -> None:
+    """Persist (or clear, when empty) the API key for ``provider``.
+
+    Also reflects the change in this process's environment so newly spawned
+    task subprocesses pick it up without a server restart. On clear, only a
+    value we previously bridged is removed — a key the operator exported into
+    the environment themselves is left untouched.
+    """
+    spec = _LLM_KEY_PROVIDERS.get(provider)
+    if spec is None:
+        raise KeyError(provider)
+    setting_key, env_name = spec
+    prev = read_user_setting(setting_key)
+    cleaned = (value or "").strip() or None
+    update_user_setting(setting_key, cleaned)
+    if cleaned:
+        os.environ[env_name] = cleaned
+    elif prev is not None and os.environ.get(env_name) == str(prev):
+        os.environ.pop(env_name, None)
+
+
+def apply_llm_keys_to_env() -> None:
+    """Bridge persisted LLM arbitration keys into ``os.environ`` if unset.
+
+    Mirrors :func:`apply_hf_token_to_env`: the transcript-correction subprocess
+    reads ``DEEPSEEK_API_KEY`` / ``SILICONFLOW_API_KEY`` only from the
+    environment. No-op for any provider whose env var is already present.
+    """
+    for setting_key, env_name in _LLM_KEY_PROVIDERS.values():
+        if os.environ.get(env_name):
+            continue
+        stored = read_user_setting(setting_key)
+        if stored:
+            os.environ[env_name] = str(stored)
+
+
 def _auto_downloadable_keys() -> set[str]:
     """Return the set of registry keys eligible for the one-click downloader."""
     keys = set(_MODEL_HF_REPOS.keys()) | set(_MODEL_MS_REPOS.keys())

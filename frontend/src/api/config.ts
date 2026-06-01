@@ -44,6 +44,24 @@ export const systemApi = {
     api
       .post<{ ok: boolean; hf_token_set: boolean }>('/api/system/hf-token', { hf_token })
       .then(r => r.data),
+  getLlmKeys: () =>
+    api
+      .get<{ ok: boolean; providers: Record<string, boolean> }>('/api/system/llm-keys')
+      .then(r => r.data),
+  saveLlmKey: (provider: string, api_key: string) =>
+    api
+      .post<{ ok: boolean; provider: string; set: boolean }>('/api/system/llm-keys', {
+        provider,
+        api_key,
+      })
+      .then(r => r.data),
+  testLlmKey: (provider: string, api_key?: string) =>
+    api
+      .post<{ ok: boolean; provider: string; model: string; message: string }>(
+        '/api/system/llm-keys/test',
+        { provider, api_key },
+      )
+      .then(r => r.data),
 }
 
 export const modelsApi = {

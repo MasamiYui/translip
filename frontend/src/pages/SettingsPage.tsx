@@ -13,6 +13,7 @@ import {
   Download,
   Loader2,
   AlertTriangle,
+  Plug,
 } from 'lucide-react'
 import { useI18n } from '../i18n/useI18n'
 import { worksApi } from '../api/works'
@@ -158,6 +159,34 @@ export function SettingsPage() {
       setHfToken('')
       queryClient.invalidateQueries({ queryKey: ['hf-token'] })
     },
+  })
+
+  // ---------- Transcript-correction LLM keys (DeepSeek / SiliconFlow) ----------
+  const { data: llmKeys } = useQuery({
+    queryKey: ['llm-keys'],
+    queryFn: systemApi.getLlmKeys,
+  })
+  const [llmKeyInputs, setLlmKeyInputs] = useState<Record<string, string>>({
+    deepseek: '',
+    siliconflow: '',
+  })
+  const [llmTestResult, setLlmTestResult] = useState<
+    Record<string, { ok: boolean; message: string } | null>
+  >({ deepseek: null, siliconflow: null })
+  const saveLlmKeyMutation = useMutation({
+    mutationFn: (provider: string) => systemApi.saveLlmKey(provider, llmKeyInputs[provider] ?? ''),
+    onSuccess: (_data, provider) => {
+      setLlmKeyInputs(prev => ({ ...prev, [provider]: '' }))
+      queryClient.invalidateQueries({ queryKey: ['llm-keys'] })
+    },
+  })
+  const testLlmKeyMutation = useMutation({
+    mutationFn: (provider: string) =>
+      systemApi.testLlmKey(provider, llmKeyInputs[provider] || undefined),
+    onSuccess: (data, provider) =>
+      setLlmTestResult(prev => ({ ...prev, [provider]: { ok: data.ok, message: data.message } })),
+    onError: (_err, provider) =>
+      setLlmTestResult(prev => ({ ...prev, [provider]: { ok: false, message: 'request failed' } })),
   })
 
   const patchGlobalConfig = (patch: GlobalConfigDraft) => {
@@ -406,6 +435,101 @@ export function SettingsPage() {
               </button>
               <span className="text-xs text-amber-600">{t.settings.hfToken.restartHint}</span>
             </div>
+          </div>
+        </div>
+
+        {/* Transcript-correction LLM keys */}
+        <div className="border-b border-slate-100 px-6 py-5">
+          <h2 className="mb-4 text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+            {t.settings.llmKeys.title}
+          </h2>
+          <div className="mb-5 flex items-start gap-3 text-sm">
+            <Lock size={14} className="mt-0.5 shrink-0 text-slate-400" />
+            <span className="text-slate-500">{t.settings.llmKeys.description}</span>
+          </div>
+
+          <div className="space-y-5">
+            {([
+              { id: 'deepseek', label: 'DeepSeek' },
+              { id: 'siliconflow', label: 'SiliconFlow' },
+            ] as const).map(provider => {
+              const isSet = llmKeys?.providers?.[provider.id] ?? false
+              const input = llmKeyInputs[provider.id] ?? ''
+              const result = llmTestResult[provider.id]
+              const saving =
+                saveLlmKeyMutation.isPending && saveLlmKeyMutation.variables === provider.id
+              const testing =
+                testLlmKeyMutation.isPending && testLlmKeyMutation.variables === provider.id
+              return (
+                <div key={provider.id} className="rounded-lg border border-slate-100 p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <span className="text-sm font-medium text-slate-700">{provider.label}</span>
+                    {isSet ? (
+                      <div className="flex items-center gap-1.5 text-sm text-emerald-600">
+                        <CheckCircle size={14} />
+                        <span>{t.settings.llmKeys.configured}</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 text-sm text-amber-600">
+                        <XCircle size={14} />
+                        <span>{t.settings.llmKeys.notConfigured}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <input
+                    type="password"
+                    value={input}
+                    onChange={e =>
+                      setLlmKeyInputs(prev => ({ ...prev, [provider.id]: e.target.value }))
+                    }
+                    placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                  {isSet && !input && (
+                    <p className="mt-1 text-xs text-slate-500">{t.settings.llmKeys.savedHint}</p>
+                  )}
+
+                  <div className="mt-3 flex items-center gap-3">
+                    <button
+                      onClick={() => saveLlmKeyMutation.mutate(provider.id)}
+                      disabled={saving || !input}
+                      className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Save size={16} />
+                      {saving ? t.settings.llmKeys.saving : t.settings.llmKeys.save}
+                    </button>
+                    <button
+                      onClick={() => testLlmKeyMutation.mutate(provider.id)}
+                      disabled={testing || (!input && !isSet)}
+                      className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {testing ? (
+                        <Loader2 size={16} className="animate-spin" />
+                      ) : (
+                        <Plug size={16} />
+                      )}
+                      {testing ? t.settings.llmKeys.testing : t.settings.llmKeys.test}
+                    </button>
+                    {result && (
+                      <div
+                        className={`flex items-center gap-1.5 text-sm ${
+                          result.ok ? 'text-emerald-600' : 'text-red-600'
+                        }`}
+                      >
+                        {result.ok ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                        <span>
+                          {result.ok ? t.settings.llmKeys.testOk : t.settings.llmKeys.testFailed}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {result && !result.ok && result.message && (
+                    <p className="mt-2 break-words text-xs text-red-500">{result.message}</p>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
 

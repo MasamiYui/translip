@@ -58,6 +58,17 @@ class HfTokenRequest(BaseModel):
     hf_token: str | None = None
 
 
+class LlmKeyRequest(BaseModel):
+    provider: str
+    api_key: str | None = None
+
+
+class LlmKeyTestRequest(BaseModel):
+    provider: str
+    # Optional: test a not-yet-saved key. Falls back to the saved/env key when omitted.
+    api_key: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # Generic system info
 # ---------------------------------------------------------------------------
@@ -383,6 +394,46 @@ def save_hf_token(body: HfTokenRequest):
     cache_manager.update_user_setting("hf_token", token)
     cache_manager.apply_hf_token_to_env()
     return {"ok": True, "hf_token_set": bool(token)}
+
+
+# ---------------------------------------------------------------------------
+# LLM arbitration API keys (DeepSeek / SiliconFlow) for transcript correction
+# ---------------------------------------------------------------------------
+
+
+@router.get("/llm-keys")
+def get_llm_keys():
+    """Report which arbitration providers have a key configured (never the value)."""
+    return {
+        "ok": True,
+        "providers": {p: cache_manager.llm_key_is_set(p) for p in cache_manager.llm_key_providers()},
+    }
+
+
+@router.post("/llm-keys")
+def save_llm_key(body: LlmKeyRequest):
+    """Persist (or clear, when empty) an arbitration provider's API key."""
+    if body.provider not in cache_manager.llm_key_providers():
+        raise HTTPException(status_code=400, detail="unknown_provider")
+    cache_manager.set_llm_key(body.provider, body.api_key)
+    return {"ok": True, "provider": body.provider, "set": cache_manager.llm_key_is_set(body.provider)}
+
+
+@router.post("/llm-keys/test")
+def test_llm_key(body: LlmKeyTestRequest):
+    """Do a lightweight auth/connectivity check against the provider endpoint."""
+    if body.provider not in cache_manager.llm_key_providers():
+        raise HTTPException(status_code=400, detail="unknown_provider")
+    from ...transcription.arbitration import test_provider
+
+    key = (body.api_key or "").strip() or cache_manager.read_llm_key(body.provider)
+    result = test_provider(body.provider, api_key=key)
+    return {
+        "ok": bool(result.get("ok")),
+        "provider": body.provider,
+        "model": result.get("model", ""),
+        "message": result.get("message", ""),
+    }
 
 
 # ---------------------------------------------------------------------------

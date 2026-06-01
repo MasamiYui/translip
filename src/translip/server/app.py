@@ -56,6 +56,7 @@ def startup_event():
     init_db()
     job_manager.mark_interrupted_jobs()
     cache_manager.apply_hf_token_to_env()
+    cache_manager.apply_llm_keys_to_env()
     logger.info("Database initialized")
 
 
