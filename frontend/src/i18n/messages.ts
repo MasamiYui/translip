@@ -52,6 +52,11 @@ const zhMessages = {
       review_required: '需复核',
       blocked: '受阻',
     },
+    verdictTipMap: {
+      deliverable_candidate: '已通过全部交付门槛，可作为交付候选。建议人工抽检后导出。',
+      review_required: '存在需人工复核的问题（如音色 / 可懂度），但未达阻断级别。复核确认后可交付。',
+      blocked: '存在阻断性问题（如配音覆盖不足、关键片段漏配 / 不可听）。需修复并重新评测后方可交付。',
+    },
     segments: '片段数',
     problems: '问题片段',
     dubCoverage: '配音覆盖',
@@ -1347,6 +1352,11 @@ const enMessages: LocaleMessages = {
       deliverable_candidate: 'Deliverable',
       review_required: 'Needs review',
       blocked: 'Blocked',
+    },
+    verdictTipMap: {
+      deliverable_candidate: 'Passed all delivery gates — a deliverable candidate. Spot-check before export.',
+      review_required: 'Has issues needing manual review (e.g. timbre / intelligibility) but nothing blocking. Deliverable once reviewed.',
+      blocked: 'Has blocking issues (e.g. insufficient dub coverage, undubbed / inaudible key segments). Fix and re-evaluate before delivery.',
     },
     segments: 'Segments',
     problems: 'Problem segments',

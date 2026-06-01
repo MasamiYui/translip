@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Gauge, Play, RefreshCw, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Gauge, Info, Play, RefreshCw, Trash2, X } from 'lucide-react'
 import { tasksApi } from '../api/tasks'
 import {
   ISSUE_TAGS,
@@ -277,44 +277,52 @@ function Scorecard({
   const judgeStatus = summary.judge_status as keyof typeof t.evaluation.judgeStatusMap
   return (
     <div className="rounded-xl border border-[#e5e7eb] bg-white p-5">
-      <div className="flex flex-wrap items-center gap-6">
-        <div>
-          <div className="text-3xl font-bold text-[#111827]">{score}</div>
-          <div className="text-xs text-[#9ca3af]">{t.evaluation.score}</div>
+      {/* Meta row: verdict on the left, timestamp + actions on the right */}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-[#9ca3af]">{t.evaluation.status}</span>
+          <VerdictBadge verdict={report.scorecard.status} />
         </div>
-        <div className="h-10 w-px bg-[#e5e7eb]" />
-        <Stat label={t.evaluation.status} value={<VerdictBadge verdict={report.scorecard.status} />} />
-        <Stat
-          label={t.evaluation.dubCoverage}
-          value={
-            <span className={summary.coverage.undubbed_count > 0 ? 'text-red-600' : undefined}>
-              {summary.coverage.dubbed_count}/{summary.coverage.translated_count}
-              {summary.coverage.coverage_ratio != null
-                ? ` (${Math.round(summary.coverage.coverage_ratio * 100)}%)`
-                : ''}
-            </span>
-          }
-        />
-        <Stat label={t.evaluation.problems} value={summary.problem_segment_count} />
-        <Stat
-          label={t.evaluation.judgeStatusLabel}
-          value={t.evaluation.judgeStatusMap[judgeStatus] ?? judgeStatus}
-        />
         {latest && (
-          <div className="ml-auto flex items-center gap-3 text-xs text-[#9ca3af]">
+          <div className="flex items-center gap-2 text-xs text-[#9ca3af]">
             <span>
               {t.evaluation.createdAt} {new Date(latest.created_at).toLocaleString()}
             </span>
             <button
               type="button"
               onClick={() => onDelete(latest.id)}
-              className="flex items-center gap-1 rounded-md px-2 py-1 text-[#9ca3af] hover:bg-red-50 hover:text-red-500"
+              className="flex items-center justify-center rounded-md p-1.5 text-[#9ca3af] hover:bg-red-50 hover:text-red-500"
               title={t.evaluation.deleteAnalysis}
             >
-              <Trash2 size={13} />
+              <Trash2 size={14} />
             </button>
           </div>
         )}
+      </div>
+
+      {/* Metric strip: evenly distributed across the full width */}
+      <div className="grid grid-cols-2 divide-y divide-[#f3f4f6] border-t border-[#f3f4f6] sm:grid-cols-4 sm:divide-x sm:divide-y-0">
+        <MetricCell label={t.evaluation.score}>
+          <span className="text-3xl font-bold text-[#111827]">{score}</span>
+        </MetricCell>
+        <MetricCell label={t.evaluation.dubCoverage}>
+          <span className={summary.coverage.undubbed_count > 0 ? 'text-red-600' : 'text-[#111827]'}>
+            {summary.coverage.dubbed_count}/{summary.coverage.translated_count}
+            {summary.coverage.coverage_ratio != null
+              ? ` (${Math.round(summary.coverage.coverage_ratio * 100)}%)`
+              : ''}
+          </span>
+        </MetricCell>
+        <MetricCell label={t.evaluation.problems}>
+          <span className={summary.problem_segment_count > 0 ? 'text-amber-600' : 'text-[#111827]'}>
+            {summary.problem_segment_count}
+          </span>
+        </MetricCell>
+        <MetricCell label={t.evaluation.judgeStatusLabel}>
+          <span className="text-[#111827]">
+            {t.evaluation.judgeStatusMap[judgeStatus] ?? judgeStatus}
+          </span>
+        </MetricCell>
       </div>
 
       {/* Gates */}
@@ -342,11 +350,11 @@ function Scorecard({
   )
 }
 
-function Stat({ label, value }: { label: string; value: ReactNode }) {
+function MetricCell({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div>
-      <div className="text-lg font-semibold text-[#111827]">{value}</div>
-      <div className="text-xs text-[#9ca3af]">{label}</div>
+    <div className="px-4 py-2 first:pl-0 sm:py-0">
+      <div className="text-lg font-semibold leading-tight text-[#111827]">{children}</div>
+      <div className="mt-0.5 text-xs text-[#9ca3af]">{label}</div>
     </div>
   )
 }
@@ -383,17 +391,36 @@ function FilterChip({
 /** Renders the dub-QA verdict (blocked / review_required / deliverable_candidate) — NOT a pipeline task status. */
 function VerdictBadge({ verdict }: { verdict: string }) {
   const { t } = useI18n()
+  const key = verdict as keyof typeof t.evaluation.verdictMap
   const style =
     verdict === 'deliverable_candidate'
-      ? 'bg-emerald-50 text-emerald-700'
+      ? { badge: 'bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' }
       : verdict === 'blocked'
-        ? 'bg-red-50 text-red-600'
-        : 'bg-amber-50 text-amber-700'
-  const label =
-    t.evaluation.verdictMap[verdict as keyof typeof t.evaluation.verdictMap] ?? verdict
+        ? { badge: 'bg-red-50 text-red-600', dot: 'bg-red-500' }
+        : { badge: 'bg-amber-50 text-amber-700', dot: 'bg-amber-500' }
+  const label = t.evaluation.verdictMap[key] ?? verdict
+  const tip = t.evaluation.verdictTipMap[key]
   return (
-    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', style)}>
-      {label}
+    <span className="group/verdict relative inline-flex">
+      <span
+        tabIndex={tip ? 0 : undefined}
+        className={cn(
+          'inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium outline-none',
+          style.badge,
+        )}
+      >
+        <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', style.dot)} />
+        {label}
+        {tip && <Info size={12} className="opacity-60" />}
+      </span>
+      {tip && (
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute left-0 top-full z-30 mt-1.5 hidden w-72 rounded-lg bg-slate-900 px-3 py-2 text-[11px] leading-relaxed text-slate-100 shadow-lg group-hover/verdict:block group-focus-within/verdict:block"
+        >
+          {tip}
+        </span>
+      )}
     </span>
   )
 }
