@@ -152,7 +152,17 @@ def _open_native_file_dialog(initial_path: str | None, prompt: str) -> str | Non
         choose = f'choose file with prompt "{_escape_applescript(prompt)}"'
         if initial_dir:
             choose += f' default location (POSIX file "{_escape_applescript(initial_dir)}")'
-        args = ["osascript", "-e", f"set f to {choose}", "-e", "POSIX path of f"]
+        # Foreground the GUI session so the dialog actually appears when the
+        # server runs detached (start_new_session=True via dev.sh); otherwise
+        # macOS returns an instant -128 "user canceled" and shows nothing.
+        # Activating System Events (~0.1s) is used instead of a bare `activate`,
+        # which carries a fixed ~2s app-activation delay.
+        args = [
+            "osascript",
+            "-e", 'tell application "System Events" to activate',
+            "-e", f"set f to {choose}",
+            "-e", "POSIX path of f",
+        ]
         try:
             result = subprocess.run(args, capture_output=True, text=True, timeout=600)
         except FileNotFoundError as exc:
