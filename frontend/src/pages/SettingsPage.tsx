@@ -169,8 +169,10 @@ export function SettingsPage() {
   const [downloadJobId, setDownloadJobId] = useState<string | null>(null)
   const [startError, setStartError] = useState<string | null>(null)
 
+  // Only count 'missing' (downloadable) models on the button — 'needs_extra'
+  // rows can't be resolved by the downloader and are surfaced as a hint instead.
   const missingModelCount =
-    sysInfo?.models.filter(m => m.status !== 'available').length ?? 0
+    sysInfo?.models.filter(m => m.status === 'missing').length ?? 0
 
   const downloadMutation = useMutation({
     mutationFn: () => modelsApi.downloadMissing(),
@@ -475,6 +477,14 @@ export function SettingsPage() {
                           <CheckCircle size={14} className="text-emerald-500" />
                           <span className="text-emerald-700">{t.settings.models.downloaded}</span>
                         </>
+                      ) : m.status === 'needs_extra' ? (
+                        <span
+                          className="flex items-center gap-1.5 text-amber-600"
+                          title={t.settings.models.needsExtraHint}
+                        >
+                          <AlertTriangle size={14} />
+                          <span>{t.settings.models.needsExtra}</span>
+                        </span>
                       ) : (
                         <>
                           <XCircle size={14} className="text-slate-400" />

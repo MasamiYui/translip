@@ -310,3 +310,124 @@ def test_start_missing_passes_token_for_gated_repo(
     assert job.state == "succeeded"
     assert captured and captured[0]["repo_id"] == "pyannote/speaker-diarization-3.1"
     assert captured[0].get("token") == "hf_dummy_token"
+
+
+# ---------------------------------------------------------------------------
+# PaddleOCR (hard-subtitle OCR) — three-way status + local-dir downloader
+# ---------------------------------------------------------------------------
+
+
+def test_paddleocr_status_needs_extra_when_extra_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from translip.server import cache_manager
+
+    monkeypatch.setattr(cache_manager, "_paddleocr_extra_installed", lambda: False)
+    # Weights presence is irrelevant when the extra can't be imported.
+    monkeypatch.setattr(cache_manager, "_paddleocr_weights_present", lambda: True)
+
+    assert cache_manager._paddleocr_status(tmp_path, tmp_path) == "needs_extra"
+
+
+def test_paddleocr_status_missing_then_available_with_extra(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from translip.server import cache_manager
+
+    monkeypatch.setattr(cache_manager, "_paddleocr_extra_installed", lambda: True)
+
+    monkeypatch.setattr(cache_manager, "_paddleocr_weights_present", lambda: False)
+    assert cache_manager._paddleocr_status(tmp_path, tmp_path) == "missing"
+
+    monkeypatch.setattr(cache_manager, "_paddleocr_weights_present", lambda: True)
+    assert cache_manager._paddleocr_status(tmp_path, tmp_path) == "available"
+
+
+def test_collect_model_statuses_reports_paddleocr_needs_extra(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from translip.server import cache_manager
+    from translip.server.routes import system
+
+    monkeypatch.setattr(cache_manager, "_paddleocr_extra_installed", lambda: False)
+
+    models = system.collect_model_statuses(
+        cache_root=tmp_path / "translip-cache",
+        huggingface_cache_root=tmp_path / "huggingface" / "hub",
+    )
+    entry = next(m for m in models if m["name"] == "PaddleOCR (hard-subtitle OCR)")
+    assert entry["status"] == "needs_extra"
+    assert entry["detail"] == "ocr_extra_missing"
+
+
+def test_paddleocr_is_auto_downloadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from translip.server import cache_manager
+
+    _clear_hf_tokens(monkeypatch, tmp_path)
+    # Public Apache-2.0 weights — eligible without any HF token.
+    assert cache_manager.is_auto_downloadable("paddleocr_models")
+
+
+def test_list_missing_excludes_paddleocr_when_needs_extra(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from translip.server import cache_manager
+
+    cache_root = tmp_path / "translip-cache"
+    hf_root = tmp_path / "huggingface" / "hub"
+
+    # needs_extra: downloader can't help -> not in the missing/downloadable list.
+    monkeypatch.setattr(cache_manager, "_paddleocr_extra_installed", lambda: False)
+    missing = cache_manager.list_missing_model_keys(
+        cache_root=cache_root, huggingface_cache_root=hf_root
+    )
+    assert "paddleocr_models" not in missing
+
+    # extra installed but weights absent -> downloadable, so it IS listed.
+    monkeypatch.setattr(cache_manager, "_paddleocr_extra_installed", lambda: True)
+    monkeypatch.setattr(cache_manager, "_paddleocr_weights_present", lambda: False)
+    missing = cache_manager.list_missing_model_keys(
+        cache_root=cache_root, huggingface_cache_root=hf_root
+    )
+    assert "paddleocr_models" in missing
+
+
+def test_start_missing_downloads_paddleocr_into_local_layout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from translip.server import cache_manager
+
+    _clear_hf_tokens(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        cache_manager, "resolve_active_cache_root", lambda: tmp_path / "translip-cache"
+    )
+    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "huggingface" / "hub"))
+
+    base = tmp_path / "translip-cache" / "paddleocr_models" / "macos-arm64"
+    specs = [
+        ("PaddlePaddle/PP-OCRv5_mobile_det", base / "PP-OCRv5_mobile_det"),
+        ("PaddlePaddle/PP-OCRv5_mobile_rec", base / "PP-OCRv5_mobile_rec"),
+    ]
+    monkeypatch.setattr(cache_manager, "_paddleocr_download_specs", lambda: specs)
+
+    calls: list[dict] = []
+    monkeypatch.setattr(
+        cache_manager, "_hf_snapshot_download", lambda **kw: calls.append(kw)
+    )
+    monkeypatch.setattr(cache_manager, "_ms_snapshot_download", lambda **_: None)
+
+    job = cache_manager.model_download_manager.start_missing(
+        run_in_thread=False,
+        only_keys=["paddleocr_models"],
+    )
+
+    assert job.state == "succeeded"
+    assert job.items["paddleocr_models"].state == "succeeded"
+    # Each repo fetched directly into its local layout dir (not the HF hub cache).
+    assert [c["repo_id"] for c in calls] == [s[0] for s in specs]
+    assert [c["local_dir"] for c in calls] == [str(s[1]) for s in specs]
+    assert all("cache_dir" not in c for c in calls)
+    # Target dirs are created before the fetch.
+    assert all(target.exists() for _, target in specs)

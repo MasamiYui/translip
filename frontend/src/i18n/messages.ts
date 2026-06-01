@@ -345,6 +345,8 @@ const zhMessages = {
     models: {
       downloaded: '已下载',
       missing: '未下载',
+      needsExtra: 'OCR 扩展未安装',
+      needsExtraHint: '运行 uv sync --extra ocr 后重启服务',
       downloadAllMissing: '一键下载缺失模型',
       downloading: '下载中…',
       downloadingCurrent: (label: string) => `正在下载：${label}`,
@@ -1616,6 +1618,8 @@ const enMessages: LocaleMessages = {
     models: {
       downloaded: 'Downloaded',
       missing: 'Not downloaded',
+      needsExtra: 'OCR extra not installed',
+      needsExtraHint: 'Run uv sync --extra ocr, then restart the server',
       downloadAllMissing: 'Download missing models',
       downloading: 'Downloading…',
       downloadingCurrent: (label: string) => `Downloading: ${label}`,

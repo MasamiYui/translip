@@ -263,7 +263,14 @@ export interface SystemInfo {
   device: string
   cache_dir: string
   cache_size_bytes: number
-  models: Array<{ name: string; status: 'available' | 'missing' }>
+  models: Array<{
+    name: string
+    // 'needs_extra' = an optional Python extra (e.g. `ocr`) isn't installed, so
+    // the one-click downloader can't make it available — surfaced as a hint.
+    status: 'available' | 'missing' | 'needs_extra'
+    // Stable code (e.g. 'ocr_extra_missing') the UI maps to a localized hint.
+    detail?: string
+  }>
 }
 
 export interface PickFileResult {

@@ -143,25 +143,39 @@ def _glob_dirs(root: Path, pattern: str) -> list[Path]:
     return [p for p in root.glob(pattern) if p.is_dir()]
 
 
-def _paddleocr_ready(cache_root: Path, hf_root: Path) -> bool:
-    """PaddleOCR hard-subtitle OCR is ready only when both the optional `ocr`
-    extra is installed AND the local PP-OCRv5 weights resolve. Imports are lazy so
-    the server never hard-depends on the heavy `ocr` extra."""
+# Registry key for the in-tree PaddleOCR hard-subtitle weights.
+_PADDLEOCR_KEY = "paddleocr_models"
+
+
+def _paddleocr_extra_installed() -> bool:
     try:
         import paddleocr  # noqa: F401
     except Exception:
         return False
+    return True
+
+
+def _paddleocr_required_models() -> list[str]:
+    """The PP-OCRv5 model names PaddleOCR needs locally, in sync with the
+    downloader. The recognition model is the default (Chinese) one; the
+    textline-orientation model is only required when angle-cls is enabled."""
+    from translip.ocr.config import settings as ocr_settings
+
+    required = [
+        ocr_settings.PADDLEOCR_TEXT_DETECTION_MODEL_NAME,
+        "PP-OCRv5_mobile_rec",  # default (Chinese) recognition model
+    ]
+    if ocr_settings.PADDLEOCR_USE_ANGLE_CLS:
+        required.append(ocr_settings.PADDLEOCR_TEXTLINE_ORIENTATION_MODEL_NAME)
+    return required
+
+
+def _paddleocr_weights_present() -> bool:
     try:
         from translip.ocr.config import settings as ocr_settings
         from translip.ocr.utils.model_paths import resolve_model_dir
 
-        required = [
-            ocr_settings.PADDLEOCR_TEXT_DETECTION_MODEL_NAME,
-            "PP-OCRv5_mobile_rec",  # default (Chinese) recognition model
-        ]
-        if ocr_settings.PADDLEOCR_USE_ANGLE_CLS:
-            required.append(ocr_settings.PADDLEOCR_TEXTLINE_ORIENTATION_MODEL_NAME)
-        for model_name in required:
+        for model_name in _paddleocr_required_models():
             if resolve_model_dir(
                 model_name,
                 base_dir=ocr_settings.PADDLEOCR_MODELS_BASE_DIR,
@@ -172,6 +186,51 @@ def _paddleocr_ready(cache_root: Path, hf_root: Path) -> bool:
         return True
     except Exception:
         return False
+
+
+def _paddleocr_status(cache_root: Path, hf_root: Path) -> Literal["available", "missing", "needs_extra"]:
+    """Resolve PaddleOCR hard-subtitle OCR readiness into three states.
+
+    - ``needs_extra``: the optional ``ocr`` extra isn't importable. The one-click
+      downloader can't fix this (it fetches files, not pip packages), so the UI
+      must surface it differently from a plain "missing weights" row.
+    - ``available``: extra installed AND the local PP-OCRv5 weights resolve.
+    - ``missing``: extra installed but weights absent — downloadable.
+
+    Imports are lazy so the server never hard-depends on the heavy ``ocr`` extra.
+    """
+    if not _paddleocr_extra_installed():
+        return "needs_extra"
+    return "available" if _paddleocr_weights_present() else "missing"
+
+
+def _paddleocr_ready(cache_root: Path, hf_root: Path) -> bool:
+    """Backward-compatible ``detection_extra`` predicate (True only when fully
+    usable: extra installed AND weights present)."""
+    return _paddleocr_status(cache_root, hf_root) == "available"
+
+
+def _paddleocr_download_specs() -> list[tuple[str, Path]]:
+    """Return ``(hf_repo_id, target_dir)`` pairs for the PP-OCRv5 weights.
+
+    Files are downloaded directly into the local ``paddleocr_models`` layout
+    (``<base>/<runtime-tag>/<model-name>/``) so ``resolve_model_dir`` finds them
+    under both the ``auto`` and ``platform`` layouts — NOT into the HF hub cache.
+    The repo names mirror ``_paddleocr_required_models`` so download and readiness
+    stay in lockstep.
+    """
+    from translip.ocr.config import settings as ocr_settings
+    from translip.ocr.utils.model_paths import current_runtime_tag
+
+    base = Path(ocr_settings.PADDLEOCR_MODELS_BASE_DIR).expanduser()
+    platform_tag = ocr_settings.PADDLEOCR_MODELS_PLATFORM_TAG
+    if not platform_tag or platform_tag.strip().lower() == "auto":
+        platform_tag = current_runtime_tag()
+    target_root = base / platform_tag
+    specs: list[tuple[str, Path]] = []
+    for model_name in _paddleocr_required_models():
+        specs.append((f"PaddlePaddle/{model_name}", target_root / model_name))
+    return specs
 
 
 CACHE_REGISTRY: list[CacheGroup] = [
@@ -478,6 +537,16 @@ def collect_model_statuses(
         if group.group != "model":
             continue
         paths = _resolve_group_paths(group, cache_root, hf_root)
+        # PaddleOCR has a third state ("needs_extra") that a download can't fix;
+        # surface it (plus a stable detail code the UI localizes) so the row is
+        # honest rather than perpetually "missing".
+        if group.key == _PADDLEOCR_KEY:
+            status = _paddleocr_status(cache_root, hf_root)
+            entry: dict[str, str] = {"name": group.label, "status": status}
+            if status == "needs_extra":
+                entry["detail"] = "ocr_extra_missing"
+            results.append(entry)
+            continue
         if group.detection_extra is not None:
             available = group.detection_extra(cache_root, hf_root)
         elif group.key == "cdx23":
@@ -984,6 +1053,9 @@ def apply_hf_token_to_env() -> None:
 def _auto_downloadable_keys() -> set[str]:
     """Return the set of registry keys eligible for the one-click downloader."""
     keys = set(_MODEL_HF_REPOS.keys()) | set(_MODEL_MS_REPOS.keys())
+    # PaddleOCR weights are public (Apache-2.0) and fetched into a custom local
+    # layout rather than the HF hub cache; see _paddleocr_download_specs.
+    keys.add(_PADDLEOCR_KEY)
     if _resolve_hf_token():
         keys |= set(_MODEL_HF_REPOS_GATED.keys())
     return keys
@@ -1019,7 +1091,16 @@ def list_missing_model_keys(
         if group.group != "model":
             continue
         paths = _resolve_group_paths(group, cache_root, hf_root)
-        if group.key == "cdx23":
+        # This list drives the one-click downloader, so a group counts as
+        # "missing" only when downloading can actually fix it. PaddleOCR is the
+        # special case: when the `ocr` extra is absent (needs_extra) the
+        # downloader can't help, so it's deliberately NOT listed here (the status
+        # panel surfaces that state via collect_model_statuses instead).
+        if group.key == _PADDLEOCR_KEY:
+            present = _paddleocr_status(cache_root, hf_root) != "missing"
+        elif group.detection_extra is not None:
+            present = group.detection_extra(cache_root, hf_root)
+        elif group.key == "cdx23":
             present = _has_cdx23(paths)
         else:
             present = any(p.exists() for p in paths)
@@ -1210,7 +1291,10 @@ class ModelDownloadManager:
                 entry.started_at = time.time()
                 hf_repos = _MODEL_HF_REPOS.get(key, []) + _MODEL_HF_REPOS_GATED.get(key, [])
                 ms_repos = _MODEL_MS_REPOS.get(key, [])
-                if not hf_repos and not ms_repos:
+                # PaddleOCR weights download into a custom local layout, not the
+                # HF hub cache; resolve their (repo_id, target_dir) specs here.
+                local_dir_specs = _paddleocr_download_specs() if key == _PADDLEOCR_KEY else []
+                if not hf_repos and not ms_repos and not local_dir_specs:
                     entry.state = "skipped"
                     entry.error = "no_auto_download_source"
                     entry.finished_at = time.time()
@@ -1228,6 +1312,15 @@ class ModelDownloadManager:
                         if repo_id in gated_repo_ids and hf_token:
                             kwargs["token"] = hf_token
                         _hf_snapshot_download(**kwargs)
+                    for repo_id, target_dir in local_dir_specs:
+                        if job.cancel_event.is_set():
+                            break
+                        ensure_directory(target_dir)
+                        _hf_snapshot_download(
+                            repo_id=repo_id,
+                            local_dir=str(target_dir),
+                            local_files_only=False,
+                        )
                     if ms_repos:
                         ensure_directory(ms_root)
                     for model_id in ms_repos:

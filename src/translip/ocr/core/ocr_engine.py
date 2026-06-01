@@ -465,7 +465,8 @@ class OCREngine:
                                 f"runtime_tag={current_runtime_tag()} supported_runtime={int(current_runtime_supported())} "
                                 f"det_dir={det_model_dir or 'missing'} rec_dir={rec_model_dir or 'missing'} "
                                 f"cls_dir={cls_model_dir or ('disabled' if not self.use_angle_cls else 'missing')} "
-                                "Run tools/download_paddle_models.py first or disable PADDLEOCR_LOCAL_MODELS_ONLY."
+                                "Download them from Settings -> Model Status (one-click download), "
+                                "or disable PADDLEOCR_LOCAL_MODELS_ONLY to allow PaddleOCR's runtime fetch."
                             )
                         logger.info(
                             "resolved PaddleOCR models lang=%s runtime_tag=%s source=%s det_dir=%s rec_dir=%s cls_dir=%s",
