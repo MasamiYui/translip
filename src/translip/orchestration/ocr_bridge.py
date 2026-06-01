@@ -24,16 +24,15 @@ def _map_ocr_language(language: str) -> str:
 
 
 def resolve_ocr_project_root(request: PipelineRequest) -> Path:
+    """Path passed to the (still-external) subtitle-erase tool as ``--subtitle-ocr-project``.
+
+    OCR *detection* is now fully in-tree (see ``translip.ocr``); this only remains
+    for the erase bridge, which shells out to the external ``video-subtitle-erasure``
+    project and hands it an OCR-project hint. Override via ``ocr_project_root``.
+    """
     if request.ocr_project_root is not None:
         return Path(request.ocr_project_root).expanduser().resolve()
     return (_repo_root().parent / "subtitle-ocr").resolve()
-
-
-def resolve_ocr_python(project_root: Path) -> Path:
-    venv_python = project_root / ".venv" / "bin" / "python"
-    if venv_python.exists():
-        return venv_python
-    return Path(sys.executable).resolve()
 
 
 def ocr_events_path(request: PipelineRequest) -> Path:
@@ -53,14 +52,14 @@ def ocr_detect_manifest_path(request: PipelineRequest) -> Path:
 
 
 def build_ocr_detect_command(request: PipelineRequest) -> list[str]:
-    project_root = resolve_ocr_project_root(request)
-    python_bin = resolve_ocr_python(project_root)
-    script_path = _repo_root() / "scripts" / "subtitle_ocr_cli_bridge.py"
+    # Run the in-tree extractor in an isolated subprocess (translip's own
+    # interpreter, which carries the optional `ocr` extra). Keeping it as a
+    # subprocess frees PaddleOCR's heavy models on exit, matching how every other
+    # ML stage is run.
     return [
-        str(python_bin),
-        str(script_path),
-        "--project-root",
-        str(project_root),
+        sys.executable,
+        "-m",
+        "translip.ocr.extract",
         "--input",
         str(request.input_path),
         "--output-dir",

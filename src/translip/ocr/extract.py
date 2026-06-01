@@ -1,4 +1,21 @@
 #!/usr/bin/env python3
+"""In-tree entry point for hard-subtitle OCR detection.
+
+Runs the vendored PaddleOCR subtitle pipeline (``translip.ocr.SubtitleService``)
+and writes the exact same artifacts the old external ``subtitle-ocr`` bridge
+produced, so every downstream consumer (subtitle-erase, ocr-translate,
+asr-ocr-correct, atomic subtitle-detect previews) keeps working unchanged:
+
+    <output-dir>/ocr_events.json
+    <output-dir>/detection.json
+    <output-dir>/ocr_subtitles.source.srt
+    <output-dir>/ocr-detect-manifest.json
+
+Invoke as a module so it works regardless of repo layout / install mode:
+
+    python -m translip.ocr.extract --input video.mp4 --output-dir out/ \
+        --language ch --sample-interval 0.25
+"""
 from __future__ import annotations
 
 import argparse
@@ -12,14 +29,15 @@ from pathlib import Path
 import cv2
 
 
-def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Local bridge for subtitle-ocr")
-    parser.add_argument("--project-root", required=True)
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="translip in-tree PaddleOCR subtitle detection")
     parser.add_argument("--input", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--language", default="auto")
     parser.add_argument("--sample-interval", type=float, default=0.25)
-    return parser.parse_args()
+    # Accepted for backward compatibility with the old external-bridge callers; ignored.
+    parser.add_argument("--project-root", default=None, help=argparse.SUPPRESS)
+    return parser.parse_args(argv)
 
 
 def _ffprobe_json(video_path: Path) -> dict:
@@ -127,28 +145,35 @@ def _jsonable(value):
     return value
 
 
-def main() -> int:
-    args = _parse_args()
-    project_root = Path(args.project_root).expanduser().resolve()
-    input_path = Path(args.input).expanduser().resolve()
-    output_dir = Path(args.output_dir).expanduser().resolve()
+def extract_to_dir(
+    *,
+    input_path: Path,
+    output_dir: Path,
+    language: str = "auto",
+    sample_interval: float = 0.25,
+) -> dict:
+    """Run OCR subtitle extraction and write the four artifact files.
+
+    Returns the manifest dict that was written to ``ocr-detect-manifest.json``.
+    """
+    # Imported lazily so importing this module stays cheap and paddle's heavy
+    # init only happens when extraction actually runs.
+    from translip.ocr.services.subtitle_service import SubtitleService
+
+    input_path = input_path.expanduser().resolve()
+    output_dir = output_dir.expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    if str(project_root) not in sys.path:
-        sys.path.insert(0, str(project_root))
-
-    from services.subtitle_service import SubtitleService
 
     service = SubtitleService()
     result = service.extract_subtitles(
         video_path=str(input_path),
-        language=args.language,
-        sample_interval=float(args.sample_interval),
+        language=language,
+        sample_interval=float(sample_interval),
         detect_region=True,
     )
     srt_content = service.generate_srt(result)
     video_info = _video_info(input_path)
-    language = _canonical_language(getattr(result.language, "value", args.language))
+    canonical_language = _canonical_language(getattr(result.language, "value", language))
     fps = float(video_info["fps"])
 
     events = []
@@ -160,20 +185,21 @@ def main() -> int:
         end_frame = max(start_frame, _time_to_frame(end_time, fps))
         polygon = subtitle.polygon or []
         box = list(subtitle.box) if subtitle.box else [0, 0, 0, 0]
-        event_payload = {
-            "event_id": f"evt-{index:04d}",
-            "index": index,
-            "start": start_time,
-            "end": end_time,
-            "start_frame": start_frame,
-            "end_frame": end_frame,
-            "text": subtitle.text,
-            "language": language,
-            "confidence": float(subtitle.confidence),
-            "box": box,
-            "polygon": polygon,
-        }
-        events.append(event_payload)
+        events.append(
+            {
+                "event_id": f"evt-{index:04d}",
+                "index": index,
+                "start": start_time,
+                "end": end_time,
+                "start_frame": start_frame,
+                "end_frame": end_frame,
+                "text": subtitle.text,
+                "language": canonical_language,
+                "confidence": float(subtitle.confidence),
+                "box": box,
+                "polygon": polygon,
+            }
+        )
         detection_events.append(
             {
                 "index": index,
@@ -195,7 +221,7 @@ def main() -> int:
                 "events": events,
                 "anchors": [_jsonable(anchor) for anchor in result.anchors],
                 "anchor_debug": _jsonable(result.anchor_debug),
-                "source_language": language,
+                "source_language": canonical_language,
             },
             ensure_ascii=False,
             indent=2,
@@ -220,24 +246,32 @@ def main() -> int:
         encoding="utf-8",
     )
     (output_dir / "ocr_subtitles.source.srt").write_text(srt_content, encoding="utf-8")
+
+    manifest = {
+        "status": "succeeded",
+        "source_language": canonical_language,
+        "artifacts": {
+            "ocr_events_json": str(output_dir / "ocr_events.json"),
+            "detection_json": str(output_dir / "detection.json"),
+            "source_srt": str(output_dir / "ocr_subtitles.source.srt"),
+        },
+        "video": video_info,
+        "event_count": len(events),
+    }
     (output_dir / "ocr-detect-manifest.json").write_text(
-        json.dumps(
-            {
-                "status": "succeeded",
-                "source_language": language,
-                "artifacts": {
-                    "ocr_events_json": str(output_dir / "ocr_events.json"),
-                    "detection_json": str(output_dir / "detection.json"),
-                    "source_srt": str(output_dir / "ocr_subtitles.source.srt"),
-                },
-                "video": video_info,
-                "event_count": len(events),
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-        + "\n",
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
+    )
+    return manifest
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parse_args(argv)
+    extract_to_dir(
+        input_path=Path(args.input),
+        output_dir=Path(args.output_dir),
+        language=args.language,
+        sample_interval=float(args.sample_interval),
     )
     return 0
 

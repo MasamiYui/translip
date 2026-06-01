@@ -10,22 +10,6 @@ from ..schemas import SubtitleDetectToolRequest
 from . import ToolAdapter
 
 
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[5]
-
-
-def _resolve_ocr_project_root() -> Path:
-    return (_repo_root().parent / "subtitle-ocr").resolve()
-
-
-def _resolve_ocr_python() -> Path:
-    project_root = _resolve_ocr_project_root()
-    venv_python = project_root / ".venv" / "bin" / "python"
-    if venv_python.exists():
-        return venv_python
-    return Path(sys.executable).resolve()
-
-
 class SubtitleDetectAdapter(ToolAdapter):
     def validate_params(self, params: dict) -> dict:
         return SubtitleDetectToolRequest(**params).model_dump()
@@ -34,19 +18,16 @@ class SubtitleDetectAdapter(ToolAdapter):
         input_file = self.first_input(input_dir, "file")
         on_progress(5.0, "preparing")
 
-        project_root = _resolve_ocr_project_root()
-        python_bin = _resolve_ocr_python()
-        script_path = _repo_root() / "scripts" / "subtitle_ocr_cli_bridge.py"
-
         stage_dir = output_dir
         stage_dir.mkdir(parents=True, exist_ok=True)
         log_path = stage_dir / "ocr_detect.log"
 
+        # In-tree PaddleOCR detection, run in an isolated subprocess so paddle's
+        # heavy models are freed on exit (matches the orchestration ocr-detect node).
         cmd = [
-            str(python_bin),
-            str(script_path),
-            "--project-root",
-            str(project_root),
+            sys.executable,
+            "-m",
+            "translip.ocr.extract",
             "--input",
             str(input_file),
             "--output-dir",

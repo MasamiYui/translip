@@ -196,7 +196,10 @@ git clone https://github.com/MasamiYui/translip.git
 cd translip
 uv sync                 # 安装运行时依赖
 uv sync --extra dev     # 如需运行测试 / 参与开发
+uv sync --extra ocr     # 如需 OCR 硬字幕识别（内置 PaddleOCR，约数百 MB）
 ```
+
+> `uv sync --extra X` 会把环境**精确**同步到 X 并移除其它 extra；要同时保留测试与 OCR，请用 `uv sync --extra dev --extra ocr`。OCR 字幕识别为**完全本地**实现（内置 PaddleOCR，不调用任何外部服务）；PP-OCRv5 模型权重默认放在 `<缓存目录>/paddleocr_models`，可用 `PADDLEOCR_MODELS_BASE_DIR` 覆盖。
 
 推荐提前下载分离模型（也可在管理界面「全局设置 → 模型状态」一键下载）：
 

@@ -13,6 +13,9 @@ Backend uses **uv** (not pip/poetry). FFmpeg must be on `PATH`.
 ```bash
 uv sync                      # install runtime deps
 uv sync --extra dev          # add pytest, pytest-asyncio, httpx (needed for tests)
+uv sync --extra ocr          # add PaddleOCR (paddlepaddle/paddleocr/paddlex) for hard-subtitle detection
+# NOTE: `uv sync --extra X` syncs the env to *exactly* X, dropping others — use
+# `uv sync --extra dev --extra ocr` to keep tests + OCR together.
 
 uv run pytest                # run all Python tests (testpaths=tests)
 uv run pytest tests/test_orchestration.py            # one file
@@ -74,7 +77,11 @@ The core insight: each pipeline stage is an **independent CLI command** that rea
 | task-e | `render-dub` | `rendering/` | timeline fit (atempo/rubberband) + sidechain mix |
 | task-g | `export-video` | `delivery/` | ffmpeg mux + optional burned subtitles |
 
-Adjacent (not always in the basic template): `repair/` (`plan-dub-repair` / `run-dub-repair` — re-synthesize failed dub segments), `subtitles/` (preview/burn ASS), `quality/` (dub benchmark, audio signature), `characters/` (character→speaker ledger), `speaker_review/` (diagnostics + manual decision application), and OCR/subtitle-erase bridge nodes used by the `+ocr-subs`/`+erase` templates.
+Adjacent (not always in the basic template): `repair/` (`plan-dub-repair` / `run-dub-repair` — re-synthesize failed dub segments), `subtitles/` (preview/burn ASS), `ocr/` (in-tree PaddleOCR hard-subtitle detection — see below), `quality/` (dub benchmark, audio signature), `characters/` (character→speaker ledger), `speaker_review/` (diagnostics + manual decision application), and OCR/subtitle-erase bridge nodes used by the `+ocr-subs`/`+erase` templates.
+
+#### OCR hard-subtitle detection (`src/translip/ocr/`)
+
+The `ocr-detect` node is **fully in-tree** — a vendored PaddleOCR pipeline (`translip.ocr.SubtitleService`, ported from media-sense's `modules/paddle_ocr`), not an external sibling project. `orchestration/ocr_bridge.py` runs it as an isolated subprocess via `python -m translip.ocr.extract`, which writes the same artifact contract downstream consumers expect (`ocr-detect/{ocr_events.json, detection.json, ocr_subtitles.source.srt, ocr-detect-manifest.json}`). PaddleOCR is the optional `ocr` extra and is imported lazily, so the base install and the rest of the pipeline are unaffected when it's absent (you get a clear ImportError only when detection actually runs). The atomic `subtitle-detect` tool uses the same module. Note: **subtitle *erase*** (`erase_bridge.py`) is a separate feature that still shells out to the external `video-subtitle-erasure` project.
 
 ### Per-stage contract & types
 
@@ -101,5 +108,6 @@ React 19 + TypeScript + Vite 8 + Tailwind 4. **Server state via TanStack React Q
 - `SILICONFLOW_API_KEY` / `SILICONFLOW_BASE_URL` / `SILICONFLOW_MODEL` — `siliconflow` translation backend.
 - `MOSS_TTS_NANO_CLI` / `MOSS_TTS_NANO_MODEL_DIR` / `MOSS_TTS_NANO_CPU_THREADS` — the default TTS backend shells out to the external `moss-tts-nano` CLI; it must be installed separately or task-d fails with a clear dependency error.
 - `VOXCPM_*` — `voxcpm2` backend (CPU by default on Apple Silicon; `VOXCPM_ALLOW_MPS=1` to try MPS).
+- `PADDLEOCR_MODELS_BASE_DIR` (default `<cache>/paddleocr_models`) — local PP-OCRv5 mobile det/rec + textline-orientation weights for in-tree OCR, laid out per-platform (`macos-arm64/`, `linux-x86_64/`). Other `PADDLEOCR_*` / `SUBTITLE_*` knobs in `src/translip/ocr/config.py` are env-overridable. Models load locally — no remote download at runtime.
 
 Pipeline outputs are conventionally laid out as `<root>/{stage1,task-a,...,task-g}/<input-stem>/...` with top-level `pipeline-{manifest,report,status}.json`. See `config.py` for the full default set.

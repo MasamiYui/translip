@@ -1,0 +1,156 @@
+"""Configuration for the vendored PaddleOCR subtitle pipeline.
+
+This is a trimmed copy of media-sense's `modules/paddle_ocr/config.py` that keeps
+only the OCR / subtitle-detection knobs the core pipeline actually reads. All the
+OSS / MySQL / callback / web-server settings (and their hardcoded credentials)
+were dropped on purpose — translip only uses the offline extraction core.
+
+Every field is still env-overridable via pydantic-settings, e.g.
+`PADDLEOCR_MODELS_BASE_DIR`, `PADDLEOCR_CPU_THREADS`, `SUBTITLE_MIN_CONFIDENCE`.
+"""
+
+from pydantic_settings import BaseSettings
+from typing import List
+
+from translip.config import CACHE_ROOT
+
+
+class Settings(BaseSettings):
+    """OCR / subtitle extraction settings (env-overridable)."""
+
+    # OCR配置
+    PADDLEOCR_USE_ANGLE_CLS: bool = True
+    PADDLEOCR_LANG: str = "ch"  # 支持多语言: ch, en, korean, japan等
+    PADDLEOCR_USE_GPU: bool = False
+    PADDLEOCR_DEVICE: str = "cpu"
+    PADDLEOCR_ENABLE_HPI: bool = False
+    PADDLEOCR_IR_OPTIM: bool = False
+    PADDLEOCR_ENABLE_MKLDNN: bool = False
+    PADDLEOCR_CPU_THREADS: int = 1
+    PADDLEOCR_OCR_VERSION: str = "PP-OCRv5"
+    PADDLEOCR_TEXT_DETECTION_MODEL_NAME: str = "PP-OCRv5_mobile_det"
+    PADDLEOCR_TEXTLINE_ORIENTATION_MODEL_NAME: str = "PP-LCNet_x0_25_textline_ori"
+    # Default to translip's cache dir (env-overridable). Layout/platform_tag
+    # "auto" resolves <base>/<runtime-tag>/<model-name>, e.g. macos-arm64/...
+    PADDLEOCR_MODELS_BASE_DIR: str = str(CACHE_ROOT / "paddleocr_models")
+    PADDLEOCR_MODELS_LAYOUT: str = "auto"
+    PADDLEOCR_MODELS_PLATFORM_TAG: str = "auto"
+    PADDLEOCR_LOCAL_MODELS_ONLY: bool = False
+    # Note: GPU usage is determined by the installed PaddlePaddle version:
+    # - paddlepaddle: CPU only
+    # - paddlepaddle-gpu: GPU acceleration
+    PADDLEOCR_DET_DB_THRESH: float = 0.3
+    PADDLEOCR_DET_DB_BOX_THRESH: float = 0.5
+
+    # 视频处理配置
+    VIDEO_SAMPLE_INTERVAL: float = 1.0  # 采样间隔(秒)
+    VIDEO_MAX_DURATION: int = 3600      # 最大视频时长(秒)
+    VIDEO_SUPPORTED_FORMATS: List[str] = [".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv"]
+
+    # 字幕检测配置
+    SUBTITLE_DETECTION_SAMPLE_RATE: int = 10  # 预检测最少采样帧数
+    SUBTITLE_DETECTION_SAMPLE_RATE_MAX: int = 24  # 预检测最多采样帧数
+    SUBTITLE_DETECTION_TARGET_SEGMENT_SECONDS: float = 45.0  # 长视频预检测目标分段时长
+    SUBTITLE_DETECTION_SEGMENT_PROBES: int = 3  # 每个时间分段尝试的候选帧数
+    SUBTITLE_MIN_CONFIDENCE: float = 0.7      # 最小置信度
+    SUBTITLE_ROI_BOTTOM_RATIO: float = 0.35    # 底部ROI区域比例
+    SUBTITLE_MERGE_THRESHOLD: float = 0.8     # 文本相似度阈值
+    SUBTITLE_TIME_TOLERANCE: float = 1.5      # 时间容差(秒)
+    SUBTITLE_ATTACH_SHORT_PREFIX: bool = False  # 是否将很短的前缀字幕并入后一条
+    SUBTITLE_SKIP_START_SECONDS_DEFAULT: float = 0.0  # 默认跳过片头秒数
+    SUBTITLE_SKIP_END_SECONDS_DEFAULT: float = 0.0  # 默认跳过片尾秒数
+    SUBTITLE_PROGRESS_LOG_EVERY_FRAMES: int = 20
+    SUBTITLE_POSITION_MODE_DEFAULT: str = "bottom"
+    SUBTITLE_GEOMETRY_MODE_DEFAULT: str = "axis_aligned"
+    SUBTITLE_ANCHOR_MIN_APPEARANCE_RATIO: float = 0.2
+    SUBTITLE_ANCHOR_MAX_COUNT: int = 2
+    SUBTITLE_ANCHOR_MIN_CLUSTER_SIZE: int = 2
+    SUBTITLE_ANCHOR_Y_TOLERANCE_RATIO: float = 0.05
+    SUBTITLE_ANCHOR_MIN_WIDTH_RATIO: float = 0.12
+    SUBTITLE_ANCHOR_MAX_WIDTH_RATIO: float = 0.98
+    SUBTITLE_ANCHOR_MIN_HEIGHT_RATIO: float = 0.015
+    SUBTITLE_ANCHOR_MAX_HEIGHT_RATIO: float = 0.25
+    SUBTITLE_ANCHOR_MIN_SCORE: float = 0.5
+    SUBTITLE_ANCHOR_SCORE_WEIGHT_CONFIDENCE: float = 0.45
+    SUBTITLE_ANCHOR_SCORE_WEIGHT_APPEARANCE: float = 0.30
+    SUBTITLE_ANCHOR_SCORE_WEIGHT_TEXT_VARIETY: float = 0.15
+    SUBTITLE_ANCHOR_SCORE_WEIGHT_CENTER_PRIOR: float = 0.10
+    SUBTITLE_ANCHOR_MIN_CENTER_Y_BOTTOM: float = 0.45
+    SUBTITLE_TRACKER_IOU_THRESHOLD: float = 0.12
+    SUBTITLE_TRACKER_HISTORY_SIZE: int = 10
+    SUBTITLE_TRACKER_HIGH_CONF_ALPHA: float = 0.72
+    SUBTITLE_TRACKER_LOW_CONF_ALPHA: float = 0.50
+    SUBTITLE_BOX_PAD_X_RATIO: float = 0.04
+    SUBTITLE_BOX_PAD_TOP_RATIO: float = 0.30
+    SUBTITLE_BOX_PAD_BOTTOM_RATIO: float = 0.22
+    SUBTITLE_BOX_PAD_X_MIN: int = 6
+    SUBTITLE_BOX_PAD_TOP_MIN: int = 4
+    SUBTITLE_BOX_PAD_BOTTOM_MIN: int = 4
+    SUBTITLE_TIGHT_REGION_PAD_X_RATIO: float = 0.08
+    SUBTITLE_TIGHT_REGION_PAD_Y_RATIO: float = 0.18
+    SUBTITLE_TIGHT_REGION_PAD_X_MIN: int = 6
+    SUBTITLE_TIGHT_REGION_PAD_Y_MIN: int = 4
+    SUBTITLE_LOCALIZER_MIN_CONFIDENCE: float = 0.45
+    SUBTITLE_LOCALIZER_MIN_WIDTH_RATIO: float = 0.08
+    SUBTITLE_LOCALIZER_MIN_SCORE: float = 0.4
+    SUBTITLE_LOCALIZER_DIRECT_ACCEPT_SCORE: float = 0.58
+    SUBTITLE_LOCALIZER_PENDING_SCORE: float = 0.44
+    SUBTITLE_LOCALIZER_DIRECT_ACCEPT_MARGIN: float = 0.26
+    SUBTITLE_LOCALIZER_PENDING_MARGIN: float = 0.08
+    SUBTITLE_LOCALIZER_PENDING_MATCH_THRESHOLD: float = 0.72
+    SUBTITLE_LOCALIZER_PREV_MATCH_THRESHOLD: float = 0.82
+    SUBTITLE_LOCALIZER_OVERLAY_TRACK_THRESHOLD: float = 0.72
+    SUBTITLE_LOCALIZER_OVERLAY_TRACK_MAX_SIZE: int = 6
+    SUBTITLE_LOCALIZER_STYLE_PROFILE_MIN_COUNT: int = 2
+    SUBTITLE_LOCALIZER_STYLE_PROFILE_MAX_AGE_SECONDS: float = 12.0
+    SUBTITLE_LOCALIZER_OVERLAY_TRACK_MAX_AGE_SECONDS: float = 18.0
+    SUBTITLE_LOCALIZER_CREDIT_COLUMN_SCORE_THRESHOLD: float = 0.55
+    SUBTITLE_LOCALIZER_SIGNAGE_SCORE_THRESHOLD: float = 0.58
+    SUBTITLE_LOCALIZER_SIGNAGE_STRICT_WIDTH_RATIO: float = 0.32
+    SUBTITLE_LOCALIZER_DENSE_TEXT_SCENE_SCORE_THRESHOLD: float = 0.72
+    SUBTITLE_LOCALIZER_FAILURE_DEBUG_MAX_RECORDS: int = 120
+    SUBTITLE_PREFILTER_ENABLED: bool = True
+    SUBTITLE_PREFILTER_MIN_STDDEV: float = 8.0
+    SUBTITLE_PREFILTER_MIN_EDGE_DENSITY: float = 0.004
+    SUBTITLE_PREFILTER_MIN_HAT_DENSITY: float = 0.003
+    SUBTITLE_PREFILTER_MIN_SCORE: float = 0.10
+    SUBTITLE_FRAME_REUSE_ENABLED: bool = True
+    SUBTITLE_FRAME_REUSE_MAX_MEAN_DIFF: float = 0.018
+    SUBTITLE_FRAME_REUSE_MIN_CONFIDENCE: float = 0.82
+    SUBTITLE_FRAME_REUSE_MAX_CONSECUTIVE: int = 3
+    SUBTITLE_TRACKER_TRANSIENT_RESET_MISSES: int = 10
+    SUBTITLE_TRACKER_TRANSIENT_RESET_GAP_SECONDS: float = 6.0
+    SUBTITLE_TRACKER_CONTEXT_RESET_MISSES: int = 18
+    SUBTITLE_TRACKER_CONTEXT_RESET_GAP_SECONDS: float = 10.0
+    SUBTITLE_DIALOGUE_SEARCH_MIN_WIDTH_RATIO: float = 0.62
+    SUBTITLE_DIALOGUE_SEARCH_MIN_HEIGHT_RATIO: float = 0.13
+    SUBTITLE_NON_DIALOGUE_LONG_LINE_MIN_CHARS: int = 14
+    SUBTITLE_NON_DIALOGUE_LONG_LINE_MIN_DURATION: float = 1.8
+    SUBTITLE_NON_DIALOGUE_LONG_LINE_MIN_WIDTH_RATIO: float = 0.32
+    SUBTITLE_NON_DIALOGUE_SENTENCE_SCORE_MAX: float = 0.20
+    SUBTITLE_VISUAL_TRACK_FILTER_ENABLED: bool = True
+    SUBTITLE_VISUAL_TRACK_MIN_PROFILE_CUES: int = 20
+    SUBTITLE_VISUAL_TRACK_SMALL_HEIGHT_RATIO: float = 0.76
+    SUBTITLE_VISUAL_TRACK_STRONG_SMALL_HEIGHT_RATIO: float = 0.66
+    SUBTITLE_TAIL_NON_DIALOGUE_START_RATIO: float = 0.82
+    SUBTITLE_TAIL_NON_DIALOGUE_MIN_GROUP_SIZE: int = 8
+    SUBTITLE_TAIL_SPARSE_SEQUENCE_START_RATIO: float = 0.96
+    SUBTITLE_TAIL_SPARSE_SEQUENCE_MIN_GAP_SECONDS: float = 12.0
+    SUBTITLE_TAIL_SPARSE_SEQUENCE_MIN_GROUP_SIZE: int = 6
+    SUBTITLE_MAIN_WINDOW_FILTER_ENABLED: bool = True
+    SUBTITLE_MAIN_WINDOW_MIN_TOTAL_CUES: int = 40
+    SUBTITLE_MAIN_WINDOW_BOUNDARY_GAP_SECONDS: float = 18.0
+    SUBTITLE_MAIN_WINDOW_LEADING_CLUSTER_SECONDS: float = 30.0
+    SUBTITLE_MAIN_WINDOW_LEADING_MIN_CLUSTER_CUES: int = 6
+    SUBTITLE_MAIN_WINDOW_TAIL_START_RATIO: float = 0.88
+    SUBTITLE_MAIN_WINDOW_TAIL_MAX_SUFFIX_CUE_RATIO: float = 0.08
+    SUBTITLE_MAIN_WINDOW_TAIL_MAX_SUFFIX_DURATION_RATIO: float = 0.06
+    SUBTITLE_MAIN_WINDOW_TAIL_MAX_SUFFIX_SECONDS: float = 120.0
+
+    class Config:
+        # No .env file: translip configures via process env vars, not dotenv.
+        case_sensitive = True
+        extra = "ignore"
+
+
+settings = Settings()
