@@ -4,6 +4,7 @@ import type {
   CacheCleanupResult,
   CacheMigrateTask,
   ConfigPreset,
+  FsBrowseResponse,
   MissingModelsResponse,
   ModelDownloadJob,
   SystemInfo,
@@ -30,6 +31,12 @@ export const systemApi = {
   getInfo: () => api.get<SystemInfo>('/api/system/info').then(r => r.data),
   probe: (path: string) =>
     api.get('/api/system/probe', { params: { path } }).then(r => r.data),
+  browse: (path?: string, showHidden = false) =>
+    api
+      .get<FsBrowseResponse>('/api/system/browse', {
+        params: { path: path || undefined, show_hidden: showHidden },
+      })
+      .then(r => r.data),
   getHfToken: () =>
     api.get<{ ok: boolean; hf_token_set: boolean }>('/api/system/hf-token').then(r => r.data),
   saveHfToken: (hf_token: string) =>

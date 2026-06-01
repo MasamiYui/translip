@@ -108,6 +108,89 @@ def probe_media(path: str):
     }
 
 
+# Media file extensions surfaced by the in-app file picker. Non-media files are
+# hidden so the picker stays focused on selectable inputs.
+_MEDIA_EXTENSIONS = frozenset(
+    {
+        ".mp4", ".mov", ".mkv", ".avi", ".webm", ".m4v", ".flv",
+        ".ts", ".m2ts", ".mts", ".wmv", ".mpg", ".mpeg", ".3gp", ".ogv",
+        ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma",
+    }
+)
+
+
+class FsEntry(BaseModel):
+    name: str
+    path: str
+    is_dir: bool
+    is_media: bool
+    size_bytes: int | None = None
+
+
+class BrowseResponse(BaseModel):
+    path: str
+    parent: str | None
+    home: str
+    entries: list[FsEntry]
+
+
+@router.get("/browse", response_model=BrowseResponse)
+def browse_filesystem(
+    path: str | None = Query(default=None),
+    show_hidden: bool = Query(default=False),
+):
+    """List directories and media files for the in-app file picker.
+
+    translip is local-first: the server runs on the user's own machine, so
+    browsing the local filesystem to pick an input video is the intended flow.
+    Directories are always returned (to allow navigation); plain files are
+    limited to recognised media extensions to keep the picker uncluttered.
+    """
+    base = Path(path).expanduser() if path else Path.home()
+    try:
+        base = base.resolve()
+    except OSError as exc:
+        raise HTTPException(status_code=400, detail="invalid_path") from exc
+
+    if not base.exists():
+        raise HTTPException(status_code=404, detail="path_not_found")
+    # If a file was passed, browse its containing directory instead.
+    if not base.is_dir():
+        base = base.parent
+
+    try:
+        children = list(base.iterdir())
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="permission_denied") from exc
+
+    entries: list[FsEntry] = []
+    for child in children:
+        if not show_hidden and child.name.startswith("."):
+            continue
+        try:
+            is_dir = child.is_dir()
+        except OSError:
+            continue  # broken symlink / unreadable entry
+        if is_dir:
+            entries.append(FsEntry(name=child.name, path=str(child), is_dir=True, is_media=False))
+            continue
+        if child.suffix.lower() not in _MEDIA_EXTENSIONS:
+            continue
+        try:
+            size = child.stat().st_size
+        except OSError:
+            size = None
+        entries.append(
+            FsEntry(name=child.name, path=str(child), is_dir=False, is_media=True, size_bytes=size)
+        )
+
+    # Directories first, then files; case-insensitive alphabetical within each.
+    entries.sort(key=lambda e: (not e.is_dir, e.name.lower()))
+
+    parent = str(base.parent) if base.parent != base else None
+    return BrowseResponse(path=str(base), parent=parent, home=str(Path.home()), entries=entries)
+
+
 # ---------------------------------------------------------------------------
 # Cache management
 # ---------------------------------------------------------------------------

@@ -262,6 +262,21 @@ export interface SystemInfo {
   models: Array<{ name: string; status: 'available' | 'missing' }>
 }
 
+export interface FsEntry {
+  name: string
+  path: string
+  is_dir: boolean
+  is_media: boolean
+  size_bytes: number | null
+}
+
+export interface FsBrowseResponse {
+  path: string
+  parent: string | null
+  home: string
+  entries: FsEntry[]
+}
+
 export type CacheGroupKind = 'model' | 'hub' | 'pipeline' | 'temp'
 
 export interface CacheBreakdownItem {

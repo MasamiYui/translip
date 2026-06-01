@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, Cpu, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Cpu, FolderOpen, Loader2 } from 'lucide-react'
 import { tasksApi } from '../api/tasks'
 import { worksApi } from '../api/works'
 import { configApi, systemApi } from '../api/config'
+import { FilePickerModal } from '../components/shared/FilePickerModal'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { buildTemplatePreviewGraph } from '../lib/workflowPreview'
 import { DUBBING_BACKEND_OPTIONS } from '../lib/dubbingBackends'
@@ -190,9 +191,10 @@ function Select({ value, onChange, options }: {
   )
 }
 
-function TextInput({ value, onChange, placeholder = '', type = 'text' }: {
+function TextInput({ value, onChange, onBlur, placeholder = '', type = 'text' }: {
   value: string | number
   onChange: (v: string) => void
+  onBlur?: () => void
   placeholder?: string
   type?: string
 }) {
@@ -201,6 +203,7 @@ function TextInput({ value, onChange, placeholder = '', type = 'text' }: {
       type={type}
       value={value}
       onChange={event => onChange(event.target.value)}
+      onBlur={onBlur}
       placeholder={placeholder}
       className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
     />
@@ -439,6 +442,7 @@ export function NewTaskPage() {
   const [saveAsPreset, setSaveAsPreset] = useState(false)
   const [presetName, setPresetName] = useState('')
   const [mediaInfo, setMediaInfo] = useState<Record<string, unknown> | null>(null)
+  const [showFilePicker, setShowFilePicker] = useState(false)
   const [showAdvancedSettings, setShowAdvancedSettings] = useState(false)
   const [showDeveloperSettings, setShowDeveloperSettings] = useState(false)
   const [showCorrectionExplanation, setShowCorrectionExplanation] = useState(false)
@@ -610,17 +614,35 @@ export function NewTaskPage() {
                 setInputPath(value)
                 setMediaInfo(null)
               }}
+              onBlur={() => inputPath && !mediaInfo && probeMutation.mutate(inputPath)}
               placeholder={t.newTask.placeholders.inputVideoPath}
             />
             <button
               type="button"
-              onClick={() => inputPath && probeMutation.mutate(inputPath)}
-              disabled={!inputPath || probeMutation.isPending}
-              className="shrink-0 rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm transition-colors hover:bg-slate-200 disabled:opacity-50"
+              onClick={() => setShowFilePicker(true)}
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm transition-colors hover:bg-slate-200"
             >
-              {probeMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : t.newTask.actions.probe}
+              {probeMutation.isPending ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <FolderOpen size={14} />
+              )}
+              {t.newTask.actions.browse}
             </button>
           </div>
+          {showFilePicker && (
+            <FilePickerModal
+              initialPath={inputPath || undefined}
+              labels={t.newTask.filePicker}
+              onClose={() => setShowFilePicker(false)}
+              onSelect={path => {
+                setInputPath(path)
+                setMediaInfo(null)
+                setShowFilePicker(false)
+                probeMutation.mutate(path)
+              }}
+            />
+          )}
           {mediaInfo && (
             <div className="mt-2 space-y-1 rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
               <div>

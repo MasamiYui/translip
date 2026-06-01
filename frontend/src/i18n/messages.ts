@@ -139,9 +139,21 @@ const zhMessages = {
     },
     actions: {
       probe: '检测',
+      browse: '选择文件',
       previous: '上一步',
       next: '下一步',
       start: '开始执行',
+    },
+    filePicker: {
+      title: '选择视频文件',
+      up: '上一级',
+      home: '主目录',
+      currentPath: '当前位置',
+      emptyDir: '此文件夹中没有视频文件',
+      loadError: '无法读取该目录',
+      noSelection: '请选择一个视频文件',
+      select: '选择',
+      cancel: '取消',
     },
     options: {
       subtitleSource: {
@@ -1337,9 +1349,21 @@ const enMessages: LocaleMessages = {
     },
     actions: {
       probe: 'Inspect',
+      browse: 'Browse',
       previous: 'Previous',
       next: 'Next',
       start: 'Start Run',
+    },
+    filePicker: {
+      title: 'Select video file',
+      up: 'Up',
+      home: 'Home',
+      currentPath: 'Current location',
+      emptyDir: 'No video files in this folder',
+      loadError: 'Unable to read this folder',
+      noSelection: 'Select a video file',
+      select: 'Select',
+      cancel: 'Cancel',
     },
     options: {
       subtitleSource: {

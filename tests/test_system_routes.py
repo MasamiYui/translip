@@ -72,6 +72,54 @@ def test_collect_model_statuses_detects_cdx23_weights_in_runtime_cache(
     assert status_by_name["FunASR SenseVoiceSmall"] == "missing"
 
 
+def test_browse_filesystem_lists_dirs_and_media_only(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from translip.server.app import app
+
+    (tmp_path / "sub").mkdir()
+    (tmp_path / "clip.mp4").write_bytes(b"video")
+    (tmp_path / "track.wav").write_bytes(b"audio")
+    (tmp_path / "notes.txt").write_text("ignored")
+    (tmp_path / ".hidden.mp4").write_bytes(b"hidden")
+
+    client = TestClient(app)
+    resp = client.get("/api/system/browse", params={"path": str(tmp_path)})
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["path"] == str(tmp_path.resolve())
+    names = [e["name"] for e in body["entries"]]
+    # Directories first, then media files; non-media and hidden entries excluded.
+    assert names == ["sub", "clip.mp4", "track.wav"]
+    assert body["entries"][0]["is_dir"] is True
+    assert body["entries"][1]["is_media"] is True
+
+
+def test_browse_filesystem_passing_file_opens_parent(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from translip.server.app import app
+
+    clip = tmp_path / "clip.mp4"
+    clip.write_bytes(b"video")
+
+    client = TestClient(app)
+    resp = client.get("/api/system/browse", params={"path": str(clip)})
+    assert resp.status_code == 200
+    assert resp.json()["path"] == str(tmp_path.resolve())
+
+
+def test_browse_filesystem_missing_path_returns_404(tmp_path: Path) -> None:
+    from fastapi.testclient import TestClient
+
+    from translip.server.app import app
+
+    client = TestClient(app)
+    resp = client.get("/api/system/browse", params={"path": str(tmp_path / "nope")})
+    assert resp.status_code == 404
+
+
 def _clear_hf_tokens(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Clear HF token env vars and isolate the user-config store to a temp path.
 
