@@ -9,13 +9,16 @@ Every field is still env-overridable via pydantic-settings, e.g.
 `PADDLEOCR_MODELS_BASE_DIR`, `PADDLEOCR_CPU_THREADS`, `SUBTITLE_MIN_CONFIDENCE`.
 """
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from translip.config import CACHE_ROOT
 
 
 class Settings(BaseSettings):
     """OCR / subtitle extraction settings (env-overridable)."""
+
+    # No .env file: translip configures via process env vars, not dotenv.
+    model_config = SettingsConfigDict(case_sensitive=True, extra="ignore")
 
     # OCR配置
     PADDLEOCR_USE_ANGLE_CLS: bool = True
@@ -138,11 +141,6 @@ class Settings(BaseSettings):
     SUBTITLE_MAIN_WINDOW_TAIL_MAX_SUFFIX_CUE_RATIO: float = 0.08
     SUBTITLE_MAIN_WINDOW_TAIL_MAX_SUFFIX_DURATION_RATIO: float = 0.06
     SUBTITLE_MAIN_WINDOW_TAIL_MAX_SUFFIX_SECONDS: float = 120.0
-
-    class Config:
-        # No .env file: translip configures via process env vars, not dotenv.
-        case_sensitive = True
-        extra = "ignore"
 
 
 settings = Settings()

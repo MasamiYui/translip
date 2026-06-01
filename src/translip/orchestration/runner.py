@@ -697,7 +697,7 @@ def execute_node(
         return execute_stage(node_name, request, monitor=monitor)
     if node_name == "ocr-detect":
         monitor.update_stage_progress(node_name, 5.0, "extracting hard subtitles")
-        return run_ocr_detect(request, log_path=_node_log_path(request, node_name))
+        return run_ocr_detect(request, log_path=_node_log_path(request, node_name), monitor=monitor)
     if node_name == "asr-ocr-correct":
         monitor.update_stage_progress(node_name, 5.0, "correcting ASR transcript with OCR")
         run_stage_command(build_asr_ocr_correction_command(request), log_path=_node_log_path(request, node_name))

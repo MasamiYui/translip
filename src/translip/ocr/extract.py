@@ -28,6 +28,10 @@ from pathlib import Path
 
 import cv2
 
+# Progress lines printed to stdout are parsed by orchestration/ocr_bridge.py to
+# drive the ocr-detect stage progress bar. Keep this prefix in sync there.
+PROGRESS_PREFIX = "__OCR_PROGRESS__"
+
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="translip in-tree PaddleOCR subtitle detection")
@@ -164,12 +168,24 @@ def extract_to_dir(
     output_dir = output_dir.expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    def _on_progress(progress: int, stage: str, details: dict | None = None) -> None:
+        message = stage
+        if stage == "ocr_processing" and isinstance(details, dict):
+            done = details.get("processed_frames")
+            total = details.get("estimated_frames")
+            if done and total:
+                message = f"recognizing subtitles ({done}/{total} frames)"
+        # Tab-delimited so the message may contain spaces/colons; consumed by
+        # ocr_bridge._build_progress_handler in the parent process.
+        print(f"{PROGRESS_PREFIX}\t{int(progress)}\t{message}", flush=True)
+
     service = SubtitleService()
     result = service.extract_subtitles(
         video_path=str(input_path),
         language=language,
         sample_interval=float(sample_interval),
         detect_region=True,
+        progress_callback=_on_progress,
     )
     srt_content = service.generate_srt(result)
     video_info = _video_info(input_path)

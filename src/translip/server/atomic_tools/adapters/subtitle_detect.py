@@ -4,6 +4,7 @@ import json
 import sys
 from pathlib import Path
 
+from ....orchestration.ocr_bridge import parse_ocr_progress_line
 from ....orchestration.subprocess_runner import run_stage_command
 from ..registry import ToolSpec, register_tool
 from ..schemas import SubtitleDetectToolRequest
@@ -39,9 +40,19 @@ class SubtitleDetectAdapter(ToolAdapter):
         ]
 
         on_progress(15.0, "running_ocr")
+
+        def _forward_progress(line: str) -> None:
+            parsed = parse_ocr_progress_line(line)
+            if parsed is None:
+                return
+            # Map the extractor's 0-100 onto this tool's 15-80 band.
+            mapped = 15.0 + (80.0 - 15.0) * max(0.0, min(100.0, parsed[0])) / 100.0
+            on_progress(mapped, parsed[1])
+
         run_stage_command(
             cmd,
             log_path=log_path,
+            on_stdout_line=_forward_progress,
             should_cancel=getattr(on_progress, "is_cancelled", None),
         )
 

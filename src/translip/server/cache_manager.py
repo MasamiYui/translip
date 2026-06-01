@@ -143,6 +143,37 @@ def _glob_dirs(root: Path, pattern: str) -> list[Path]:
     return [p for p in root.glob(pattern) if p.is_dir()]
 
 
+def _paddleocr_ready(cache_root: Path, hf_root: Path) -> bool:
+    """PaddleOCR hard-subtitle OCR is ready only when both the optional `ocr`
+    extra is installed AND the local PP-OCRv5 weights resolve. Imports are lazy so
+    the server never hard-depends on the heavy `ocr` extra."""
+    try:
+        import paddleocr  # noqa: F401
+    except Exception:
+        return False
+    try:
+        from translip.ocr.config import settings as ocr_settings
+        from translip.ocr.utils.model_paths import resolve_model_dir
+
+        required = [
+            ocr_settings.PADDLEOCR_TEXT_DETECTION_MODEL_NAME,
+            "PP-OCRv5_mobile_rec",  # default (Chinese) recognition model
+        ]
+        if ocr_settings.PADDLEOCR_USE_ANGLE_CLS:
+            required.append(ocr_settings.PADDLEOCR_TEXTLINE_ORIENTATION_MODEL_NAME)
+        for model_name in required:
+            if resolve_model_dir(
+                model_name,
+                base_dir=ocr_settings.PADDLEOCR_MODELS_BASE_DIR,
+                layout=ocr_settings.PADDLEOCR_MODELS_LAYOUT,
+                platform_tag=ocr_settings.PADDLEOCR_MODELS_PLATFORM_TAG,
+            ) is None:
+                return False
+        return True
+    except Exception:
+        return False
+
+
 CACHE_REGISTRY: list[CacheGroup] = [
     CacheGroup(
         key="cdx23",
@@ -263,6 +294,17 @@ CACHE_REGISTRY: list[CacheGroup] = [
             *_glob_dirs(h, "models--openbmb--VoxCPM2*"),
             *_glob_dirs(h, "models--OpenBMB--VoxCPM2*"),
         ],
+    ),
+    CacheGroup(
+        key="paddleocr_models",
+        label="PaddleOCR (hard-subtitle OCR)",
+        group="model",
+        # Readiness needs the `ocr` extra installed too, so it's decided by
+        # detection_extra rather than mere path existence. Not removable: the
+        # weights aren't re-fetchable via the one-click downloader yet.
+        paths=lambda r, _h: [r / "paddleocr_models"],
+        removable=False,
+        detection_extra=_paddleocr_ready,
     ),
     CacheGroup(
         key="hf_hub",
@@ -436,7 +478,9 @@ def collect_model_statuses(
         if group.group != "model":
             continue
         paths = _resolve_group_paths(group, cache_root, hf_root)
-        if group.key == "cdx23":
+        if group.detection_extra is not None:
+            available = group.detection_extra(cache_root, hf_root)
+        elif group.key == "cdx23":
             available = _has_cdx23(paths)
         else:
             available = any(p.exists() for p in paths)

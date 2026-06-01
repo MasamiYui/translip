@@ -2,9 +2,17 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Callable
 
 from ..types import PipelineRequest
 from .subprocess_runner import run_stage_command
+
+if TYPE_CHECKING:
+    from .monitor import PipelineMonitor
+
+# Must match translip.ocr.extract.PROGRESS_PREFIX (imported lazily there; kept as
+# a literal here so this module stays free of the heavy `ocr` extra at import).
+_OCR_PROGRESS_PREFIX = "__OCR_PROGRESS__"
 
 
 def _repo_root() -> Path:
@@ -71,8 +79,51 @@ def build_ocr_detect_command(request: PipelineRequest) -> list[str]:
     ]
 
 
-def run_ocr_detect(request: PipelineRequest, *, log_path: Path) -> dict[str, object]:
-    run_stage_command(build_ocr_detect_command(request), log_path=log_path)
+def parse_ocr_progress_line(line: str) -> tuple[float, str] | None:
+    """Parse one `__OCR_PROGRESS__\\t<pct>\\t<message>` line emitted by
+    `translip.ocr.extract`. Returns `(percent, message)` or None for other lines.
+
+    Shared by the orchestration node and the atomic subtitle-detect tool so the
+    progress wire format lives in exactly one place."""
+    if not line.startswith(_OCR_PROGRESS_PREFIX + "\t"):
+        return None
+    parts = line.split("\t", 2)
+    if len(parts) < 2:
+        return None
+    try:
+        percent = float(parts[1])
+    except ValueError:
+        return None
+    step = parts[2] if len(parts) > 2 else "recognizing subtitles"
+    return percent, step
+
+
+def _build_progress_handler(
+    monitor: "PipelineMonitor | None",
+) -> Callable[[str], None] | None:
+    """Forward extractor progress lines to the pipeline monitor as ocr-detect progress."""
+    if monitor is None:
+        return None
+
+    def _handle(line: str) -> None:
+        parsed = parse_ocr_progress_line(line)
+        if parsed is not None:
+            monitor.update_stage_progress("ocr-detect", parsed[0], parsed[1])
+
+    return _handle
+
+
+def run_ocr_detect(
+    request: PipelineRequest,
+    *,
+    log_path: Path,
+    monitor: "PipelineMonitor | None" = None,
+) -> dict[str, object]:
+    run_stage_command(
+        build_ocr_detect_command(request),
+        log_path=log_path,
+        on_stdout_line=_build_progress_handler(monitor),
+    )
     return {
         "manifest_path": str(ocr_detect_manifest_path(request)),
         "artifact_paths": [
