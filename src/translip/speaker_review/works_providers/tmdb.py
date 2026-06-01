@@ -61,6 +61,40 @@ class TMDbConfig:
         return bool(self.api_key_v3 or self.api_key_v4)
 
 
+_AUTH_TEST_URL = "https://api.themoviedb.org/3/authentication"
+
+
+def verify_credentials(
+    *, api_key_v3: str = "", api_key_v4: str = "", timeout: int = 10
+) -> dict[str, Any]:
+    """Lightweight TMDb auth check against ``/3/authentication``.
+
+    Returns ``{"ok": bool, "message": str}`` and never raises — the v4 bearer
+    token is preferred when present, falling back to the v3 key. Failures
+    (missing creds, bad key, network) are encoded in the result.
+    """
+    v4 = (api_key_v4 or "").strip()
+    v3 = (api_key_v3 or "").strip()
+    if not v3 and not v4:
+        return {"ok": False, "message": "No TMDb credentials provided."}
+    try:
+        if v4:
+            resp = requests.get(
+                _AUTH_TEST_URL, headers={"Authorization": f"Bearer {v4}"}, timeout=timeout
+            )
+        else:
+            resp = requests.get(_AUTH_TEST_URL, params={"api_key": v3}, timeout=timeout)
+        if resp.status_code == 200:
+            return {"ok": True, "message": "OK"}
+        try:
+            detail = str(resp.json().get("status_message", "")).strip()
+        except Exception:
+            detail = ""
+        return {"ok": False, "message": f"HTTP {resp.status_code}" + (f": {detail}" if detail else "")}
+    except Exception as exc:  # network errors, timeouts
+        return {"ok": False, "message": str(exc) or type(exc).__name__}
+
+
 class TMDbProvider:
     BASE_URL_V3 = "https://api.themoviedb.org/3"
     BASE_URL_V4 = "https://api.themoviedb.org/4"

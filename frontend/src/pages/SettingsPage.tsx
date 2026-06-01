@@ -147,6 +147,19 @@ export function SettingsPage() {
     saveMutation.mutate()
   }
 
+  const [tmdbTestResult, setTmdbTestResult] = useState<{ ok: boolean; message: string } | null>(
+    null,
+  )
+  const testTmdbMutation = useMutation({
+    mutationFn: () =>
+      worksApi.tmdbTestConfig({
+        api_key_v3: apiKeyV3 || undefined,
+        api_key_v4: apiKeyV4 || undefined,
+      }),
+    onSuccess: data => setTmdbTestResult({ ok: data.ok, message: data.message }),
+    onError: () => setTmdbTestResult({ ok: false, message: 'request failed' }),
+  })
+
   // ---------- HuggingFace token ----------
   const { data: hfTokenConfig } = useQuery({
     queryKey: ['hf-token'],
@@ -159,6 +172,12 @@ export function SettingsPage() {
       setHfToken('')
       queryClient.invalidateQueries({ queryKey: ['hf-token'] })
     },
+  })
+  const [hfTestResult, setHfTestResult] = useState<{ ok: boolean; message: string } | null>(null)
+  const testHfTokenMutation = useMutation({
+    mutationFn: () => systemApi.testHfToken(hfToken || undefined),
+    onSuccess: data => setHfTestResult({ ok: data.ok, message: data.message }),
+    onError: () => setHfTestResult({ ok: false, message: 'request failed' }),
   })
 
   // ---------- Transcript-correction LLM keys (DeepSeek / SiliconFlow) ----------
@@ -372,14 +391,44 @@ export function SettingsPage() {
               </select>
             </div>
 
-            <button
-              onClick={handleSave}
-              disabled={saveMutation.isPending}
-              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Save size={16} />
-              {saveMutation.isPending ? '保存中...' : '保存配置'}
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleSave}
+                disabled={saveMutation.isPending}
+                className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Save size={16} />
+                {saveMutation.isPending ? '保存中…' : '保存'}
+              </button>
+              <button
+                onClick={() => testTmdbMutation.mutate()}
+                disabled={
+                  testTmdbMutation.isPending ||
+                  (!apiKeyV3 && !apiKeyV4 && !(tmdbConfig?.api_key_v3_set || tmdbConfig?.api_key_v4_set))
+                }
+                className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {testTmdbMutation.isPending ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Plug size={16} />
+                )}
+                {testTmdbMutation.isPending ? '测试中…' : '测试连接'}
+              </button>
+              {tmdbTestResult && (
+                <div
+                  className={`flex items-center gap-1.5 text-sm ${
+                    tmdbTestResult.ok ? 'text-emerald-600' : 'text-red-600'
+                  }`}
+                >
+                  {tmdbTestResult.ok ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                  <span>{tmdbTestResult.ok ? '连接成功' : '连接失败'}</span>
+                </div>
+              )}
+            </div>
+            {tmdbTestResult && !tmdbTestResult.ok && tmdbTestResult.message && (
+              <p className="break-words text-xs text-red-500">{tmdbTestResult.message}</p>
+            )}
           </div>
         </div>
 
@@ -433,8 +482,33 @@ export function SettingsPage() {
                 <Save size={16} />
                 {saveHfTokenMutation.isPending ? t.settings.hfToken.saving : t.settings.hfToken.save}
               </button>
-              <span className="text-xs text-amber-600">{t.settings.hfToken.restartHint}</span>
+              <button
+                onClick={() => testHfTokenMutation.mutate()}
+                disabled={testHfTokenMutation.isPending || (!hfToken && !hfTokenConfig?.hf_token_set)}
+                className="flex items-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {testHfTokenMutation.isPending ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Plug size={16} />
+                )}
+                {testHfTokenMutation.isPending ? t.settings.hfToken.testing : t.settings.hfToken.test}
+              </button>
+              {hfTestResult && (
+                <div
+                  className={`flex items-center gap-1.5 text-sm ${
+                    hfTestResult.ok ? 'text-emerald-600' : 'text-red-600'
+                  }`}
+                >
+                  {hfTestResult.ok ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                  <span>{hfTestResult.ok ? t.settings.hfToken.testOk : t.settings.hfToken.testFailed}</span>
+                </div>
+              )}
             </div>
+            {hfTestResult && !hfTestResult.ok && hfTestResult.message && (
+              <p className="break-words text-xs text-red-500">{hfTestResult.message}</p>
+            )}
+            <p className="text-xs text-amber-600">{t.settings.hfToken.restartHint}</p>
           </div>
         </div>
 

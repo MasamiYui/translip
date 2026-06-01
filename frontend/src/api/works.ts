@@ -210,6 +210,9 @@ export const worksApi = {
   tmdbSaveConfig: (payload: { api_key_v3?: string; api_key_v4?: string; default_language?: string }) =>
     api.post<{ ok: boolean; message: string }>('/api/config/tmdb', payload).then(r => r.data),
 
+  tmdbTestConfig: (payload: { api_key_v3?: string; api_key_v4?: string }) =>
+    api.post<{ ok: boolean; message: string }>('/api/config/tmdb/test', payload).then(r => r.data),
+
   // Cast Import
   getCastPreview: (workId: string, tmdbId: number, mediaType: 'movie' | 'tv') =>
     api

@@ -58,6 +58,11 @@ class HfTokenRequest(BaseModel):
     hf_token: str | None = None
 
 
+class HfTokenTestRequest(BaseModel):
+    # Optional: test a not-yet-saved token. Falls back to the saved/env token.
+    hf_token: str | None = None
+
+
 class LlmKeyRequest(BaseModel):
     provider: str
     api_key: str | None = None
@@ -394,6 +399,39 @@ def save_hf_token(body: HfTokenRequest):
     cache_manager.update_user_setting("hf_token", token)
     cache_manager.apply_hf_token_to_env()
     return {"ok": True, "hf_token_set": bool(token)}
+
+
+def _verify_hf_token(token: str | None, *, timeout_sec: int = 15) -> dict:
+    """Check a HuggingFace token via the whoami endpoint. Never raises."""
+    if not token:
+        return {"ok": False, "message": "No HuggingFace token provided."}
+    import json
+    import urllib.error
+    import urllib.request
+
+    request = urllib.request.Request(
+        "https://huggingface.co/api/whoami-v2",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout_sec) as response:
+            data = json.loads(response.read().decode("utf-8"))
+        name = str(data.get("name") or data.get("fullname") or "").strip()
+        return {"ok": True, "message": f"OK ({name})" if name else "OK"}
+    except urllib.error.HTTPError as exc:
+        if exc.code == 401:
+            return {"ok": False, "message": "Invalid token (401 Unauthorized)."}
+        return {"ok": False, "message": f"HTTP {exc.code}"}
+    except Exception as exc:  # network errors, timeouts
+        return {"ok": False, "message": str(exc) or type(exc).__name__}
+
+
+@router.post("/hf-token/test")
+def test_hf_token(body: HfTokenTestRequest):
+    """Verify the HuggingFace token (provided inline, else the saved/env token)."""
+    token = (body.hf_token or "").strip() or cache_manager._resolve_hf_token()
+    result = _verify_hf_token(token)
+    return {"ok": bool(result.get("ok")), "message": result.get("message", "")}
 
 
 # ---------------------------------------------------------------------------

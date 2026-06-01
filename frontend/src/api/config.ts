@@ -44,6 +44,10 @@ export const systemApi = {
     api
       .post<{ ok: boolean; hf_token_set: boolean }>('/api/system/hf-token', { hf_token })
       .then(r => r.data),
+  testHfToken: (hf_token?: string) =>
+    api
+      .post<{ ok: boolean; message: string }>('/api/system/hf-token/test', { hf_token })
+      .then(r => r.data),
   getLlmKeys: () =>
     api
       .get<{ ok: boolean; providers: Record<string, boolean> }>('/api/system/llm-keys')

@@ -543,3 +543,77 @@ def test_apply_llm_keys_to_env_bridges_saved_key(
     cache_manager.update_user_setting("deepseek_api_key", "sk-other")
     cache_manager.apply_llm_keys_to_env()
     assert os.environ["DEEPSEEK_API_KEY"] == "sk-from-operator"
+
+
+def test_hf_token_test_endpoint_uses_saved_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from translip.server import cache_manager
+    from translip.server.app import app
+    from translip.server.routes import system
+
+    _clear_hf_tokens(monkeypatch, tmp_path)
+    client = TestClient(app)
+
+    seen: list[str | None] = []
+
+    def fake_verify(token, *, timeout_sec: int = 15):
+        seen.append(token)
+        return {"ok": True, "message": "OK (alice)"}
+
+    monkeypatch.setattr(system, "_verify_hf_token", fake_verify)
+
+    # No inline token -> falls back to the saved token.
+    cache_manager.update_user_setting("hf_token", "hf_saved")
+    resp = client.post("/api/system/hf-token/test", json={})
+    assert resp.json() == {"ok": True, "message": "OK (alice)"}
+    assert seen[-1] == "hf_saved"
+
+    # Inline token wins over the saved one.
+    client.post("/api/system/hf-token/test", json={"hf_token": "hf_inline"})
+    assert seen[-1] == "hf_inline"
+
+
+def test_hf_token_test_endpoint_no_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from translip.server.app import app
+
+    _clear_hf_tokens(monkeypatch, tmp_path)
+    client = TestClient(app)
+
+    # Nothing saved, nothing provided -> not ok, no network call.
+    body = client.post("/api/system/hf-token/test", json={}).json()
+    assert body["ok"] is False
+    assert body["message"]
+
+
+def test_tmdb_test_endpoint_prefers_inline_keys(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from translip.server.app import app
+    from translip.speaker_review.works_providers import tmdb
+
+    monkeypatch.delenv("TMDB_API_KEY", raising=False)
+    monkeypatch.delenv("TMDB_BEARER_TOKEN", raising=False)
+    client = TestClient(app)
+
+    seen: list[tuple[str, str]] = []
+
+    def fake_verify(*, api_key_v3: str = "", api_key_v4: str = "", timeout: int = 10):
+        seen.append((api_key_v3, api_key_v4))
+        return {"ok": True, "message": "OK"}
+
+    monkeypatch.setattr(tmdb, "verify_credentials", fake_verify)
+
+    resp = client.post(
+        "/api/config/tmdb/test", json={"api_key_v3": "v3key", "api_key_v4": "v4key"}
+    )
+    assert resp.json() == {"ok": True, "message": "OK"}
+    assert seen[-1] == ("v3key", "v4key")

@@ -272,11 +272,28 @@ def save_tmdb_config(req: TMDbConfigRequest) -> dict[str, Any]:
         config["tmdb"]["default_language"] = req.default_language
     
     _save_config(config)
-    
+
     return {
         "ok": True,
         "message": "TMDb configuration saved",
     }
+
+
+class TMDbTestRequest(BaseModel):
+    api_key_v3: Optional[str] = None
+    api_key_v4: Optional[str] = None
+
+
+@router.post("/tmdb/test")
+def test_tmdb_config(req: TMDbTestRequest) -> dict[str, Any]:
+    """Verify TMDb credentials (provided inline, else the saved/env keys)."""
+    saved = _load_config().get("tmdb", {})
+    v3 = (req.api_key_v3 or "").strip() or saved.get("api_key_v3") or os.environ.get("TMDB_API_KEY", "")
+    v4 = (req.api_key_v4 or "").strip() or saved.get("api_key_v4") or os.environ.get("TMDB_BEARER_TOKEN", "")
+    from ...speaker_review.works_providers.tmdb import verify_credentials
+
+    result = verify_credentials(api_key_v3=v3, api_key_v4=v4)
+    return {"ok": bool(result.get("ok")), "message": result.get("message", "")}
 
 
 # ---- Presets ----
