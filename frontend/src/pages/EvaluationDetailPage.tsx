@@ -9,6 +9,7 @@ import {
   taskArtifactUrl,
   taskInputFileUrl,
   type Analysis,
+  type DubQaGate,
   type DubQaReport,
   type DubQaSegment,
   type IssueTag,
@@ -327,23 +328,13 @@ function Scorecard({
 
       {/* Gates */}
       {report.scorecard.gates.length > 0 && (
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-[#f3f4f6] pt-4">
-          {report.scorecard.gates.map(gate => (
-            <span
-              key={gate.id}
-              className={cn(
-                'rounded-full px-2.5 py-1 text-[11px] font-medium',
-                gate.status === 'passed'
-                  ? 'bg-emerald-50 text-emerald-600'
-                  : gate.status === 'failed'
-                    ? 'bg-red-50 text-red-600'
-                    : 'bg-amber-50 text-amber-700',
-              )}
-              title={gate.threshold}
-            >
-              {gate.label}
-            </span>
-          ))}
+        <div className="mt-4 border-t border-[#f3f4f6] pt-4">
+          <div className="mb-2 text-xs font-medium text-[#9ca3af]">{t.evaluation.gatesTitle}</div>
+          <div className="flex flex-wrap gap-2">
+            {report.scorecard.gates.map(gate => (
+              <GateChip key={gate.id} gate={gate} />
+            ))}
+          </div>
         </div>
       )}
     </div>
@@ -421,6 +412,39 @@ function VerdictBadge({ verdict }: { verdict: string }) {
           {tip}
         </span>
       )}
+    </span>
+  )
+}
+
+/** A single delivery-gate chip — localized by stable gate id, with a status + threshold tooltip. */
+function GateChip({ gate }: { gate: DubQaGate }) {
+  const { t } = useI18n()
+  const id = gate.id as keyof typeof t.evaluation.gateInfo.labels
+  const label = t.evaluation.gateInfo.labels[id] ?? gate.label
+  const statusLabel =
+    t.evaluation.gateInfo.statusMap[gate.status as keyof typeof t.evaluation.gateInfo.statusMap] ??
+    gate.status
+  const desc = t.evaluation.gateInfo.desc[id] ?? gate.threshold
+  const style =
+    gate.status === 'passed'
+      ? 'bg-emerald-50 text-emerald-600'
+      : gate.status === 'failed'
+        ? 'bg-red-50 text-red-600'
+        : 'bg-amber-50 text-amber-700'
+  return (
+    <span className="group/gate relative inline-flex">
+      <span
+        tabIndex={0}
+        className={cn('rounded-full px-2.5 py-1 text-[11px] font-medium outline-none', style)}
+      >
+        {label}
+      </span>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute left-0 top-full z-30 mt-1.5 hidden w-64 rounded-lg bg-slate-900 px-3 py-2 text-[11px] leading-relaxed text-slate-100 shadow-lg group-hover/gate:block group-focus-within/gate:block"
+      >
+        <span className="font-semibold">{statusLabel}</span> · {desc}
+      </span>
     </span>
   )
 }
