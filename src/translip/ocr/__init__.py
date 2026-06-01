@@ -10,6 +10,10 @@ without paddle installed.
 Public API:
     SubtitleService().extract_subtitles(video_path, language=..., ...)
     -> SubtitleExtractionResult
+
+``SubtitleService`` is exposed lazily (it pulls in cv2/paddle), so plain
+``import translip.ocr`` stays lightweight; the domain dataclasses are cheap and
+imported eagerly.
 """
 
 from .config import settings
@@ -21,7 +25,6 @@ from .models.domain import (
     SubtitleExtractionResult,
     TextDetection,
 )
-from .services.subtitle_service import SubtitleService
 
 __all__ = [
     "settings",
@@ -33,3 +36,12 @@ __all__ = [
     "TextDetection",
     "Language",
 ]
+
+
+def __getattr__(name: str):
+    # Lazy re-export: importing SubtitleService eagerly would pull cv2/paddle.
+    if name == "SubtitleService":
+        from .services.subtitle_service import SubtitleService
+
+        return SubtitleService
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

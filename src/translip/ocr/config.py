@@ -10,7 +10,6 @@ Every field is still env-overridable via pydantic-settings, e.g.
 """
 
 from pydantic_settings import BaseSettings
-from typing import List
 
 from translip.config import CACHE_ROOT
 
@@ -20,7 +19,6 @@ class Settings(BaseSettings):
 
     # OCR配置
     PADDLEOCR_USE_ANGLE_CLS: bool = True
-    PADDLEOCR_LANG: str = "ch"  # 支持多语言: ch, en, korean, japan等
     PADDLEOCR_USE_GPU: bool = False
     PADDLEOCR_DEVICE: str = "cpu"
     PADDLEOCR_ENABLE_HPI: bool = False
@@ -42,11 +40,6 @@ class Settings(BaseSettings):
     PADDLEOCR_DET_DB_THRESH: float = 0.3
     PADDLEOCR_DET_DB_BOX_THRESH: float = 0.5
 
-    # 视频处理配置
-    VIDEO_SAMPLE_INTERVAL: float = 1.0  # 采样间隔(秒)
-    VIDEO_MAX_DURATION: int = 3600      # 最大视频时长(秒)
-    VIDEO_SUPPORTED_FORMATS: List[str] = [".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv", ".wmv"]
-
     # 字幕检测配置
     SUBTITLE_DETECTION_SAMPLE_RATE: int = 10  # 预检测最少采样帧数
     SUBTITLE_DETECTION_SAMPLE_RATE_MAX: int = 24  # 预检测最多采样帧数
@@ -60,7 +53,6 @@ class Settings(BaseSettings):
     SUBTITLE_SKIP_START_SECONDS_DEFAULT: float = 0.0  # 默认跳过片头秒数
     SUBTITLE_SKIP_END_SECONDS_DEFAULT: float = 0.0  # 默认跳过片尾秒数
     SUBTITLE_PROGRESS_LOG_EVERY_FRAMES: int = 20
-    SUBTITLE_POSITION_MODE_DEFAULT: str = "bottom"
     SUBTITLE_GEOMETRY_MODE_DEFAULT: str = "axis_aligned"
     SUBTITLE_ANCHOR_MIN_APPEARANCE_RATIO: float = 0.2
     SUBTITLE_ANCHOR_MAX_COUNT: int = 2
