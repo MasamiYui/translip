@@ -16,7 +16,7 @@ export function EvaluationPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['evaluation-tasks'],
-    queryFn: () => tasksApi.list({ size: 200 }),
+    queryFn: () => tasksApi.list({ size: 100 }),
   })
 
   const tasks: Task[] = useMemo(() => {

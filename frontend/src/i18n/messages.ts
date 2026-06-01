@@ -47,6 +47,11 @@ const zhMessages = {
     judgeHint: '逐句用 LLM 评估译文准确度与流畅度，会产生 API 调用',
     score: '综合得分',
     status: '状态',
+    verdictMap: {
+      deliverable_candidate: '可交付',
+      review_required: '需复核',
+      blocked: '受阻',
+    },
     segments: '片段数',
     problems: '问题片段',
     dubCoverage: '配音覆盖',
@@ -1338,6 +1343,11 @@ const enMessages: LocaleMessages = {
     judgeHint: 'Uses an LLM to rate each translation for adequacy and fluency; makes API calls',
     score: 'Overall score',
     status: 'Status',
+    verdictMap: {
+      deliverable_candidate: 'Deliverable',
+      review_required: 'Needs review',
+      blocked: 'Blocked',
+    },
     segments: 'Segments',
     problems: 'Problem segments',
     dubCoverage: 'Dub coverage',

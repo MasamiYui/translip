@@ -15,7 +15,6 @@ import {
   type SegmentSeverity,
 } from '../api/evaluation'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
-import { StatusBadge } from '../components/shared/StatusBadge'
 import { useI18n } from '../i18n/useI18n'
 import { cn } from '../lib/utils'
 
@@ -284,7 +283,7 @@ function Scorecard({
           <div className="text-xs text-[#9ca3af]">{t.evaluation.score}</div>
         </div>
         <div className="h-10 w-px bg-[#e5e7eb]" />
-        <Stat label={t.evaluation.status} value={<StatusBadge status={report.scorecard.status} size="sm" />} />
+        <Stat label={t.evaluation.status} value={<VerdictBadge verdict={report.scorecard.status} />} />
         <Stat
           label={t.evaluation.dubCoverage}
           value={
@@ -378,6 +377,24 @@ function FilterChip({
     >
       {children}
     </button>
+  )
+}
+
+/** Renders the dub-QA verdict (blocked / review_required / deliverable_candidate) — NOT a pipeline task status. */
+function VerdictBadge({ verdict }: { verdict: string }) {
+  const { t } = useI18n()
+  const style =
+    verdict === 'deliverable_candidate'
+      ? 'bg-emerald-50 text-emerald-700'
+      : verdict === 'blocked'
+        ? 'bg-red-50 text-red-600'
+        : 'bg-amber-50 text-amber-700'
+  const label =
+    t.evaluation.verdictMap[verdict as keyof typeof t.evaluation.verdictMap] ?? verdict
+  return (
+    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium', style)}>
+      {label}
+    </span>
   )
 }
 
