@@ -735,7 +735,7 @@ export interface TranslationParams {
   file_id?: string
   source_lang?: string
   target_lang?: string
-  backend?: 'local-m2m100' | 'siliconflow'
+  backend?: 'local-m2m100' | 'deepseek'
   glossary_file_id?: string
 }
 

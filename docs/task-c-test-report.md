@@ -9,7 +9,7 @@
 本轮任务 C 已实现并验证以下能力:
 
 - 本地翻译后端: `facebook/m2m100_418M`
-- 第三方 API 后端: `SiliconFlow`
+- 第三方 API 后端: `DeepSeek`
 - 段级翻译导出
 - `translation.<target_tag>.json`
 - `translation.<target_tag>.editable.json`
@@ -36,7 +36,7 @@ uv run pytest -q
 - context unit 分组
 - glossary 预处理
 - glossary 单术语目标归一化
-- SiliconFlow JSON 响应解析
+- DeepSeek JSON 响应解析
 - 时长预算判定
 - 任务 C 导出物结构
 
@@ -95,14 +95,14 @@ uv run translip translate-script \
 - `迪拜` -> `Dubai`
 - `哈里巴塔` -> `Burj Khalifa`
 
-## 4. SiliconFlow API 验证
+## 4. DeepSeek API 验证
 
 ### 4.1 小样本 smoke test
 
 输入:
 
 - 前 6 条句段
-- 模型: `deepseek-ai/DeepSeek-V3`
+- 模型: `deepseek-v4-pro`
 
 结果:
 
@@ -126,7 +126,7 @@ uv run translip translate-script \
 输入:
 
 - 前 20 条句段
-- 模型: `deepseek-ai/DeepSeek-V3`
+- 模型: `deepseek-v4-pro`
 
 结果:
 
@@ -138,7 +138,7 @@ uv run translip translate-script \
 
 结论:
 
-- SiliconFlow 后端已达到可用状态
+- DeepSeek 后端已达到可用状态
 - 当前实现适合作为质量更高的可选翻译后端
 - 密钥未写入仓库，只通过环境变量读取
 

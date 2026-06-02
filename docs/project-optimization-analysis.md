@@ -290,7 +290,7 @@
 - `ducking_mode` → “背景音压低方式”
 
 ##### 4）动态隐藏不相关参数
-例如只有选了 `siliconflow` 时才出现 API 相关参数，这一点已经部分做了：
+例如只有选了 `deepseek` 时才出现 API 相关参数，这一点已经部分做了：
 - `frontend/src/pages/NewTaskPage.tsx:409-419`
 
 但还可以更进一步：

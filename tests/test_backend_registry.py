@@ -112,8 +112,8 @@ def test_contains_rejects_non_strings():
 def test_translation_registry_registers_expected_backends():
     from translip.translation.registry import TRANSLATION_BACKENDS
 
-    assert set(TRANSLATION_BACKENDS.identifiers()) == {"local-m2m100", "siliconflow"}
-    assert TRANSLATION_BACKENDS.get_info("siliconflow").requires_network is True
+    assert set(TRANSLATION_BACKENDS.identifiers()) == {"local-m2m100", "deepseek"}
+    assert TRANSLATION_BACKENDS.get_info("deepseek").requires_network is True
     assert TRANSLATION_BACKENDS.get_info("local-m2m100").requires_network is False
 
 

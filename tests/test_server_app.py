@@ -65,10 +65,10 @@ def test_global_config_round_trips_transcription_advanced_defaults(tmp_path, mon
         "condition_on_previous_text": True,
         "stage1_output_format": "wav",
         "top_k": 4,
-        "translation_backend": "siliconflow",
+        "translation_backend": "deepseek",
         "translation_batch_size": 8,
         "condense_mode": "smart",
-        "siliconflow_model": "deepseek-ai/DeepSeek-V3",
+        "deepseek_model": "deepseek-v4-pro",
         "tts_backend": "qwen3tts",
         "dubbing_workers": 2,
         "dubbing_quality_check": "duration-only",
@@ -115,7 +115,7 @@ def test_global_config_can_clear_optional_advanced_defaults(tmp_path, monkeypatc
     set_response = client.put(
         "/api/config/global",
         json={
-            "siliconflow_model": "deepseek-ai/DeepSeek-V3",
+            "deepseek_model": "deepseek-v4-pro",
             "dubbing_workers": 2,
         },
     )
@@ -124,16 +124,16 @@ def test_global_config_can_clear_optional_advanced_defaults(tmp_path, monkeypatc
     clear_response = client.put(
         "/api/config/global",
         json={
-            "siliconflow_model": None,
+            "deepseek_model": None,
             "dubbing_workers": None,
         },
     )
 
     assert clear_response.status_code == 200
     payload = clear_response.json()
-    assert payload["config"]["siliconflow_model"] is None
+    assert payload["config"]["deepseek_model"] is None
     assert payload["config"]["dubbing_workers"] is None
 
     raw = json.loads((tmp_path / "config.json").read_text(encoding="utf-8"))
-    assert "siliconflow_model" not in raw["global"]
+    assert "deepseek_model" not in raw["global"]
     assert "dubbing_workers" not in raw["global"]

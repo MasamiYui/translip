@@ -447,7 +447,7 @@ function renderControls(
         <div className="grid gap-4 md:grid-cols-3">
           <SelectField label={atomicTools.fields.sourceLang} value={String(params.source_lang)} options={sourceLanguageOptions} onChange={value => setField('source_lang', value)} />
           <SelectField label={atomicTools.fields.targetLang} value={String(params.target_lang)} options={targetLanguageOptions} onChange={value => setField('target_lang', value)} />
-          <SelectField label={atomicTools.fields.backend} value={String(params.backend)} options={['local-m2m100', 'siliconflow']} onChange={value => setField('backend', value)} />
+          <SelectField label={atomicTools.fields.backend} value={String(params.backend)} options={['local-m2m100', 'deepseek']} onChange={value => setField('backend', value)} />
         </div>
       </div>
     )
@@ -627,7 +627,7 @@ function renderControls(
           <SelectField
             label={atomicTools.fields.llmArbitration}
             value={arbitration}
-            options={(['off', 'deepseek', 'siliconflow'] as const).map(value => ({
+            options={(['off', 'deepseek'] as const).map(value => ({
               value,
               label: atomicTools.arbitrationOptions[value],
             }))}

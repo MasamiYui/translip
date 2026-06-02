@@ -180,18 +180,17 @@ export function SettingsPage() {
     onError: () => setHfTestResult({ ok: false, message: 'request failed' }),
   })
 
-  // ---------- Transcript-correction LLM keys (DeepSeek / SiliconFlow) ----------
+  // ---------- LLM keys (DeepSeek) ----------
   const { data: llmKeys } = useQuery({
     queryKey: ['llm-keys'],
     queryFn: systemApi.getLlmKeys,
   })
   const [llmKeyInputs, setLlmKeyInputs] = useState<Record<string, string>>({
     deepseek: '',
-    siliconflow: '',
   })
   const [llmTestResult, setLlmTestResult] = useState<
     Record<string, { ok: boolean; message: string } | null>
-  >({ deepseek: null, siliconflow: null })
+  >({ deepseek: null })
   const saveLlmKeyMutation = useMutation({
     mutationFn: (provider: string) => systemApi.saveLlmKey(provider, llmKeyInputs[provider] ?? ''),
     onSuccess: (_data, provider) => {
@@ -525,7 +524,6 @@ export function SettingsPage() {
           <div className="space-y-5">
             {([
               { id: 'deepseek', label: 'DeepSeek' },
-              { id: 'siliconflow', label: 'SiliconFlow' },
             ] as const).map(provider => {
               const isSet = llmKeys?.providers?.[provider.id] ?? false
               const input = llmKeyInputs[provider.id] ?? ''
@@ -900,7 +898,7 @@ function AdvancedSettingsSection({
             value={config.translation_backend ?? 'local-m2m100'}
             options={[
               { value: 'local-m2m100', label: 'local-m2m100' },
-              { value: 'siliconflow', label: 'SiliconFlow API' },
+              { value: 'deepseek', label: 'DeepSeek API' },
             ]}
             onChange={value => onPatch({ translation_backend: value })}
           />
@@ -922,18 +920,17 @@ function AdvancedSettingsSection({
             onChange={value => onPatch({ condense_mode: value })}
           />
           <SettingsText
-            label="SiliconFlow 模型"
-            value={config.siliconflow_model ?? ''}
-            placeholder="deepseek-ai/DeepSeek-V3"
-            onChange={value => onPatch({ siliconflow_model: value || null })}
+            label="DeepSeek 模型"
+            value={config.deepseek_model ?? ''}
+            placeholder="deepseek-v4-pro"
+            onChange={value => onPatch({ deepseek_model: value || null })}
           />
           <SettingsSelect
             label="文稿校正 LLM 仲裁"
             value={config.transcription_correction?.llm_arbitration ?? 'off'}
             options={[
               { value: 'off', label: '关闭' },
-              { value: 'deepseek', label: 'DeepSeek' },
-              { value: 'siliconflow', label: 'SiliconFlow' },
+              { value: 'deepseek', label: 'DeepSeek V4 Pro' },
             ]}
             onChange={value =>
               onPatch({
@@ -944,7 +941,7 @@ function AdvancedSettingsSection({
                     ocr_only_policy: 'report_only',
                     llm_arbitration: 'off',
                   }),
-                  llm_arbitration: value as 'off' | 'deepseek' | 'siliconflow',
+                  llm_arbitration: value as 'off' | 'deepseek',
                 },
               })
             }

@@ -27,7 +27,7 @@ Each pipeline stage lives in its own module under `src/translip/`:
 | `pipeline/` | Stage 1 | Voice/background separation (Demucs for music, CDX23 for dialogue) |
 | `transcription/` | Task A | ASR via faster-whisper, speaker diarization |
 | `speakers/` | Task B | Speaker embeddings (SpeechBrain ECAPA), registry, profile matching |
-| `translation/` | Task C | M2M100 local or SiliconFlow API, glossary support |
+| `translation/` | Task C | M2M100 local or DeepSeek API, glossary support |
 | `dubbing/` | Task D | Qwen TTS voice cloning |
 | `rendering/` | Task E | Timeline fitting, audio mixing, ducking |
 | `delivery/` | Task G | FFmpeg video muxing, final MP4 export |

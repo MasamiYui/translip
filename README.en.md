@@ -91,7 +91,7 @@ The orchestrator holds no task logic: it resolves a node DAG, checks a cache, an
 - Separate dialogue and background audio from video or audio inputs.
 - Generate speaker-attributed transcripts with `FunASR / Paraformer-zh` (default) or `faster-whisper`; diarization via `ECAPA` or `pyannote 3.1`.
 - Build reusable speaker profiles and registries for later tasks.
-- Produce dubbing scripts with local `M2M100` or the `SiliconFlow API`.
+- Produce dubbing scripts with local `M2M100` or the `DeepSeek API`.
 - Synthesize target-language speech locally with `MOSS-TTS-Nano ONNX` by default, with `Qwen3-TTS` and `VoxCPM2` also available.
 - Fit speech back to the original timeline (atempo / rubberband), sidechain-mix, and export preview/final outputs.
 
@@ -203,7 +203,7 @@ Recommended: preload the separation model (or use the UI: Settings → Model sta
 uv run translip download-models --backend cdx23 --quality balanced
 ```
 
-For gated models (e.g. `pyannote` diarization), accept the model license on HuggingFace, then provide a read-scoped access token — either in the Settings page or via `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN`. The SiliconFlow translation backend needs `SILICONFLOW_API_KEY`.
+For gated models (e.g. `pyannote` diarization), accept the model license on HuggingFace, then provide a read-scoped access token — either in the Settings page or via `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN`. The DeepSeek translation backend, transcript-correction LLM arbitration, and translation quality scoring need `DEEPSEEK_API_KEY`.
 
 ## Quick Start
 
@@ -253,7 +253,7 @@ uv run translip run --input ./test_video/example.mp4 --mode auto --quality balan
 # Task A: transcription
 uv run translip transcribe --input ./output-stage1/example/voice.wav --output-dir ./output-task-a
 
-# Task C: translation (local M2M100 / SiliconFlow)
+# Task C: translation (local M2M100 / DeepSeek)
 uv run translip translate-script --segments ./output-task-a/voice/segments.zh.json \
   --profiles ./output-task-b/voice/speaker_profiles.json --target-lang en \
   --backend local-m2m100 --output-dir ./output-task-c
@@ -278,9 +278,9 @@ uv run translip --help    # list all subcommands
 | `TRANSLIP_DB_PATH` | `<cache>/data.db` | SQLite database path for the web UI |
 | `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN` | none | HuggingFace token to download/use gated models (e.g. pyannote); can also be set in Settings |
 | `TMDB_API_KEY` / `TMDB_BEARER_TOKEN` | none | Fetch works/episode metadata and posters for the Works library |
-| `SILICONFLOW_API_KEY` | none | Required when using the `siliconflow` translation backend |
-| `SILICONFLOW_BASE_URL` | `https://api.siliconflow.cn/v1` | Override the SiliconFlow API endpoint |
-| `SILICONFLOW_MODEL` | `deepseek-ai/DeepSeek-V3` | Override the default SiliconFlow model |
+| `DEEPSEEK_API_KEY` | none | Required for the `deepseek` translation backend, transcript-correction LLM arbitration, and translation quality scoring |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | Override the DeepSeek API endpoint |
+| `DEEPSEEK_MODEL` | `deepseek-v4-pro` | Override the default DeepSeek model |
 | `MOSS_TTS_NANO_CLI` | `moss-tts-nano` | CLI executable used by the `moss-tts-nano-onnx` backend |
 | `MOSS_TTS_NANO_MODEL_DIR` | `<cache>/models` | MOSS ONNX model directory passed to `--onnx-model-dir` |
 | `MOSS_TTS_NANO_CPU_THREADS` | `4` | CPU thread count for MOSS ONNX inference |

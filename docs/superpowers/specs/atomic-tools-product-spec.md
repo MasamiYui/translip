@@ -152,7 +152,7 @@ Translip 当前提供的是 **端到端 Pipeline 模式** —— 用户必须创
 | file | File | ✅* | — | 上传 SRT 或纯文本文件（与 text 二选一）|
 | source_lang | enum | ✅ | zh | 源语言 |
 | target_lang | enum | ✅ | en | 目标语言 |
-| backend | enum | ❌ | local-m2m100 | local-m2m100 / siliconflow |
+| backend | enum | ❌ | local-m2m100 | local-m2m100 / deepseek |
 | glossary | File | ❌ | — | 术语表文件（JSON）|
 
 **输出**:

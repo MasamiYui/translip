@@ -127,8 +127,8 @@ const globalDefaultKeys: Array<keyof TaskConfig> = [
   'ocr_extraction_mode',
   'translation_backend',
   'translation_batch_size',
-  'siliconflow_base_url',
-  'siliconflow_model',
+  'deepseek_base_url',
+  'deepseek_model',
   'condense_mode',
   'tts_backend',
   'dubbing_workers',
@@ -799,18 +799,17 @@ export function NewTaskPage() {
                   <Field
                     label={locale === 'zh-CN' ? 'LLM 仲裁' : 'LLM Arbitration'}
                     hint={locale === 'zh-CN'
-                      ? '仅对疑难段（高置信 OCR 但对齐/长度不达标）调用大模型在 ASR/OCR 间裁决，受忠实回校约束。需配置 DeepSeek 或 SiliconFlow 的 API Key。'
-                      : 'Calls an LLM to arbitrate ASR vs OCR only on ambiguous segments, bounded by a faithfulness check. Requires a DeepSeek or SiliconFlow API key.'}
+                      ? '仅对疑难段（高置信 OCR 但对齐/长度不达标）调用大模型（DeepSeek V4 Pro）在 ASR/OCR 间裁决，受忠实回校约束。需配置 DeepSeek 的 API Key。'
+                      : 'Calls an LLM (DeepSeek V4 Pro) to arbitrate ASR vs OCR only on ambiguous segments, bounded by a faithfulness check. Requires a DeepSeek API key.'}
                   >
                     <Select
                       value={config.transcription_correction?.llm_arbitration ?? 'off'}
                       onChange={value =>
-                        patchTranscriptionCorrection({ llm_arbitration: value as 'off' | 'deepseek' | 'siliconflow' })
+                        patchTranscriptionCorrection({ llm_arbitration: value as 'off' | 'deepseek' })
                       }
                       options={[
                         { value: 'off', label: locale === 'zh-CN' ? '关闭' : 'Off' },
-                        { value: 'deepseek', label: 'DeepSeek' },
-                        { value: 'siliconflow', label: 'SiliconFlow' },
+                        { value: 'deepseek', label: 'DeepSeek V4 Pro' },
                       ]}
                     />
                     {(config.transcription_correction?.llm_arbitration ?? 'off') !== 'off' && (
@@ -865,7 +864,7 @@ export function NewTaskPage() {
                     onChange={value => patchConfig({ translation_backend: value })}
                     options={[
                       { value: 'local-m2m100', label: 'local-m2m100' },
-                      { value: 'siliconflow', label: 'SiliconFlow API' },
+                      { value: 'deepseek', label: 'DeepSeek API' },
                     ]}
                   />
                 </Field>

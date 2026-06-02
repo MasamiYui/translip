@@ -9,7 +9,7 @@ Route = Literal["music", "dialogue"]
 OutputFormat = Literal["wav", "mp3", "flac", "aac", "opus"]
 Device = Literal["auto", "cpu", "cuda", "mps"]
 Quality = Literal["balanced", "high"]
-TranslationBackendName = Literal["local-m2m100", "siliconflow"]
+TranslationBackendName = Literal["local-m2m100", "deepseek"]
 TtsBackendName = Literal["moss-tts-nano-onnx", "qwen3tts", "voxcpm2"]
 AsrBackendName = Literal["faster-whisper", "funasr"]
 DiarizerBackendName = Literal["ecapa", "pyannote"]
@@ -75,7 +75,7 @@ class TranscriptionCorrectionConfig(TypedDict, total=False):
     min_length_ratio: float
     max_length_ratio: float
     ocr_only_policy: Literal["report_only"]
-    llm_arbitration: Literal["off", "deepseek", "siliconflow"]
+    llm_arbitration: Literal["off", "deepseek"]
 
 
 @dataclass(slots=True)

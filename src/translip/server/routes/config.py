@@ -48,8 +48,8 @@ _DEFAULT_CONFIG = {
     "ocr_extraction_mode": "conservative",
     "translation_backend": "local-m2m100",
     "translation_batch_size": 4,
-    "siliconflow_base_url": None,
-    "siliconflow_model": None,
+    "deepseek_base_url": None,
+    "deepseek_model": None,
     "condense_mode": "off",
     "transcription_correction": {"enabled": True, "preset": "standard", "ocr_only_policy": "report_only", "llm_arbitration": "off"},
     "tts_backend": "moss-tts-nano-onnx",
@@ -146,10 +146,10 @@ class GlobalConfigRequest(BaseModel):
     ocr_sample_interval: Optional[float] = Field(default=None, description="字幕识别(OCR)抽帧采样间隔（秒）")
     ocr_position_mode: Optional[str] = Field(default=None, description="OCR 字幕区域定位模式，如 auto")
     ocr_extraction_mode: Optional[str] = Field(default=None, description="OCR 字幕提取模式，如 conservative")
-    translation_backend: Optional[str] = Field(default=None, description="task-c 翻译后端，如 local-m2m100/siliconflow")
+    translation_backend: Optional[str] = Field(default=None, description="task-c 翻译后端，如 local-m2m100/deepseek")
     translation_batch_size: Optional[int] = Field(default=None, description="翻译批处理大小，需大于 0")
-    siliconflow_base_url: Optional[str] = Field(default=None, description="siliconflow 翻译后端的 API 基地址")
-    siliconflow_model: Optional[str] = Field(default=None, description="siliconflow 翻译后端使用的模型名")
+    deepseek_base_url: Optional[str] = Field(default=None, description="deepseek 翻译后端的 API 基地址")
+    deepseek_model: Optional[str] = Field(default=None, description="deepseek 翻译后端使用的模型名")
     condense_mode: Optional[str] = Field(default=None, description="文本精简模式，如 off")
     transcription_correction: Optional[dict] = Field(default=None, description="转写纠错配置（启用开关、预设、OCR 仅报告策略、LLM 仲裁等）")
     tts_backend: Optional[str] = Field(default=None, description="task-d 语音合成(TTS)后端，如 moss-tts-nano-onnx")

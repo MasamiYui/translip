@@ -27,19 +27,18 @@ def _build_m2m100(*, local_model: str = DEFAULT_TRANSLATION_LOCAL_MODEL, device:
 
 
 @TRANSLATION_BACKENDS.register(
-    "siliconflow",
-    summary="SiliconFlow chat-completions API (LLM translation).",
+    "deepseek",
+    summary="DeepSeek chat-completions API (LLM translation).",
     requires_network=True,
 )
-def _build_siliconflow(
+def _build_deepseek(
     *, api_model: str | None = None, api_base_url: str | None = None, device: str = "auto", **_
 ):
-    from .siliconflow_backend import SiliconFlowBackend
+    from .deepseek_backend import DeepSeekBackend
 
-    return SiliconFlowBackend(
+    return DeepSeekBackend(
         model_name=api_model,
         base_url=api_base_url,
-        requested_device=device,
     )
 
 

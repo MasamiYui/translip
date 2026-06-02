@@ -222,17 +222,17 @@ def test_cli_translate_script_parser() -> None:
             "--target-lang",
             "ja",
             "--backend",
-            "siliconflow",
+            "deepseek",
             "--api-model",
-            "deepseek-ai/DeepSeek-V3",
+            "deepseek-v4-pro",
         ]
     )
     assert args.command == "translate-script"
     assert args.segments == "segments.zh.json"
     assert args.profiles == "speaker_profiles.json"
     assert args.target_lang == "ja"
-    assert args.backend == "siliconflow"
-    assert args.api_model == "deepseek-ai/DeepSeek-V3"
+    assert args.backend == "deepseek"
+    assert args.api_model == "deepseek-v4-pro"
 
 
 def test_cli_synthesize_speaker_parser() -> None:

@@ -57,13 +57,13 @@ def test_asr_ocr_correction_command_arbitration_with_disabled(tmp_path: Path) ->
         transcription_correction={
             "enabled": False,
             "preset": "standard",
-            "llm_arbitration": "siliconflow",
+            "llm_arbitration": "deepseek",
         },
     )
 
     command = build_asr_ocr_correction_command(request)
 
-    assert _value_after(command, "--llm-arbitration") == "siliconflow"
+    assert _value_after(command, "--llm-arbitration") == "deepseek"
     assert "--disabled" in command
 
 
