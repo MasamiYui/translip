@@ -17,8 +17,6 @@ export function BlogListPage() {
   const categories = useMemo(() => getCategories(locale), [locale])
   const categoryLabel = (c: string) => (t.blog.categories as Record<string, string>)[c] ?? c
 
-  const noFilter = search.trim() === '' && category === ALL
-
   const filtered = useMemo(() => {
     const kw = search.trim().toLowerCase()
     return posts.filter(p => {
@@ -31,9 +29,6 @@ export function BlogListPage() {
       )
     })
   }, [posts, search, category])
-
-  const featured = noFilter && filtered.length > 0 ? filtered[0] : null
-  const grid = featured ? filtered.slice(1) : filtered
 
   return (
     <PageContainer className={APP_CONTENT_MAX_WIDTH}>
@@ -96,15 +91,10 @@ export function BlogListPage() {
               {t.blog.emptyFiltered}
             </div>
           ) : (
-            <div className="space-y-5">
-              {featured && <BlogPostCard post={featured} featured />}
-              {grid.length > 0 && (
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {grid.map(post => (
-                    <BlogPostCard key={post.slug} post={post} />
-                  ))}
-                </div>
-              )}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {filtered.map(post => (
+                <BlogPostCard key={post.slug} post={post} />
+              ))}
             </div>
           )}
         </>

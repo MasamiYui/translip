@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 484" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ac" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="sc" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#sc);}
+      .t1{font-size:13px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="484" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">OCR 反哺 ASR：保时间、改文字</text>
+  <text x="32" y="66" class="s" font-size="13.5">两个都不可靠的源——确定性闸门取真，最含糊的才（可选）交给 LLM。</text>
+
+  <!-- source: ASR -->
+  <rect class="box" x="32" y="150" width="226" height="80" rx="12"/>
+  <rect x="32" y="150" width="6" height="80" rx="3" fill="#6366f1"/>
+  <text x="52" y="182" class="t1">ASR 文本</text>
+  <text x="52" y="205" class="t2">可能听错同音字：是 / 事 / 试</text>
+
+  <!-- source: OCR -->
+  <rect class="box" x="32" y="258" width="226" height="80" rx="12"/>
+  <rect x="32" y="258" width="6" height="80" rx="3" fill="#8b5cf6"/>
+  <text x="52" y="290" class="t1">OCR 文本（高置信）</text>
+  <text x="52" y="313" class="t2">可能认错形近字：未 / 末</text>
+
+  <!-- gate -->
+  <rect class="box" x="300" y="150" width="236" height="188" rx="14" stroke="#cbd5e1"/>
+  <rect x="300" y="150" width="236" height="38" rx="14" fill="#f1f5f9"/>
+  <rect x="300" y="172" width="236" height="16" fill="#f1f5f9"/>
+  <text x="418" y="175" font-size="13" font-weight="700" fill="#334155" text-anchor="middle">三道闸（都过才改写）</text>
+  <text x="320" y="222" class="t2" font-size="12">① 置信度 ≥ min_ocr_confidence</text>
+  <text x="320" y="258" class="t2" font-size="12">② 时间对齐 ≥ min_alignment_score</text>
+  <text x="320" y="294" class="t2" font-size="12">③ 长度比 ∈ [min, max]</text>
+  <text x="418" y="324" class="t2" text-anchor="middle" font-style="italic">时间始终沿用 ASR 的</text>
+
+  <path class="ln" d="M258,188 L280,188 L280,210 L296,210" marker-end="url(#ac)"/>
+  <path class="ln" d="M258,298 L280,298 L280,278 L296,278" marker-end="url(#ac)"/>
+
+  <!-- buckets -->
+  <rect x="600" y="120" width="328" height="48" rx="10" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.5"/>
+  <text x="618" y="141" font-size="12.5" font-weight="700" fill="#047857">用 OCR 改写（三道闸全过）</text>
+  <text x="618" y="158" font-size="11" fill="#059669">替换文字，时间不动</text>
+
+  <rect x="600" y="178" width="328" height="44" rx="10" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="618" y="199" font-size="12.5" font-weight="700" fill="#475569">保留 ASR（OCR 置信不够）</text>
+  <text x="618" y="215" font-size="11" fill="#64748b">不冒险</text>
+
+  <rect x="600" y="232" width="328" height="48" rx="10" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
+  <text x="618" y="253" font-size="12.5" font-weight="700" fill="#b45309">review（对齐 / 长度可疑）</text>
+  <text x="618" y="270" font-size="11" fill="#d97706">最含糊的一类，单独标记</text>
+
+  <!-- llm sub under review -->
+  <rect x="636" y="294" width="292" height="44" rx="10" fill="#fff" stroke="#fcd34d" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="654" y="314" font-size="11.5" font-weight="700" fill="#92400e">↳ 可选 LLM 仲裁（只在 review 桶）</text>
+  <text x="654" y="330" font-size="10.5" fill="#a16207">每个字必须来自 ASR / OCR，否则作废</text>
+
+  <rect x="600" y="350" width="328" height="48" rx="10" fill="#fff1f2" stroke="#fecdd3" stroke-width="1.5"/>
+  <text x="618" y="371" font-size="12.5" font-weight="700" fill="#be123c">ocr_only（无 ASR 覆盖）</text>
+  <text x="618" y="388" font-size="11" fill="#e11d48">疑似漏听台词，只上报、不擅自插入</text>
+
+  <!-- gate -> buckets -->
+  <path class="ln" d="M536,210 L568,210 L568,144 L598,144" marker-end="url(#ac)"/>
+  <path class="ln" d="M536,228 L580,228 L580,200 L598,200" marker-end="url(#ac)"/>
+  <path class="ln" d="M536,256 L598,256" marker-end="url(#ac)"/>
+  <path class="ln" d="M536,278 L568,278 L568,374 L598,374" marker-end="url(#ac)"/>
+  <!-- review -> llm -->
+  <path class="ln" d="M700,280 L700,292" marker-end="url(#ac)"/>
+
+  <text x="32" y="462" class="s" font-size="12.5">能用规则解决的绝不喊模型；非要喊模型，也只让它在 ASR 和 OCR 已有的字里做选择题。预设 conservative / standard / aggressive 调阈值松紧。</text>
+</svg>

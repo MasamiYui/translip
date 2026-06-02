@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 440" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="aa" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="sa" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#sa);}
+      .t1{font-size:13.5px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="440" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">两个 ASR 后端：最后都归一成同一种 AsrSegment</text>
+  <text x="32" y="66" class="s" font-size="13.5">默认 FunASR（中文优先）/ faster-whisper（多语种备选）；产出统一为 AsrSegment(start, end, text, language)。</text>
+
+  <!-- input -->
+  <rect class="box" x="32" y="190" width="132" height="80" rx="12"/>
+  <rect x="32" y="190" width="6" height="80" rx="3" fill="#64748b"/>
+  <text x="101" y="224" class="t1" text-anchor="middle">输入</text>
+  <text x="101" y="246" class="t2" text-anchor="middle">16 kHz 单声道</text>
+
+  <!-- backend: funasr -->
+  <rect class="box" x="210" y="112" width="188" height="80" rx="12"/>
+  <rect x="210" y="112" width="6" height="80" rx="3" fill="#4f46e5"/>
+  <text x="306" y="146" class="t1" text-anchor="middle" fill="#4338ca">FunASR（默认）</text>
+  <text x="306" y="168" class="t2" text-anchor="middle">中文优先 · paraformer-zh</text>
+
+  <!-- backend: faster-whisper -->
+  <rect class="box" x="210" y="300" width="188" height="80" rx="12"/>
+  <rect x="210" y="300" width="6" height="80" rx="3" fill="#0284c7"/>
+  <text x="306" y="334" class="t1" text-anchor="middle" fill="#0369a1">faster-whisper</text>
+  <text x="306" y="356" class="t2" text-anchor="middle">CTranslate2 · 多语种</text>
+
+  <!-- funasr sub: paraformer -->
+  <rect class="box" x="446" y="80" width="232" height="64" rx="12"/>
+  <rect x="446" y="80" width="6" height="64" rx="3" fill="#6366f1"/>
+  <text x="468" y="106" class="t1">Paraformer · 句级时间戳（真）</text>
+  <text x="468" y="127" class="t2">一句一段，时间可直接用于混音</text>
+
+  <!-- funasr sub: sensevoice -->
+  <rect class="box" x="446" y="160" width="232" height="64" rx="12"/>
+  <rect x="446" y="160" width="6" height="64" rx="3" fill="#a5b4fc"/>
+  <text x="468" y="186" class="t1">SenseVoice · 无 token 时间戳</text>
+  <text x="468" y="207" class="t2">按句切分，时间按字数比例估算</text>
+
+  <!-- fw detail -->
+  <rect class="box" x="446" y="300" width="232" height="64" rx="12"/>
+  <rect x="446" y="300" width="6" height="64" rx="3" fill="#38bdf8"/>
+  <text x="468" y="326" class="t1">VAD 门控 + int8 量化</text>
+  <text x="468" y="347" class="t2">静音切句 · 本地 CPU 也能跑</text>
+
+  <!-- unified output -->
+  <rect class="box" x="720" y="176" width="208" height="92" rx="12"/>
+  <rect x="720" y="176" width="6" height="92" rx="3" fill="#059669"/>
+  <text x="824" y="210" class="t1" text-anchor="middle" fill="#047857">归一成 AsrSegment</text>
+  <text x="824" y="232" class="t2" text-anchor="middle">id · start · end</text>
+  <text x="824" y="249" class="t2" text-anchor="middle">text · language</text>
+
+  <!-- arrows -->
+  <path class="ln" d="M164,222 L188,222 L188,152 L206,152" marker-end="url(#aa)"/>
+  <path class="ln" d="M164,240 L188,240 L188,340 L206,340" marker-end="url(#aa)"/>
+  <path class="ln" d="M398,144 L422,144 L422,112 L442,112" marker-end="url(#aa)"/>
+  <path class="ln" d="M398,160 L422,160 L422,192 L442,192" marker-end="url(#aa)"/>
+  <path class="ln" d="M398,340 L422,340 L422,332 L442,332" marker-end="url(#aa)"/>
+  <path class="ln" d="M678,112 L700,112 L700,206 L716,206" marker-end="url(#aa)"/>
+  <path class="ln" d="M678,192 L700,192 L700,216 L716,216" marker-end="url(#aa)"/>
+  <path class="ln" d="M678,332 L700,332 L700,238 L716,238" marker-end="url(#aa)"/>
+
+  <text x="32" y="416" class="s" font-size="12.5">默认 funasr + paraformer-zh：把“时间准”放在第一位，因为下游混音要靠它把配音卡回原处。</text>
+</svg>

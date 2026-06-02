@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 500" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ad" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="sd" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#sd);}
+      .t1{font-size:13.5px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="500" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">一次 transcribe 的端到端流程</text>
+  <text x="32" y="66" class="s" font-size="13.5">从一条人声轨，到下游可直接消费的、带说话人标注的逐句文本。</text>
+
+  <!-- row 1 -->
+  <rect class="box" x="32" y="100" width="156" height="70" rx="12"/>
+  <rect x="32" y="100" width="6" height="70" rx="3" fill="#64748b"/>
+  <text x="110" y="130" class="t1" text-anchor="middle">输入</text>
+  <text x="110" y="150" class="t2" text-anchor="middle">voice.wav（或原视频）</text>
+
+  <rect class="box" x="238" y="100" width="200" height="70" rx="12"/>
+  <rect x="238" y="100" width="6" height="70" rx="3" fill="#3b5bdb"/>
+  <text x="338" y="130" class="t1" text-anchor="middle">ffmpeg 预处理</text>
+  <text x="338" y="150" class="t2" text-anchor="middle">16 kHz · 单声道</text>
+
+  <rect class="box" x="492" y="100" width="200" height="70" rx="12"/>
+  <rect x="492" y="100" width="6" height="70" rx="3" fill="#4f46e5"/>
+  <text x="596" y="130" class="t1" text-anchor="middle" fill="#4338ca">ASR</text>
+  <text x="596" y="150" class="t2" text-anchor="middle">FunASR / faster-whisper</text>
+
+  <path class="ln" d="M188,135 L234,135" marker-end="url(#ad)"/>
+  <path class="ln" d="M438,135 L488,135" marker-end="url(#ad)"/>
+
+  <!-- row 2 -->
+  <rect class="box" x="492" y="212" width="200" height="70" rx="12"/>
+  <rect x="492" y="212" width="6" height="70" rx="3" fill="#14b8a6"/>
+  <text x="596" y="242" class="t1" text-anchor="middle" fill="#0f766e">说话人分离</text>
+  <text x="596" y="262" class="t2" text-anchor="middle">ECAPA / pyannote → speaker_label</text>
+
+  <rect class="box" x="238" y="212" width="200" height="70" rx="12"/>
+  <rect x="238" y="212" width="6" height="70" rx="3" fill="#64748b"/>
+  <text x="338" y="242" class="t1" text-anchor="middle">缝合 zip(strict=True)</text>
+  <text x="338" y="262" class="t2" text-anchor="middle">→ TranscriptionSegment</text>
+
+  <path class="ln" d="M596,170 L596,208" marker-end="url(#ad)"/>
+  <text x="612" y="194" class="t2" fill="#4338ca">AsrSegment（时间+文字）</text>
+  <path class="ln" d="M492,247 L442,247" marker-end="url(#ad)"/>
+
+  <!-- row 3 -->
+  <rect class="box" x="238" y="324" width="316" height="74" rx="12"/>
+  <rect x="238" y="324" width="6" height="74" rx="3" fill="#64748b"/>
+  <text x="398" y="354" class="t1" text-anchor="middle">写产物</text>
+  <text x="398" y="376" class="t2" text-anchor="middle">segments.zh.json · segments.zh.srt · task-a-manifest.json</text>
+
+  <path class="ln" d="M338,282 L338,322" marker-end="url(#ad)"/>
+
+  <!-- optional ocr -->
+  <rect class="box" x="596" y="324" width="332" height="74" rx="12" stroke="#ddd6fe" stroke-dasharray="6 4"/>
+  <rect x="596" y="324" width="6" height="74" rx="3" fill="#8b5cf6"/>
+  <text x="764" y="354" class="t1" text-anchor="middle" fill="#6d28d9">（可选）OCR 反哺</text>
+  <text x="764" y="376" class="t2" text-anchor="middle">segments.zh.corrected.json</text>
+
+  <path class="ln" d="M554,361 L592,361" stroke-dasharray="5 4" marker-end="url(#ad)"/>
+  <text x="573" y="348" class="t2" text-anchor="middle" fill="#7c3aed">若上游有 ocr-detect</text>
+
+  <!-- downstream -->
+  <rect x="238" y="430" width="690" height="50" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="583" y="460" font-size="12.5" font-weight="700" fill="#475569" text-anchor="middle">下游 · Task C 翻译 / Task D 配音 / Task E 混音 —— 只认 segments.zh.json（有修正版则优先）</text>
+  <path class="ln" d="M398,398 L398,428" stroke-dasharray="5 4" marker-end="url(#ad)"/>
+</svg>
