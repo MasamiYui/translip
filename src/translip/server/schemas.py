@@ -124,11 +124,11 @@ class TaskConfigInput(BaseModel):
     existing_registry: Optional[str] = Field(default=None, description="复用的已有说话人登记表（registry）路径")
     top_k: int = Field(default=3, gt=0, description="说话人匹配返回的候选数上限")
     # Task C
-    translation_backend: str = Field(default="local-m2m100", description="翻译后端：local-m2m100 或 siliconflow")
+    translation_backend: str = Field(default="local-m2m100", description="翻译后端：local-m2m100 或 deepseek")
     translation_glossary: Optional[str] = Field(default=None, description="翻译术语表（glossary）路径")
     translation_batch_size: int = Field(default=4, gt=0, description="翻译批处理大小")
-    siliconflow_base_url: Optional[str] = Field(default=None, description="siliconflow 后端的 API 基础地址")
-    siliconflow_model: Optional[str] = Field(default=None, description="siliconflow 后端使用的模型名")
+    deepseek_base_url: Optional[str] = Field(default=None, description="deepseek 后端的 API 基础地址")
+    deepseek_model: Optional[str] = Field(default=None, description="deepseek 后端使用的模型名")
     condense_mode: str = Field(default="off", description="译文精简模式，off 为不精简")
     # Task D
     tts_backend: str = Field(default="moss-tts-nano-onnx", description="语音合成（TTS）后端")

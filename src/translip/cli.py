@@ -169,8 +169,8 @@ def build_parser() -> argparse.ArgumentParser:
     correction_parser.add_argument(
         "--llm-arbitration",
         default="off",
-        choices=["off", "deepseek", "siliconflow"],
-        help="LLM arbitration for ambiguous (review) segments (requires DEEPSEEK_API_KEY / SILICONFLOW_API_KEY)",
+        choices=["off", "deepseek"],
+        help="LLM arbitration for ambiguous (review) segments (requires DEEPSEEK_API_KEY)",
     )
     correction_parser.add_argument("--disabled", action="store_true")
 
@@ -265,7 +265,7 @@ def build_parser() -> argparse.ArgumentParser:
     translate_parser.add_argument(
         "--backend",
         default=DEFAULT_TRANSLATION_BACKEND,
-        choices=["local-m2m100", "siliconflow"],
+        choices=["local-m2m100", "deepseek"],
     )
     translate_parser.add_argument("--device", default=DEFAULT_DEVICE, choices=["auto", "cpu", "cuda", "mps"])
     translate_parser.add_argument("--glossary", default=None, help="Optional glossary JSON path")
@@ -275,8 +275,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_TRANSLATION_LOCAL_MODEL,
         help="Local translation model name for the M2M100 backend",
     )
-    translate_parser.add_argument("--api-model", default=None, help="Override SiliconFlow model name")
-    translate_parser.add_argument("--api-base-url", default=None, help="Override SiliconFlow base URL")
+    translate_parser.add_argument("--api-model", default=None, help="Override DeepSeek model name")
+    translate_parser.add_argument("--api-base-url", default=None, help="Override DeepSeek base URL")
     translate_parser.add_argument(
         "--condense-mode",
         default=DEFAULT_CONDENSE_MODE,
@@ -495,7 +495,7 @@ def build_parser() -> argparse.ArgumentParser:
     dub_qa_parser.add_argument(
         "--translation-judge",
         action="store_true",
-        help="Score each translation with the SiliconFlow LLM judge (requires SILICONFLOW_API_KEY)",
+        help="Score each translation with the DeepSeek LLM judge (requires DEEPSEEK_API_KEY)",
     )
     dub_qa_parser.add_argument(
         "--judge-scores",
@@ -567,7 +567,7 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument(
         "--translation-backend",
         default=None,
-        choices=["local-m2m100", "siliconflow"],
+        choices=["local-m2m100", "deepseek"],
     )
     pipeline_parser.add_argument(
         "--tts-backend",

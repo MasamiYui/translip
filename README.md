@@ -91,7 +91,7 @@ flowchart LR
 - 输入视频或音频，自动分离人声与背景音。
 - 基于 `FunASR / Paraformer-zh`（默认）或 `faster-whisper` 生成带说话人标签的转写结果，diarization 支持 `ECAPA` 与 `pyannote 3.1`。
 - 为说话人建立 profile / registry，支持跨任务复用。
-- 使用本地 `M2M100` 或 `SiliconFlow API` 生成目标语言配音脚本。
+- 使用本地 `M2M100` 或 `DeepSeek API` 生成目标语言配音脚本。
 - 默认基于 `MOSS-TTS-Nano ONNX` 在本地合成目标语言语音，也可切换到 `Qwen3-TTS` 或 `VoxCPM2`。
 - 将配音按原始时间轴回贴（atempo / rubberband），侧链混音，并导出预览版与最终成片。
 
@@ -102,7 +102,7 @@ flowchart LR
 **C. 协作与资产**
 
 - **配音编辑台**：问题队列（静音、音色不匹配、时长拉伸、翻译可信度等）+ 检视面板 + 实时时长预测 + 单段重新合成。
-- **配音评测 / 实验分析**：对完成的配音任务做逐段质检——自动定位「漏配 / 音色不符 / 漏词吞字 / 节奏异常 / 听不清 / 翻译差」，给出综合评分与质量门；菜单栏「配音评测」页可逐段对比原声 vs 配音、查看译文漏词高亮，并可选用 SiliconFlow LLM 给译文打分。
+- **配音评测 / 实验分析**：对完成的配音任务做逐段质检——自动定位「漏配 / 音色不符 / 漏词吞字 / 节奏异常 / 听不清 / 翻译差」，给出综合评分与质量门；菜单栏「配音评测」页可逐段对比原声 vs 配音、查看译文漏词高亮，并可选用 DeepSeek LLM 给译文打分。
 - **作品库 / 角色库**：把任务挂到「作品 → 剧集」，并维护「角色 → 说话人」台账，支持全局 persona 复用。
 - **模型与令牌管理**：在设置页配置 HuggingFace 令牌（解锁 pyannote 等门控模型）、查看模型状态并一键下载缺失模型。
 
@@ -207,7 +207,7 @@ uv sync --extra ocr     # 如需 OCR 硬字幕识别（内置 PaddleOCR，约数
 uv run translip download-models --backend cdx23 --quality balanced
 ```
 
-如需使用门控模型（如 `pyannote` 说话人分离），先在 HuggingFace 接受模型许可，再提供 read 权限的访问令牌——可在设置页填写，或通过环境变量 `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN` 提供。SiliconFlow 翻译后端则需要 `SILICONFLOW_API_KEY`。
+如需使用门控模型（如 `pyannote` 说话人分离），先在 HuggingFace 接受模型许可，再提供 read 权限的访问令牌——可在设置页填写，或通过环境变量 `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN` 提供。DeepSeek 翻译后端、台词校正 LLM 仲裁、翻译质量打分则需要 `DEEPSEEK_API_KEY`。
 
 ## 快速开始
 
@@ -257,7 +257,7 @@ uv run translip run --input ./test_video/example.mp4 --mode auto --quality balan
 # Task A：语音转写
 uv run translip transcribe --input ./output-stage1/example/voice.wav --output-dir ./output-task-a
 
-# Task C：翻译（本地 M2M100 / SiliconFlow）
+# Task C：翻译（本地 M2M100 / DeepSeek）
 uv run translip translate-script --segments ./output-task-a/voice/segments.zh.json \
   --profiles ./output-task-b/voice/speaker_profiles.json --target-lang en \
   --backend local-m2m100 --output-dir ./output-task-c
@@ -270,7 +270,7 @@ uv run translip synthesize-speaker --translation ./output-task-c/voice/translati
 # 配音评测：对已完成的流水线产物做逐段质检（漏配/音色/漏词/节奏/翻译）
 uv run translip evaluate-dub --pipeline-root ./output-pipeline/<task_id> --target-lang en \
   --output-dir ./output-pipeline/<task_id>/analysis/dub-qa
-#   加 --translation-judge 用 SiliconFlow LLM 给译文打分（需 SILICONFLOW_API_KEY）
+#   加 --translation-judge 用 DeepSeek LLM 给译文打分（需 DEEPSEEK_API_KEY）
 
 # 其它：probe（媒体信息）、download-models（预下载模型）
 uv run translip probe --input ./test_video/example.mp4
@@ -287,9 +287,9 @@ uv run translip --help    # 查看全部子命令
 | `TRANSLIP_DB_PATH` | `<cache>/data.db` | Web 管理界面的 SQLite 数据库位置 |
 | `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN` | 无 | 下载/使用门控模型（如 pyannote）所需的 HuggingFace 令牌，也可在设置页填写 |
 | `TMDB_API_KEY` / `TMDB_BEARER_TOKEN` | 无 | 作品库拉取作品/剧集元数据与海报 |
-| `SILICONFLOW_API_KEY` | 无 | 启用 `siliconflow` 翻译后端时必需 |
-| `SILICONFLOW_BASE_URL` | `https://api.siliconflow.cn/v1` | 覆盖 SiliconFlow API 地址 |
-| `SILICONFLOW_MODEL` | `deepseek-ai/DeepSeek-V3` | 覆盖默认 SiliconFlow 模型 |
+| `DEEPSEEK_API_KEY` | 无 | 启用 `deepseek` 翻译后端、台词校正 LLM 仲裁、翻译质量打分时必需 |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | 覆盖 DeepSeek API 地址 |
+| `DEEPSEEK_MODEL` | `deepseek-v4-pro` | 覆盖默认 DeepSeek 模型 |
 | `MOSS_TTS_NANO_CLI` | `moss-tts-nano` | `moss-tts-nano-onnx` 后端调用的 CLI 路径 |
 | `MOSS_TTS_NANO_MODEL_DIR` | `<cache>/models` | MOSS ONNX 模型目录，传给 `--onnx-model-dir` |
 | `MOSS_TTS_NANO_CPU_THREADS` | `4` | MOSS ONNX CPU 推理线程数 |

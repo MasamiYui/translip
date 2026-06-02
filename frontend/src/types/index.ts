@@ -70,7 +70,7 @@ export interface TranscriptionCorrectionConfig {
   enabled: boolean
   preset: TranscriptionCorrectionPreset
   ocr_only_policy: 'report_only'
-  llm_arbitration: 'off' | 'deepseek' | 'siliconflow'
+  llm_arbitration: 'off' | 'deepseek'
 }
 
 export interface TranscriptionCorrectionSummary {
@@ -208,8 +208,8 @@ export interface TaskConfig {
   translation_backend: string
   translation_glossary?: string
   translation_batch_size: number
-  siliconflow_base_url?: string
-  siliconflow_model?: string
+  deepseek_base_url?: string
+  deepseek_model?: string
   condense_mode?: string
   tts_backend: string
   max_segments?: number

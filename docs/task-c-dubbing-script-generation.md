@@ -112,12 +112,12 @@
 任务 C V1 首发支持两类后端:
 
 - 本地后端: `facebook/m2m100_418M`
-- 第三方 API 后端: `SiliconFlow Chat Completions`
+- 第三方 API 后端: `DeepSeek Chat Completions`
 
 原因:
 
 - `M2M100` 是开源本地模型，支持多语言翻译，且 `MIT` 许可更适合后续商用演进
-- `SiliconFlow` 可以接入 `GLM`、`DeepSeek` 等大模型，方便补齐更强的复杂句段翻译能力
+- `DeepSeek` 官方 Chat Completions API 直连，用更强的大模型补齐复杂句段翻译能力
 - 两条后端共用同一套任务 C 数据结构，便于对照测试、回退和未来扩展
 
 说明:
@@ -151,11 +151,11 @@
 - 不负责自由改写
 - 不保证在每个语种上都达到商业级文案质量，因此需要保留人工编辑出口
 
-## 6.3 API 后端: `SiliconFlow`
+## 6.3 API 后端: `DeepSeek`
 
 任务 C 同时支持第三方 API 翻译后端，首发选择:
 
-- `SiliconFlow`
+- `DeepSeek`
 
 首发策略:
 
@@ -169,12 +169,12 @@
 
 建议首发支持的模型配置:
 
-- `deepseek-ai/DeepSeek-V3`
+- `deepseek-v4-pro`
 - `THUDM/GLM-4.5`
 
 说明:
 
-- 具体可用模型名以 SiliconFlow 当前账号可访问的模型列表为准
+- 具体可用模型名以 DeepSeek 当前账号可访问的模型列表为准
 - 代码实现要允许用户自行覆盖 `--api-model`
 - API 后端主要用于质量对照、复杂句段回退和后续生产可选路径
 
@@ -184,14 +184,14 @@
 
 建议环境变量:
 
-- `SILICONFLOW_API_KEY`
-- `SILICONFLOW_BASE_URL`
-- `SILICONFLOW_MODEL`
+- `DEEPSEEK_API_KEY`
+- `DEEPSEEK_BASE_URL`
+- `DEEPSEEK_MODEL`
 
 建议默认值:
 
-- `SILICONFLOW_BASE_URL=https://api.siliconflow.cn/v1`
-- `SILICONFLOW_MODEL=deepseek-ai/DeepSeek-V3`
+- `DEEPSEEK_BASE_URL=https://api.deepseek.com`
+- `DEEPSEEK_MODEL=deepseek-v4-pro`
 
 代码要求:
 
@@ -230,7 +230,7 @@
 结论:
 
 - V1 先用 `M2M100` 做本地主翻译
-- V1 可选 `SiliconFlow` 做 API 翻译
+- V1 可选 `DeepSeek` 做 API 翻译
 - V1 只保留 **保守规则化规范层**
 - V1 不做自由改写
 - 之后如果确实需要本地化文案润色，再新增独立可选 backend，而不是混进任务 C 首发实现
@@ -446,7 +446,7 @@ V1 翻译过程建议分两层:
 ### 第一层: 原始翻译
 
 - 本地后端用 `M2M100` 做 `source_lang -> target_lang`
-- API 后端用 `SiliconFlow` 大模型执行“受约束的 JSON 翻译”
+- API 后端用 `DeepSeek` 大模型执行“受约束的 JSON 翻译”
 - 输入以当前句段为主
 - 同时附带前后 speaker-context 作为辅助信息
 
@@ -579,8 +579,8 @@ V1 建议输出 4 类判断字段:
   - 术语与保护规则
 - `src/translip/translation/m2m100_backend.py`
   - `M2M100` 翻译封装
-- `src/translip/translation/siliconflow_backend.py`
-  - SiliconFlow API 翻译封装
+- `src/translip/translation/deepseek_backend.py`
+  - DeepSeek API 翻译封装
 - `src/translip/translation/duration.py`
   - 目标语言时长估计与风险评级
 - `src/translip/translation/qa.py`
@@ -605,12 +605,12 @@ uv run translip translate-script \
 API 模式示例:
 
 ```bash
-SILICONFLOW_API_KEY=... uv run translip translate-script \
+DEEPSEEK_API_KEY=... uv run translip translate-script \
   --segments ./output-task-a/voice/segments.zh.json \
   --profiles ./output-task-b/voice/speaker_profiles.json \
   --target-lang eng_Latn \
-  --backend siliconflow \
-  --api-model deepseek-ai/DeepSeek-V3 \
+  --backend deepseek \
+  --api-model deepseek-v4-pro \
   --output-dir ./output-task-c-api
 ```
 
@@ -632,7 +632,7 @@ SILICONFLOW_API_KEY=... uv run translip translate-script \
 3. 再做 glossary / 术语保护
 4. 再接 `M2M100`
 5. 再做目标语言时长估计
-6. 再接 `SiliconFlow` API backend
+6. 再接 `DeepSeek` API backend
 7. 最后做 QA flags 和导出
 
 原因:
@@ -651,7 +651,7 @@ SILICONFLOW_API_KEY=... uv run translip translate-script \
 - glossary 替换优先级
 - 多目标语言输出命名
 - `M2M100` 请求参数与结果映射
-- SiliconFlow API 响应解析与重试
+- DeepSeek API 响应解析与重试
 - 时长估计规则
 - QA flag 逻辑
 - `translation.<target_tag>.json` / `translation.<target_tag>.editable.json` schema
@@ -701,7 +701,7 @@ SILICONFLOW_API_KEY=... uv run translip translate-script \
 - 专名纠正
 - 中文数字转目标语言表达
 - `zh -> ja` 等目标语言下的长度膨胀或压缩风险
-- 本地 `M2M100` 与 API `SiliconFlow` 输出的一致性差异
+- 本地 `M2M100` 与 API `DeepSeek` 输出的一致性差异
 
 ## 12.3 首发测试矩阵
 
@@ -709,7 +709,7 @@ SILICONFLOW_API_KEY=... uv run translip translate-script \
 
 1. `M2M100 + zh -> en`
 2. `M2M100 + zh -> ja`
-3. `SiliconFlow + zh -> en`
+3. `DeepSeek + zh -> en`
 4. `Task A -> Task B -> Task C` 真实样本串行验证
 
 ## 13. 验收标准
@@ -767,7 +767,7 @@ SILICONFLOW_API_KEY=... uv run translip translate-script \
 - **多语种段级翻译**
 - **speaker-aware context units**
 - **M2M100 本地翻译**
-- **SiliconFlow API 可选翻译**
+- **DeepSeek API 可选翻译**
 - **保守规范化，不做自由改写**
 - **时长预算与风险标记**
 - **可编辑 JSON 导出**
@@ -793,7 +793,7 @@ SILICONFLOW_API_KEY=... uv run translip translate-script \
 
 1. 翻译完成后，按 `condense_mode` 筛选需要精简的 segment
 2. 构建 `CondenseInput`（含原文、当前译文、目标秒数、字符预算、受保护术语列表）
-3. 批量调用 `SiliconFlowBackend.condense_batch()`，LLM 返回更短的译文
+3. 批量调用 `DeepSeekBackend.condense_batch()`，LLM 返回更短的译文
 4. 精简后重新计算 `duration_budget` 和 `qa_flags`
 5. 保留 `original_target_text` 和 `condense_status` 字段，方便审校
 
@@ -807,7 +807,7 @@ SILICONFLOW_API_KEY=... uv run translip translate-script \
 
 | 后端 | `supports_condensation` | 说明 |
 |---|---|---|
-| `siliconflow` | `True` | 通过 Chat Completion API 精简 |
+| `deepseek` | `True` | 通过 Chat Completion API 精简 |
 | `local-m2m100` | `False` | 本地翻译模型无精简能力，`condense_mode` 非 off 时打 warning 跳过 |
 
 ### 16.6 输出扩展
@@ -823,6 +823,6 @@ SILICONFLOW_API_KEY=... uv run translip translate-script \
 ## 17. 参考资料
 
 - M2M100 模型页: [facebook/m2m100_418M](https://huggingface.co/facebook/m2m100_418M)
-- SiliconFlow 官方文档首页: [docs.siliconflow.cn](https://docs.siliconflow.cn/)
+- DeepSeek 官方文档首页: [api-docs.deepseek.com](https://api-docs.deepseek.com/)
 - Hugging Face Apple Silicon: [Transformers Apple Silicon](https://huggingface.co/docs/transformers/perf_train_special)
 - PyTorch MPS: [MPS backend](https://docs.pytorch.org/docs/stable/notes/mps)

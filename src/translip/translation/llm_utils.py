@@ -1,8 +1,8 @@
 """Shared helpers for OpenAI-compatible chat-completion backends.
 
-Extracted from ``siliconflow_backend`` so other callers (e.g. the translation
-quality judge in :mod:`translip.quality.translation_judge`) can reuse the exact
-same HTTP + response-parsing behaviour without duplicating it.
+Shared by the DeepSeek translation backend, the transcript-correction
+arbitrator, and the translation quality judge so they reuse the exact same
+HTTP + response-parsing behaviour without duplicating it.
 """
 
 from __future__ import annotations

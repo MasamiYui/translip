@@ -32,7 +32,7 @@ def _arbitrator(monkeypatch, responses: list[dict]):
 def test_make_arbitrator_uses_deepseek_provider() -> None:
     arb = make_arbitrator("deepseek", api_key="k")
     assert arb.base_url == "https://api.deepseek.com"
-    assert arb.model_name == "deepseek-chat"
+    assert arb.model_name == "deepseek-v4-pro"
 
 
 def test_parses_valid_verdict(monkeypatch) -> None:

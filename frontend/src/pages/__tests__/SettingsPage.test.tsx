@@ -98,10 +98,10 @@ beforeEach(() => {
     temperature: 0.2,
     condition_on_previous_text: true,
     top_k: 4,
-    translation_backend: 'siliconflow',
+    translation_backend: 'deepseek',
     translation_batch_size: 8,
     condense_mode: 'smart',
-    siliconflow_model: 'deepseek-ai/DeepSeek-V3',
+    deepseek_model: 'deepseek-v4-pro',
     tts_backend: 'qwen3tts',
     dubbing_workers: 2,
     dubbing_quality_check: 'duration-only',
@@ -170,10 +170,10 @@ describe('SettingsPage global and advanced settings', () => {
     expect(screen.getByLabelText('分离质量')).toHaveValue('high')
     expect(screen.getByLabelText('Stage 1 输出格式')).toHaveValue('wav')
     expect(screen.getByLabelText('说话人候选数 Top K')).toHaveValue(4)
-    expect(screen.getByLabelText('翻译后端')).toHaveValue('siliconflow')
+    expect(screen.getByLabelText('翻译后端')).toHaveValue('deepseek')
     expect(screen.getByLabelText('翻译批量大小')).toHaveValue(8)
     expect(screen.getByLabelText('译文压缩')).toHaveValue('smart')
-    expect(screen.getByLabelText('SiliconFlow 模型')).toHaveValue('deepseek-ai/DeepSeek-V3')
+    expect(screen.getByLabelText('DeepSeek 模型')).toHaveValue('deepseek-v4-pro')
     expect(screen.getByLabelText('TTS 后端')).toHaveValue('qwen3tts')
     expect(within(screen.getByLabelText('TTS 后端')).getByRole('option', { name: 'VoxCPM2' })).toBeInTheDocument()
     expect(screen.getByLabelText('配音并发数')).toHaveValue(2)
@@ -221,7 +221,7 @@ describe('SettingsPage global and advanced settings', () => {
           condition_on_previous_text: true,
           separation_mode: 'dialogue',
           stage1_output_format: 'wav',
-          translation_backend: 'siliconflow',
+          translation_backend: 'deepseek',
           translation_batch_size: 8,
           tts_backend: 'qwen3tts',
           dub_repair_enabled: true,
@@ -256,19 +256,19 @@ describe('SettingsPage global and advanced settings', () => {
     render(<SettingsPage />, { wrapper: createWrapper() })
     fireEvent.click(await screen.findByRole('button', { name: '任务默认参数' }))
 
-    const siliconflowModel = screen.getByLabelText('SiliconFlow 模型')
+    const deepseekModel = screen.getByLabelText('DeepSeek 模型')
     const dubbingWorkers = screen.getByLabelText('配音并发数')
-    expect(siliconflowModel).toHaveValue('deepseek-ai/DeepSeek-V3')
+    expect(deepseekModel).toHaveValue('deepseek-v4-pro')
     expect(dubbingWorkers).toHaveValue(2)
 
-    fireEvent.change(siliconflowModel, { target: { value: '' } })
+    fireEvent.change(deepseekModel, { target: { value: '' } })
     fireEvent.change(dubbingWorkers, { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: '保存默认参数' }))
 
     await waitFor(() => {
       expect(configApi.updateGlobal).toHaveBeenCalledWith(
         expect.objectContaining({
-          siliconflow_model: null,
+          deepseek_model: null,
           dubbing_workers: null,
         }),
       )

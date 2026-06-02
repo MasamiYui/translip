@@ -55,10 +55,10 @@ DEFAULT_DELIVERY_VIDEO_CODEC = "copy"
 DEFAULT_DELIVERY_AUDIO_CODEC = "aac"
 DEFAULT_DELIVERY_AUDIO_BITRATE = "192k"
 DEFAULT_DELIVERY_END_POLICY = "trim_audio_to_video"
-DEFAULT_SILICONFLOW_BASE_URL = os.environ.get("SILICONFLOW_BASE_URL", "https://api.siliconflow.cn/v1")
-DEFAULT_SILICONFLOW_MODEL = os.environ.get("SILICONFLOW_MODEL", "deepseek-ai/DeepSeek-V3")
 DEFAULT_DEEPSEEK_BASE_URL = os.environ.get("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-DEFAULT_DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
+# deepseek-v4-pro is the current frontier model; the legacy deepseek-chat alias
+# routes to V4-Flash and is retired after 2026-07-24.
+DEFAULT_DEEPSEEK_MODEL = os.environ.get("DEEPSEEK_MODEL", "deepseek-v4-pro")
 DEFAULT_SUBTITLE_MODE = "none"
 DEFAULT_SUBTITLE_SOURCE = "ocr"
 DEFAULT_SUBTITLE_FONT_CJK = "Noto Sans CJK SC"

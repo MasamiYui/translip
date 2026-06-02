@@ -5,7 +5,7 @@ alignment/length gates). The model picks ASR vs OCR or proposes a character-leve
 faithfulness is enforced by the caller (``ocr_correction._apply_arbitration``). Any failure
 returns ``None`` so the algorithm falls back to its deterministic review behavior.
 
-Providers are OpenAI-compatible chat completions endpoints (DeepSeek, SiliconFlow).
+The provider is an OpenAI-compatible chat completions endpoint (DeepSeek).
 """
 
 from __future__ import annotations
@@ -17,14 +17,9 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-from ..config import (
-    DEFAULT_DEEPSEEK_BASE_URL,
-    DEFAULT_DEEPSEEK_MODEL,
-    DEFAULT_SILICONFLOW_BASE_URL,
-    DEFAULT_SILICONFLOW_MODEL,
-)
+from ..config import DEFAULT_DEEPSEEK_BASE_URL, DEFAULT_DEEPSEEK_MODEL
 from ..exceptions import BackendUnavailableError
-from ..translation.siliconflow_backend import _extract_message_content, _parse_json_payload
+from ..translation.llm_utils import extract_message_content, parse_json_payload
 from .ocr_correction import ArbitrationRequest, ArbitrationVerdict
 
 _VALID_DECISIONS = {"use_asr", "use_ocr", "merge"}
@@ -50,9 +45,6 @@ class _Provider:
 
 _PROVIDERS: dict[str, _Provider] = {
     "deepseek": _Provider("DeepSeek", "DEEPSEEK_API_KEY", DEFAULT_DEEPSEEK_BASE_URL, DEFAULT_DEEPSEEK_MODEL),
-    "siliconflow": _Provider(
-        "SiliconFlow", "SILICONFLOW_API_KEY", DEFAULT_SILICONFLOW_BASE_URL, DEFAULT_SILICONFLOW_MODEL
-    ),
 }
 
 
@@ -141,7 +133,7 @@ class ChatArbitrator:
 
 
 def make_arbitrator(mode: str, **kwargs: Any) -> ChatArbitrator:
-    """Build an arbitrator for the given mode ("deepseek" | "siliconflow"). Raises if unknown."""
+    """Build an arbitrator for the given mode ("deepseek"). Raises if unknown."""
     provider = _PROVIDERS.get(mode)
     if provider is None:
         raise ValueError(f"Unknown arbitration mode: {mode}")
@@ -182,7 +174,7 @@ def test_provider(mode: str, *, api_key: str | None = None, timeout_sec: int = 2
 
 
 def _verdict_from_response(response: dict[str, Any]) -> ArbitrationVerdict | None:
-    parsed = _parse_json_payload(_extract_message_content(response))
+    parsed = parse_json_payload(extract_message_content(response))
     decision = str(parsed.get("decision") or "").strip()
     if decision not in _VALID_DECISIONS:
         return None

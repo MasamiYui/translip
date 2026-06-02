@@ -545,7 +545,7 @@ Dashboard 只允许：
 
 | 用户字段 | 内部字段 | 默认值 | 备注 |
 |---|---|---|---|
-| 翻译后端 | `translation_backend` | 来自全局默认 | 如 `local-m2m100` / `siliconflow` |
+| 翻译后端 | `translation_backend` | 来自全局默认 | 如 `local-m2m100` / `deepseek` |
 | TTS 后端 | `tts_backend` | 来自全局默认 | 如 `qwen3tts` |
 | 设备 | `device` | 来自全局默认 | `auto / cpu / cuda / mps` |
 | 启用缓存 | `use_cache` | 来自全局默认 | 常用 |

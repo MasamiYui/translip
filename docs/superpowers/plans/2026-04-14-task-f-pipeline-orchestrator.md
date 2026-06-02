@@ -64,7 +64,7 @@ pipeline_parser.add_argument("--target-lang", default=DEFAULT_TRANSLATION_TARGET
 pipeline_parser.add_argument(
     "--translation-backend",
     default=DEFAULT_TRANSLATION_BACKEND,
-    choices=["local-m2m100", "siliconflow"],
+    choices=["local-m2m100", "deepseek"],
 )
 pipeline_parser.add_argument(
     "--tts-backend",

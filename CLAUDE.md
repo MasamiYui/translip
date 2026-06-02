@@ -72,7 +72,7 @@ The core insight: each pipeline stage is an **independent CLI command** that rea
 | stage1 | `run` | `models/` + `pipeline/` | demucs (music) / cdx23 (dialogue) / clearervoice |
 | task-a | `transcribe` | `transcription/` | ASR: faster-whisper, funasr · diarization: ECAPA, pyannote |
 | task-b | `build-speaker-registry` | `speakers/` | speaker profiles/embeddings + cross-task registry |
-| task-c | `translate-script` | `translation/` | `local-m2m100`, `siliconflow` (needs `SILICONFLOW_API_KEY`) |
+| task-c | `translate-script` | `translation/` | `local-m2m100`, `deepseek` (needs `DEEPSEEK_API_KEY`) |
 | task-d | `synthesize-speaker` | `dubbing/` | TTS: `moss-tts-nano-onnx` (default), `qwen3tts`, `voxcpm2` |
 | task-e | `render-dub` | `rendering/` | timeline fit (atempo/rubberband) + sidechain mix |
 | task-g | `export-video` | `delivery/` | ffmpeg mux + optional burned subtitles |
@@ -109,7 +109,7 @@ React 19 + TypeScript + Vite 8 + Tailwind 4. **Server state via TanStack React Q
 
 - `TRANSLIP_CACHE_DIR` (default `~/.cache/translip`) — model cache, pipeline output (`output-pipeline/<task_id>/`), atomic-tools storage.
 - `TRANSLIP_DB_PATH` (default `<cache>/data.db`) — server SQLite DB.
-- `SILICONFLOW_API_KEY` / `SILICONFLOW_BASE_URL` / `SILICONFLOW_MODEL` — `siliconflow` translation backend.
+- `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL` / `DEEPSEEK_MODEL` — `deepseek` translation backend, transcript-correction LLM arbitration, and translation quality judge (default model `deepseek-v4-pro`).
 - `MOSS_TTS_NANO_CLI` / `MOSS_TTS_NANO_MODEL_DIR` / `MOSS_TTS_NANO_CPU_THREADS` — the default TTS backend shells out to the external `moss-tts-nano` CLI; it must be installed separately or task-d fails with a clear dependency error.
 - `VOXCPM_*` — `voxcpm2` backend (CPU by default on Apple Silicon; `VOXCPM_ALLOW_MPS=1` to try MPS).
 - `PADDLEOCR_MODELS_BASE_DIR` (default `<cache>/paddleocr_models`) — local PP-OCRv5 mobile det/rec + textline-orientation weights for in-tree OCR, laid out per-platform (`macos-arm64/`, `linux-x86_64/`). Other `PADDLEOCR_*` / `SUBTITLE_*` knobs in `src/translip/ocr/config.py` are env-overridable. Models load locally — no remote download at runtime.

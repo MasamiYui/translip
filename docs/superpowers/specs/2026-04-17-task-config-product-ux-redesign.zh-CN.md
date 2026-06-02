@@ -848,7 +848,7 @@ flowchart LR
 
 示例：
 
-- `cuda + qwen3tts + siliconflow`
+- `cuda + qwen3tts + deepseek`
 - `cpu fallback`
 - `task-c rerun preset`
 

@@ -1,12 +1,12 @@
 """LLM-as-judge translation quality scoring.
 
 This is the only *paid* step in the dub QA pipeline. It reuses the same
-OpenAI-compatible HTTP plumbing as the SiliconFlow translation backend
+OpenAI-compatible HTTP plumbing as the DeepSeek translation backend
 (:mod:`translip.translation.llm_utils`) to score each translated segment for
 adequacy (does the target preserve the source meaning?) and fluency (is the
 target natural in the target language?).
 
-If ``SILICONFLOW_API_KEY`` is missing or the API call fails, judging degrades
+If ``DEEPSEEK_API_KEY`` is missing or the API call fails, judging degrades
 gracefully: :func:`build_translation_judge` returns ``None`` and the rest of the
 QA report is produced without translation scores.
 """
@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..config import DEFAULT_SILICONFLOW_BASE_URL, DEFAULT_SILICONFLOW_MODEL
+from ..config import DEFAULT_DEEPSEEK_BASE_URL, DEFAULT_DEEPSEEK_MODEL
 from ..exceptions import BackendUnavailableError
 from ..pipeline.manifest import now_iso
 from ..translation.backend import canonical_language_code
@@ -68,13 +68,13 @@ class TranslationJudge:
         batch_size: int = 20,
         temperature: float = 0.0,
     ) -> None:
-        self.api_key = api_key or os.environ.get("SILICONFLOW_API_KEY")
+        self.api_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
         if not self.api_key:
             raise BackendUnavailableError(
-                "Missing SiliconFlow API key. Set SILICONFLOW_API_KEY to enable translation judging."
+                "Missing DeepSeek API key. Set DEEPSEEK_API_KEY to enable translation judging."
             )
-        self.base_url = (base_url or DEFAULT_SILICONFLOW_BASE_URL).rstrip("/")
-        self.model_name = model_name or DEFAULT_SILICONFLOW_MODEL
+        self.base_url = (base_url or DEFAULT_DEEPSEEK_BASE_URL).rstrip("/")
+        self.model_name = model_name or DEFAULT_DEEPSEEK_MODEL
         self.timeout_sec = timeout_sec
         self.max_retries = max_retries
         self.batch_size = max(1, batch_size)

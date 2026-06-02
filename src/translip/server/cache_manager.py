@@ -1051,16 +1051,16 @@ def apply_hf_token_to_env() -> None:
 
 
 # ---------------------------------------------------------------------------
-# LLM arbitration API keys (DeepSeek / SiliconFlow), used by transcript
-# correction. Like the HF token, arbitration runs in an isolated subprocess
-# that reads the key from os.environ, so persisted keys must be bridged into
-# the environment (at startup and immediately on save).
+# LLM API key (DeepSeek), used by transcript-correction arbitration, the
+# DeepSeek translation backend, and the translation quality judge. Like the HF
+# token, those steps read the key from os.environ (subprocesses, plus the
+# in-process judge), so persisted keys must be bridged into the environment
+# (at startup and immediately on save).
 # ---------------------------------------------------------------------------
 
 # provider id -> (user-setting key, environment variable name)
 _LLM_KEY_PROVIDERS: dict[str, tuple[str, str]] = {
     "deepseek": ("deepseek_api_key", "DEEPSEEK_API_KEY"),
-    "siliconflow": ("siliconflow_api_key", "SILICONFLOW_API_KEY"),
 }
 
 
@@ -1117,11 +1117,11 @@ def set_llm_key(provider: str, value: str | None) -> None:
 
 
 def apply_llm_keys_to_env() -> None:
-    """Bridge persisted LLM arbitration keys into ``os.environ`` if unset.
+    """Bridge persisted LLM API keys into ``os.environ`` if unset.
 
-    Mirrors :func:`apply_hf_token_to_env`: the transcript-correction subprocess
-    reads ``DEEPSEEK_API_KEY`` / ``SILICONFLOW_API_KEY`` only from the
-    environment. No-op for any provider whose env var is already present.
+    Mirrors :func:`apply_hf_token_to_env`: the subprocesses (and in-process
+    judge) read ``DEEPSEEK_API_KEY`` only from the environment. No-op for any
+    provider whose env var is already present.
     """
     for setting_key, env_name in _LLM_KEY_PROVIDERS.values():
         if os.environ.get(env_name):

@@ -207,7 +207,7 @@ def test_translation_judge_with_mocked_api(tmp_path: Path, monkeypatch):
             {"segment_id": "s2", "adequacy": 1, "fluency": 2, "reason": "wrong word"},
         ]})}}]}
 
-    monkeypatch.setenv("SILICONFLOW_API_KEY", "test-key")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "test-key")
     monkeypatch.setattr(tj_module, "post_chat_completion", fake_post)
 
     out_path = build_translation_judge(
@@ -225,7 +225,7 @@ def test_translation_judge_with_mocked_api(tmp_path: Path, monkeypatch):
 
 
 def test_translation_judge_missing_key_raises(tmp_path: Path, monkeypatch):
-    monkeypatch.delenv("SILICONFLOW_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     translation = _write(
         tmp_path / "translation.en.json",
         {"segments": [{"segment_id": "s1", "source_text": "你好", "target_text": "Hello"}]},

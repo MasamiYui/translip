@@ -4,7 +4,7 @@ import json
 import os
 from typing import Any
 
-from ..config import DEFAULT_SILICONFLOW_BASE_URL, DEFAULT_SILICONFLOW_MODEL
+from ..config import DEFAULT_DEEPSEEK_BASE_URL, DEFAULT_DEEPSEEK_MODEL
 from ..exceptions import BackendUnavailableError
 from .backend import (
     BackendSegmentInput,
@@ -15,15 +15,9 @@ from .backend import (
 )
 from .llm_utils import extract_message_content, parse_json_payload, post_chat_completion
 
-# Backwards-compatible aliases: these helpers used to live here as module-private
-# functions before being extracted into ``llm_utils``. Other modules
-# (transcription.arbitration) and tests still import them under these names.
-_extract_message_content = extract_message_content
-_parse_json_payload = parse_json_payload
 
-
-class SiliconFlowBackend:
-    backend_name = "siliconflow"
+class DeepSeekBackend:
+    backend_name = "deepseek"
     supports_condensation = True
 
     def __init__(
@@ -35,11 +29,11 @@ class SiliconFlowBackend:
         timeout_sec: int = 60,
         max_retries: int = 2,
     ) -> None:
-        self.api_key = api_key or os.environ.get("SILICONFLOW_API_KEY")
+        self.api_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
         if not self.api_key:
-            raise BackendUnavailableError("Missing SiliconFlow API key. Set SILICONFLOW_API_KEY.")
-        self.base_url = (base_url or DEFAULT_SILICONFLOW_BASE_URL).rstrip("/")
-        self.model_name = model_name or DEFAULT_SILICONFLOW_MODEL
+            raise BackendUnavailableError("Missing DeepSeek API key. Set DEEPSEEK_API_KEY.")
+        self.base_url = (base_url or DEFAULT_DEEPSEEK_BASE_URL).rstrip("/")
+        self.model_name = model_name or DEFAULT_DEEPSEEK_MODEL
         self.timeout_sec = timeout_sec
         self.max_retries = max_retries
         self.resolved_model = self.model_name
@@ -60,7 +54,7 @@ class SiliconFlowBackend:
                 return self._translate_once(items=items, source_lang=source_lang, target_lang=target_lang)
             except Exception as exc:
                 last_error = exc
-        raise BackendUnavailableError(f"SiliconFlow translation failed: {last_error}") from last_error
+        raise BackendUnavailableError(f"DeepSeek translation failed: {last_error}") from last_error
 
     def condense_batch(
         self,
@@ -76,7 +70,7 @@ class SiliconFlowBackend:
                 return self._condense_once(items=items, target_lang=target_lang)
             except Exception as exc:
                 last_error = exc
-        raise BackendUnavailableError(f"SiliconFlow condensation failed: {last_error}") from last_error
+        raise BackendUnavailableError(f"DeepSeek condensation failed: {last_error}") from last_error
 
     def _translate_once(
         self,
@@ -128,7 +122,7 @@ class SiliconFlowBackend:
         parsed = parse_json_payload(content)
         raw_segments = parsed.get("segments")
         if not isinstance(raw_segments, list):
-            raise BackendUnavailableError("SiliconFlow response missing segments array")
+            raise BackendUnavailableError("DeepSeek response missing segments array")
         mapping = {
             str(item["segment_id"]): str(item["target_text"]).strip()
             for item in raw_segments
@@ -198,7 +192,7 @@ class SiliconFlowBackend:
         parsed = parse_json_payload(content)
         raw_segments = parsed.get("segments")
         if not isinstance(raw_segments, list):
-            raise BackendUnavailableError("SiliconFlow condense response missing segments array")
+            raise BackendUnavailableError("DeepSeek condense response missing segments array")
         mapping = {
             str(item["segment_id"]): str(item["target_text"]).strip()
             for item in raw_segments

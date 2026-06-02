@@ -438,7 +438,7 @@ def _clear_llm_keys(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Clear LLM provider env vars and isolate the user-config store to a temp path."""
     from translip.server import cache_manager
 
-    for env_name in ("DEEPSEEK_API_KEY", "SILICONFLOW_API_KEY"):
+    for env_name in ("DEEPSEEK_API_KEY",):
         monkeypatch.delenv(env_name, raising=False)
     monkeypatch.setattr(cache_manager, "_USER_CONFIG_PATH", tmp_path / "settings.json")
 
@@ -456,7 +456,7 @@ def test_llm_keys_endpoints_roundtrip(
 
     assert client.get("/api/system/llm-keys").json() == {
         "ok": True,
-        "providers": {"deepseek": False, "siliconflow": False},
+        "providers": {"deepseek": False},
     }
 
     resp = client.post("/api/system/llm-keys", json={"provider": "deepseek", "api_key": "  sk-abc  "})
@@ -465,8 +465,6 @@ def test_llm_keys_endpoints_roundtrip(
     assert cache_manager.read_user_setting("deepseek_api_key") == "sk-abc"
     assert os.environ["DEEPSEEK_API_KEY"] == "sk-abc"
     assert client.get("/api/system/llm-keys").json()["providers"]["deepseek"] is True
-    # The other provider stays unset.
-    assert client.get("/api/system/llm-keys").json()["providers"]["siliconflow"] is False
 
     # Empty string clears the key and removes the value we bridged into env.
     resp = client.post("/api/system/llm-keys", json={"provider": "deepseek", "api_key": ""})
@@ -505,7 +503,7 @@ def test_llm_key_test_endpoint_uses_saved_key(
 
     def fake_test_provider(mode: str, *, api_key: str | None = None, timeout_sec: int = 20):
         seen.append((mode, api_key))
-        return {"ok": True, "model": "deepseek-chat", "message": "OK"}
+        return {"ok": True, "model": "deepseek-v4-pro", "message": "OK"}
 
     monkeypatch.setattr(arbitration, "test_provider", fake_test_provider)
 
@@ -515,7 +513,7 @@ def test_llm_key_test_endpoint_uses_saved_key(
     assert resp.json() == {
         "ok": True,
         "provider": "deepseek",
-        "model": "deepseek-chat",
+        "model": "deepseek-v4-pro",
         "message": "OK",
     }
     assert seen[-1] == ("deepseek", "sk-saved")
@@ -532,11 +530,11 @@ def test_apply_llm_keys_to_env_bridges_saved_key(
 
     _clear_llm_keys(monkeypatch, tmp_path)
     # Persist a key directly (as if saved in a prior session) without touching env.
-    cache_manager.update_user_setting("siliconflow_api_key", "sk-persisted")
-    assert "SILICONFLOW_API_KEY" not in os.environ
+    cache_manager.update_user_setting("deepseek_api_key", "sk-persisted")
+    assert "DEEPSEEK_API_KEY" not in os.environ
 
     cache_manager.apply_llm_keys_to_env()
-    assert os.environ["SILICONFLOW_API_KEY"] == "sk-persisted"
+    assert os.environ["DEEPSEEK_API_KEY"] == "sk-persisted"
 
     # An env var already present is never overwritten.
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-from-operator")

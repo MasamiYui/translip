@@ -22,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--translation-backend",
         default="local-m2m100",
-        choices=["local-m2m100", "siliconflow"],
+        choices=["local-m2m100", "deepseek"],
         help="Task C translation backend",
     )
     parser.add_argument(
@@ -32,7 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--glossary", default="config/glossary.example.json", help="Optional glossary path")
     parser.add_argument("--device", default="auto", choices=["auto", "cpu", "cuda", "mps"])
-    parser.add_argument("--api-model", default=None, help="Optional SiliconFlow model override")
+    parser.add_argument("--api-model", default=None, help="Optional DeepSeek model override")
     parser.add_argument(
         "--speaker-limit",
         type=int,

@@ -65,12 +65,12 @@ class HfTokenTestRequest(BaseModel):
 
 
 class LlmKeyRequest(BaseModel):
-    provider: str = Field(description="大模型仲裁服务商标识，如 deepseek、siliconflow")
+    provider: str = Field(description="大模型服务商标识，如 deepseek")
     api_key: str | None = Field(default=None, description="要保存的 API 密钥；为空则清除该服务商已保存的密钥")
 
 
 class LlmKeyTestRequest(BaseModel):
-    provider: str = Field(description="大模型仲裁服务商标识，如 deepseek、siliconflow")
+    provider: str = Field(description="大模型服务商标识，如 deepseek")
     # Optional: test a not-yet-saved key. Falls back to the saved/env key when omitted.
     api_key: str | None = Field(default=None, description="待校验的 API 密钥；留空则回退到已保存或环境变量中的密钥")
 
@@ -447,7 +447,7 @@ def test_hf_token(body: HfTokenTestRequest):
 
 
 # ---------------------------------------------------------------------------
-# LLM arbitration API keys (DeepSeek / SiliconFlow) for transcript correction
+# LLM API key (DeepSeek) for transcript correction + translation scoring
 # ---------------------------------------------------------------------------
 
 

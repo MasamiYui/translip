@@ -742,7 +742,7 @@ async def _sync_progress_to_db(task_id: str, status_path: Path):
 │  保留中间文件   [ ]                                      │
 │  保存日志       [ ✓ ]                                    │
 │                                                         │
-│  API 配置 (SiliconFlow 后端)                             │
+│  API 配置 (DeepSeek 后端)                                │
 │  API Base URL   [ __________________________________ ]  │
 │  API Model      [ __________________________________ ]  │
 │                                                         │
@@ -1121,7 +1121,7 @@ interface PipelineConfig {
   top_k: number;
 
   // Task C
-  translation_backend: "local-m2m100" | "siliconflow";
+  translation_backend: "local-m2m100" | "deepseek";
   glossary_path?: string;
   batch_size: number;
 

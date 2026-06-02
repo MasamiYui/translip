@@ -9,7 +9,7 @@ from translip.translation.glossary import (
     normalize_target_with_glossary,
 )
 from translip.translation.runner import translate_script
-from translip.translation.siliconflow_backend import _extract_message_content, _parse_json_payload
+from translip.translation.llm_utils import extract_message_content, parse_json_payload
 from translip.translation.units import SegmentRecord, build_context_units
 from translip.types import TranslationRequest
 
@@ -194,7 +194,7 @@ def test_duration_budget_marks_risky_when_target_is_much_longer() -> None:
     assert float(budget["duration_ratio"]) > 1.3
 
 
-def test_siliconflow_response_helpers_parse_json_content() -> None:
+def test_llm_response_helpers_parse_json_content() -> None:
     response = {
         "choices": [
             {
@@ -204,8 +204,8 @@ def test_siliconflow_response_helpers_parse_json_content() -> None:
             }
         ]
     }
-    content = _extract_message_content(response)
-    parsed = _parse_json_payload(content)
+    content = extract_message_content(response)
+    parsed = parse_json_payload(content)
     assert parsed["segments"][0]["target_text"] == "Hello"
 
 

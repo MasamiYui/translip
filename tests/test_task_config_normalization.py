@@ -66,7 +66,7 @@ def test_task_config_accepts_node_advanced_controls() -> None:
         audio_stream_index=1,
         top_k=4,
         translation_batch_size=8,
-        siliconflow_model="deepseek-ai/DeepSeek-V3",
+        deepseek_model="deepseek-v4-pro",
         dubbing_workers=2,
         dub_repair_enabled=True,
         dub_repair_max_items=6,
@@ -82,7 +82,7 @@ def test_task_config_accepts_node_advanced_controls() -> None:
     assert config.audio_stream_index == 1
     assert config.top_k == 4
     assert config.translation_batch_size == 8
-    assert config.siliconflow_model == "deepseek-ai/DeepSeek-V3"
+    assert config.deepseek_model == "deepseek-v4-pro"
     assert config.dubbing_workers == 2
     assert config.dub_repair_enabled is True
     assert config.dub_repair_max_items == 6
@@ -280,7 +280,7 @@ def test_build_pipeline_request_maps_node_advanced_controls(tmp_path: Path) -> N
                 "audio_stream_index": 1,
                 "top_k": 4,
                 "translation_batch_size": 8,
-                "siliconflow_model": "deepseek-ai/DeepSeek-V3",
+                "deepseek_model": "deepseek-v4-pro",
                 "dubbing_workers": 2,
                 "dub_repair_enabled": True,
                 "dub_repair_backend": ["moss-tts-nano-onnx", "qwen3tts"],
@@ -312,7 +312,7 @@ def test_build_pipeline_request_maps_node_advanced_controls(tmp_path: Path) -> N
     assert request.audio_stream_index == 1
     assert request.top_k == 4
     assert request.translation_batch_size == 8
-    assert request.api_model == "deepseek-ai/DeepSeek-V3"
+    assert request.api_model == "deepseek-v4-pro"
     assert request.dubbing_workers == 2
     assert request.dub_repair_enabled is True
     assert request.dub_repair_backends == ["moss-tts-nano-onnx", "qwen3tts"]
