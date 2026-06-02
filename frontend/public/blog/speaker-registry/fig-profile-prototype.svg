@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 436" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="pa" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="psh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#psh);}
+      .t1{font-size:13px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="436" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">给每个人画一张“声纹像”：抗污染的原型</text>
+  <text x="32" y="66" class="s" font-size="13.5">同一个人的若干参考片段 → 各提一个 ECAPA 声纹 → 聚成一个不被离群带偏的代表点。</text>
+
+  <!-- A: segments -->
+  <rect class="box" x="32" y="118" width="150" height="214" rx="12"/>
+  <rect x="32" y="118" width="6" height="214" rx="3" fill="#6366f1"/>
+  <text x="107" y="146" class="t1" text-anchor="middle" fill="#4338ca">SPEAKER_00 的句子</text>
+  <g>
+    <rect x="52" y="166" width="112" height="14" rx="4" fill="#eef2ff" stroke="#c7d2fe"/>
+    <rect x="52" y="190" width="86" height="14" rx="4" fill="#eef2ff" stroke="#c7d2fe"/>
+    <rect x="52" y="214" width="120" height="14" rx="4" fill="#eef2ff" stroke="#c7d2fe"/>
+    <rect x="52" y="238" width="64" height="14" rx="4" fill="#eef2ff" stroke="#c7d2fe"/>
+    <rect x="52" y="262" width="100" height="14" rx="4" fill="#eef2ff" stroke="#c7d2fe"/>
+  </g>
+  <text x="107" y="306" class="t2" text-anchor="middle">本地标号的所有句子</text>
+
+  <!-- B: pick reference clips -->
+  <rect class="box" x="214" y="138" width="170" height="174" rx="12"/>
+  <rect x="214" y="138" width="6" height="174" rx="3" fill="#4f46e5"/>
+  <text x="301" y="166" class="t1" text-anchor="middle">挑参考片段</text>
+  <text x="301" y="187" class="t2" text-anchor="middle">相邻句并组 · 留 1.5–15s</text>
+  <text x="301" y="204" class="t2" text-anchor="middle">按时长 + 响度取前 5</text>
+  <rect x="240" y="222" width="124" height="14" rx="4" fill="#e0e7ff" stroke="#a5b4fc"/>
+  <rect x="240" y="244" width="124" height="14" rx="4" fill="#e0e7ff" stroke="#a5b4fc"/>
+  <rect x="240" y="266" width="96" height="14" rx="4" fill="#e0e7ff" stroke="#a5b4fc"/>
+
+  <!-- C: embeddings -->
+  <rect class="box" x="416" y="156" width="138" height="138" rx="12"/>
+  <rect x="416" y="156" width="6" height="138" rx="3" fill="#14b8a6"/>
+  <text x="488" y="184" class="t1" text-anchor="middle" fill="#0f766e">ECAPA 声纹</text>
+  <circle cx="455" cy="212" r="6" fill="#5eead4"/>
+  <circle cx="488" cy="226" r="6" fill="#5eead4"/>
+  <circle cx="520" cy="208" r="6" fill="#5eead4"/>
+  <circle cx="470" cy="248" r="6" fill="#5eead4"/>
+  <circle cx="508" cy="250" r="6" fill="#5eead4"/>
+  <text x="488" y="282" class="t2" text-anchor="middle">192 维 / 段</text>
+
+  <!-- D: robust prototype -->
+  <rect class="box" x="588" y="100" width="340" height="252" rx="12"/>
+  <rect x="588" y="100" width="6" height="252" rx="3" fill="#059669"/>
+  <text x="758" y="130" class="t1" text-anchor="middle" fill="#047857">原型（prototype）= 中心 + 剔除离群 + 归一均值</text>
+
+  <!-- kept cluster region -->
+  <ellipse cx="704" cy="232" rx="78" ry="62" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.4" stroke-dasharray="5 4"/>
+  <text x="704" y="170" class="t2" text-anchor="middle" fill="#059669">保留：彼此 ≥ 0.6</text>
+  <circle cx="668" cy="220" r="6" fill="#6366f1"/>
+  <circle cx="706" cy="202" r="6" fill="#6366f1"/>
+  <circle cx="734" cy="240" r="6" fill="#6366f1"/>
+  <circle cx="676" cy="256" r="6" fill="#6366f1"/>
+  <circle cx="718" cy="266" r="6" fill="#6366f1"/>
+  <!-- prototype star -->
+  <text x="700" y="240" font-size="26" fill="#059669" text-anchor="middle">★</text>
+  <text x="700" y="306" class="t2" text-anchor="middle" font-weight="700" fill="#047857">★ 原型</text>
+
+  <!-- outlier -->
+  <circle cx="876" cy="168" r="6.5" fill="#cbd5e1"/>
+  <path d="M870,162 L882,174 M882,162 L870,174" stroke="#94a3b8" stroke-width="1.6"/>
+  <text x="876" y="196" class="t2" text-anchor="middle">离群</text>
+  <text x="876" y="211" class="t2" text-anchor="middle">&lt;0.6 剔除</text>
+
+  <!-- arrows -->
+  <path class="ln" d="M182,225 L210,225" marker-end="url(#pa)"/>
+  <path class="ln" d="M384,225 L412,225" marker-end="url(#pa)"/>
+  <path class="ln" d="M554,225 L584,225" marker-end="url(#pa)"/>
+
+  <text x="32" y="416" class="s" font-size="12.5">一段被噪声/串音污染的参考片段不该带偏整张声纹像——所以原型取“抗污染的中心”，而非裸平均。</text>
+</svg>

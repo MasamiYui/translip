@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 456" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ra" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="rsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#rsh);}
+      .t1{font-size:13px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="456" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">注册表：唯一持久、且越用越准的记忆</text>
+  <text x="32" y="66" class="s" font-size="13.5">第一次见到某人就铸一个 ID；之后再遇到 → 认领并把新声纹并进去，画像随之收紧。</text>
+
+  <!-- run 1 -->
+  <rect class="box" x="32" y="128" width="184" height="92" rx="12"/>
+  <rect x="32" y="128" width="6" height="92" rx="3" fill="#6366f1"/>
+  <text x="124" y="162" class="t1" text-anchor="middle" fill="#4338ca">Run 1 · 片段 A</text>
+  <text x="124" y="186" class="t2" text-anchor="middle">2 个画像</text>
+  <text x="124" y="204" class="t2" text-anchor="middle">（注册表还是空的）</text>
+
+  <!-- run 2 -->
+  <rect class="box" x="32" y="288" width="184" height="92" rx="12"/>
+  <rect x="32" y="288" width="6" height="92" rx="3" fill="#14b8a6"/>
+  <text x="124" y="322" class="t1" text-anchor="middle" fill="#0f766e">Run 2 · 片段 B</text>
+  <text x="124" y="346" class="t2" text-anchor="middle">2 个画像</text>
+  <text x="124" y="364" class="t2" text-anchor="middle">（对 v1 匹配）</text>
+
+  <!-- registry panel -->
+  <rect class="box" x="596" y="104" width="332" height="304" rx="12"/>
+  <rect x="596" y="104" width="332" height="40" rx="12" fill="#eef2ff"/>
+  <rect x="596" y="132" width="332" height="12" fill="#eef2ff"/>
+  <text x="762" y="130" font-size="13" font-weight="700" fill="#3730a3" text-anchor="middle">speaker_registry.json（持久）</text>
+
+  <rect x="620" y="158" width="284" height="62" rx="10" fill="#fff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <circle cx="642" cy="180" r="7" fill="#6366f1"/>
+  <text x="660" y="184" class="t1" font-size="12.5">spk_0000</text>
+  <text x="660" y="204" class="t2">Run1 建 · Run2 认领 → 并入范例（上限 12）</text>
+  <text x="884" y="184" font-size="11" fill="#6366f1" text-anchor="end">●●→●●●</text>
+
+  <rect x="620" y="230" width="284" height="48" rx="10" fill="#fff" stroke="#99f6e4" stroke-width="1.5"/>
+  <circle cx="642" cy="254" r="7" fill="#14b8a6"/>
+  <text x="660" y="250" class="t1" font-size="12.5">spk_0001</text>
+  <text x="660" y="268" class="t2">Run1 建</text>
+
+  <rect x="620" y="288" width="284" height="48" rx="10" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
+  <circle cx="642" cy="312" r="7" fill="#f59e0b"/>
+  <text x="660" y="308" class="t1" font-size="12.5">spk_0002</text>
+  <text x="660" y="326" class="t2" fill="#b45309">Run2 新人 → 铸新 ID</text>
+
+  <text x="620" y="364" class="t2">non_cloneable 的声音：清空声纹、不建身份</text>
+  <text x="620" y="386" class="t2" font-weight="600" fill="#475569">同一路径多次写回 → 跨片段 / 跨季共享身份</text>
+
+  <!-- arrows -->
+  <path class="ln" d="M216,174 L470,174 L470,184 L592,184" marker-end="url(#ra)"/>
+  <text x="384" y="166" class="t2" text-anchor="middle">空表 → 都是新人 → 铸 ID</text>
+  <path class="ln" d="M216,334 L470,334 L470,310 L592,310" marker-end="url(#ra)"/>
+  <text x="384" y="326" class="t2" text-anchor="middle">认领 + 并入 / 新人</text>
+
+  <text x="32" y="436" class="s" font-size="12.5">注册表是整条流水线里唯一有状态、跨 run 持久的部件——别的每一站都是“读文件→写文件”的纯函数。</text>
+</svg>

@@ -102,17 +102,57 @@ def boxes_for_range(frames: FrameBoxes, start: int, end: int, *, yx_diff_px: int
 
 
 def _event_box(event: dict[str, Any]) -> Box | None:
-    raw = event.get("box") or event.get("bbox") or event.get("region_box")
-    if not isinstance(raw, (list, tuple)) or len(raw) != 4:
+    """Union of every geometry the event exposes, as ``(xmin, xmax, ymin, ymax)``.
+
+    The OCR ``box`` is a per-frame *median* (``_compute_stable_geometry``) and
+    systematically under-sizes long subtitle lines whose detected width wobbles
+    across sampled frames — fade/type-in, or OCR catching only part of the line on
+    most frames — collapsing the median toward the line's center. The ``polygon``
+    (and ``rotated_box``) carry the line's full extent, so erase unions them all:
+    a mask built from the median box alone leaves the ends of long lines un-erased.
+    """
+    xs: list[int] = []
+    ys: list[int] = []
+    _accumulate_box(event.get("box") or event.get("bbox") or event.get("region_box"), xs, ys)
+    _accumulate_polygon(event.get("polygon"), xs, ys)
+    rotated = event.get("rotated_box")
+    if isinstance(rotated, dict):
+        _accumulate_polygon(rotated.get("points"), xs, ys)
+        _accumulate_box(rotated.get("box"), xs, ys)
+    if not xs or not ys:
         return None
-    x1, y1, x2, y2 = (_as_int(raw[0]), _as_int(raw[1]), _as_int(raw[2]), _as_int(raw[3]))
-    if None in (x1, y1, x2, y2):
-        return None
-    xmin, xmax = sorted((x1, x2))  # type: ignore[type-var]
-    ymin, ymax = sorted((y1, y2))  # type: ignore[type-var]
+    xmin, xmax, ymin, ymax = min(xs), max(xs), min(ys), max(ys)
     if xmax <= xmin or ymax <= ymin:
         return None
     return (xmin, xmax, ymin, ymax)
+
+
+def _accumulate_box(raw: Any, xs: list[int], ys: list[int]) -> None:
+    """Add an ``[x1, y1, x2, y2]`` box's corners to the running x/y extent lists."""
+    if not isinstance(raw, (list, tuple)) or len(raw) != 4:
+        return
+    x1, y1, x2, y2 = (_as_int(raw[0]), _as_int(raw[1]), _as_int(raw[2]), _as_int(raw[3]))
+    if None in (x1, y1, x2, y2):
+        return
+    xs.extend((x1, x2))  # type: ignore[arg-type]
+    ys.extend((y1, y2))  # type: ignore[arg-type]
+
+
+def _accumulate_polygon(raw: Any, xs: list[int], ys: list[int]) -> None:
+    """Add a polygon's ``[[x, y], ...]`` vertices to the running x/y extent lists.
+
+    Bails on the first malformed point rather than masking a partial polygon.
+    """
+    if not isinstance(raw, (list, tuple)):
+        return
+    for point in raw:
+        if not isinstance(point, (list, tuple)) or len(point) != 2:
+            return
+        px, py = _as_int(point[0]), _as_int(point[1])
+        if px is None or py is None:
+            return
+        xs.append(px)
+        ys.append(py)
 
 
 def _continuous_ranges_same_mask(frames: FrameBoxes) -> list[tuple[int, int]]:
