@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 470" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ba" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="bsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#bsh);}
+      .t1{font-size:13px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="470" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">一次 build-speaker-registry 的端到端流程</text>
+  <text x="32" y="66" class="s" font-size="13.5">从带本地标号的转写 + 干净人声，到一本带稳定身份的注册表。</text>
+
+  <!-- inputs -->
+  <rect class="box" x="32" y="104" width="190" height="58" rx="12"/>
+  <rect x="32" y="104" width="6" height="58" rx="3" fill="#64748b"/>
+  <text x="130" y="129" class="t1" text-anchor="middle">segments.zh.json</text>
+  <text x="130" y="148" class="t2" text-anchor="middle">SPEAKER_xx 标注（Task A）</text>
+
+  <rect class="box" x="32" y="176" width="190" height="58" rx="12"/>
+  <rect x="32" y="176" width="6" height="58" rx="3" fill="#64748b"/>
+  <text x="130" y="201" class="t1" text-anchor="middle">voice.wav</text>
+  <text x="130" y="220" class="t2" text-anchor="middle">干净人声（stage1）</text>
+
+  <!-- B: group + clips -->
+  <rect class="box" x="258" y="140" width="158" height="66" rx="12"/>
+  <rect x="258" y="140" width="6" height="66" rx="3" fill="#4f46e5"/>
+  <text x="337" y="170" class="t1" text-anchor="middle" fill="#4338ca">按标号归集</text>
+  <text x="337" y="190" class="t2" text-anchor="middle">+ 选参考片段</text>
+
+  <!-- C: prototype -->
+  <rect class="box" x="452" y="140" width="176" height="66" rx="12"/>
+  <rect x="452" y="140" width="6" height="66" rx="3" fill="#14b8a6"/>
+  <text x="540" y="170" class="t1" text-anchor="middle" fill="#0f766e">ECAPA → 原型</text>
+  <text x="540" y="190" class="t2" text-anchor="middle">（声纹画像）</text>
+
+  <path class="ln" d="M222,133 L240,133 L240,173 L254,173" marker-end="url(#ba)"/>
+  <path class="ln" d="M222,205 L240,205 L240,173 L254,173" marker-end="url(#ba)"/>
+  <path class="ln" d="M416,173 L448,173" marker-end="url(#ba)"/>
+
+  <!-- D: match + update -->
+  <rect class="box" x="452" y="252" width="176" height="76" rx="12"/>
+  <rect x="452" y="252" width="6" height="76" rx="3" fill="#6366f1"/>
+  <text x="540" y="282" class="t1" text-anchor="middle" fill="#4338ca">匹配 + (可选)更新</text>
+  <text x="540" y="302" class="t2" text-anchor="middle">1:N · 取最大 + 间距</text>
+  <text x="540" y="318" class="t2" text-anchor="middle">并入范例 / 铸新 ID</text>
+  <path class="ln" d="M540,206 L540,250" marker-end="url(#ba)"/>
+
+  <!-- registry store -->
+  <rect class="box" x="676" y="248" width="224" height="84" rx="12" stroke="#a7f3d0"/>
+  <rect x="676" y="248" width="6" height="84" rx="3" fill="#059669"/>
+  <text x="792" y="280" class="t1" text-anchor="middle" fill="#047857">注册表（持久）</text>
+  <text x="792" y="300" class="t2" text-anchor="middle">speaker_registry.json</text>
+  <text x="792" y="316" class="t2" text-anchor="middle">指向固定路径 → 跨片段累积</text>
+  <path class="ln" d="M628,278 L672,278" marker-end="url(#ba)"/>
+  <text x="650" y="271" class="t2" text-anchor="middle">读</text>
+  <path class="ln" d="M672,302 L628,302" marker-end="url(#ba)"/>
+  <text x="650" y="316" class="t2" text-anchor="middle">写</text>
+
+  <!-- F: artifacts -->
+  <rect class="box" x="258" y="360" width="316" height="74" rx="12"/>
+  <rect x="258" y="360" width="6" height="74" rx="3" fill="#64748b"/>
+  <text x="416" y="390" class="t1" text-anchor="middle">写产物</text>
+  <text x="416" y="412" class="t2" text-anchor="middle">speaker_profiles · speaker_matches · registry 快照 · manifest</text>
+  <path class="ln" d="M540,328 L540,344 L416,344 L416,358" marker-end="url(#ba)"/>
+
+  <!-- downstream -->
+  <rect x="596" y="360" width="332" height="74" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="762" y="390" class="t1" text-anchor="middle" fill="#475569">下游 · Task C 翻译 / Task D 配音</text>
+  <text x="762" y="412" class="t2" text-anchor="middle">都认 speaker_id（稳定身份 → 一致音色）</text>
+  <path class="ln" d="M574,397 L592,397" marker-end="url(#ba)"/>
+
+  <text x="32" y="454" class="s" font-size="12.5">task-b 读 Task A 的转写（有修正版用修正版）+ stage1 的干净人声；完整流水线默认写回注册表，单独跑默认只读。</text>
+</svg>

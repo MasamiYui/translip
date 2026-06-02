@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 444" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ma" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="msh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#msh);}
+      .t1{font-size:13px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="444" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">认人：1:N 匹配 + 与次优的间距</text>
+  <text x="32" y="66" class="s" font-size="13.5">和注册表每个人算余弦（取原型与各范例的最大值）；够像最优、且明显甩开次优，才敢认领。</text>
+
+  <!-- A: new profile -->
+  <rect class="box" x="32" y="186" width="146" height="84" rx="12"/>
+  <rect x="32" y="186" width="6" height="84" rx="3" fill="#6366f1"/>
+  <text x="108" y="222" class="t1" text-anchor="middle" fill="#4338ca">新画像</text>
+  <text x="108" y="244" class="t2" text-anchor="middle">prototype</text>
+
+  <!-- B: score against candidates -->
+  <rect class="box" x="208" y="120" width="234" height="216" rx="12"/>
+  <text x="325" y="148" class="t1" text-anchor="middle">对每个候选算分</text>
+  <!-- spk_0000 -->
+  <text x="228" y="180" class="t2" font-weight="600" fill="#334155">spk_0000</text>
+  <rect x="228" y="186" width="170" height="14" rx="4" fill="#eef2ff"/>
+  <rect x="228" y="186" width="142" height="14" rx="4" fill="#6366f1"/>
+  <text x="408" y="197" class="t2" text-anchor="end" font-weight="700" fill="#4338ca">0.71</text>
+  <!-- spk_0001 -->
+  <text x="228" y="222" class="t2" font-weight="600" fill="#334155">spk_0001</text>
+  <rect x="228" y="228" width="170" height="14" rx="4" fill="#eef2ff"/>
+  <rect x="228" y="228" width="132" height="14" rx="4" fill="#a5b4fc"/>
+  <text x="408" y="239" class="t2" text-anchor="end" font-weight="700" fill="#6366f1">0.66</text>
+  <!-- spk_0002 -->
+  <text x="228" y="264" class="t2" font-weight="600" fill="#334155">spk_0002</text>
+  <rect x="228" y="270" width="170" height="14" rx="4" fill="#eef2ff"/>
+  <rect x="228" y="270" width="64" height="14" rx="4" fill="#cbd5e1"/>
+  <text x="408" y="281" class="t2" text-anchor="end" font-weight="700" fill="#94a3b8">0.32</text>
+  <text x="325" y="312" class="t2" text-anchor="middle">best = 0.71 · second = 0.66 · 间距 0.05</text>
+
+  <!-- C: two gates -->
+  <rect class="box" x="468" y="150" width="170" height="156" rx="12" stroke="#cbd5e1"/>
+  <rect x="468" y="150" width="170" height="36" rx="12" fill="#f1f5f9"/>
+  <rect x="468" y="170" width="170" height="16" fill="#f1f5f9"/>
+  <text x="553" y="174" font-size="12.5" font-weight="700" fill="#334155" text-anchor="middle">两道闸</text>
+  <text x="486" y="216" class="t2" font-size="12">① best ≥ matched 阈值</text>
+  <text x="486" y="246" class="t2" font-size="12">② best − second ≥ 0.05</text>
+  <text x="553" y="284" class="t2" text-anchor="middle" font-style="italic">都过 → 认领</text>
+
+  <!-- D: outcomes -->
+  <rect x="668" y="120" width="260" height="48" rx="10" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.5"/>
+  <text x="686" y="141" font-size="12.5" font-weight="700" fill="#047857">matched · 认领 spk_0000</text>
+  <text x="686" y="158" font-size="11" fill="#059669">①②都过</text>
+
+  <rect x="668" y="194" width="260" height="48" rx="10" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
+  <text x="686" y="215" font-size="12.5" font-weight="700" fill="#b45309">review · 待人工复核</text>
+  <text x="686" y="232" font-size="11" fill="#d97706">够像，但没甩开次优</text>
+
+  <rect x="668" y="268" width="260" height="48" rx="10" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="686" y="289" font-size="12.5" font-weight="700" fill="#475569">new_speaker · 新人</text>
+  <text x="686" y="306" font-size="11" fill="#64748b">谁都不够像 → 铸新 ID</text>
+
+  <!-- arrows -->
+  <path class="ln" d="M178,228 L204,228" marker-end="url(#ma)"/>
+  <path class="ln" d="M442,228 L464,228" marker-end="url(#ma)"/>
+  <path class="ln" d="M638,210 L654,210 L654,144 L664,144" marker-end="url(#ma)"/>
+  <path class="ln" d="M638,228 L658,228 L658,218 L664,218" marker-end="url(#ma)"/>
+  <path class="ln" d="M638,246 L654,246 L654,292 L664,292" marker-end="url(#ma)"/>
+
+  <text x="32" y="422" class="s" font-size="12.5">阈值 0.55 / 0.35 只是地板：注册表里已知声音越拥挤，门槛越抬高到 floor + 0.15，专防张冠李戴。</text>
+</svg>
