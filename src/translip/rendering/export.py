@@ -58,6 +58,7 @@ def build_mix_report(
         skip_counts[reason] = skip_counts.get(reason, 0) + 1
     quality_summary = _build_quality_summary(items=[*placed_items, *skipped_items])
     audible_coverage = _build_audible_coverage(items=[*placed_items, *skipped_items])
+    audible_amplitude = _build_audible_amplitude(items=placed_items)
     content_quality = _build_content_quality(
         placed_count=len(placed_items),
         skipped_count=len(skipped_items),
@@ -92,6 +93,7 @@ def build_mix_report(
             "total_duration_sec": round(total_duration_sec, 3),
             "quality_summary": quality_summary,
             "audible_coverage": audible_coverage,
+            "audible_amplitude": audible_amplitude,
             "content_quality": content_quality,
         },
         "placed_segments": placed_items,
@@ -258,6 +260,25 @@ def _build_audible_coverage(*, items: list[dict[str, Any]]) -> dict[str, Any]:
         "failed_segment_ids": failed_segment_ids,
         "min_coverage_ratio": round(min(ratios), 4) if ratios else None,
         "average_coverage_ratio": round(statistics.mean(ratios), 4) if ratios else None,
+    }
+
+
+def _build_audible_amplitude(*, items: list[dict[str, Any]]) -> dict[str, Any]:
+    """Raw dub-vs-background SNR distribution over placed segments.
+
+    Thresholding into "buried" lives in the evaluation (dub_benchmark / dub_qa)
+    so the cutoff stays in one place; here we only expose the measurements.
+    """
+    snrs = [
+        (str(item.get("segment_id") or ""), float(item.get("dub_snr_db")))
+        for item in items
+        if isinstance(item.get("dub_snr_db"), (int, float))
+    ]
+    values = [snr for _segment_id, snr in snrs]
+    return {
+        "measured_count": len(values),
+        "min_snr_db": round(min(values), 2) if values else None,
+        "average_snr_db": round(statistics.mean(values), 2) if values else None,
     }
 
 

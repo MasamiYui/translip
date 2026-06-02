@@ -588,6 +588,14 @@ function SegmentDrawer({
                   }
                 />
               )}
+              {typeof segment.dub_snr_db === 'number' && (
+                // Red below +3 dB — the dub is buried under the background (matches the `inaudible` tag).
+                <Metric
+                  label={t.evaluation.dubSnr}
+                  value={segment.dub_snr_db}
+                  status={segment.dub_snr_db < 3 ? 'failed' : undefined}
+                />
+              )}
             </dl>
           </Field>
         </div>

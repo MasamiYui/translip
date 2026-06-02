@@ -97,6 +97,10 @@ class TimelineItem:
     trimmed_tail_sec: float = 0.0
     dead_air_sec: float | None = None
     placed_duration_ratio: float | None = None
+    # Post-mix audibility: how far the placed dub sits above the (ducked) background
+    # in its own window. A placed segment buried under un-ducked music reads as
+    # covered everywhere else but is the "配上了却听不见" half of 漏配.
+    dub_snr_db: float | None = None
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -149,6 +153,7 @@ class TimelineItem:
             "placed_duration_ratio": (
                 round(self.placed_duration_ratio, 4) if self.placed_duration_ratio is not None else None
             ),
+            "dub_snr_db": round(self.dub_snr_db, 2) if self.dub_snr_db is not None else None,
         }
 
 
@@ -224,6 +229,12 @@ def render_dub(request: RenderDubRequest) -> RenderDubResult:
             items=placed_items,
             total_duration_sec=total_duration_sec,
             output_sample_rate=normalized_request.output_sample_rate,
+        )
+        _measure_dub_audibility(
+            placed_items=placed_items,
+            dub_waveform=dub_waveform,
+            background_waveform=background_waveform,
+            request=normalized_request,
         )
         write_wav(dub_voice_path, dub_waveform, sample_rate=normalized_request.output_sample_rate)
 
@@ -774,6 +785,56 @@ def _render_dub_voice(
             continue
         master[start_idx:end_idx] += waveform[: end_idx - start_idx]
     return peak_limit(master)
+
+
+def _measure_dub_audibility(
+    *,
+    placed_items: list[TimelineItem],
+    dub_waveform: np.ndarray,
+    background_waveform: np.ndarray,
+    request: RenderDubRequest,
+) -> None:
+    """Record per-segment dub-vs-background SNR in each placement window.
+
+    The renderer otherwise sums the dub into the master with no check that it is
+    audible over the residual background, so a placed segment fully masked by
+    un-ducked music passes every coverage gate. We compare the dub RMS against the
+    background RMS attenuated by the same gain + window-ducking the mix applies, so
+    the number approximates what the listener hears (a robust proxy in sidechain
+    mode too, where ducking is at least this aggressive).
+    """
+    sample_rate = request.output_sample_rate
+    if sample_rate <= 0 or dub_waveform.size == 0:
+        return
+    ducked_background_gain = db_to_gain(request.background_gain_db + request.window_ducking_db)
+    total_samples = dub_waveform.size
+    bg = background_waveform
+    for item in placed_items:
+        if item.placement_start is None or item.placement_end is None:
+            continue
+        start_idx = max(0, int(round(item.placement_start * sample_rate)))
+        end_idx = min(total_samples, int(round(item.placement_end * sample_rate)))
+        if end_idx <= start_idx:
+            continue
+        dub_rms = _window_rms(dub_waveform, start_idx, end_idx)
+        bg_rms = _window_rms(bg, start_idx, min(end_idx, bg.size)) * ducked_background_gain
+        item.dub_snr_db = _snr_db(dub_rms, bg_rms)
+
+
+def _window_rms(waveform: np.ndarray, start_idx: int, end_idx: int) -> float:
+    if end_idx <= start_idx or start_idx >= waveform.size:
+        return 0.0
+    chunk = waveform[start_idx:end_idx]
+    if chunk.size == 0:
+        return 0.0
+    return float(np.sqrt(np.mean(np.square(chunk, dtype=np.float64))))
+
+
+def _snr_db(signal_rms: float, noise_rms: float) -> float:
+    """SNR in dB, clamped to a sane display range. A near-silent dub → very negative."""
+    eps = 1e-7
+    ratio = max(signal_rms, eps) / max(noise_rms, eps)
+    return round(max(-60.0, min(60.0, 20.0 * float(np.log10(ratio)))), 2)
 
 
 def _render_preview_mix(

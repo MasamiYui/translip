@@ -278,6 +278,13 @@ def test_render_dub_writes_outputs_and_places_failed_segments_when_audio_exists(
     assert item_by_id["seg-0001"]["intelligibility_status"] == "passed"
     assert item_by_id["seg-0002"]["fit_strategy"] == "compress"
     assert item_by_id["seg-0002"]["mix_status"] == "placed"
+    # Post-fit + post-mix measurements are recorded on placed segments in the mix report
+    # (dub_snr_db is computed after the timeline payload is written, so assert on mix_report).
+    placed_by_id = {item["segment_id"]: item for item in mix_report["placed_segments"]}
+    assert isinstance(placed_by_id["seg-0001"]["placed_duration_ratio"], (int, float))
+    assert isinstance(placed_by_id["seg-0001"]["applied_tempo"], (int, float))
+    assert isinstance(placed_by_id["seg-0001"]["dub_snr_db"], (int, float))
+    assert isinstance(mix_report["stats"]["audible_amplitude"]["measured_count"], int)
     assert item_by_id["seg-0003"]["mix_status"] == "skipped_overlap"
     assert item_by_id["seg-0004"]["mix_status"] == "placed"
     assert item_by_id["seg-0004"]["overall_status"] == "failed"

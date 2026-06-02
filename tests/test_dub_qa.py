@@ -250,6 +250,50 @@ def test_dub_qa_pacing_subtypes_and_timbre_review(tmp_path: Path):
     assert (counts["cutoff"], counts["overcompressed"], counts["deadair"], counts["timbre_review"]) == (1, 1, 1, 1)
 
 
+def test_dub_qa_flags_buried_dub(tmp_path: Path):
+    """A placed segment whose dub sits below the SNR floor is inaudible → blocked."""
+    root = tmp_path / "pipeline"
+    tc = root / "task-c" / "voice" / "clip"
+    _write(
+        tc / "translation.en.json",
+        {"segments": [{"segment_id": "b1", "speaker_label": "S", "start": 0.0, "end": 2.0,
+                       "source_text": "源句", "target_text": "hello there"}]},
+    )
+    td = root / "task-d" / "voice" / "clip"
+    tdr = _write(td / "dub_report.en.json", {"segments": [{"segment_id": "b1", "backread_text": "hello there"}]})
+    mix = {
+        "input": {"translation_path": str(tc / "translation.en.json"), "task_d_report_paths": [str(tdr)]},
+        "stats": {
+            "placed_count": 1, "skipped_count": 0, "skip_reason_counts": {},
+            "quality_summary": {
+                "total_count": 1, "overall_status_counts": {"passed": 1},
+                "speaker_status_counts": {"passed": 1}, "intelligibility_status_counts": {"passed": 1},
+            },
+            "audible_coverage": {"failed_count": 0, "failed_segment_ids": []},
+        },
+        "placed_segments": [{
+            "segment_id": "b1", "task_d_report_path": str(tdr), "audio_path": str(td / "b1.wav"),
+            "mix_status": "placed", "overall_status": "passed", "speaker_status": "passed",
+            "intelligibility_status": "passed", "duration_status": "passed",
+            "speaker_similarity": 0.7, "text_similarity": 0.95, "source_duration_sec": 2.0,
+            "generated_duration_sec": 2.0, "applied_tempo": 1.0, "trimmed_tail_sec": 0.0,
+            "dead_air_sec": 0.0, "placed_duration_ratio": 1.0, "subtitle_coverage_ratio": 0.9,
+            "dub_snr_db": -4.0, "qa_flags": [],
+        }],
+        "skipped_segments": [],
+    }
+    _write(root / "task-e" / "voice" / "mix_report.en.json", mix)
+
+    result = build_dub_qa(DubQaRequest(pipeline_root=root, output_dir=tmp_path / "analysis", target_lang="en"))
+    row = result.report["segments"][0]
+    assert "inaudible" in row["issue_tags"]
+    assert row["dub_snr_db"] == -4.0
+    sc = result.report["scorecard"]
+    assert sc["metrics"]["buried_count"] == 1
+    assert sc["status"] == "blocked"
+    assert next(g for g in sc["gates"] if g["id"] == "audibility")["status"] == "failed"
+
+
 def test_dub_qa_handles_missing_mix_report(tmp_path: Path):
     # No pipeline artifacts at all → empty but well-formed report.
     result = build_dub_qa(

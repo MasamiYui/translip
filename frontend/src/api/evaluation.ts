@@ -84,6 +84,7 @@ export interface DubQaSegment {
   applied_tempo?: number | null
   trimmed_tail_sec?: number | null
   dead_air_sec?: number | null
+  dub_snr_db?: number | null
   subtitle_coverage_ratio?: number | null
   qa_flags: string[]
   dropout_token_count: number

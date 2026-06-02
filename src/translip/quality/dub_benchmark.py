@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +27,18 @@ PLACED_RATIO_HIGH = 1.25
 # band in between was previously silent in the evaluation.
 TIMBRE_REVIEW_LOW = 0.25
 TIMBRE_REVIEW_HIGH = 0.45
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, "") or default)
+    except (TypeError, ValueError):
+        return default
+
+
+# A placed dub sitting less than this many dB above the (ducked) background in its
+# own window is "配上了却听不见" — buried. Env-overridable for calibration.
+DUB_SNR_MIN_DB = _env_float("TRANSLIP_DUB_MIN_SNR_DB", 3.0)
 
 
 @dataclass(slots=True)
@@ -184,6 +197,27 @@ def _pacing_counts(mix_report: dict[str, Any]) -> dict[str, int]:
     return counts
 
 
+def _audibility_counts(mix_report: dict[str, Any]) -> dict[str, Any]:
+    placed = mix_report.get("placed_segments", [])
+    buried_ids: list[str] = []
+    snrs: list[float] = []
+    if isinstance(placed, list):
+        for segment in placed:
+            if not isinstance(segment, dict):
+                continue
+            snr = segment.get("dub_snr_db")
+            if not isinstance(snr, (int, float)):
+                continue
+            snrs.append(float(snr))
+            if snr < DUB_SNR_MIN_DB:
+                buried_ids.append(str(segment.get("segment_id") or ""))
+    return {
+        "buried_count": len(buried_ids),
+        "buried_segment_ids": buried_ids,
+        "min_snr_db": round(min(snrs), 2) if snrs else None,
+    }
+
+
 def _translation_segment_count(root: Path, mix_report: dict[str, Any], target_lang: str) -> int:
     """Count translated segments — the honest 'should be dubbed' universe.
 
@@ -259,6 +293,7 @@ def _metrics(
     intelligibility_failed_count = _status_count(quality, "intelligibility_status_counts", "failed")
     overall_failed_count = _status_count(quality, "overall_status_counts", "failed")
     pacing = _pacing_counts(mix_report)
+    audibility = _audibility_counts(mix_report)
     return {
         "total_segment_count": total_count,
         "translated_count": translated_count,
@@ -276,6 +311,9 @@ def _metrics(
         "pacing_deadair_count": pacing["deadair"],
         "pacing_affected_count": pacing["affected"],
         "pacing_affected_ratio": round(pacing["affected"] / max(placed_count, 1), 4),
+        "buried_count": audibility["buried_count"],
+        "buried_segment_ids": audibility["buried_segment_ids"],
+        "min_dub_snr_db": audibility["min_snr_db"],
         "audible_failed_count": _int(audible.get("failed_count")),
         "audible_failed_segment_ids": audible.get("failed_segment_ids") if isinstance(audible.get("failed_segment_ids"), list) else [],
         "audible_min_coverage_ratio": _number(audible.get("min_coverage_ratio")),
@@ -320,12 +358,15 @@ def _status_and_reasons(metrics: dict[str, Any]) -> tuple[str, list[str]]:
         reasons.append("dub_tail_cut_off")
     if metrics.get("speaker_review_ratio", 0.0) > 0.30:
         reasons.append("timbre_review_band_high")
+    if metrics.get("buried_count", 0) > 0:
+        reasons.append("dub_buried_under_background")
 
     if (
         metrics["total_segment_count"] <= 0
         or metrics["coverage_ratio"] < 0.98
         or metrics["audible_failed_count"] > 0
         or metrics["character_blocked_count"] > 0
+        or metrics.get("buried_count", 0) > 0
     ):
         return "blocked", reasons
     if reasons:
@@ -356,6 +397,8 @@ def _score(metrics: dict[str, Any]) -> float:
         + float(metrics.get("pacing_overcompressed_count", 0)) * 1.0
         + float(metrics.get("pacing_deadair_count", 0)) * 1.0,
     )
+    # Placed-but-buried dubs are effectively undubbed to the listener.
+    penalty += min(20.0, float(metrics.get("buried_count", 0)) * 5.0)
     return round(max(0.0, min(100.0, 100.0 - penalty)), 2)
 
 
@@ -407,6 +450,17 @@ def _gates(metrics: dict[str, Any]) -> list[dict[str, Any]]:
                 "deadair_count": metrics.get("pacing_deadair_count", 0),
             },
             "threshold": "cutoff_count == 0 (review if any rushed / dead air)",
+        },
+        {
+            "id": "audibility",
+            "label": "Dub audible over background (SNR)",
+            "status": "failed" if metrics.get("buried_count", 0) > 0 else "passed",
+            "value": {
+                "buried_count": metrics.get("buried_count", 0),
+                "buried_segment_ids": metrics.get("buried_segment_ids", []),
+                "min_snr_db": metrics.get("min_dub_snr_db"),
+            },
+            "threshold": f"no placed dub below {DUB_SNR_MIN_DB:g} dB over background",
         },
         {
             "id": "character_voice",

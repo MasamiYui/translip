@@ -32,6 +32,7 @@ from ..pipeline.manifest import now_iso
 from ..translation.backend import output_tag_for_language
 from ..utils.files import ensure_directory
 from .dub_benchmark import (
+    DUB_SNR_MIN_DB,
     TIMBRE_REVIEW_HIGH,
     TIMBRE_REVIEW_LOW,
     DubBenchmarkRequest,
@@ -395,6 +396,7 @@ def _build_row(
         "applied_tempo": _number(item.get("applied_tempo")),
         "trimmed_tail_sec": _number(item.get("trimmed_tail_sec")),
         "dead_air_sec": _number(item.get("dead_air_sec")),
+        "dub_snr_db": _number(item.get("dub_snr_db")),
         "subtitle_coverage_ratio": subtitle_coverage,
         "qa_flags": item.get("qa_flags") if isinstance(item.get("qa_flags"), list) else [],
         "dropout_token_count": dropout_count,
@@ -445,7 +447,12 @@ def _issue_tags(row: dict[str, Any]) -> list[str]:
             if issue and issue not in tags:
                 tags.append(issue)
         coverage = row.get("subtitle_coverage_ratio")
-        if isinstance(coverage, (int, float)) and coverage < INAUDIBLE_COVERAGE_THRESHOLD:
+        snr = row.get("dub_snr_db")
+        buried = isinstance(snr, (int, float)) and snr < DUB_SNR_MIN_DB
+        low_coverage = isinstance(coverage, (int, float)) and coverage < INAUDIBLE_COVERAGE_THRESHOLD
+        # "Inaudible" now covers BOTH a placement that misses its subtitle window AND
+        # a placed dub buried under the background — the latter was previously invisible.
+        if buried or low_coverage:
             tags.append(ISSUE_INAUDIBLE)
     judge_score = row.get("judge_score")
     if isinstance(judge_score, (int, float)) and judge_score < JUDGE_FAIL_THRESHOLD:
