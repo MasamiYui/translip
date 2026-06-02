@@ -5,10 +5,10 @@ import re
 import shutil
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Annotated, Any
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Path as PathParam, Query, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session
@@ -65,17 +65,26 @@ global_personas_router = APIRouter(prefix="/api/global-personas", tags=["global-
 
 
 class SpeakerReviewDecisionRequest(BaseModel):
-    item_id: str
-    item_type: str
-    decision: str
-    source_speaker_label: str | None = None
-    target_speaker_label: str | None = None
-    segment_ids: list[str] = Field(default_factory=list)
-    payload: dict[str, Any] = Field(default_factory=dict)
+    item_id: str = Field(description="评审条目 ID，对应说话人、说话人连续片段(run)或单条片段")
+    item_type: str = Field(description="条目类型，如 speaker / speaker_run / segment")
+    decision: str = Field(description="对该条目作出的决策，如合并说话人、重新标注等")
+    source_speaker_label: str | None = Field(default=None, description="源说话人标签，合并/重标注时的来源说话人")
+    target_speaker_label: str | None = Field(default=None, description="目标说话人标签，合并/重标注时归并到的说话人")
+    segment_ids: list[str] = Field(default_factory=list, description="该决策涉及的片段 ID 列表")
+    payload: dict[str, Any] = Field(default_factory=dict, description="决策附加数据，可携带额外来源/目标说话人等信息")
 
 
-@router.get("/{task_id}/speaker-review")
-def get_speaker_review(task_id: str, session: Session = Depends(get_session)) -> dict[str, Any]:
+@router.get("/{task_id}/speaker-review", summary="说话人评审总览")
+def get_speaker_review(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """获取指定任务的说话人评审总览。
+
+    基于 task-a 转写结果实时构建说话人诊断与评审计划并写入工件，汇总各说话人、
+    说话人连续片段、片段、相似度矩阵、已有人工决策与人物画像信息。任务尚无转写
+    片段时返回 status=missing 的空结构。
+    """
     task = _get_task(session, task_id)
     root = Path(task.output_root).resolve()
     paths = _speaker_review_paths(root)
@@ -162,12 +171,17 @@ def get_speaker_review(task_id: str, session: Session = Depends(get_session)) ->
     }
 
 
-@router.post("/{task_id}/speaker-review/decisions")
+@router.post("/{task_id}/speaker-review/decisions", summary="保存评审决策")
 def save_speaker_review_decision(
-    task_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
     req: SpeakerReviewDecisionRequest,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """保存一条说话人人工评审决策。
+
+    按 item_id 去重后写入该任务的人工决策工件（同一条目的旧决策会被新决策覆盖），
+    不会立即应用到转写片段，需另行调用 apply 接口生效。
+    """
     task = _get_task(session, task_id)
     root = Path(task.output_root).resolve()
     paths = _speaker_review_paths(root)
@@ -219,8 +233,16 @@ def save_speaker_review_decision(
     }
 
 
-@router.post("/{task_id}/speaker-review/apply")
-def apply_speaker_review_decisions(task_id: str, session: Session = Depends(get_session)) -> dict[str, Any]:
+@router.post("/{task_id}/speaker-review/apply", summary="应用评审决策")
+def apply_speaker_review_decisions(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """将人工评审决策应用为说话人校正后的转写片段与字幕工件。
+
+    会先归档已有的校正产物，按合并决策更新人物画像，再写出 speaker-corrected
+    的片段 JSON、SRT 字幕与清单。缺少转写片段或无人工决策时报错。
+    """
     task = _get_task(session, task_id)
     root = Path(task.output_root).resolve()
     paths = _speaker_review_paths(root)
@@ -280,12 +302,17 @@ def apply_speaker_review_decisions(task_id: str, session: Session = Depends(get_
     }
 
 
-@router.delete("/{task_id}/speaker-review/decisions/{item_id:path}")
+@router.delete("/{task_id}/speaker-review/decisions/{item_id:path}", summary="删除评审决策")
 def delete_speaker_review_decision(
-    task_id: str,
-    item_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    item_id: Annotated[str, PathParam(description="评审条目 ID（说话人/片段等）")],
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """删除指定条目的人工评审决策。
+
+    从该任务的人工决策工件中移除匹配 item_id 的决策；决策文件不存在时直接返回
+    成功且移除数为 0。
+    """
     task = _get_task(session, task_id)
     root = Path(task.output_root).resolve()
     paths = _speaker_review_paths(root)
@@ -310,8 +337,12 @@ def delete_speaker_review_decision(
     }
 
 
-@router.get("/{task_id}/speaker-review/similarity")
-def get_speaker_similarity(task_id: str, session: Session = Depends(get_session)) -> dict[str, Any]:
+@router.get("/{task_id}/speaker-review/similarity", summary="说话人相似度矩阵")
+def get_speaker_similarity(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """获取任务内说话人之间的相似度矩阵及建议合并阈值，用于辅助判断是否合并说话人。"""
     task = _get_task(session, task_id)
     root = Path(task.output_root).resolve()
     paths = _speaker_review_paths(root)
@@ -325,12 +356,13 @@ def get_speaker_similarity(task_id: str, session: Session = Depends(get_session)
     return diagnostics.get("similarity", {"labels": [], "matrix": [], "threshold_suggest_merge": 0.55})
 
 
-@router.get("/{task_id}/speaker-review/speakers/{label}/reference-clips")
+@router.get("/{task_id}/speaker-review/speakers/{label}/reference-clips", summary="说话人参考音频片段")
 def get_speaker_reference_clips(
-    task_id: str,
-    label: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    label: Annotated[str, PathParam(description="说话人标签")],
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """获取某个说话人的参考音频片段列表（含可播放的音频流 URL）及推荐的最佳参考片段 ID。"""
     task = _get_task(session, task_id)
     root = Path(task.output_root).resolve()
     paths = _speaker_review_paths(root)
@@ -355,14 +387,19 @@ def get_speaker_reference_clips(
     raise HTTPException(status_code=404, detail=f"Speaker {label} not found")
 
 
-@router.get("/{task_id}/speaker-review/audio")
+@router.get("/{task_id}/speaker-review/audio", summary="评审音频流")
 def stream_speaker_review_audio(
-    task_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
     request: Request,
-    start: float = 0.0,
-    end: float | None = None,
+    start: float = Query(0.0, description="音频起始时间（秒）"),
+    end: float | None = Query(None, description="音频结束时间（秒），留空表示到末尾"),
     session: Session = Depends(get_session),
 ) -> Response:
+    """流式返回评审用的人声音频（支持 HTTP Range 分段请求）。
+
+    定位到该任务分离出的人声音频文件并按 start/end 截取播放；找不到真实音频时
+    回退合成一段静音 WAV，以保证评审界面仍可使用。
+    """
     task = _get_task(session, task_id)
     root = Path(task.output_root).resolve()
     audio_path = _resolve_audio_path(root)
@@ -428,71 +465,71 @@ def stream_speaker_review_audio(
 
 
 class PersonaCreateRequest(BaseModel):
-    name: str
-    bindings: list[str] = Field(default_factory=list)
-    color: str | None = None
-    avatar_emoji: str | None = None
-    note: str | None = None
-    role: str | None = None
-    gender: str | None = None
-    age_hint: str | None = None
-    pinned: bool | None = None
-    is_target: bool | None = None
-    confidence: float | None = None
-    tts_skip: bool | None = None
-    force: bool = False
+    name: str = Field(description="人物画像名称")
+    bindings: list[str] = Field(default_factory=list, description="绑定到该画像的说话人标签列表")
+    color: str | None = Field(default=None, description="画像展示颜色")
+    avatar_emoji: str | None = Field(default=None, description="画像头像 emoji")
+    note: str | None = Field(default=None, description="备注说明")
+    role: str | None = Field(default=None, description="角色定位，如主角、配角")
+    gender: str | None = Field(default=None, description="性别")
+    age_hint: str | None = Field(default=None, description="年龄段提示")
+    pinned: bool | None = Field(default=None, description="是否置顶")
+    is_target: bool | None = Field(default=None, description="是否为目标说话人（需要配音的对象）")
+    confidence: float | None = Field(default=None, description="人工或自动判定的置信度")
+    tts_skip: bool | None = Field(default=None, description="是否跳过该画像的语音合成")
+    force: bool = Field(default=False, description="是否忽略同名冲突强制创建")
 
 
 class PersonaUpdateRequest(BaseModel):
-    name: str | None = None
-    color: str | None = None
-    avatar_emoji: str | None = None
-    note: str | None = None
-    aliases: list[str] | None = None
-    role: str | None = None
-    gender: str | None = None
-    age_hint: str | None = None
-    pinned: bool | None = None
-    is_target: bool | None = None
-    confidence: float | None = None
-    tts_skip: bool | None = None
-    force: bool = False
+    name: str | None = Field(default=None, description="人物画像名称")
+    color: str | None = Field(default=None, description="画像展示颜色")
+    avatar_emoji: str | None = Field(default=None, description="画像头像 emoji")
+    note: str | None = Field(default=None, description="备注说明")
+    aliases: list[str] | None = Field(default=None, description="画像别名列表")
+    role: str | None = Field(default=None, description="角色定位，如主角、配角")
+    gender: str | None = Field(default=None, description="性别")
+    age_hint: str | None = Field(default=None, description="年龄段提示")
+    pinned: bool | None = Field(default=None, description="是否置顶")
+    is_target: bool | None = Field(default=None, description="是否为目标说话人（需要配音的对象）")
+    confidence: float | None = Field(default=None, description="人工或自动判定的置信度")
+    tts_skip: bool | None = Field(default=None, description="是否跳过该画像的语音合成")
+    force: bool = Field(default=False, description="是否忽略同名冲突强制更新")
 
 
 class PersonaApplyPreviewRequest(BaseModel):
-    persona_id: str | None = None
+    persona_id: str | None = Field(default=None, description="指定预览的人物画像 ID，留空表示全部")
 
 
 class PersonaBindRequest(BaseModel):
-    speaker: str
+    speaker: str = Field(description="要绑定或解绑的说话人标签")
 
 
 class PersonaBulkRequest(BaseModel):
-    template: str
+    template: str = Field(description="批量创建画像所用的模板名称")
 
 
 class PersonaSuggestRequest(BaseModel):
-    speakers: list[str] | None = None
+    speakers: list[str] | None = Field(default=None, description="待生成建议的说话人标签列表，留空则取全部说话人")
 
 
 class GlobalPersonaImportRequest(BaseModel):
     """Full payload replacement for the user-scoped global library."""
 
-    personas: list[dict[str, Any]] = Field(default_factory=list)
-    mode: str = "merge"  # "merge" | "replace"
+    personas: list[dict[str, Any]] = Field(default_factory=list, description="待导入的全局人物画像列表")
+    mode: str = Field(default="merge", description="导入模式：merge 合并、replace 整库替换")  # "merge" | "replace"
 
 
 class GlobalPersonaExportFromTaskRequest(BaseModel):
-    overwrite: bool = True
+    overwrite: bool = Field(default=True, description="导出到全局库时是否覆盖同名画像")
 
 
 class ImportFromGlobalRequest(BaseModel):
-    persona_ids: list[str] = Field(default_factory=list)
-    bindings_by_id: dict[str, list[str]] = Field(default_factory=dict)
+    persona_ids: list[str] = Field(default_factory=list, description="要从全局库导入的人物画像 ID 列表")
+    bindings_by_id: dict[str, list[str]] = Field(default_factory=dict, description="按画像 ID 指定导入时绑定的说话人标签")
 
 
 class SuggestFromGlobalRequest(BaseModel):
-    speakers: list[dict[str, Any]] | None = None
+    speakers: list[dict[str, Any]] | None = Field(default=None, description="待匹配的说话人信息列表，留空则取本任务全部说话人")
 
 
 def _persona_context(session: Session, task_id: str) -> tuple[Task, Path, dict[str, Path], Path, dict[str, Any]]:
@@ -567,18 +604,26 @@ def _clone(value: Any) -> Any:
         return value
 
 
-@router.get("/{task_id}/speaker-review/personas")
-def list_speaker_personas(task_id: str, session: Session = Depends(get_session)) -> dict[str, Any]:
+@router.get("/{task_id}/speaker-review/personas", summary="人物画像列表")
+def list_speaker_personas(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """获取该任务下的人物画像列表，含按说话人标签建立的索引与未分配的绑定。"""
     _task, _root, _paths, _review_dir, payload = _persona_context(session, task_id)
     return _persona_response(payload)
 
 
-@router.post("/{task_id}/speaker-review/personas")
+@router.post("/{task_id}/speaker-review/personas", summary="创建人物画像")
 def create_speaker_persona(
-    task_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
     req: PersonaCreateRequest,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """在该任务下创建一个人物画像并记入历史。
+
+    名称为空时报错；默认遇到同名画像返回 409 冲突，可用 force 强制创建。
+    """
     _task, _root, _paths, review_dir, payload = _persona_context(session, task_id)
     if not req.name.strip():
         raise HTTPException(status_code=400, detail="Persona name is required")
@@ -615,13 +660,17 @@ def create_speaker_persona(
     return {"ok": True, "persona": persona, "personas": _persona_response(payload)}
 
 
-@router.patch("/{task_id}/speaker-review/personas/{persona_id}")
+@router.patch("/{task_id}/speaker-review/personas/{persona_id}", summary="更新人物画像")
 def update_speaker_persona(
-    task_id: str,
-    persona_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    persona_id: Annotated[str, PathParam(description="人物画像 ID")],
     req: PersonaUpdateRequest,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """部分更新指定人物画像（仅更新请求中显式给出的字段）并记入历史。
+
+    画像不存在时报 404；改名遇到同名冲突默认返回 409，可用 force 强制更新。
+    """
     _task, _root, _paths, review_dir, payload = _persona_context(session, task_id)
     persona_before = find_persona(payload, persona_id)
     if persona_before is None:
@@ -652,12 +701,13 @@ def update_speaker_persona(
     return {"ok": True, "persona": persona, "personas": _persona_response(payload)}
 
 
-@router.delete("/{task_id}/speaker-review/personas/{persona_id}")
+@router.delete("/{task_id}/speaker-review/personas/{persona_id}", summary="删除人物画像")
 def delete_speaker_persona(
-    task_id: str,
-    persona_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    persona_id: Annotated[str, PathParam(description="人物画像 ID")],
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """删除指定人物画像并记入历史；画像不存在时报 404。"""
     _task, _root, _paths, review_dir, payload = _persona_context(session, task_id)
     persona_before = find_persona(payload, persona_id)
     if persona_before is None:
@@ -670,13 +720,14 @@ def delete_speaker_persona(
     return {"ok": True, "personas": _persona_response(payload)}
 
 
-@router.post("/{task_id}/speaker-review/personas/{persona_id}/bind")
+@router.post("/{task_id}/speaker-review/personas/{persona_id}/bind", summary="绑定说话人到画像")
 def bind_speaker_persona(
-    task_id: str,
-    persona_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    persona_id: Annotated[str, PathParam(description="人物画像 ID")],
     req: PersonaBindRequest,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """将一个说话人标签绑定到指定人物画像并记入历史；画像不存在时报 404。"""
     _task, _root, _paths, review_dir, payload = _persona_context(session, task_id)
     persona_before = find_persona(payload, persona_id)
     if persona_before is None:
@@ -692,13 +743,14 @@ def bind_speaker_persona(
     return {"ok": True, "persona": persona, "personas": _persona_response(payload)}
 
 
-@router.post("/{task_id}/speaker-review/personas/{persona_id}/unbind")
+@router.post("/{task_id}/speaker-review/personas/{persona_id}/unbind", summary="解绑画像的说话人")
 def unbind_speaker_persona(
-    task_id: str,
-    persona_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    persona_id: Annotated[str, PathParam(description="人物画像 ID")],
     req: PersonaBindRequest,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """将一个说话人标签从指定人物画像上解绑并记入历史；画像不存在时报 404。"""
     _task, _root, _paths, review_dir, payload = _persona_context(session, task_id)
     persona_before = find_persona(payload, persona_id)
     if persona_before is None:
@@ -714,12 +766,16 @@ def unbind_speaker_persona(
     return {"ok": True, "persona": persona, "personas": _persona_response(payload)}
 
 
-@router.post("/{task_id}/speaker-review/personas/bulk")
+@router.post("/{task_id}/speaker-review/personas/bulk", summary="按模板批量创建画像")
 def bulk_create_personas(
-    task_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
     req: PersonaBulkRequest,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """按指定模板为任务内的说话人批量创建人物画像并记入历史。
+
+    模板未知时报 400，缺少转写片段时报 404。
+    """
     _task, _root, paths, review_dir, payload = _persona_context(session, task_id)
     if req.template not in BULK_TEMPLATES:
         raise HTTPException(status_code=400, detail=f"Unknown template: {req.template}")
@@ -738,12 +794,16 @@ def bulk_create_personas(
     return {"ok": True, "created": created, "personas": _persona_response(payload)}
 
 
-@router.post("/{task_id}/speaker-review/personas/suggest")
+@router.post("/{task_id}/speaker-review/personas/suggest", summary="生成画像建议")
 def suggest_speaker_personas(
-    task_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
     req: PersonaSuggestRequest,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """根据转写片段为指定（或全部）说话人生成人物画像建议，仅返回建议不落盘。
+
+    缺少转写片段时报 404。
+    """
     _task, root, paths, _review_dir, _payload = _persona_context(session, task_id)
     source_segments_path = _source_segments_path(paths)
     if source_segments_path is None:
@@ -761,8 +821,12 @@ def suggest_speaker_personas(
     return {"ok": True, "suggestions": suggestions}
 
 
-@router.post("/{task_id}/speaker-review/personas/undo")
-def undo_speaker_personas(task_id: str, session: Session = Depends(get_session)) -> dict[str, Any]:
+@router.post("/{task_id}/speaker-review/personas/undo", summary="撤销画像操作")
+def undo_speaker_personas(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """撤销上一步人物画像编辑操作（优先按历史游标回退，兼容旧版单步撤销）。"""
     _task, _root, _paths, review_dir, _payload = _persona_context(session, task_id)
     reverted = undo_with_cursor(review_dir)
     if reverted is None:
@@ -777,8 +841,12 @@ def undo_speaker_personas(task_id: str, session: Session = Depends(get_session))
     }
 
 
-@router.post("/{task_id}/speaker-review/personas/redo")
-def redo_speaker_personas(task_id: str, session: Session = Depends(get_session)) -> dict[str, Any]:
+@router.post("/{task_id}/speaker-review/personas/redo", summary="重做画像操作")
+def redo_speaker_personas(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """重做此前被撤销的人物画像编辑操作（按历史游标前进）。"""
     _task, _root, _paths, review_dir, _payload = _persona_context(session, task_id)
     replayed = redo_with_cursor(review_dir)
     payload = load_personas(review_dir)
@@ -790,21 +858,25 @@ def redo_speaker_personas(task_id: str, session: Session = Depends(get_session))
     }
 
 
-@router.get("/{task_id}/speaker-review/personas/history")
-def get_speaker_personas_history(task_id: str, session: Session = Depends(get_session)) -> dict[str, Any]:
+@router.get("/{task_id}/speaker-review/personas/history", summary="画像操作历史")
+def get_speaker_personas_history(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+) -> dict[str, Any]:
+    """获取人物画像编辑的历史状态（含可撤销/重做的游标信息）。"""
     _task, _root, _paths, review_dir, _payload = _persona_context(session, task_id)
     return {"ok": True, "history": history_status(review_dir)}
 
 
-@router.post("/{task_id}/speaker-review/apply-preview")
+@router.post("/{task_id}/speaker-review/apply-preview", summary="预览应用差异")
 def preview_speaker_review_apply(
-    task_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """Return a diff preview of what `apply` will change without writing artifacts.
+    """预览应用评审决策后的变化但不写入任何工件。
 
-    The preview shows: per-speaker counts, persona attribution stats, and a
-    sample of segments whose persona_name will change.
+    返回各人物画像归属统计、按合并决策推导的说话人映射，以及一批 persona_name
+    将发生变化的片段样本，便于落盘前确认。缺少转写片段时报 404。
     """
     task = _get_task(session, task_id)
     root = Path(task.output_root).resolve()
@@ -887,8 +959,9 @@ def preview_speaker_review_apply(
 # ---------- Global persona library (shared across tasks) ----------
 
 
-@global_personas_router.get("")
+@global_personas_router.get("", summary="全局画像列表")
 def list_global_personas_route() -> dict[str, Any]:
+    """获取用户级全局人物画像库的全部画像及其存储路径、版本与更新时间。"""
     payload = load_global_personas()
     return {
         "ok": True,
@@ -899,9 +972,13 @@ def list_global_personas_route() -> dict[str, Any]:
     }
 
 
-@global_personas_router.post("/import")
+@global_personas_router.post("/import", summary="导入全局画像")
 def import_global_personas_route(req: GlobalPersonaImportRequest) -> dict[str, Any]:
-    """Bulk insert/replace personas in the global library."""
+    """批量向全局人物画像库导入画像。
+
+    merge 模式在现有库上合并，replace 模式整库替换；逐条尝试导入并统计成功与
+    跳过数量。mode 非法时报 400。
+    """
     mode = (req.mode or "merge").lower()
     if mode not in ("merge", "replace"):
         raise HTTPException(status_code=400, detail="mode must be 'merge' or 'replace'")
@@ -930,8 +1007,11 @@ def import_global_personas_route(req: GlobalPersonaImportRequest) -> dict[str, A
     }
 
 
-@global_personas_router.delete("/{persona_id}")
-def delete_global_persona_route(persona_id: str) -> dict[str, Any]:
+@global_personas_router.delete("/{persona_id}", summary="删除全局画像")
+def delete_global_persona_route(
+    persona_id: Annotated[str, PathParam(description="全局人物画像 ID")],
+) -> dict[str, Any]:
+    """从全局人物画像库删除指定画像；画像不存在时报 404。"""
     payload = load_global_personas()
     removed = remove_global(payload, persona_id)
     if not removed:
@@ -940,25 +1020,36 @@ def delete_global_persona_route(persona_id: str) -> dict[str, Any]:
     return {"ok": True, "personas": list_global(payload)}
 
 
-@router.post("/{task_id}/speaker-review/global-personas/export-from-task", tags=["global-personas"])
+@router.post(
+    "/{task_id}/speaker-review/global-personas/export-from-task",
+    tags=["global-personas"],
+    summary="导出任务画像到全局库",
+)
 def export_task_personas_to_global_route(
-    task_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
     req: GlobalPersonaExportFromTaskRequest,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """Push all personas in this task to the user-level global library."""
+    """将本任务的全部人物画像推送到用户级全局画像库（overwrite 控制是否覆盖同名）。"""
     _task, _root, _paths, _review_dir, payload = _persona_context(session, task_id)
     result = export_task_personas_to_global(payload, overwrite=bool(req.overwrite))
     return {"ok": True, **result}
 
 
-@router.post("/{task_id}/speaker-review/personas/import-from-global", tags=["global-personas"])
+@router.post(
+    "/{task_id}/speaker-review/personas/import-from-global",
+    tags=["global-personas"],
+    summary="从全局库导入画像",
+)
 def import_personas_from_global_route(
-    task_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
     req: ImportFromGlobalRequest,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """Import a selection of global personas into the current task payload."""
+    """将选定的全局人物画像导入当前任务并按需绑定说话人，记入历史。
+
+    同名画像会跳过并记入 conflicts，仅在确有导入时落盘。
+    """
     _task, _root, _paths, review_dir, payload = _persona_context(session, task_id)
     global_payload = load_global_personas()
     imported: list[dict[str, Any]] = []
@@ -1022,13 +1113,17 @@ def import_personas_from_global_route(
     }
 
 
-@router.post("/{task_id}/speaker-review/personas/suggest-from-global", tags=["global-personas"])
+@router.post(
+    "/{task_id}/speaker-review/personas/suggest-from-global",
+    tags=["global-personas"],
+    summary="按全局库推荐画像",
+)
 def suggest_personas_from_global_route(
-    task_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
     req: SuggestFromGlobalRequest,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """Return global-persona candidates per speaker in the current task."""
+    """为当前任务的每个说话人从全局画像库智能匹配候选画像（请求未给说话人时取本任务全部说话人）。"""
     task, root, paths, _review_dir, payload = _persona_context(session, task_id)
     task_persona_by_speaker = _task_personas_by_speaker(payload)
     speakers = req.speakers or []

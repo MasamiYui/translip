@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path as PathParam, Query
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlmodel import Session
@@ -40,12 +40,16 @@ router = APIRouter(prefix="/api/tasks", tags=["dubbing-editor"])
 from .dubbing_editor_service import *  # noqa: E402,F401,F403
 
 
-@router.get("/{task_id}/dubbing-editor")
+@router.get("/{task_id}/dubbing-editor", summary="获取配音编辑器状态")
 def get_dubbing_editor(
-    task_id: str,
-    replay_to: int | None = None,
+    task_id: str = PathParam(description="任务 ID"),
+    replay_to: int | None = Query(None, description="部分回放：仅应用前 N 条编辑操作并重新物化状态，留空则返回当前完整状态"),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """获取配音编辑器的物化状态（对白单元、说话人、角色等）。
+
+    若编辑工程尚未导入，则先从流水线产物导入；可选 replay_to 用于回放历史操作的某个前缀以预览中间状态。
+    """
     task = _get_task(session, task_id)
     output_root = Path(task.output_root).resolve()
     editor_root = _editor_root(task.output_root)
@@ -90,20 +94,25 @@ def get_dubbing_editor(
     _patch_unit_audio_paths(materialized, output_root)
     return materialized
 
-@router.post("/{task_id}/dubbing-editor/import")
+@router.post("/{task_id}/dubbing-editor/import", summary="导入编辑工程")
 def import_dubbing_editor(
-    task_id: str,
+    task_id: str = PathParam(description="任务 ID"),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """从流水线产物导入并初始化配音编辑工程，生成初始快照与物化状态。"""
     task = _get_task(session, task_id)
     return _import_editor_project(task)
 
-@router.post("/{task_id}/dubbing-editor/operations")
+@router.post("/{task_id}/dubbing-editor/operations", summary="保存编辑操作")
 def save_operations(
-    task_id: str,
-    body: OperationRequest,
+    task_id: str = PathParam(description="任务 ID"),
+    body: OperationRequest = ...,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """追加一批编辑操作到操作日志，并基于初始快照重新物化当前状态。
+
+    若编辑工程尚未初始化会先自动导入；返回本次成功应用的操作数与最新状态摘要。
+    """
     task = _get_task(session, task_id)
     output_root = Path(task.output_root).resolve()
     editor_root = _editor_root(task.output_root)
@@ -133,12 +142,13 @@ def save_operations(
 
     return {"ok": True, "applied": len(body.operations), "summary": materialized.get("summary", {})}
 
-@router.post("/{task_id}/dubbing-editor/render-range")
+@router.post("/{task_id}/dubbing-editor/render-range", summary="渲染时间区间预览")
 def render_range(
-    task_id: str,
-    body: RenderRangeRequest,
+    task_id: str = PathParam(description="任务 ID"),
+    body: RenderRangeRequest = ...,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """对指定时间区间内的对白单元做混音渲染，生成预览音频产物并返回其访问 URL。"""
     task = _get_task(session, task_id)
     output_root = Path(task.output_root).resolve()
     target_lang = task.target_lang or "en"
@@ -162,12 +172,13 @@ def render_range(
         "url": f"/api/tasks/{task_id}/artifacts/{artifact_path}",
     }
 
-@router.get("/{task_id}/dubbing-editor/waveforms/{track}")
+@router.get("/{task_id}/dubbing-editor/waveforms/{track}", summary="获取音轨波形")
 def get_waveform(
-    task_id: str,
-    track: str,
+    task_id: str = PathParam(description="任务 ID"),
+    track: str = PathParam(description="音轨名，如 original/background/dub/preview_mix 等"),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """获取指定音轨的波形峰值数据；已缓存则直接返回，未缓存则在后台异步生成并返回 pending 状态。"""
     task = _get_task(session, task_id)
     output_root = Path(task.output_root).resolve()
     target_lang = task.target_lang or "en"
@@ -220,15 +231,15 @@ def get_waveform(
 
     return {"track": track, "peaks": [], "duration_sec": 0, "available": False, "pending": True}
 
-@router.get("/{task_id}/dubbing-editor/clip-preview")
+@router.get("/{task_id}/dubbing-editor/clip-preview", summary="获取片段预览")
 def get_clip_preview(
-    task_id: str,
-    start_sec: float,
-    end_sec: float,
-    track: str = "original",
+    task_id: str = PathParam(description="任务 ID"),
+    start_sec: float = Query(description="片段起始时间（秒）"),
+    end_sec: float = Query(description="片段结束时间（秒）"),
+    track: str = Query("original", description="音轨名，默认 original，可选 dub/preview_mix/mix 等"),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """Return a URL to a short audio clip cut from a full track (for A/B comparison)."""
+    """从完整音轨中裁出一段短音频用于 A/B 对比，返回该片段产物的访问 URL（结果会缓存复用）。"""
     task = _get_task(session, task_id)
     output_root = Path(task.output_root).resolve()
     target_lang = task.target_lang or "en"
@@ -267,18 +278,16 @@ def get_clip_preview(
         "duration_sec": end_sec - start_sec,
     }
 
-@router.post("/{task_id}/dubbing-editor/synthesize-unit")
+@router.post("/{task_id}/dubbing-editor/synthesize-unit", summary="重新合成单元配音")
 def synthesize_unit(
-    task_id: str,
-    body: SynthesizeUnitRequest,
+    task_id: str = PathParam(description="任务 ID"),
+    body: SynthesizeUnitRequest = ...,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """Queue a single dialogue unit for re-synthesis (records operation, triggers async synthesis).
+    """对单个对白单元重新做语音合成（TTS），并把请求记录为编辑操作。
 
-    The actual TTS pipeline runs asynchronously, but we *do* update the clip
-    artifact mtime here so the inspector preview can cache-bust and reload the
-    latest wav. The response carries ``audio_artifact_path`` and
-    ``synthesized_at`` so the frontend has a stable cache-busting token.
+    若随请求带上了改动后的译文，会先以 segment.update_text 操作保存草稿再合成；
+    合成完成后更新片段音频文件，返回 audio_artifact_path 与 synthesized_at 供前端做缓存刷新。
     """
     task = _get_task(session, task_id)
     output_root = Path(task.output_root).resolve()
@@ -406,13 +415,13 @@ def synthesize_unit(
         "message": message,
     }
 
-@router.post("/{task_id}/dubbing-editor/assign-character-voice")
+@router.post("/{task_id}/dubbing-editor/assign-character-voice", summary="指派角色音色")
 def assign_character_voice(
-    task_id: str,
-    body: AssignCharacterVoiceRequest,
+    task_id: str = PathParam(description="任务 ID"),
+    body: AssignCharacterVoiceRequest = ...,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """Reassign a character's default voice reference path and record the operation."""
+    """为某个角色重新指派默认音色参考路径，并把该改动记录为编辑操作、更新物化状态。"""
     task = _get_task(session, task_id)
     editor_root = _editor_root(task.output_root)
     ops_path = editor_root / "operations.jsonl"
@@ -443,17 +452,15 @@ def assign_character_voice(
 
     return {"ok": True, "character_id": body.character_id, "voice_path": body.voice_path}
 
-@router.get("/{task_id}/dubbing-editor/backtranslate")
+@router.get("/{task_id}/dubbing-editor/backtranslate", summary="配音回译校验")
 def backtranslate(
-    task_id: str,
-    unit_id: str,
+    task_id: str = PathParam(description="任务 ID"),
+    unit_id: str = Query(description="对白单元 ID"),
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """Return a placeholder back-translation check for a dubbed clip.
+    """对某个对白单元的配音音频做回译校验：尝试用 ASR 听写并与期望译文比对相似度。
 
-    In production this would: load the dubbed audio, run ASR, and compare
-    against the expected target_text. Here we return a stub so the UI can
-    render without requiring a real ASR backend.
+    若本地无可用的 faster-whisper ASR 后端，则回退为占位结果（听写文本等于期望译文、匹配分为满分），便于前端正常渲染。
     """
     task = _get_task(session, task_id)
     editor_root = _editor_root(task.output_root)
@@ -499,12 +506,12 @@ def backtranslate(
         "asr_available": bool(heard_text),
     }
 
-@router.get("/{task_id}/dubbing-editor/video-preview")
+@router.get("/{task_id}/dubbing-editor/video-preview", summary="预览源视频")
 def get_video_preview(
-    task_id: str,
+    task_id: str = PathParam(description="任务 ID"),
     session: Session = Depends(get_session),
 ) -> FileResponse:
-    """Stream the source video file for preview in the editor."""
+    """以文件流形式返回任务的源视频，供编辑器内预览（按扩展名推断 MIME 类型）。"""
     task = _get_task(session, task_id)
     if not task.input_path:
         raise HTTPException(status_code=404, detail="No source video for this task")

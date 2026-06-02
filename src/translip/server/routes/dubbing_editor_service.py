@@ -41,6 +41,23 @@ _EDITOR_SUBDIR = "dubbing-editor"
 _WAVEFORM_RESOLUTION = 800  # samples per second for peaks
 _pending_lock = threading.Lock()
 
+# Static source-track glob patterns (relative to a task output root). The
+# ``dub``/``preview_mix``/``mix`` tracks are added dynamically with target_lang
+# at each call site, so they are intentionally absent here.
+_TRACK_PATTERNS: dict[str, list[str]] = {
+    "original": [
+        "stage1/voice/voice.wav",
+        "stage1/*/voice.wav",
+        "stage1/*/voice.mp3",
+        "stage1/voice/voice.mp3",
+    ],
+    "background": [
+        "stage1/background/background.wav",
+        "stage1/*/background.wav",
+        "stage1/*/background.mp3",
+    ],
+}
+
 
 def _get_task(session: Session, task_id: str) -> Task:
     task = session.get(Task, task_id)
@@ -1150,30 +1167,39 @@ def _patch_unit_audio_paths(project: dict[str, Any], output_root: Path) -> None:
             clip["audio_artifact_path"] = resolved
 
 class OperationRequest(BaseModel):
-    operations: list[dict[str, Any]] = Field(default_factory=list)
+    operations: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="一批针对配音时间轴的编辑操作；每个操作为 dict，含 type 及其参数",
+    )
 
 class RenderRangeRequest(BaseModel):
-    start_sec: float
-    end_sec: float
+    start_sec: float = Field(description="渲染区间起点（秒）")
+    end_sec: float = Field(description="渲染区间终点（秒）")
 
 class SynthesizeUnitRequest(BaseModel):
-    unit_id: str
+    unit_id: str = Field(description="要重新合成的配音单元 ID")
     # Optional inline target_text. When the editor's text box is dirty the
     # client should pass the latest draft here so the backend can persist it
     # (as a synthetic ``segment.update_text`` op) *before* running TTS. This
     # makes "click resynth" implicitly auto-save the draft -- no race against
     # the operations mutation.
-    target_text: str | None = None
+    target_text: str | None = Field(
+        default=None,
+        description="可选的最新译文草稿；传入时会在合成前先持久化，实现“点击重合成即自动保存”",
+    )
     # Optional per-segment speed hint, e.g. 0.85x ~ 1.20x. The route maps this
     # to a corrected ``duration_budget_sec = source / speed`` so duration-aware
     # backends (Qwen) speed up or slow down naturally without resorting to
     # post-hoc time stretching, while pure CLI backends still receive
     # ``metadata.speed_hint`` for diagnostics.
-    speed: float | None = Field(default=None, ge=0.5, le=2.0)
+    speed: float | None = Field(
+        default=None, ge=0.5, le=2.0,
+        description="可选语速倍率（约 0.5–2.0），映射为时长预算让时长感知后端自然变速",
+    )
 
 class AssignCharacterVoiceRequest(BaseModel):
-    character_id: str
-    voice_path: str
+    character_id: str = Field(description="角色 ID")
+    voice_path: str = Field(description="该角色绑定的参考音色文件路径")
 
 
 __all__ = [
@@ -1183,6 +1209,7 @@ __all__ = [
     'AssignCharacterVoiceRequest',
     '_EDITOR_SUBDIR',
     '_WAVEFORM_RESOLUTION',
+    '_TRACK_PATTERNS',
     '_pending_lock',
     '_get_task',
     '_editor_root',

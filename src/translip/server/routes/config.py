@@ -9,10 +9,10 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Path as PathParam
+from pydantic import BaseModel, Field
 
 router = APIRouter(prefix="/api/config", tags=["config"])
 
@@ -117,75 +117,76 @@ def _load_global_config() -> dict[str, Any]:
     return {**_DEFAULT_CONFIG, **saved_global}
 
 
-@router.get("/defaults")
+@router.get("/defaults", summary="默认全局配置")
 def get_defaults():
+    """获取全局默认配置（内置默认值叠加已保存的全局覆盖项），用于初始化表单。"""
     return _load_global_config()
 
 
 class GlobalConfigRequest(BaseModel):
-    device: Optional[str] = None
-    use_cache: Optional[bool] = None
-    keep_intermediate: Optional[bool] = None
-    separation_mode: Optional[str] = None
-    separation_quality: Optional[str] = None
-    stage1_output_format: Optional[str] = None
-    audio_stream_index: Optional[int] = None
-    asr_model: Optional[str] = None
-    asr_backend: Optional[str] = None
-    diarizer_backend: Optional[str] = None
-    enable_diarization: Optional[bool] = None
-    generate_srt: Optional[bool] = None
-    vad_filter: Optional[bool] = None
-    vad_min_silence_duration_ms: Optional[int] = None
-    beam_size: Optional[int] = None
-    best_of: Optional[int] = None
-    temperature: Optional[float] = None
-    condition_on_previous_text: Optional[bool] = None
-    top_k: Optional[int] = None
-    ocr_sample_interval: Optional[float] = None
-    ocr_position_mode: Optional[str] = None
-    ocr_extraction_mode: Optional[str] = None
-    translation_backend: Optional[str] = None
-    translation_batch_size: Optional[int] = None
-    siliconflow_base_url: Optional[str] = None
-    siliconflow_model: Optional[str] = None
-    condense_mode: Optional[str] = None
-    transcription_correction: Optional[dict] = None
-    tts_backend: Optional[str] = None
-    dubbing_quality_check: Optional[str] = None
-    dubbing_workers: Optional[int] = None
-    dub_repair_enabled: Optional[bool] = None
-    dub_repair_backend: Optional[list[str]] = None
-    dub_repair_max_items: Optional[int] = None
-    dub_repair_attempts_per_item: Optional[int] = None
-    dub_repair_include_risk: Optional[bool] = None
-    fit_policy: Optional[str] = None
-    fit_backend: Optional[str] = None
-    mix_profile: Optional[str] = None
-    ducking_mode: Optional[str] = None
-    background_gain_db: Optional[float] = None
-    window_ducking_db: Optional[float] = None
-    max_compress_ratio: Optional[float] = None
-    output_sample_rate: Optional[int] = None
-    preview_format: Optional[str] = None
-    export_preview: Optional[bool] = None
-    export_dub: Optional[bool] = None
-    delivery_container: Optional[str] = None
-    delivery_video_codec: Optional[str] = None
-    delivery_audio_codec: Optional[str] = None
-    subtitle_mode: Optional[str] = None
-    subtitle_render_source: Optional[str] = None
-    subtitle_font: Optional[str] = None
-    subtitle_font_size: Optional[int] = None
-    subtitle_color: Optional[str] = None
-    subtitle_outline_color: Optional[str] = None
-    subtitle_outline_width: Optional[float] = None
-    subtitle_position: Optional[str] = None
-    subtitle_margin_v: Optional[int] = None
-    subtitle_bold: Optional[bool] = None
-    bilingual_chinese_position: Optional[str] = None
-    bilingual_english_position: Optional[str] = None
-    bilingual_export_strategy: Optional[str] = None
+    device: Optional[str] = Field(default=None, description="运行设备，如 auto/cpu/cuda/mps")
+    use_cache: Optional[bool] = Field(default=None, description="是否复用各阶段的缓存产物")
+    keep_intermediate: Optional[bool] = Field(default=None, description="是否保留流水线中间产物")
+    separation_mode: Optional[str] = Field(default=None, description="stage1 人声/背景分离模式，如 auto")
+    separation_quality: Optional[str] = Field(default=None, description="stage1 分离质量档位，如 balanced")
+    stage1_output_format: Optional[str] = Field(default=None, description="stage1 输出音频格式，如 mp3/wav")
+    audio_stream_index: Optional[int] = Field(default=None, description="源视频中要处理的音轨索引，从 0 开始")
+    asr_model: Optional[str] = Field(default=None, description="task-a 转写所用 ASR 模型名，如 paraformer-zh")
+    asr_backend: Optional[str] = Field(default=None, description="task-a 转写后端，如 funasr/faster-whisper")
+    diarizer_backend: Optional[str] = Field(default=None, description="说话人分离(diarization)后端，如 ecapa/pyannote")
+    enable_diarization: Optional[bool] = Field(default=None, description="是否启用说话人分离(diarization)")
+    generate_srt: Optional[bool] = Field(default=None, description="转写后是否生成 SRT 字幕文件")
+    vad_filter: Optional[bool] = Field(default=None, description="转写时是否启用 VAD 语音活动检测过滤")
+    vad_min_silence_duration_ms: Optional[int] = Field(default=None, description="VAD 最小静音时长（毫秒），需大于 0")
+    beam_size: Optional[int] = Field(default=None, description="ASR 解码 beam search 宽度，需大于 0")
+    best_of: Optional[int] = Field(default=None, description="ASR 采样候选数 best_of，需大于 0")
+    temperature: Optional[float] = Field(default=None, description="ASR 解码温度，需大于等于 0")
+    condition_on_previous_text: Optional[bool] = Field(default=None, description="转写是否以上文文本为条件")
+    top_k: Optional[int] = Field(default=None, description="候选保留数 top_k，需大于 0")
+    ocr_sample_interval: Optional[float] = Field(default=None, description="字幕识别(OCR)抽帧采样间隔（秒）")
+    ocr_position_mode: Optional[str] = Field(default=None, description="OCR 字幕区域定位模式，如 auto")
+    ocr_extraction_mode: Optional[str] = Field(default=None, description="OCR 字幕提取模式，如 conservative")
+    translation_backend: Optional[str] = Field(default=None, description="task-c 翻译后端，如 local-m2m100/siliconflow")
+    translation_batch_size: Optional[int] = Field(default=None, description="翻译批处理大小，需大于 0")
+    siliconflow_base_url: Optional[str] = Field(default=None, description="siliconflow 翻译后端的 API 基地址")
+    siliconflow_model: Optional[str] = Field(default=None, description="siliconflow 翻译后端使用的模型名")
+    condense_mode: Optional[str] = Field(default=None, description="文本精简模式，如 off")
+    transcription_correction: Optional[dict] = Field(default=None, description="转写纠错配置（启用开关、预设、OCR 仅报告策略、LLM 仲裁等）")
+    tts_backend: Optional[str] = Field(default=None, description="task-d 语音合成(TTS)后端，如 moss-tts-nano-onnx")
+    dubbing_quality_check: Optional[str] = Field(default=None, description="配音(dub)质量检查档位，如 standard")
+    dubbing_workers: Optional[int] = Field(default=None, description="配音合成并发 worker 数，需大于 0")
+    dub_repair_enabled: Optional[bool] = Field(default=None, description="是否启用配音修复（重合成失败片段）")
+    dub_repair_backend: Optional[list[str]] = Field(default=None, description="配音修复使用的 TTS 后端列表")
+    dub_repair_max_items: Optional[int] = Field(default=None, description="单次配音修复最多处理的片段数，需大于 0")
+    dub_repair_attempts_per_item: Optional[int] = Field(default=None, description="每个片段的配音修复重试次数，需大于 0")
+    dub_repair_include_risk: Optional[bool] = Field(default=None, description="配音修复是否纳入风险（疑似异常）片段")
+    fit_policy: Optional[str] = Field(default=None, description="task-e 时间轴重拟合策略，如 conservative")
+    fit_backend: Optional[str] = Field(default=None, description="时间轴拟合后端，如 atempo/rubberband")
+    mix_profile: Optional[str] = Field(default=None, description="混音档位，如 preview")
+    ducking_mode: Optional[str] = Field(default=None, description="背景闪避(ducking)模式，如 static")
+    background_gain_db: Optional[float] = Field(default=None, description="背景音增益（分贝）")
+    window_ducking_db: Optional[float] = Field(default=None, description="人声窗口内背景闪避量（分贝）")
+    max_compress_ratio: Optional[float] = Field(default=None, description="时间轴最大压缩比，需大于 0")
+    output_sample_rate: Optional[int] = Field(default=None, description="输出音频采样率（Hz），需大于 0")
+    preview_format: Optional[str] = Field(default=None, description="预览音频格式，如 wav")
+    export_preview: Optional[bool] = Field(default=None, description="是否导出预览音频")
+    export_dub: Optional[bool] = Field(default=None, description="是否导出配音成品")
+    delivery_container: Optional[str] = Field(default=None, description="task-g 导出视频封装容器，如 mp4")
+    delivery_video_codec: Optional[str] = Field(default=None, description="导出视频编码，如 copy 表示直接复制")
+    delivery_audio_codec: Optional[str] = Field(default=None, description="导出音频编码，如 aac")
+    subtitle_mode: Optional[str] = Field(default=None, description="导出字幕模式，如 none/不烧录")
+    subtitle_render_source: Optional[str] = Field(default=None, description="渲染字幕的来源，如 ocr")
+    subtitle_font: Optional[str] = Field(default=None, description="烧录字幕字体名")
+    subtitle_font_size: Optional[int] = Field(default=None, description="烧录字幕字号，需大于等于 0")
+    subtitle_color: Optional[str] = Field(default=None, description="字幕填充颜色（十六进制）")
+    subtitle_outline_color: Optional[str] = Field(default=None, description="字幕描边颜色（十六进制）")
+    subtitle_outline_width: Optional[float] = Field(default=None, description="字幕描边宽度，需大于等于 0")
+    subtitle_position: Optional[str] = Field(default=None, description="字幕位置，如 bottom/top")
+    subtitle_margin_v: Optional[int] = Field(default=None, description="字幕垂直边距，需大于等于 0")
+    subtitle_bold: Optional[bool] = Field(default=None, description="字幕是否加粗")
+    bilingual_chinese_position: Optional[str] = Field(default=None, description="双语字幕中文行位置，如 bottom")
+    bilingual_english_position: Optional[str] = Field(default=None, description="双语字幕英文行位置，如 top")
+    bilingual_export_strategy: Optional[str] = Field(default=None, description="双语字幕导出策略，如 auto_standard_bilingual")
 
 
 def _validate_global_update(update: dict[str, Any]) -> None:
@@ -214,13 +215,15 @@ def _validate_global_update(update: dict[str, Any]) -> None:
         raise HTTPException(status_code=400, detail="temperature must be greater than or equal to 0")
 
 
-@router.get("/global")
+@router.get("/global", summary="读取全局配置")
 def get_global_config() -> dict[str, Any]:
+    """获取当前生效的全局配置（内置默认值叠加已保存的全局覆盖项）。"""
     return _load_global_config()
 
 
-@router.put("/global")
+@router.put("/global", summary="更新全局配置")
 def update_global_config(req: GlobalConfigRequest) -> dict[str, Any]:
+    """更新全局配置：仅提交的字段生效，值为 null 表示清除该项覆盖以回退默认值，写入后返回最新配置。"""
     update = req.model_dump(exclude_unset=True)
     _validate_global_update(update)
     config = _load_config()
@@ -237,9 +240,9 @@ def update_global_config(req: GlobalConfigRequest) -> dict[str, Any]:
     return {"ok": True, "config": _load_global_config()}
 
 
-@router.get("/tmdb")
+@router.get("/tmdb", summary="读取 TMDb 配置")
 def get_tmdb_config() -> dict[str, Any]:
-    """Get current TMDb API configuration."""
+    """获取当前 TMDb API 配置：仅返回 v3/v4 密钥是否已设置及默认语言，不回传密钥明文。"""
     config = _load_config()
     tmdb = config.get("tmdb", {})
     return {
@@ -251,14 +254,14 @@ def get_tmdb_config() -> dict[str, Any]:
 
 
 class TMDbConfigRequest(BaseModel):
-    api_key_v3: Optional[str] = None
-    api_key_v4: Optional[str] = None
-    default_language: Optional[str] = None
+    api_key_v3: Optional[str] = Field(default=None, description="TMDb v3 API Key，留空则不更新")
+    api_key_v4: Optional[str] = Field(default=None, description="TMDb v4 Bearer Token，留空则不更新")
+    default_language: Optional[str] = Field(default=None, description="TMDb 查询默认语言，如 zh-CN")
 
 
-@router.post("/tmdb")
+@router.post("/tmdb", summary="保存 TMDb 配置")
 def save_tmdb_config(req: TMDbConfigRequest) -> dict[str, Any]:
-    """Save TMDb API configuration."""
+    """保存 TMDb API 配置：仅写入非空字段（其余保持原值），凭据明文落盘于本地配置文件。"""
     config = _load_config()
     
     if "tmdb" not in config:
@@ -280,13 +283,13 @@ def save_tmdb_config(req: TMDbConfigRequest) -> dict[str, Any]:
 
 
 class TMDbTestRequest(BaseModel):
-    api_key_v3: Optional[str] = None
-    api_key_v4: Optional[str] = None
+    api_key_v3: Optional[str] = Field(default=None, description="待校验的 TMDb v3 API Key，留空则回退已保存或环境变量值")
+    api_key_v4: Optional[str] = Field(default=None, description="待校验的 TMDb v4 Bearer Token，留空则回退已保存或环境变量值")
 
 
-@router.post("/tmdb/test")
+@router.post("/tmdb/test", summary="测试 TMDb 凭据")
 def test_tmdb_config(req: TMDbTestRequest) -> dict[str, Any]:
-    """Verify TMDb credentials (provided inline, else the saved/env keys)."""
+    """校验 TMDb 凭据连通性：优先用请求内提供的密钥，否则回退已保存的配置或环境变量，不落盘。"""
     saved = _load_config().get("tmdb", {})
     v3 = (req.api_key_v3 or "").strip() or saved.get("api_key_v3") or os.environ.get("TMDB_API_KEY", "")
     v4 = (req.api_key_v4 or "").strip() or saved.get("api_key_v4") or os.environ.get("TMDB_BEARER_TOKEN", "")
@@ -310,13 +313,15 @@ from ..schemas import ConfigPresetRead, CreatePresetRequest
 presets_router = APIRouter(prefix="/api/config/presets", tags=["config-presets"])
 
 
-@router.get("/presets", response_model=list[ConfigPresetRead])
+@router.get("/presets", response_model=list[ConfigPresetRead], summary="预设列表")
 def list_presets(session: Session = Depends(get_session)):
+    """列出所有已保存的配置预设(preset)。"""
     return list(session.exec(select(ConfigPreset)).all())
 
 
-@router.post("/presets", response_model=ConfigPresetRead)
+@router.post("/presets", response_model=ConfigPresetRead, summary="创建预设")
 def create_preset(req: CreatePresetRequest, session: Session = Depends(get_session)):
+    """新建一个配置预设(preset)；预设名称需唯一，重名将返回 400。"""
     existing = session.exec(select(ConfigPreset).where(ConfigPreset.name == req.name)).first()
     if existing:
         raise HTTPException(status_code=400, detail="Preset with this name already exists")
@@ -333,8 +338,9 @@ def create_preset(req: CreatePresetRequest, session: Session = Depends(get_sessi
     return preset
 
 
-@router.delete("/presets/{preset_id}")
-def delete_preset(preset_id: int, session: Session = Depends(get_session)):
+@router.delete("/presets/{preset_id}", summary="删除预设")
+def delete_preset(preset_id: Annotated[int, PathParam(description="预设 ID")], session: Session = Depends(get_session)):
+    """按 ID 删除指定的配置预设(preset)；不存在则返回 404。"""
     preset = session.get(ConfigPreset, preset_id)
     if not preset:
         raise HTTPException(status_code=404, detail="Preset not found")

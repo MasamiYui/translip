@@ -7,9 +7,9 @@ These endpoints manage `~/.translip/works.json` — a structured registry of wor
 from __future__ import annotations
 
 import uuid
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
@@ -37,62 +37,63 @@ work_types_router = APIRouter(prefix="/api/work-types", tags=["work-types"])
 
 
 class WorkCreateRequest(BaseModel):
-    title: str
-    type: str = Field(default="other")
-    year: Optional[int] = None
-    aliases: list[str] = Field(default_factory=list)
-    cover_emoji: Optional[str] = None
-    color: Optional[str] = None
-    note: Optional[str] = None
-    tags: list[str] = Field(default_factory=list)
+    title: str = Field(description="作品标题")
+    type: str = Field(default="other", description="作品类型键（如电影、剧集等），默认 other")
+    year: Optional[int] = Field(default=None, description="作品年份")
+    aliases: list[str] = Field(default_factory=list, description="作品别名列表")
+    cover_emoji: Optional[str] = Field(default=None, description="作品封面 emoji 图标")
+    color: Optional[str] = Field(default=None, description="作品主题颜色")
+    note: Optional[str] = Field(default=None, description="作品备注")
+    tags: list[str] = Field(default_factory=list, description="作品标签列表")
     # External-source fields (optional, set when importing from TMDb / Wikidata)
-    external_refs: Optional[dict[str, Any]] = None
-    metadata: Optional[dict[str, Any]] = None
-    poster_path: Optional[str] = None
-    backdrop_path: Optional[str] = None
-    synopsis: Optional[str] = None
-    synopsis_lang: Optional[str] = None
-    origin_country: Optional[list[str]] = None
-    original_title: Optional[str] = None
-    cast_snapshot: Optional[list[dict[str, Any]]] = None
-    external_synced_at: Optional[str] = None
-    external_source: Optional[str] = None
+    external_refs: Optional[dict[str, Any]] = Field(default=None, description="外部数据源引用（如 TMDb / Wikidata 的 ID 等）")
+    metadata: Optional[dict[str, Any]] = Field(default=None, description="作品附加元数据")
+    poster_path: Optional[str] = Field(default=None, description="海报图路径")
+    backdrop_path: Optional[str] = Field(default=None, description="背景图路径")
+    synopsis: Optional[str] = Field(default=None, description="剧情简介")
+    synopsis_lang: Optional[str] = Field(default=None, description="剧情简介语言")
+    origin_country: Optional[list[str]] = Field(default=None, description="原产国家/地区列表")
+    original_title: Optional[str] = Field(default=None, description="原始标题")
+    cast_snapshot: Optional[list[dict[str, Any]]] = Field(default=None, description="演职人员快照列表（来自外部数据源）")
+    external_synced_at: Optional[str] = Field(default=None, description="与外部数据源同步的时间")
+    external_source: Optional[str] = Field(default=None, description="外部数据源名称（如 tmdb）")
 
 
 class WorkPatchRequest(BaseModel):
-    title: Optional[str] = None
-    type: Optional[str] = None
-    year: Optional[int] = None
-    aliases: Optional[list[str]] = None
-    cover_emoji: Optional[str] = None
-    color: Optional[str] = None
-    note: Optional[str] = None
-    tags: Optional[list[str]] = None
-    external_refs: Optional[dict[str, Any]] = None
-    metadata: Optional[dict[str, Any]] = None
-    poster_path: Optional[str] = None
-    backdrop_path: Optional[str] = None
-    synopsis: Optional[str] = None
-    synopsis_lang: Optional[str] = None
-    origin_country: Optional[list[str]] = None
-    original_title: Optional[str] = None
-    cast_snapshot: Optional[list[dict[str, Any]]] = None
-    external_synced_at: Optional[str] = None
-    external_source: Optional[str] = None
+    title: Optional[str] = Field(default=None, description="作品标题，仅更新提供的字段")
+    type: Optional[str] = Field(default=None, description="作品类型键")
+    year: Optional[int] = Field(default=None, description="作品年份")
+    aliases: Optional[list[str]] = Field(default=None, description="作品别名列表")
+    cover_emoji: Optional[str] = Field(default=None, description="作品封面 emoji 图标")
+    color: Optional[str] = Field(default=None, description="作品主题颜色")
+    note: Optional[str] = Field(default=None, description="作品备注")
+    tags: Optional[list[str]] = Field(default=None, description="作品标签列表")
+    external_refs: Optional[dict[str, Any]] = Field(default=None, description="外部数据源引用（如 TMDb / Wikidata 的 ID 等）")
+    metadata: Optional[dict[str, Any]] = Field(default=None, description="作品附加元数据")
+    poster_path: Optional[str] = Field(default=None, description="海报图路径")
+    backdrop_path: Optional[str] = Field(default=None, description="背景图路径")
+    synopsis: Optional[str] = Field(default=None, description="剧情简介")
+    synopsis_lang: Optional[str] = Field(default=None, description="剧情简介语言")
+    origin_country: Optional[list[str]] = Field(default=None, description="原产国家/地区列表")
+    original_title: Optional[str] = Field(default=None, description="原始标题")
+    cast_snapshot: Optional[list[dict[str, Any]]] = Field(default=None, description="演职人员快照列表（来自外部数据源）")
+    external_synced_at: Optional[str] = Field(default=None, description="与外部数据源同步的时间")
+    external_source: Optional[str] = Field(default=None, description="外部数据源名称（如 tmdb）")
 
 
 class CustomTypeRequest(BaseModel):
-    key: str
-    label_zh: str
-    label_en: str
+    key: str = Field(description="自定义作品类型的唯一键")
+    label_zh: str = Field(description="作品类型的中文显示名")
+    label_en: str = Field(description="作品类型的英文显示名")
 
 
 class MovePersonasRequest(BaseModel):
-    persona_ids: list[str]
+    persona_ids: list[str] = Field(description="待移动的人物画像 ID 列表")
 
 
-@router.get("")
-def list_works_route(q: Optional[str] = None) -> dict[str, Any]:
+@router.get("", summary="作品列表")
+def list_works_route(q: Optional[str] = Query(None, description="按标题或别名模糊过滤作品的关键词")) -> dict[str, Any]:
+    """列出全部作品及其人物画像数量，并触发对历史 TMDb 导入的演职人员快照做一次性补录。可选按标题或别名关键词过滤。"""
     payload = load_works()
     works = list_works(payload)
     counts = _ensure_tmdb_cast_snapshots_imported(payload, works)
@@ -117,8 +118,9 @@ def list_works_route(q: Optional[str] = None) -> dict[str, Any]:
     }
 
 
-@router.post("")
+@router.post("", summary="创建作品")
 def create_work_route(req: WorkCreateRequest) -> dict[str, Any]:
+    """根据请求体新建一个作品并写入作品注册表，标题非法时返回 400。"""
     payload = load_works()
     try:
         work = create_work(payload, req.model_dump())
@@ -128,8 +130,9 @@ def create_work_route(req: WorkCreateRequest) -> dict[str, Any]:
     return {"ok": True, "work": work}
 
 
-@router.patch("/{work_id}")
-def update_work_route(work_id: str, req: WorkPatchRequest) -> dict[str, Any]:
+@router.patch("/{work_id}", summary="更新作品")
+def update_work_route(work_id: Annotated[str, Path(description="作品 ID")], req: WorkPatchRequest) -> dict[str, Any]:
+    """按提供的字段增量更新指定作品（路径参数 work_id 为作品 ID）；作品不存在返回 404，字段非法返回 400。"""
     payload = load_works()
     try:
         work = update_work(payload, work_id, req.model_dump(exclude_unset=True))
@@ -141,12 +144,13 @@ def update_work_route(work_id: str, req: WorkPatchRequest) -> dict[str, Any]:
     return {"ok": True, "work": work}
 
 
-@router.delete("/{work_id}")
+@router.delete("/{work_id}", summary="删除作品")
 def delete_work_route(
-    work_id: str,
-    reassign_to: Optional[str] = Query(default=None),
-    cascade: bool = Query(default=False),
+    work_id: Annotated[str, Path(description="作品 ID")],
+    reassign_to: Optional[str] = Query(default=None, description="将该作品下的人物画像改派到的目标作品 ID，留空表示不改派"),
+    cascade: bool = Query(default=False, description="是否级联删除该作品下的人物画像，默认 false"),
 ) -> dict[str, Any]:
+    """删除指定作品（路径参数 work_id 为作品 ID）；可选将其人物画像改派到其它作品或级联删除。作品不存在返回 404，参数非法返回 400。"""
     payload = load_works()
     try:
         result = delete_work(
@@ -163,8 +167,9 @@ def delete_work_route(
     return {"ok": True, **result}
 
 
-@router.get("/{work_id}/personas")
-def list_personas_in_work_route(work_id: str) -> dict[str, Any]:
+@router.get("/{work_id}/personas", summary="作品下的人物画像")
+def list_personas_in_work_route(work_id: Annotated[str, Path(description="作品 ID")]) -> dict[str, Any]:
+    """列出指定作品下的人物画像（路径参数 work_id 为作品 ID）；work_id 为 __unassigned__ 时返回未归属任何作品的人物画像。作品不存在返回 404。"""
     payload = load_works()
     if work_id != "__unassigned__" and find_work(payload, work_id) is None:
         raise HTTPException(status_code=404, detail="work not found")
@@ -173,8 +178,9 @@ def list_personas_in_work_route(work_id: str) -> dict[str, Any]:
     return {"ok": True, "work_id": target, "personas": personas}
 
 
-@router.post("/{work_id}/personas/move")
-def move_personas_route(work_id: str, req: MovePersonasRequest) -> dict[str, Any]:
+@router.post("/{work_id}/personas/move", summary="移动人物画像到作品")
+def move_personas_route(work_id: Annotated[str, Path(description="目标作品 ID")], req: MovePersonasRequest) -> dict[str, Any]:
+    """将一批人物画像移动到指定作品（路径参数 work_id 为目标作品 ID，__unassigned__ 表示移出作品归属）。参数非法返回 400。"""
     target = None if work_id == "__unassigned__" else work_id
     try:
         result = move_personas_to_work(req.persona_ids, target)
@@ -186,13 +192,15 @@ def move_personas_route(work_id: str, req: MovePersonasRequest) -> dict[str, Any
 # ---- Work types ----
 
 
-@work_types_router.get("")
+@work_types_router.get("", summary="作品类型列表")
 def list_work_types_route() -> dict[str, Any]:
+    """列出全部作品类型（含内置类型与用户自定义类型）。"""
     return {"ok": True, "types": list_work_types()}
 
 
-@work_types_router.post("")
+@work_types_router.post("", summary="新增自定义类型")
 def add_custom_work_type_route(req: CustomTypeRequest) -> dict[str, Any]:
+    """新增一个自定义作品类型并返回更新后的类型列表；键重复或非法时返回 400。"""
     try:
         entry = add_custom_work_type(req.key, req.label_zh, req.label_en)
     except ValueError as exc:
@@ -200,8 +208,9 @@ def add_custom_work_type_route(req: CustomTypeRequest) -> dict[str, Any]:
     return {"ok": True, "type": entry, "types": list_work_types()}
 
 
-@work_types_router.delete("/{key}")
-def delete_custom_work_type_route(key: str) -> dict[str, Any]:
+@work_types_router.delete("/{key}", summary="删除自定义类型")
+def delete_custom_work_type_route(key: Annotated[str, Path(description="作品类型键")]) -> dict[str, Any]:
+    """删除指定的自定义作品类型并返回更新后的类型列表（路径参数 key 为类型键）；键非法返回 400，类型不存在返回 404。"""
     try:
         removed = remove_custom_work_type(key)
     except ValueError as exc:
@@ -215,16 +224,17 @@ def delete_custom_work_type_route(key: str) -> dict[str, Any]:
 
 
 class BindWorkRequest(BaseModel):
-    work_id: Optional[str] = None
-    episode_label: Optional[str] = None
+    work_id: Optional[str] = Field(default=None, description="要绑定的作品 ID，留空表示解除绑定")
+    episode_label: Optional[str] = Field(default=None, description="集数/分集标签，如第 1 集")
 
 
-@router.post("/bind-task/{task_id}")
+@router.post("/bind-task/{task_id}", summary="任务绑定作品")
 def bind_task_to_work_route(
-    task_id: str,
+    task_id: Annotated[str, Path(description="任务 ID")],
     req: BindWorkRequest,
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """将指定任务绑定到某个作品并写入集数标签（路径参数 task_id 为任务 ID）。任务不存在或目标作品不存在返回 404。"""
     task = session.get(Task, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="task not found")
@@ -248,11 +258,12 @@ def bind_task_to_work_route(
     }
 
 
-@router.post("/infer-from-task/{task_id}")
+@router.post("/infer-from-task/{task_id}", summary="从任务推断作品")
 def infer_work_from_task_route(
-    task_id: str,
+    task_id: Annotated[str, Path(description="任务 ID")],
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
+    """根据任务名称与输入路径推断匹配的候选作品并返回（不修改任务，路径参数 task_id 为任务 ID）。任务不存在返回 404。"""
     task = session.get(Task, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="task not found")
@@ -269,12 +280,12 @@ def infer_work_from_task_route(
     }
 
 
-@router.post("/auto-bind-task/{task_id}")
+@router.post("/auto-bind-task/{task_id}", summary="自动绑定作品")
 def auto_bind_task_route(
-    task_id: str,
+    task_id: Annotated[str, Path(description="任务 ID")],
     session: Session = Depends(get_session),
 ) -> dict[str, Any]:
-    """Run inference and, if the top candidate's score >= 0.85, bind it automatically."""
+    """对任务做作品推断，若最高候选评分不低于 0.85 则自动绑定该作品并写入集数标签（路径参数 task_id 为任务 ID）。任务不存在返回 404。"""
     task = session.get(Task, task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="task not found")
@@ -307,17 +318,21 @@ def auto_bind_task_route(
 
 
 class TMDbSearchRequest(BaseModel):
-    query: str
-    media_type: Optional[str] = None
+    query: str = Field(description="TMDb 搜索关键词")
+    media_type: Optional[str] = Field(default=None, description="媒体类型过滤（movie 或 tv），留空表示不限")
 
 
 class TMDbImportRequest(BaseModel):
-    tmdb_id: int
-    media_type: str
+    tmdb_id: int = Field(description="TMDb 作品 ID")
+    media_type: str = Field(description="TMDb 媒体类型（movie 或 tv）")
 
 
-@router.get("/tmdb/search")
-def tmdb_search(q: str, media_type: Optional[str] = Query(default=None)) -> dict[str, Any]:
+@router.get("/tmdb/search", summary="TMDb 搜索")
+def tmdb_search(
+    q: str = Query(description="TMDb 搜索关键词"),
+    media_type: Optional[str] = Query(default=None, description="媒体类型过滤（movie 或 tv），留空表示不限"),
+) -> dict[str, Any]:
+    """通过 TMDb 搜索作品并返回结果；未配置 TMDb API key 时返回 ok=false。"""
     from ...speaker_review.works_providers.tmdb import get_tmdb_provider
 
     provider = get_tmdb_provider()
@@ -328,11 +343,12 @@ def tmdb_search(q: str, media_type: Optional[str] = Query(default=None)) -> dict
     return {"ok": True, "results": results}
 
 
-@router.get("/tmdb/{tmdb_id}")
+@router.get("/tmdb/{tmdb_id}", summary="TMDb 作品详情")
 def tmdb_get_details(
-    tmdb_id: int,
-    media_type: str = Query(default="movie"),
+    tmdb_id: Annotated[int, Path(description="TMDb 影视 ID")],
+    media_type: str = Query(default="movie", description="TMDb 媒体类型（movie 或 tv），默认 movie"),
 ) -> dict[str, Any]:
+    """获取指定 TMDb 作品的详情（路径参数 tmdb_id 为 TMDb 作品 ID）；未配置 API key 或拉取失败时返回 ok=false。"""
     from ...speaker_review.works_providers.tmdb import get_tmdb_provider
 
     provider = get_tmdb_provider()
@@ -346,8 +362,9 @@ def tmdb_get_details(
     return {"ok": True, "details": details}
 
 
-@router.post("/from-tmdb")
+@router.post("/from-tmdb", summary="从 TMDb 导入作品")
 def create_work_from_tmdb(req: TMDbImportRequest) -> dict[str, Any]:
+    """从 TMDb 拉取作品详情并新建作品，同时把演职人员自动导入为人物画像。未配置 API key 或拉取失败返回 ok=false，标题非法返回 400。"""
     from ...speaker_review.diagnostics import now_iso
     from ...speaker_review.works_providers.tmdb import get_tmdb_provider
 
@@ -393,12 +410,12 @@ def create_work_from_tmdb(req: TMDbImportRequest) -> dict[str, Any]:
 
 
 class CastImportRequest(BaseModel):
-    tmdb_ids: list[int]
+    tmdb_ids: list[int] = Field(description="选中的演职人员 TMDb 人物 ID 列表")
 
 
 class CastPreviewRequest(BaseModel):
-    tmdb_id: int
-    media_type: str
+    tmdb_id: int = Field(description="TMDb 作品 ID")
+    media_type: str = Field(description="TMDb 媒体类型（movie 或 tv）")
 
 
 def _normalize_tmdb_person_id(value: Any) -> str | None:
@@ -629,9 +646,13 @@ def _import_tmdb_cast_members(
     return imported, skipped
 
 
-@router.get("/{work_id}/cast-preview")
-def get_cast_preview(work_id: str, tmdb_id: int = Query(), media_type: str = Query(default="movie")) -> dict[str, Any]:
-    """Preview cast members from TMDb before importing."""
+@router.get("/{work_id}/cast-preview", summary="预览 TMDb 演职人员")
+def get_cast_preview(
+    work_id: Annotated[str, Path(description="作品 ID")],
+    tmdb_id: int = Query(description="TMDb 作品 ID"),
+    media_type: str = Query(default="movie", description="TMDb 媒体类型（movie 或 tv），默认 movie"),
+) -> dict[str, Any]:
+    """在导入前预览 TMDb 的演职人员名单（最多 30 条，不写入数据；路径参数 work_id 为作品 ID）。未配置 API key 或拉取失败返回 ok=false，作品不存在返回 404。"""
     from ...speaker_review.works_providers.tmdb import get_tmdb_provider
 
     provider = get_tmdb_provider()
@@ -661,9 +682,9 @@ def get_cast_preview(work_id: str, tmdb_id: int = Query(), media_type: str = Que
     return {"ok": True, "cast": cast[:30]}
 
 
-@router.post("/{work_id}/import-cast")
-def import_cast_to_character_library(work_id: str, req: CastImportRequest) -> dict[str, Any]:
-    """Import selected cast members from TMDb to character library."""
+@router.post("/{work_id}/import-cast", summary="导入 TMDb 演职人员")
+def import_cast_to_character_library(work_id: Annotated[str, Path(description="作品 ID")], req: CastImportRequest) -> dict[str, Any]:
+    """将选中的 TMDb 演职人员导入为该作品的人物画像（路径参数 work_id 为作品 ID，依赖作品已关联 TMDb）。未配置 API key、作品未关联 TMDb 或拉取失败返回 ok=false，作品不存在返回 404。"""
     from ...speaker_review.works_providers.tmdb import get_tmdb_provider
 
     provider = get_tmdb_provider()

@@ -55,6 +55,9 @@ const BlogListPage = lazy(() =>
 const BlogPostPage = lazy(() =>
   import('./pages/BlogPostPage').then(module => ({ default: module.BlogPostPage })),
 )
+const ApiDocsPage = lazy(() =>
+  import('./pages/ApiDocsPage').then(module => ({ default: module.ApiDocsPage })),
+)
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -96,6 +99,7 @@ export default function App() {
                 <Route path="evaluation/:taskId" element={<EvaluationDetailPage />} />
                 <Route path="blog" element={<BlogListPage />} />
                 <Route path="blog/:slug" element={<BlogPostPage />} />
+                <Route path="api-docs" element={<ApiDocsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
             </Routes>

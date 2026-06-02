@@ -9,74 +9,74 @@ from ...config import SUPPORTED_DUBBING_BACKENDS
 
 
 class ToolInfo(BaseModel):
-    tool_id: str
-    name_zh: str
-    name_en: str
-    description_zh: str
-    description_en: str
-    category: str
-    icon: str
-    accept_formats: list[str]
-    max_file_size_mb: int
-    max_files: int
+    tool_id: str = Field(description="工具唯一标识")
+    name_zh: str = Field(description="工具中文名")
+    name_en: str = Field(description="工具英文名")
+    description_zh: str = Field(description="工具中文说明")
+    description_en: str = Field(description="工具英文说明")
+    category: str = Field(description="工具分类，如 audio / video")
+    icon: str = Field(description="图标名（前端 lucide 图标）")
+    accept_formats: list[str] = Field(description="接受的输入文件扩展名列表")
+    max_file_size_mb: int = Field(description="单文件大小上限（MB）")
+    max_files: int = Field(description="单次允许上传的文件数上限")
 
 
 class FileUploadResponse(BaseModel):
-    file_id: str
-    filename: str
-    size_bytes: int
-    content_type: str
+    file_id: str = Field(description="已上传文件的 ID，后续作业用它引用该文件")
+    filename: str = Field(description="原始文件名")
+    size_bytes: int = Field(description="文件大小（字节）")
+    content_type: str = Field(description="MIME 类型")
 
 
 JobStatus = Literal["pending", "running", "completed", "failed", "cancelled", "interrupted"]
 
 
 class JobResponse(BaseModel):
-    job_id: str
-    tool_id: str
-    status: JobStatus
-    progress_percent: float
-    current_step: str | None = None
-    created_at: datetime
-    started_at: datetime | None = None
-    finished_at: datetime | None = None
-    elapsed_sec: float | None = None
-    error_message: str | None = None
-    result: dict[str, Any] | None = None
+    job_id: str = Field(description="作业 ID")
+    tool_id: str = Field(description="所属工具 ID")
+    status: JobStatus = Field(description="作业状态：pending/running/completed/failed/cancelled/interrupted")
+    progress_percent: float = Field(description="进度百分比（0–100）")
+    current_step: str | None = Field(default=None, description="当前步骤描述")
+    created_at: datetime = Field(description="创建时间")
+    started_at: datetime | None = Field(default=None, description="开始执行时间")
+    finished_at: datetime | None = Field(default=None, description="结束时间")
+    elapsed_sec: float | None = Field(default=None, description="已耗时（秒）")
+    error_message: str | None = Field(default=None, description="失败时的错误信息")
+    result: dict[str, Any] | None = Field(default=None, description="成功时的结果数据（各工具结构不同）")
 
 
 class ArtifactInfo(BaseModel):
-    filename: str
-    size_bytes: int
-    content_type: str
-    download_url: str
-    file_id: str | None = None
+    filename: str = Field(description="产物文件名")
+    size_bytes: int = Field(description="文件大小（字节）")
+    content_type: str = Field(description="MIME 类型")
+    download_url: str = Field(description="下载地址")
+    file_id: str | None = Field(default=None, description="产物在存储中的文件 ID，可用于二次加工")
 
 
 class AtomicStoredFileInfo(BaseModel):
-    file_id: str
-    filename: str
-    size_bytes: int
-    content_type: str
+    file_id: str = Field(description="文件 ID")
+    filename: str = Field(description="文件名")
+    size_bytes: int = Field(description="文件大小（字节）")
+    content_type: str = Field(description="MIME 类型")
 
 
 class AtomicJobRead(JobResponse):
-    tool_name: str
-    input_files: list[AtomicStoredFileInfo] = []
-    artifact_count: int = 0
-    updated_at: datetime | None = None
+    tool_name: str = Field(description="工具显示名")
+    input_files: list[AtomicStoredFileInfo] = Field(default=[], description="输入文件列表")
+    artifact_count: int = Field(default=0, description="产物文件数量")
+    updated_at: datetime | None = Field(default=None, description="最近更新时间")
 
 
 class AtomicJobDetail(AtomicJobRead):
-    params: dict[str, Any] = {}
-    artifacts: list[ArtifactInfo] = []
+    params: dict[str, Any] = Field(default={}, description="运行参数（提交作业时的参数快照）")
+    artifacts: list[ArtifactInfo] = Field(default=[], description="产物文件详情列表")
 
 
 class AtomicJobListResponse(BaseModel):
-    items: list[AtomicJobRead]
-    total: int
-    page: int
-    size: int
+    items: list[AtomicJobRead] = Field(description="当前页的作业列表")
+    total: int = Field(description="作业总数")
+    page: int = Field(description="当前页码")
+    size: int = Field(description="每页数量")
 
 
 class SeparationToolRequest(BaseModel):

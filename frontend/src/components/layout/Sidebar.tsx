@@ -5,6 +5,7 @@ import {
   AudioLines,
   BookOpen,
   BookUser,
+  Braces,
   Captions,
   ChevronDown,
   Clapperboard,
@@ -140,6 +141,13 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
     label: t.nav.blog,
     icon: BookOpen,
     isActive: currentPath === '/blog' || currentPath.startsWith('/blog/'),
+  }
+
+  const apiDocsNavItem = {
+    to: '/api-docs',
+    label: t.nav.apiDocs,
+    icon: Braces,
+    isActive: currentPath === '/api-docs',
   }
 
   const toolLabels = t.atomicTools.tools as Record<string, string | undefined>
@@ -451,6 +459,25 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
               key={to}
               to={to}
               data-testid="sidebar-link-blog"
+              aria-current={isActive ? 'page' : undefined}
+              title={collapsed ? label : undefined}
+              aria-label={collapsed ? label : undefined}
+              className={navItemClass(isActive)}
+            >
+              <Icon size={15} className="shrink-0" />
+              {!collapsed && <span className="truncate">{label}</span>}
+            </Link>
+          )
+        })()}
+
+        {/* API documentation */}
+        {(() => {
+          const { to, label, icon: Icon, isActive } = apiDocsNavItem
+          return (
+            <Link
+              key={to}
+              to={to}
+              data-testid="sidebar-link-api-docs"
               aria-current={isActive ? 'page' : undefined}
               title={collapsed ? label : undefined}
               aria-label={collapsed ? label : undefined}
