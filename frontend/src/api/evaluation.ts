@@ -48,8 +48,12 @@ export interface DubQaScorecard {
 export type IssueTag =
   | 'undubbed'
   | 'timbre_mismatch'
+  | 'timbre_review'
   | 'dropout'
   | 'pacing'
+  | 'cutoff'
+  | 'overcompressed'
+  | 'deadair'
   | 'low_intelligibility'
   | 'inaudible'
   | 'bad_translation'
@@ -76,6 +80,10 @@ export interface DubQaSegment {
   speaker_similarity?: number | null
   text_similarity?: number | null
   duration_ratio?: number | null
+  placed_duration_ratio?: number | null
+  applied_tempo?: number | null
+  trimmed_tail_sec?: number | null
+  dead_air_sec?: number | null
   subtitle_coverage_ratio?: number | null
   qa_flags: string[]
   dropout_token_count: number
@@ -126,8 +134,12 @@ export interface DubQaReport {
 export const ISSUE_TAGS: IssueTag[] = [
   'undubbed',
   'timbre_mismatch',
+  'timbre_review',
   'dropout',
   'pacing',
+  'cutoff',
+  'overcompressed',
+  'deadair',
   'low_intelligibility',
   'inaudible',
   'bad_translation',

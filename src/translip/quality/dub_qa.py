@@ -31,7 +31,13 @@ from ..exceptions import BackendUnavailableError
 from ..pipeline.manifest import now_iso
 from ..translation.backend import output_tag_for_language
 from ..utils.files import ensure_directory
-from .dub_benchmark import DubBenchmarkRequest, build_dub_benchmark
+from .dub_benchmark import (
+    TIMBRE_REVIEW_HIGH,
+    TIMBRE_REVIEW_LOW,
+    DubBenchmarkRequest,
+    build_dub_benchmark,
+    classify_pacing,
+)
 from .translation_judge import JUDGE_FAIL_THRESHOLD, build_translation_judge
 
 QA_VERSION = "dub-qa-v0"
@@ -39,20 +45,36 @@ QA_VERSION = "dub-qa-v0"
 # Issue tags surfaced per segment.
 ISSUE_UNDUBBED = "undubbed"
 ISSUE_TIMBRE = "timbre_mismatch"
+ISSUE_TIMBRE_REVIEW = "timbre_review"  # audibly off but not catastrophic (0.25-0.45)
 ISSUE_DROPOUT = "dropout"
-ISSUE_PACING = "pacing"
+ISSUE_PACING = "pacing"  # residual length mismatch the fit could not resolve
+ISSUE_CUTOFF = "cutoff"  # tail hard-cut by the renderer → words lost
+ISSUE_OVERCOMPRESSED = "overcompressed"  # atempo too aggressive → rushed
+ISSUE_DEADAIR = "deadair"  # dub shorter than its window → trailing silence
 ISSUE_INTELLIGIBILITY = "low_intelligibility"
 ISSUE_INAUDIBLE = "inaudible"
 ISSUE_TRANSLATION = "bad_translation"
 ALL_ISSUES = (
     ISSUE_UNDUBBED,
     ISSUE_TIMBRE,
+    ISSUE_TIMBRE_REVIEW,
     ISSUE_DROPOUT,
     ISSUE_PACING,
+    ISSUE_CUTOFF,
+    ISSUE_OVERCOMPRESSED,
+    ISSUE_DEADAIR,
     ISSUE_INTELLIGIBILITY,
     ISSUE_INAUDIBLE,
     ISSUE_TRANSLATION,
 )
+
+# classify_pacing() label (shared with dub_benchmark) → per-segment issue tag.
+_PACING_LABEL_TO_ISSUE = {
+    "cutoff": ISSUE_CUTOFF,
+    "overcompressed": ISSUE_OVERCOMPRESSED,
+    "deadair": ISSUE_DEADAIR,
+    "pacing": ISSUE_PACING,
+}
 
 # Heuristic thresholds.
 DROPOUT_RATIO_THRESHOLD = 0.34  # >~1/3 of target tokens missing in the read-back
@@ -65,9 +87,13 @@ _ISSUE_SEVERITY = {
     ISSUE_TIMBRE: "P1",
     ISSUE_INTELLIGIBILITY: "P1",
     ISSUE_DROPOUT: "P1",
+    ISSUE_CUTOFF: "P1",  # cut-off tail loses words — as bad as a dropout
     ISSUE_INAUDIBLE: "P1",
     ISSUE_TRANSLATION: "P1",
     ISSUE_PACING: "P2",
+    ISSUE_TIMBRE_REVIEW: "P2",
+    ISSUE_OVERCOMPRESSED: "P2",
+    ISSUE_DEADAIR: "P2",
 }
 _SEVERITY_ORDER = {"P0": 3, "P1": 2, "P2": 1, "ok": 0}
 
@@ -365,6 +391,10 @@ def _build_row(
         "speaker_similarity": _number(item.get("speaker_similarity")),
         "text_similarity": _number(item.get("text_similarity")),
         "duration_ratio": duration_ratio,
+        "placed_duration_ratio": _number(item.get("placed_duration_ratio")),
+        "applied_tempo": _number(item.get("applied_tempo")),
+        "trimmed_tail_sec": _number(item.get("trimmed_tail_sec")),
+        "dead_air_sec": _number(item.get("dead_air_sec")),
         "subtitle_coverage_ratio": subtitle_coverage,
         "qa_flags": item.get("qa_flags") if isinstance(item.get("qa_flags"), list) else [],
         "dropout_token_count": dropout_count,
@@ -391,6 +421,15 @@ def _issue_tags(row: dict[str, Any]) -> list[str]:
     else:
         if row.get("speaker_status") == "failed":
             tags.append(ISSUE_TIMBRE)
+        else:
+            # The 0.25-0.45 "review" band is audibly off but not catastrophic; it
+            # used to be silent (only speaker_status=='failed' surfaced), hiding the
+            # bulk of the operator's "音色不对" complaint.
+            similarity = row.get("speaker_similarity")
+            if row.get("speaker_status") == "review" or (
+                isinstance(similarity, (int, float)) and TIMBRE_REVIEW_LOW <= similarity < TIMBRE_REVIEW_HIGH
+            ):
+                tags.append(ISSUE_TIMBRE_REVIEW)
         if row.get("intelligibility_status") == "failed":
             tags.append(ISSUE_INTELLIGIBILITY)
         if (
@@ -399,8 +438,12 @@ def _issue_tags(row: dict[str, Any]) -> list[str]:
             and row["dropout_ratio"] >= DROPOUT_RATIO_THRESHOLD
         ):
             tags.append(ISSUE_DROPOUT)
-        if row.get("duration_status") == "failed":
-            tags.append(ISSUE_PACING)
+        # Split the old single "pacing" signal into the distinct failures the
+        # operator actually hears, judged on the *fitted* audio (see classify_pacing).
+        for label in classify_pacing(row):
+            issue = _PACING_LABEL_TO_ISSUE.get(label)
+            if issue and issue not in tags:
+                tags.append(issue)
         coverage = row.get("subtitle_coverage_ratio")
         if isinstance(coverage, (int, float)) and coverage < INAUDIBLE_COVERAGE_THRESHOLD:
             tags.append(ISSUE_INAUDIBLE)

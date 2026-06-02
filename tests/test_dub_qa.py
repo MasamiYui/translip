@@ -182,6 +182,74 @@ def test_benchmark_surfaces_undubbed(tmp_path: Path):
     assert gate["status"] == "failed"
 
 
+def test_dub_qa_pacing_subtypes_and_timbre_review(tmp_path: Path):
+    """Post-fit fields split the old single 'pacing' tag and light up the timbre review band."""
+    root = tmp_path / "pipeline"
+    tc = root / "task-c" / "voice" / "clip"
+    _write(
+        tc / "translation.en.json",
+        {"segments": [
+            {"segment_id": f"p{i}", "speaker_label": "SPK1", "start": float(i * 2), "end": float(i * 2 + 2),
+             "source_text": "源句", "target_text": "target text here"}
+            for i in range(1, 5)
+        ]},
+    )
+    td = root / "task-d" / "voice" / "clip"
+    td_report = _write(
+        td / "dub_report.en.json",
+        {"segments": [{"segment_id": f"p{i}", "backread_text": "target text here"} for i in range(1, 5)]},
+    )
+
+    def placed(seg_id, **over):
+        base = {
+            "segment_id": seg_id, "task_d_report_path": str(td_report),
+            "audio_path": str(td / f"{seg_id}.wav"), "mix_status": "placed",
+            "overall_status": "passed", "speaker_status": "passed", "intelligibility_status": "passed",
+            "duration_status": "passed", "speaker_similarity": 0.7, "text_similarity": 0.95,
+            "source_duration_sec": 2.0, "generated_duration_sec": 2.0,
+            "subtitle_coverage_ratio": 0.9, "qa_flags": [],
+            "applied_tempo": 1.0, "trimmed_tail_sec": 0.0, "dead_air_sec": 0.0, "placed_duration_ratio": 1.0,
+        }
+        base.update(over)
+        return base
+
+    mix = {
+        "input": {"translation_path": str(tc / "translation.en.json"), "task_d_report_paths": [str(td_report)]},
+        "stats": {
+            "placed_count": 4, "skipped_count": 0, "skip_reason_counts": {},
+            "quality_summary": {
+                "total_count": 4, "overall_status_counts": {"passed": 4},
+                "speaker_status_counts": {"passed": 3, "review": 1},
+                "intelligibility_status_counts": {"passed": 4},
+                "medians": {"speaker_similarity": 0.40},
+            },
+            "audible_coverage": {"failed_count": 0, "failed_segment_ids": []},
+        },
+        "placed_segments": [
+            placed("p1", trimmed_tail_sec=0.8, applied_tempo=1.45, placed_duration_ratio=1.28),  # tail cut off
+            placed("p2", applied_tempo=1.45),  # over-compressed, no trim
+            placed("p3", dead_air_sec=1.2, placed_duration_ratio=0.4, generated_duration_sec=0.8),  # dead air
+            placed("p4", speaker_status="review", speaker_similarity=0.33),  # timbre review band
+        ],
+        "skipped_segments": [],
+    }
+    _write(root / "task-e" / "voice" / "mix_report.en.json", mix)
+
+    result = build_dub_qa(DubQaRequest(pipeline_root=root, output_dir=tmp_path / "analysis", target_lang="en"))
+    rows = {row["segment_id"]: row for row in result.report["segments"]}
+
+    assert "cutoff" in rows["p1"]["issue_tags"]
+    assert "overcompressed" not in rows["p1"]["issue_tags"]  # cut-off takes precedence over rushed
+    assert rows["p1"]["severity"] == "P1"
+    assert rows["p1"]["trimmed_tail_sec"] == 0.8
+    assert "overcompressed" in rows["p2"]["issue_tags"]
+    assert "deadair" in rows["p3"]["issue_tags"]
+    assert rows["p4"]["issue_tags"] == ["timbre_review"]
+
+    counts = result.report["qa_summary"]["issue_counts"]
+    assert (counts["cutoff"], counts["overcompressed"], counts["deadair"], counts["timbre_review"]) == (1, 1, 1, 1)
+
+
 def test_dub_qa_handles_missing_mix_report(tmp_path: Path):
     # No pipeline artifacts at all → empty but well-formed report.
     result = build_dub_qa(

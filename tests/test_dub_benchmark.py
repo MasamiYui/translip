@@ -50,6 +50,61 @@ def test_dub_benchmark_blocks_when_subtitle_audio_is_missing(tmp_path: Path) -> 
     assert result.artifacts.manifest_path.exists()
 
 
+def test_dub_benchmark_pacing_and_translation_denominator(tmp_path: Path) -> None:
+    """Coverage anchors on the translation universe; post-fit pacing penalizes the score + gate."""
+    root = tmp_path / "pipeline"
+    _write_json(
+        root / "task-c" / "voice" / "clip" / "translation.en.json",
+        {"segments": [{"segment_id": f"p{i}"} for i in range(1, 6)]},  # 5 translated
+    )
+
+    def placed(seg_id: str, **over: object) -> dict:
+        base = {
+            "segment_id": seg_id, "mix_status": "placed", "overall_status": "passed",
+            "speaker_status": "passed", "intelligibility_status": "passed", "duration_status": "passed",
+            "speaker_similarity": 0.7, "source_duration_sec": 2.0, "generated_duration_sec": 2.0,
+            "applied_tempo": 1.0, "trimmed_tail_sec": 0.0, "dead_air_sec": 0.0, "placed_duration_ratio": 1.0,
+        }
+        base.update(over)
+        return base
+
+    _write_json(
+        root / "task-e" / "voice" / "mix_report.en.json",
+        {
+            "input": {"translation_path": str(root / "task-c" / "voice" / "clip" / "translation.en.json")},
+            "stats": {
+                "placed_count": 4, "skipped_count": 0,
+                "quality_summary": {
+                    "total_count": 4, "overall_status_counts": {"passed": 4},
+                    "speaker_status_counts": {"passed": 4}, "intelligibility_status_counts": {"passed": 4},
+                },
+                "audible_coverage": {"failed_count": 0, "failed_segment_ids": []},
+            },
+            "placed_segments": [
+                placed("p1", trimmed_tail_sec=0.9, applied_tempo=1.45, placed_duration_ratio=1.3),
+                placed("p2", applied_tempo=1.45),
+                placed("p3", dead_air_sec=1.0, placed_duration_ratio=0.4),
+                placed("p4"),
+            ],
+            "skipped_segments": [],
+        },
+    )
+
+    result = build_dub_benchmark(
+        DubBenchmarkRequest(pipeline_root=root, output_dir=root / "benchmark" / "voice", target_lang="en")
+    )
+    metrics = result.benchmark["metrics"]
+    # 4 placed out of 5 translated — NOT 4/4 as the renderer's own denominator would report.
+    assert metrics["translated_count"] == 5
+    assert metrics["coverage_ratio"] == 0.8
+    assert metrics["undubbed_count"] == 1
+    assert (metrics["pacing_cutoff_count"], metrics["pacing_overcompressed_count"], metrics["pacing_deadair_count"]) == (1, 1, 1)
+    pacing_gate = next(g for g in result.benchmark["gates"] if g["id"] == "pacing")
+    assert pacing_gate["status"] == "failed"
+    assert "dub_tail_cut_off" in result.benchmark["reasons"]
+    assert result.benchmark["score"] < 100.0
+
+
 def test_dub_benchmark_marks_review_for_character_and_repair_risks(tmp_path: Path) -> None:
     root = tmp_path / "pipeline"
     _write_json(

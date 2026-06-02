@@ -450,7 +450,9 @@ function GateChip({ gate }: { gate: DubQaGate }) {
 }
 
 function IssueBadge({ tag, label }: { tag: IssueTag; label: string }) {
-  const isP0 = tag === 'undubbed'
+  // Undubbed = nothing rendered; cut-off = the tail (and its words) were chopped —
+  // both lose content, so flag them red rather than the softer amber.
+  const isP0 = tag === 'undubbed' || tag === 'cutoff'
   return (
     <span
       className={cn(
@@ -559,6 +561,33 @@ function SegmentDrawer({
               <Metric label={t.evaluation.textSim} value={segment.text_similarity} status={segment.intelligibility_status} />
               <Metric label={t.evaluation.durationRatio} value={segment.duration_ratio} status={segment.duration_status} />
               <Metric label={t.evaluation.coverage} value={segment.subtitle_coverage_ratio} />
+              {segment.placed_duration_ratio != null && (
+                <Metric label={t.evaluation.placedRatio} value={segment.placed_duration_ratio} />
+              )}
+              {segment.applied_tempo != null && (
+                <Metric label={t.evaluation.appliedTempo} value={segment.applied_tempo} />
+              )}
+              {typeof segment.trimmed_tail_sec === 'number' && segment.trimmed_tail_sec > 0 && (
+                // Red only past the cut-off threshold (matches the `cutoff` tag); a
+                // sub-0.3s trim is benign, so show it without alarm.
+                <Metric
+                  label={t.evaluation.trimmedTail}
+                  value={segment.trimmed_tail_sec}
+                  status={segment.trimmed_tail_sec >= 0.3 ? 'failed' : undefined}
+                />
+              )}
+              {typeof segment.dead_air_sec === 'number' && segment.dead_air_sec >= 0.4 && (
+                // Amber only when the dub under-fills its window (matches the `deadair` tag guard).
+                <Metric
+                  label={t.evaluation.deadAir}
+                  value={segment.dead_air_sec}
+                  status={
+                    segment.placed_duration_ratio == null || segment.placed_duration_ratio < 0.8
+                      ? 'review'
+                      : undefined
+                  }
+                />
+              )}
             </dl>
           </Field>
         </div>

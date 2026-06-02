@@ -59,7 +59,10 @@ function buildReport(): DubQaReport {
     qa_summary: {
       segment_count: 2,
       problem_segment_count: 1,
-      issue_counts: { undubbed: 1, timbre_mismatch: 0, dropout: 0, pacing: 0, low_intelligibility: 0, inaudible: 0, bad_translation: 0 },
+      issue_counts: {
+        undubbed: 1, timbre_mismatch: 0, timbre_review: 0, dropout: 0, pacing: 0,
+        cutoff: 0, overcompressed: 0, deadair: 0, low_intelligibility: 0, inaudible: 0, bad_translation: 0,
+      },
       severity_counts: { P0: 1, P1: 0, P2: 0, ok: 1 },
       skip_reason_counts: { skipped_missing_audio: 1 },
       coverage: { translated_count: 2, dubbed_count: 1, undubbed_count: 1, coverage_ratio: 0.5 },

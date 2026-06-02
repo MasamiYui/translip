@@ -89,6 +89,14 @@ class TimelineItem:
     subtitle_end: float | None = None
     subtitle_coverage_ratio: float | None = None
     dubbing_window_policy: str | None = None
+    # Post-fit measurements (what the listener actually hears, vs the raw-TTS
+    # duration_status which is measured *before* the renderer time-fits the clip).
+    # These let the evaluation separate the distinct pacing failures — tail cut
+    # off / over-compressed / trailing dead air — instead of one noisy "pacing".
+    applied_tempo: float | None = None
+    trimmed_tail_sec: float = 0.0
+    dead_air_sec: float | None = None
+    placed_duration_ratio: float | None = None
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -135,6 +143,12 @@ class TimelineItem:
                 else None
             ),
             "dubbing_window_policy": self.dubbing_window_policy,
+            "applied_tempo": round(self.applied_tempo, 4) if self.applied_tempo is not None else None,
+            "trimmed_tail_sec": round(self.trimmed_tail_sec, 3),
+            "dead_air_sec": round(self.dead_air_sec, 3) if self.dead_air_sec is not None else None,
+            "placed_duration_ratio": (
+                round(self.placed_duration_ratio, 4) if self.placed_duration_ratio is not None else None
+            ),
         }
 
 
@@ -540,8 +554,10 @@ def _apply_fit_strategy(
             item.notes.append("fit_strategy_invalid_duration")
             skipped.append(item)
             continue
+        applied_tempo = 1.0
         if strategy == "compress":
             tempo = max(item.generated_duration_sec / max(item.source_duration_sec, 1e-6), 1.0)
+            applied_tempo = tempo
             fitted_path = compress_audio(
                 input_path=item.audio_path,
                 output_path=fit_dir / f"{item.segment_id}.wav",
@@ -551,6 +567,7 @@ def _apply_fit_strategy(
             )
         elif strategy == "overflow_unfitted":
             tempo = request.max_compress_ratio
+            applied_tempo = tempo
             fitted_path = compress_audio(
                 input_path=item.audio_path,
                 output_path=fit_dir / f"{item.segment_id}.wav",
@@ -562,11 +579,16 @@ def _apply_fit_strategy(
             actual_dur = audio_duration_sec(fitted_path)
             if actual_dur > max_dur:
                 _trim_audio_inplace(fitted_path, max_dur, request.output_sample_rate)
+                # The clip was already compressed to the limit and *still* overflowed,
+                # so its tail was hard-cut — words are lost. Record how much so the
+                # evaluation can flag it as a cut-off, not a benign length mismatch.
+                item.trimmed_tail_sec = round(max(0.0, actual_dur - max_dur), 3)
                 item.notes.append("overflow_trimmed")
             else:
                 item.notes.append("overflow_compressed")
         elif strategy == "stretch":
             tempo = item.generated_duration_sec / max(item.source_duration_sec, 1e-6)
+            applied_tempo = tempo
             fitted_path = compress_audio(
                 input_path=item.audio_path,
                 output_path=fit_dir / f"{item.segment_id}.wav",
@@ -587,6 +609,8 @@ def _apply_fit_strategy(
             item.notes.append("fit_underflow_passthrough")
         item.fitted_audio_path = fitted_path
         item.fitted_duration_sec = audio_duration_sec(fitted_path)
+        item.applied_tempo = round(applied_tempo, 4)
+        _record_placed_pacing(item)
         item.placement_start = _placement_start_for_item(item)
         item.placement_end = item.placement_start + float(item.fitted_duration_sec)
         planned.append(item)
@@ -979,10 +1003,29 @@ def _try_trim_conflicts(new_item: TimelineItem, conflicts: list[TimelineItem]) -
             return False
     for conflict in conflicts:
         trim_to = new_item.placement_start - OVERLAP_TOLERANCE_SEC
+        previous_dur = float(conflict.fitted_duration_sec or 0.0)
         conflict.placement_end = trim_to
         conflict.fitted_duration_sec = trim_to - (conflict.placement_start or 0.0)
+        conflict.trimmed_tail_sec = round(
+            float(conflict.trimmed_tail_sec or 0.0) + max(0.0, previous_dur - float(conflict.fitted_duration_sec)),
+            3,
+        )
+        _record_placed_pacing(conflict)
         conflict.notes.append(f"tail_trimmed_for:{new_item.segment_id}")
     return True
+
+
+def _record_placed_pacing(item: TimelineItem) -> None:
+    """Derive the post-fit pacing measurements the evaluation reads.
+
+    ``placed_duration_ratio`` is the *fitted* clip vs its source window (unlike the
+    raw-TTS ``duration_ratio``), and ``dead_air_sec`` is the trailing silence left
+    when the dub is shorter than the window it must fill.
+    """
+    if item.fitted_duration_sec is None or item.source_duration_sec <= 0:
+        return
+    item.placed_duration_ratio = round(float(item.fitted_duration_sec) / item.source_duration_sec, 4)
+    item.dead_air_sec = round(max(0.0, item.source_duration_sec - float(item.fitted_duration_sec)), 3)
 
 
 def _quality_score(item: TimelineItem) -> float:
