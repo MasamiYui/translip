@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 452" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="a3" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="sh3" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#sh3);}
+      .lab{font-size:13px;font-weight:600;fill:#1e293b;text-anchor:middle;}
+      .pill{fill:#f1f5f9;stroke:#e2e8f0;stroke-width:1.5;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="452" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">HTDemucs：同时在波形域和频谱域里“听”</text>
+
+  <!-- lane labels -->
+  <text x="158" y="86" font-size="12.5" font-weight="700" fill="#4f46e5">频谱域分支</text>
+  <text x="158" y="392" font-size="12.5" font-weight="700" fill="#0284c7">波形域分支</text>
+
+  <!-- input -->
+  <rect class="box" x="28" y="186" width="92" height="84" rx="12"/>
+  <text x="74" y="222" class="lab">输入</text>
+  <text x="74" y="242" class="lab">波形</text>
+
+  <!-- trunk split -->
+  <path class="ln" d="M120,228 L136,228"/>
+  <path class="ln" d="M136,228 L136,124 L150,124" marker-end="url(#a3)"/>
+  <path class="ln" d="M136,228 L136,326 L248,326" marker-end="url(#a3)"/>
+
+  <!-- top lane (spectral) -->
+  <rect class="pill" x="152" y="98" width="70" height="52" rx="11"/>
+  <text x="187" y="129" class="lab">STFT</text>
+  <rect class="box" x="250" y="98" width="98" height="52" rx="11"/>
+  <rect x="250" y="98" width="6" height="52" rx="3" fill="#6366f1"/>
+  <text x="301" y="129" class="lab">频谱编码器</text>
+
+  <rect class="box" x="600" y="98" width="98" height="52" rx="11"/>
+  <rect x="600" y="98" width="6" height="52" rx="3" fill="#6366f1"/>
+  <text x="651" y="129" class="lab">频谱解码器</text>
+  <rect class="pill" x="726" y="98" width="70" height="52" rx="11"/>
+  <text x="761" y="129" class="lab">iSTFT</text>
+
+  <path class="ln" d="M222,124 L248,124" marker-end="url(#a3)"/>
+  <path class="ln" d="M348,124 L368,124 L368,194 L384,194" marker-end="url(#a3)"/>
+  <path class="ln" d="M576,194 L592,194 L592,124 L598,124" marker-end="url(#a3)"/>
+  <path class="ln" d="M698,124 L724,124" marker-end="url(#a3)"/>
+
+  <!-- bottom lane (temporal) -->
+  <rect class="box" x="250" y="300" width="98" height="52" rx="11"/>
+  <rect x="250" y="300" width="6" height="52" rx="3" fill="#0ea5e9"/>
+  <text x="301" y="331" class="lab">波形编码器</text>
+  <rect class="box" x="600" y="300" width="98" height="52" rx="11"/>
+  <rect x="600" y="300" width="6" height="52" rx="3" fill="#0ea5e9"/>
+  <text x="651" y="331" class="lab">波形解码器</text>
+
+  <path class="ln" d="M348,326 L368,326 L368,252 L384,252" marker-end="url(#a3)"/>
+  <path class="ln" d="M576,252 L592,252 L592,326 L598,326" marker-end="url(#a3)"/>
+
+  <!-- center transformer -->
+  <rect x="384" y="170" width="192" height="106" rx="14" fill="#8b5cf6" filter="url(#sh3)"/>
+  <text x="480" y="216" font-size="15.5" font-weight="700" fill="#fff" text-anchor="middle">跨域 Transformer</text>
+  <text x="480" y="240" font-size="11.5" fill="#ede9fe" text-anchor="middle">自注意力 + 跨域注意力</text>
+  <text x="480" y="258" font-size="11.5" fill="#ddd6fe" text-anchor="middle">融合时域 / 频域两种视角</text>
+
+  <!-- output -->
+  <rect class="box" x="836" y="186" width="96" height="84" rx="12"/>
+  <text x="884" y="222" class="lab" fill="#3b5bdb">vocals</text>
+  <text x="884" y="242" class="lab" fill="#f59e0b">no_vocals</text>
+  <path class="ln" d="M796,124 L812,124 L812,212 L834,212" marker-end="url(#a3)"/>
+  <path class="ln" d="M698,326 L812,326 L812,244 L834,244" marker-end="url(#a3)"/>
+
+  <!-- skip connections -->
+  <path d="M301,98 C 380,46 572,46 651,98" fill="none" stroke="#c7d2fe" stroke-width="1.6" stroke-dasharray="5 4"/>
+  <path d="M301,352 C 380,404 572,404 651,352" fill="none" stroke="#bae6fd" stroke-width="1.6" stroke-dasharray="5 4"/>
+  <text x="476" y="44" font-size="11" fill="#a5b4fc" text-anchor="middle">skip connection</text>
+  <text x="476" y="418" font-size="11" fill="#7dd3fc" text-anchor="middle">skip connection</text>
+
+  <text x="32" y="442" class="s" font-size="12.5">波形域分支直接处理时间信号，频谱域分支处理时频图；中间用 Transformer 跨域融合，再各自还原、相加得到分轨——这就是 htdemucs 的“混合域”。</text>
+</svg>

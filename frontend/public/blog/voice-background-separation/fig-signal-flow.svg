@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 520" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="a4" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="sh4" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#sh4);}
+      .t1{font-size:13.5px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="520" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">一次 translip run 的端到端信号流</text>
+  <text x="32" y="66" class="s" font-size="13.5">从一份视频/音频，到下游环节可直接消费的 voice / background 两条轨。</text>
+
+  <!-- row 1 -->
+  <g>
+    <rect class="box" x="32" y="92" width="150" height="70" rx="12"/>
+    <rect x="32" y="92" width="6" height="70" rx="3" fill="#64748b"/>
+    <text x="112" y="124" class="t1" text-anchor="middle">输入</text>
+    <text x="112" y="144" class="t2" text-anchor="middle">Video / Audio</text>
+
+    <rect class="box" x="232" y="92" width="214" height="70" rx="12"/>
+    <rect x="232" y="92" width="6" height="70" rx="3" fill="#3b5bdb"/>
+    <text x="343" y="124" class="t1" text-anchor="middle">ffprobe 探测 + ffmpeg 抽音轨</text>
+    <text x="343" y="144" class="t2" text-anchor="middle">input.wav · 44.1 kHz · 立体声</text>
+
+    <rect class="box" x="496" y="92" width="186" height="70" rx="12"/>
+    <rect x="496" y="92" width="6" height="70" rx="3" fill="#3b5bdb"/>
+    <text x="589" y="124" class="t1" text-anchor="middle">自动分流 (auto-route)</text>
+    <text x="589" y="144" class="t2" text-anchor="middle">前 90s · 22 kHz · 单声道</text>
+  </g>
+  <path class="ln" d="M182,127 L226,127" marker-end="url(#a4)"/>
+  <path class="ln" d="M446,127 L490,127" marker-end="url(#a4)"/>
+
+  <!-- branch -->
+  <rect class="box" x="398" y="208" width="184" height="66" rx="12"/>
+  <rect x="398" y="208" width="6" height="66" rx="3" fill="#8b5cf6"/>
+  <text x="494" y="238" class="t1" text-anchor="middle" fill="#6d28d9">Demucs（独立子进程）</text>
+  <text x="494" y="258" class="t2" text-anchor="middle">vocals / no_vocals</text>
+
+  <rect class="box" x="602" y="208" width="184" height="66" rx="12"/>
+  <rect x="602" y="208" width="6" height="66" rx="3" fill="#14b8a6"/>
+  <text x="698" y="238" class="t1" text-anchor="middle" fill="#0f766e">CDX23（进程内）</text>
+  <text x="698" y="258" class="t2" text-anchor="middle">dialog + music + effect</text>
+
+  <path class="ln" d="M589,162 L589,186 L494,186 L494,206" marker-end="url(#a4)"/>
+  <path class="ln" d="M589,162 L589,186 L698,186 L698,206" marker-end="url(#a4)"/>
+  <text x="470" y="180" font-size="11" font-weight="700" fill="#7c3aed" text-anchor="end">music</text>
+  <text x="716" y="180" font-size="11" font-weight="700" fill="#0d9488">dialogue</text>
+
+  <!-- merge to row 3 -->
+  <path class="ln" d="M494,274 L494,300 L596,300" marker-end="url(#a4)"/>
+  <path class="ln" d="M698,274 L698,300 L596,300"/>
+
+  <!-- row 3 -->
+  <rect class="box" x="300" y="320" width="196" height="70" rx="12"/>
+  <rect x="300" y="320" width="6" height="70" rx="3" fill="#64748b"/>
+  <text x="402" y="352" class="t1" text-anchor="middle">render_wav 归一</text>
+  <text x="402" y="372" class="t2" text-anchor="middle">final/voice.wav + background.wav</text>
+
+  <rect class="box" x="540" y="320" width="190" height="70" rx="12"/>
+  <rect x="540" y="320" width="6" height="70" rx="3" fill="#64748b"/>
+  <text x="638" y="352" class="t1" text-anchor="middle">export 编码</text>
+  <text x="638" y="372" class="t2" text-anchor="middle">voice.* + background.*</text>
+
+  <rect class="box" x="772" y="320" width="156" height="70" rx="12"/>
+  <rect x="772" y="320" width="6" height="70" rx="3" fill="#64748b"/>
+  <text x="853" y="352" class="t1" text-anchor="middle">manifest.json</text>
+  <text x="853" y="372" class="t2" text-anchor="middle">路由·分数·后端·计时</text>
+
+  <path class="ln" d="M596,300 L402,300 L402,318" marker-end="url(#a4)"/>
+  <path class="ln" d="M496,355 L536,355" marker-end="url(#a4)"/>
+  <path class="ln" d="M730,355 L768,355" marker-end="url(#a4)"/>
+
+  <!-- downstream -->
+  <rect x="560" y="436" width="368" height="60" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="744" y="464" font-size="13" font-weight="700" fill="#475569" text-anchor="middle">下游 · Task A 说话人归因转写</text>
+  <text x="744" y="483" font-size="11" fill="#94a3b8" text-anchor="middle">只消费 voice.wav（背景轨留到最后混音回贴）</text>
+  <path class="ln" d="M638,390 L638,414 L744,414 L744,434" stroke-dasharray="5 4" marker-end="url(#a4)"/>
+
+  <!-- options note -->
+  <rect x="32" y="436" width="372" height="60" rx="12" fill="#fff" stroke="#e2e8f0" stroke-width="1.5"/>
+  <text x="48" y="460" font-size="11.5" font-weight="700" fill="#94a3b8">可选旗标</text>
+  <text x="48" y="479" font-size="11.5" fill="#475569">--quality balanced|high · --enhance-voice</text>
+  <text x="48" y="494" font-size="11.5" fill="#475569">--keep-intermediate（保留 stems/ 中间分轨）</text>
+</svg>

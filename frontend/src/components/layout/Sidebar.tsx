@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AudioLines,
+  BookOpen,
   BookUser,
   Captions,
   ChevronDown,
@@ -132,6 +133,13 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
     label: t.nav.evaluation,
     icon: Gauge,
     isActive: currentPath === '/evaluation' || currentPath.startsWith('/evaluation/'),
+  }
+
+  const blogNavItem = {
+    to: '/blog',
+    label: t.nav.blog,
+    icon: BookOpen,
+    isActive: currentPath === '/blog' || currentPath.startsWith('/blog/'),
   }
 
   const toolLabels = t.atomicTools.tools as Record<string, string | undefined>
@@ -424,6 +432,25 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
               key={to}
               to={to}
               data-testid="sidebar-link-evaluation"
+              aria-current={isActive ? 'page' : undefined}
+              title={collapsed ? label : undefined}
+              aria-label={collapsed ? label : undefined}
+              className={navItemClass(isActive)}
+            >
+              <Icon size={15} className="shrink-0" />
+              {!collapsed && <span className="truncate">{label}</span>}
+            </Link>
+          )
+        })()}
+
+        {/* Blog */}
+        {(() => {
+          const { to, label, icon: Icon, isActive } = blogNavItem
+          return (
+            <Link
+              key={to}
+              to={to}
+              data-testid="sidebar-link-blog"
               aria-current={isActive ? 'page' : undefined}
               title={collapsed ? label : undefined}
               aria-label={collapsed ? label : undefined}

@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 440" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="arr" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="sh" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .card{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#sh);}
+      .h{fill:#0f172a;font-weight:700;}
+      .b{fill:#1e293b;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .pill{fill:#f8fafc;stroke:#e2e8f0;stroke-width:1;}
+      .plus{fill:#ecfdf5;stroke:#a7f3d0;stroke-width:1;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="440" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="44" class="h" font-size="21">自动分流（auto-router）：先听 90 秒，再决定走哪条路</text>
+
+  <!-- input -->
+  <rect class="card" x="32" y="122" width="172" height="150" rx="12"/>
+  <text x="118" y="166" class="h" font-size="16" text-anchor="middle">输入音频</text>
+  <text x="118" y="196" class="s" font-size="12.5" text-anchor="middle">截取前 90 秒</text>
+  <text x="118" y="218" class="s" font-size="12.5" text-anchor="middle">下采样 22.05 kHz</text>
+  <text x="118" y="240" class="s" font-size="12.5" text-anchor="middle">混合为单声道</text>
+
+  <path class="ln" d="M204,197 L246,197" marker-end="url(#arr)"/>
+
+  <!-- features -->
+  <rect class="card" x="250" y="100" width="256" height="272" rx="12"/>
+  <rect x="250" y="100" width="256" height="40" rx="12" fill="#eef2ff"/>
+  <rect x="250" y="128" width="256" height="12" fill="#eef2ff"/>
+  <text x="378" y="125" font-size="13.5" font-weight="700" fill="#3730a3" text-anchor="middle">提取 4 个轻量特征 · librosa</text>
+
+  <!-- feature rows -->
+  <g font-size="13">
+    <!-- row helper positions y: 158,210,262,314 -->
+    <rect class="pill" x="266" y="156" width="224" height="42" rx="9"/>
+    <text x="280" y="176" class="b" font-weight="600">tempo</text>
+    <text x="280" y="192" class="s" font-size="11">节奏 (BPM)</text>
+    <text x="420" y="183" class="b" text-anchor="end">≥ 72</text>
+    <rect class="plus" x="430" y="168" width="48" height="20" rx="10"/>
+    <text x="454" y="182" font-size="11.5" font-weight="700" fill="#059669" text-anchor="middle">+1</text>
+
+    <rect class="pill" x="266" y="208" width="224" height="42" rx="9"/>
+    <text x="280" y="228" class="b" font-weight="600">chroma_peak</text>
+    <text x="280" y="244" class="s" font-size="11">音高/和声能量</text>
+    <text x="420" y="235" class="b" text-anchor="end">≥ 0.60</text>
+    <rect class="plus" x="430" y="220" width="48" height="20" rx="10"/>
+    <text x="454" y="234" font-size="11.5" font-weight="700" fill="#059669" text-anchor="middle">+1</text>
+
+    <rect class="pill" x="266" y="260" width="224" height="42" rx="9"/>
+    <text x="280" y="280" class="b" font-weight="600">harmonic_ratio</text>
+    <text x="280" y="296" class="s" font-size="11">谐波能量占比 (HPSS)</text>
+    <text x="420" y="287" class="b" text-anchor="end">≥ 0.50</text>
+    <rect class="plus" x="430" y="272" width="48" height="20" rx="10"/>
+    <text x="454" y="286" font-size="11.5" font-weight="700" fill="#059669" text-anchor="middle">+1</text>
+
+    <rect class="pill" x="266" y="312" width="224" height="42" rx="9"/>
+    <text x="280" y="332" class="b" font-weight="600">onset_std</text>
+    <text x="280" y="348" class="s" font-size="11">起音强度波动</text>
+    <text x="420" y="339" class="b" text-anchor="end">≥ 7.5</text>
+    <rect class="plus" x="430" y="324" width="48" height="20" rx="10"/>
+    <text x="454" y="338" font-size="11.5" font-weight="700" fill="#059669" text-anchor="middle">+1</text>
+  </g>
+
+  <path class="ln" d="M506,236 L548,236" marker-end="url(#arr)"/>
+
+  <!-- decision -->
+  <rect class="card" x="550" y="182" width="150" height="108" rx="12" stroke="#cbd5e1"/>
+  <text x="625" y="218" class="s" font-size="12.5" text-anchor="middle">score = 命中数</text>
+  <text x="625" y="250" class="h" font-size="18" text-anchor="middle">score ≥ 2 ?</text>
+
+  <!-- to music -->
+  <path class="ln" d="M700,210 L724,210 L724,166 L744,166" marker-end="url(#arr)"/>
+  <text x="712" y="150" font-size="12" font-weight="700" fill="#7c3aed" text-anchor="middle">是</text>
+  <!-- to dialogue -->
+  <path class="ln" d="M700,262 L724,262 L724,306 L744,306" marker-end="url(#arr)"/>
+  <text x="712" y="332" font-size="12" font-weight="700" fill="#0d9488" text-anchor="middle">否</text>
+
+  <!-- music card -->
+  <rect class="card" x="746" y="124" width="188" height="86" rx="12" stroke="#ddd6fe"/>
+  <rect x="746" y="124" width="6" height="86" rx="3" fill="#8b5cf6"/>
+  <text x="766" y="155" font-size="15" font-weight="700" fill="#6d28d9">music 路线</text>
+  <text x="766" y="182" class="b" font-size="14.5" font-weight="700">→ Demucs</text>
+  <text x="766" y="200" class="s" font-size="11">歌曲 / 强配乐</text>
+
+  <!-- dialogue card -->
+  <rect class="card" x="746" y="262" width="188" height="86" rx="12" stroke="#99f6e4"/>
+  <rect x="746" y="262" width="6" height="86" rx="3" fill="#14b8a6"/>
+  <text x="766" y="293" font-size="15" font-weight="700" fill="#0f766e">dialogue 路线</text>
+  <text x="766" y="320" class="b" font-size="14.5" font-weight="700">→ CDX23</text>
+  <text x="766" y="338" class="s" font-size="11">影视对白 / 旁白</text>
+
+  <text x="32" y="416" class="s" font-size="12.5">默认 mode=auto；显式 --mode music/dialogue 可直接跳过分流。分析只读前 90 秒、降采样到单声道，成本几乎可忽略。</text>
+</svg>
