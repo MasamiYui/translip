@@ -3,10 +3,10 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Path as PathParam
+from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from ...delivery.runner import export_video
@@ -20,41 +20,41 @@ router = APIRouter(prefix="/api/tasks", tags=["delivery"])
 
 
 class SubtitlePreviewRequestPayload(BaseModel):
-    input_video_path: str | None = None
-    subtitle_path: str
-    output_path: str | None = None
-    font_family: str = "Noto Sans"
-    font_size: int = 0
-    primary_color: str = "#FFFFFF"
-    outline_color: str = "#000000"
-    outline_width: float = 2.0
-    position: Literal["top", "bottom"] = "bottom"
-    margin_v: int = 0
-    bold: bool = False
-    start_sec: float | None = None
-    duration_sec: float = 10.0
+    input_video_path: str | None = Field(default=None, description="预览所用的原始视频路径；为空或文件不存在时回退到任务的输入视频")
+    subtitle_path: str = Field(description="字幕文件路径，相对路径会按任务输出根目录解析，绝对路径直接使用")
+    output_path: str | None = Field(default=None, description="预览输出视频路径；为空时默认写到任务输出根目录下的 preview/subtitle-preview.mp4")
+    font_family: str = Field(default="Noto Sans", description="字幕字体族")
+    font_size: int = Field(default=0, description="字幕字号，0 表示按视频分辨率自动取值")
+    primary_color: str = Field(default="#FFFFFF", description="字幕主体颜色（十六进制）")
+    outline_color: str = Field(default="#000000", description="字幕描边颜色（十六进制）")
+    outline_width: float = Field(default=2.0, description="字幕描边宽度")
+    position: Literal["top", "bottom"] = Field(default="bottom", description="字幕位置：顶部或底部")
+    margin_v: int = Field(default=0, description="字幕垂直边距，0 表示使用默认值")
+    bold: bool = Field(default=False, description="字幕是否加粗")
+    start_sec: float | None = Field(default=None, description="预览片段起始秒数，为空表示从头开始")
+    duration_sec: float = Field(default=10.0, description="预览片段时长（秒）")
 
 
 class DeliveryComposeRequestPayload(BaseModel):
-    subtitle_mode: Literal["none", "chinese_only", "english_only", "bilingual"] = "none"
-    subtitle_source: Literal["ocr", "asr"] = "ocr"
+    subtitle_mode: Literal["none", "chinese_only", "english_only", "bilingual"] = Field(default="none", description="字幕烧录模式：不烧录、仅中文、仅英文或中英双语")
+    subtitle_source: Literal["ocr", "asr"] = Field(default="ocr", description="字幕来源：OCR 识别的硬字幕或 ASR 转写结果")
     bilingual_export_strategy: Literal[
         "auto_standard_bilingual",
         "preserve_hard_subtitles_add_english",
         "clean_video_rebuild_bilingual",
-    ] = "auto_standard_bilingual"
-    font_family: str = "Noto Sans"
-    font_size: int = 0
-    primary_color: str = "#FFFFFF"
-    outline_color: str = "#000000"
-    outline_width: float = 2.0
-    position: Literal["top", "bottom"] = "bottom"
-    margin_v: int = 0
-    bold: bool = False
-    bilingual_chinese_position: Literal["top", "bottom"] = "bottom"
-    bilingual_english_position: Literal["top", "bottom"] = "top"
-    export_preview: bool = True
-    export_dub: bool = True
+    ] = Field(default="auto_standard_bilingual", description="双语导出策略：自动标准双语、保留硬字幕并叠加英文、或在擦除字幕的干净视频上重建双语")
+    font_family: str = Field(default="Noto Sans", description="字幕字体族")
+    font_size: int = Field(default=0, description="字幕字号，0 表示按视频分辨率自动取值")
+    primary_color: str = Field(default="#FFFFFF", description="字幕主体颜色（十六进制）")
+    outline_color: str = Field(default="#000000", description="字幕描边颜色（十六进制）")
+    outline_width: float = Field(default=2.0, description="字幕描边宽度")
+    position: Literal["top", "bottom"] = Field(default="bottom", description="单语字幕位置：顶部或底部")
+    margin_v: int = Field(default=0, description="字幕垂直边距，0 表示使用默认值")
+    bold: bool = Field(default=False, description="字幕是否加粗")
+    bilingual_chinese_position: Literal["top", "bottom"] = Field(default="bottom", description="双语模式下中文字幕的位置")
+    bilingual_english_position: Literal["top", "bottom"] = Field(default="top", description="双语模式下英文字幕的位置")
+    export_preview: bool = Field(default=True, description="是否导出预览版（不含配音音轨）视频")
+    export_dub: bool = Field(default=True, description="是否导出配音版（替换为配音音轨）视频")
 
 
 def _build_style(
@@ -83,12 +83,13 @@ def _build_style(
     )
 
 
-@router.post("/{task_id}/subtitle-preview")
+@router.post("/{task_id}/subtitle-preview", summary="生成字幕预览")
 def create_subtitle_preview(
-    task_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
     payload: SubtitlePreviewRequestPayload,
     session: Session = Depends(get_session),
 ):
+    """按给定字幕样式，将一小段字幕烧录到视频上生成预览片段，并返回预览文件路径与实际使用的样式。"""
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -129,12 +130,13 @@ def create_subtitle_preview(
     }
 
 
-@router.post("/{task_id}/delivery-compose")
+@router.post("/{task_id}/delivery-compose", summary="合成导出视频")
 def compose_delivery(
-    task_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
     payload: DeliveryComposeRequestPayload,
     session: Session = Depends(get_session),
 ):
+    """执行 task-g 导出：按所选字幕模式与来源混流生成预览版/配音版视频，并将本次交付配置写回任务记录，返回产物路径与导出报告。"""
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")

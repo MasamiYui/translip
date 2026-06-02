@@ -6,8 +6,9 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Path as PathParam, Query
 from pydantic import BaseModel, Field
 
 from .. import cache_manager
@@ -35,43 +36,43 @@ def collect_model_statuses(
 
 
 class SetDirRequest(BaseModel):
-    target: str
-    create_if_missing: bool = True
+    target: str = Field(description="目标缓存目录的绝对路径")
+    create_if_missing: bool = Field(default=True, description="目录不存在时是否自动创建")
 
 
 class MigrateRequest(BaseModel):
-    target: str
-    mode: str = Field(default="move", pattern="^(move|copy)$")
-    switch_after: bool = True
-    allow_non_empty: bool = False
+    target: str = Field(description="迁移目标缓存目录的绝对路径")
+    mode: str = Field(default="move", pattern="^(move|copy)$", description="迁移方式：move 移动，copy 复制")
+    switch_after: bool = Field(default=True, description="迁移完成后是否切换为新的活动缓存目录")
+    allow_non_empty: bool = Field(default=False, description="是否允许目标目录非空")
 
 
 class CleanupRequest(BaseModel):
-    keys: list[str]
+    keys: list[str] = Field(description="要清理的缓存分组键列表")
 
 
 class ModelDownloadRequest(BaseModel):
-    keys: list[str] | None = None
+    keys: list[str] | None = Field(default=None, description="指定要下载的模型注册键；留空则下载全部缺失的模型")
 
 
 class HfTokenRequest(BaseModel):
-    hf_token: str | None = None
+    hf_token: str | None = Field(default=None, description="要保存的 HuggingFace 访问令牌；为空则清除已保存的令牌")
 
 
 class HfTokenTestRequest(BaseModel):
     # Optional: test a not-yet-saved token. Falls back to the saved/env token.
-    hf_token: str | None = None
+    hf_token: str | None = Field(default=None, description="待校验的 HuggingFace 令牌；留空则回退到已保存或环境变量中的令牌")
 
 
 class LlmKeyRequest(BaseModel):
-    provider: str
-    api_key: str | None = None
+    provider: str = Field(description="大模型仲裁服务商标识，如 deepseek、siliconflow")
+    api_key: str | None = Field(default=None, description="要保存的 API 密钥；为空则清除该服务商已保存的密钥")
 
 
 class LlmKeyTestRequest(BaseModel):
-    provider: str
+    provider: str = Field(description="大模型仲裁服务商标识，如 deepseek、siliconflow")
     # Optional: test a not-yet-saved key. Falls back to the saved/env key when omitted.
-    api_key: str | None = None
+    api_key: str | None = Field(default=None, description="待校验的 API 密钥；留空则回退到已保存或环境变量中的密钥")
 
 
 # ---------------------------------------------------------------------------
@@ -79,8 +80,9 @@ class LlmKeyTestRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/info")
+@router.get("/info", summary="系统信息")
 def get_system_info():
+    """返回 Python 版本、运行平台、推理设备（CUDA/MPS/CPU）、当前缓存目录及其占用大小、各模型的本地状态。"""
     import torch
 
     if torch.cuda.is_available():
@@ -104,9 +106,9 @@ def get_system_info():
     }
 
 
-@router.get("/probe")
-def probe_media(path: str):
-    """Probe media file information."""
+@router.get("/probe", summary="探测媒体信息")
+def probe_media(path: Annotated[str, Query(description="要探测的媒体文件的服务器本地路径")]):
+    """探测本地媒体文件信息：返回时长、是否含视频/音频、采样率与容器格式；文件不存在返回 404。"""
     from ...utils.ffmpeg import probe_media as _probe_media
 
     p = Path(path)
@@ -127,13 +129,13 @@ def probe_media(path: str):
 
 class PickFileRequest(BaseModel):
     # A file or directory path used to position the dialog's starting folder.
-    initial_path: str | None = None
-    prompt: str | None = None
+    initial_path: str | None = Field(default=None, description="用于定位对话框初始目录的文件或目录路径")
+    prompt: str | None = Field(default=None, description="文件选择对话框的提示文案")
 
 
 class PickFileResponse(BaseModel):
-    path: str | None
-    cancelled: bool
+    path: str | None = Field(description="用户选中的文件路径；取消选择时为 null")
+    cancelled: bool = Field(description="用户是否取消了选择")
 
 
 def _resolve_initial_dir(initial_path: str | None) -> str | None:
@@ -232,14 +234,9 @@ def _open_native_file_dialog(initial_path: str | None, prompt: str) -> str | Non
     raise RuntimeError("no_dialog_helper")
 
 
-@router.post("/pick-file", response_model=PickFileResponse)
+@router.post("/pick-file", response_model=PickFileResponse, summary="打开本地选择文件对话框")
 def pick_file(body: PickFileRequest | None = None):
-    """Open a native OS file dialog on the server machine and return the path.
-
-    Local-first only: the dialog appears on the host running the server. Returns
-    ``cancelled: true`` when the user dismisses it; 501 when no native dialog is
-    available (e.g. a headless host) so the UI can fall back to manual entry.
-    """
+    """在运行服务的本机弹出原生文件选择对话框并返回所选路径。仅本地优先场景可用：用户取消时返回 cancelled=true；无可用原生对话框（如无界面主机）时返回 501，供前端回退到手动输入。"""
     initial_path = body.initial_path if body else None
     prompt = (body.prompt if body else None) or "Select input video"
     try:
@@ -254,16 +251,20 @@ def pick_file(body: PickFileRequest | None = None):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/cache/breakdown")
-def get_cache_breakdown(refresh: bool = Query(default=False)):
+@router.get("/cache/breakdown", summary="缓存占用明细")
+def get_cache_breakdown(
+    refresh: bool = Query(default=False, description="是否强制重新扫描，忽略短期内的结果缓存"),
+):
+    """按分组返回缓存目录的占用明细；结果带短期缓存，传 refresh=true 可强制重新扫描。"""
     cache_manager.apply_active_cache_root()
     if refresh:
         _invalidate_breakdown_cache()
     return _cached_breakdown()
 
 
-@router.post("/cache/set-dir")
+@router.post("/cache/set-dir", summary="设置缓存目录")
 def set_cache_dir(body: SetDirRequest):
+    """将活动缓存目录切换到指定路径（不迁移已有数据）；路径非法返回 400。"""
     try:
         path = cache_manager.set_cache_dir(body.target, create_if_missing=body.create_if_missing)
     except cache_manager.CachePathError as exc:
@@ -272,15 +273,19 @@ def set_cache_dir(body: SetDirRequest):
     return {"ok": True, "cache_dir": str(path)}
 
 
-@router.post("/cache/reset-default")
+@router.post("/cache/reset-default", summary="重置缓存目录")
 def reset_cache_dir():
+    """将活动缓存目录恢复为默认路径。"""
     path = cache_manager.reset_cache_dir_to_default()
     _invalidate_breakdown_cache()
     return {"ok": True, "cache_dir": str(path)}
 
 
-@router.delete("/cache/item")
-def delete_cache_item(key: str = Query(..., min_length=1)):
+@router.delete("/cache/item", summary="删除缓存分组")
+def delete_cache_item(
+    key: str = Query(..., min_length=1, description="要删除的缓存分组键"),
+):
+    """删除指定分组的缓存文件并返回释放的字节数；分组键非法返回 400。"""
     try:
         freed = cache_manager.cleanup_group(key)
     except cache_manager.CachePathError as exc:
@@ -289,8 +294,9 @@ def delete_cache_item(key: str = Query(..., min_length=1)):
     return {"ok": True, "key": key, "freed_bytes": freed}
 
 
-@router.post("/cache/cleanup")
+@router.post("/cache/cleanup", summary="批量清理缓存")
 def cleanup_cache(body: CleanupRequest):
+    """批量删除多个分组的缓存文件；keys 为空返回 400。"""
     if not body.keys:
         raise HTTPException(status_code=400, detail="keys_required")
     # Strip whitespace / empties before passing to service layer.
@@ -302,8 +308,9 @@ def cleanup_cache(body: CleanupRequest):
     return result
 
 
-@router.post("/cache/migrate")
+@router.post("/cache/migrate", summary="启动缓存迁移")
 def start_cache_migration(body: MigrateRequest):
+    """启动后台任务，将缓存数据移动或复制到目标目录（可在完成后切换为新目录）；目标路径非法返回 400。"""
     try:
         task = cache_manager.migration_manager.start(
             target=body.target,
@@ -317,16 +324,18 @@ def start_cache_migration(body: MigrateRequest):
     return task.to_dict()
 
 
-@router.get("/cache/migrate/{task_id}")
-def get_cache_migration(task_id: str):
+@router.get("/cache/migrate/{task_id}", summary="查询缓存迁移进度")
+def get_cache_migration(task_id: Annotated[str, PathParam(description="缓存迁移任务 ID")]):
+    """查询指定缓存迁移任务的状态与进度；任务不存在返回 404。"""
     task = cache_manager.migration_manager.get(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="task_not_found")
     return task.to_dict()
 
 
-@router.post("/cache/migrate/{task_id}/cancel")
-def cancel_cache_migration(task_id: str):
+@router.post("/cache/migrate/{task_id}/cancel", summary="取消缓存迁移")
+def cancel_cache_migration(task_id: Annotated[str, PathParam(description="缓存迁移任务 ID")]):
+    """取消正在进行的缓存迁移任务；任务不存在或不可取消返回 404。"""
     ok = cache_manager.migration_manager.cancel(task_id)
     if not ok:
         raise HTTPException(status_code=404, detail="task_not_cancellable")
@@ -338,9 +347,9 @@ def cancel_cache_migration(task_id: str):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/models/missing")
+@router.get("/models/missing", summary="缺失模型列表")
 def list_missing_models():
-    """List model registry keys whose weights are not yet present locally."""
+    """列出本地尚未下载权重的模型注册键，并标注是否支持自动下载。"""
     keys = cache_manager.list_missing_model_keys()
     items = []
     for key in keys:
@@ -355,8 +364,9 @@ def list_missing_models():
     return {"items": items}
 
 
-@router.post("/models/download-missing")
+@router.post("/models/download-missing", summary="下载缺失模型")
 def start_model_download(body: ModelDownloadRequest | None = None):
+    """启动后台作业下载缺失的模型权重（可指定子集）；已有下载在进行中返回 409。"""
     only = body.keys if body else None
     try:
         job = cache_manager.model_download_manager.start_missing(only_keys=only)
@@ -365,16 +375,18 @@ def start_model_download(body: ModelDownloadRequest | None = None):
     return job.to_dict()
 
 
-@router.get("/models/download/{job_id}")
-def get_model_download(job_id: str):
+@router.get("/models/download/{job_id}", summary="查询模型下载进度")
+def get_model_download(job_id: Annotated[str, PathParam(description="模型下载作业 ID")]):
+    """查询指定模型下载作业的状态与进度；作业不存在返回 404。"""
     job = cache_manager.model_download_manager.get(job_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job_not_found")
     return job.to_dict()
 
 
-@router.post("/models/download/{job_id}/cancel")
-def cancel_model_download(job_id: str):
+@router.post("/models/download/{job_id}/cancel", summary="取消模型下载")
+def cancel_model_download(job_id: Annotated[str, PathParam(description="模型下载作业 ID")]):
+    """取消正在进行的模型下载作业；作业不存在或不可取消返回 404。"""
     ok = cache_manager.model_download_manager.cancel(job_id)
     if not ok:
         raise HTTPException(status_code=404, detail="job_not_cancellable")
@@ -386,15 +398,15 @@ def cancel_model_download(job_id: str):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/hf-token")
+@router.get("/hf-token", summary="HuggingFace 令牌状态")
 def get_hf_token():
-    """Report whether a HuggingFace token is configured (never returns the value)."""
+    """返回是否已配置 HuggingFace 令牌（不返回令牌明文）。"""
     return {"ok": True, "hf_token_set": bool(cache_manager.read_user_setting("hf_token"))}
 
 
-@router.post("/hf-token")
+@router.post("/hf-token", summary="保存 HuggingFace 令牌")
 def save_hf_token(body: HfTokenRequest):
-    """Persist (or clear, when empty) the HuggingFace token used for gated models."""
+    """保存（或在为空时清除）用于访问受限模型（如 pyannote 说话人分离）的 HuggingFace 令牌，并写入环境变量。"""
     token = (body.hf_token or "").strip() or None
     cache_manager.update_user_setting("hf_token", token)
     cache_manager.apply_hf_token_to_env()
@@ -426,9 +438,9 @@ def _verify_hf_token(token: str | None, *, timeout_sec: int = 15) -> dict:
         return {"ok": False, "message": str(exc) or type(exc).__name__}
 
 
-@router.post("/hf-token/test")
+@router.post("/hf-token/test", summary="校验 HuggingFace 令牌")
 def test_hf_token(body: HfTokenTestRequest):
-    """Verify the HuggingFace token (provided inline, else the saved/env token)."""
+    """校验 HuggingFace 令牌（优先用请求内传入的，否则回退到已保存或环境变量中的令牌）。"""
     token = (body.hf_token or "").strip() or cache_manager._resolve_hf_token()
     result = _verify_hf_token(token)
     return {"ok": bool(result.get("ok")), "message": result.get("message", "")}
@@ -439,27 +451,27 @@ def test_hf_token(body: HfTokenTestRequest):
 # ---------------------------------------------------------------------------
 
 
-@router.get("/llm-keys")
+@router.get("/llm-keys", summary="仲裁密钥状态")
 def get_llm_keys():
-    """Report which arbitration providers have a key configured (never the value)."""
+    """返回各大模型仲裁服务商（用于转写校正）是否已配置 API 密钥（不返回密钥明文）。"""
     return {
         "ok": True,
         "providers": {p: cache_manager.llm_key_is_set(p) for p in cache_manager.llm_key_providers()},
     }
 
 
-@router.post("/llm-keys")
+@router.post("/llm-keys", summary="保存仲裁密钥")
 def save_llm_key(body: LlmKeyRequest):
-    """Persist (or clear, when empty) an arbitration provider's API key."""
+    """保存（或在为空时清除）指定仲裁服务商的 API 密钥；服务商未知返回 400。"""
     if body.provider not in cache_manager.llm_key_providers():
         raise HTTPException(status_code=400, detail="unknown_provider")
     cache_manager.set_llm_key(body.provider, body.api_key)
     return {"ok": True, "provider": body.provider, "set": cache_manager.llm_key_is_set(body.provider)}
 
 
-@router.post("/llm-keys/test")
+@router.post("/llm-keys/test", summary="校验仲裁密钥")
 def test_llm_key(body: LlmKeyTestRequest):
-    """Do a lightweight auth/connectivity check against the provider endpoint."""
+    """对指定仲裁服务商端点做一次轻量的鉴权/连通性校验；服务商未知返回 400。"""
     if body.provider not in cache_manager.llm_key_providers():
         raise HTTPException(status_code=400, detail="unknown_provider")
     from ...transcription.arbitration import test_provider

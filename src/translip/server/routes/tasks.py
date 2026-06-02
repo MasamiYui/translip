@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path as PathParam, Query
 from sqlmodel import Session, select
 
 from ...orchestration.graph_export import build_workflow_graph_payload
@@ -122,22 +122,24 @@ def _task_graph_payload_from_db(task: Task, stages: list[TaskStage]) -> dict:
     }
 
 
-@router.post("", response_model=TaskRead)
+@router.post("", response_model=TaskRead, summary="创建任务")
 def create_task(req: CreateTaskRequest, session: Session = Depends(get_session)):
+    """创建一个新的配音流水线任务，写入任务记录并由 task_manager 启动后台流水线执行。"""
     task = task_manager.create_task(session, req)
     stages = list(session.exec(select(TaskStage).where(TaskStage.task_id == task.id)).all())
     return _task_to_read(task, stages)
 
 
-@router.get("", response_model=TaskListResponse)
+@router.get("", response_model=TaskListResponse, summary="任务列表")
 def list_tasks(
-    status: Optional[str] = Query(None),
-    target_lang: Optional[str] = Query(None),
-    search: Optional[str] = Query(None),
-    page: int = Query(1, ge=1),
-    size: int = Query(20, ge=1, le=100),
+    status: Optional[str] = Query(None, description="按任务状态过滤；传 all 或留空表示不过滤"),
+    target_lang: Optional[str] = Query(None, description="按目标语言过滤；留空表示不过滤"),
+    search: Optional[str] = Query(None, description="按任务名称模糊搜索；留空表示不过滤"),
+    page: int = Query(1, ge=1, description="页码，从 1 开始"),
+    size: int = Query(20, ge=1, le=100, description="每页条数，取值 1~100"),
     session: Session = Depends(get_session),
 ):
+    """分页查询任务列表，支持按状态、目标语言和名称过滤，按创建时间倒序返回。"""
     stmt = select(Task)
     if status and status != "all":
         stmt = stmt.where(Task.status == status)
@@ -160,8 +162,12 @@ def list_tasks(
     return TaskListResponse(items=items, total=total, page=page, size=size)
 
 
-@router.get("/{task_id}", response_model=TaskRead)
-def get_task(task_id: str, session: Session = Depends(get_session)):
+@router.get("/{task_id}", response_model=TaskRead, summary="任务详情")
+def get_task(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+):
+    """按任务 ID 获取单个任务的完整详情（含各阶段状态）；不存在时返回 404。"""
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -169,12 +175,13 @@ def get_task(task_id: str, session: Session = Depends(get_session)):
     return _task_to_read(task, stages)
 
 
-@router.delete("/{task_id}")
+@router.delete("/{task_id}", summary="删除任务")
 def delete_task(
-    task_id: str,
-    delete_artifacts: bool = Query(True),
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    delete_artifacts: bool = Query(True, description="是否同时删除输出目录下的产物文件，默认 true"),
     session: Session = Depends(get_session),
 ):
+    """删除任务及其阶段、日志、分析等关联记录；可选地一并删除输出产物。运行中的任务不可删除。"""
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -198,12 +205,13 @@ def delete_task(
     return {"ok": True}
 
 
-@router.post("/{task_id}/rerun", response_model=TaskRead)
+@router.post("/{task_id}/rerun", response_model=TaskRead, summary="重跑任务")
 def rerun_task(
-    task_id: str,
+    task_id: Annotated[str, PathParam(description="任务 ID")],
     req: RerunTaskRequest,
     session: Session = Depends(get_session),
 ):
+    """以原任务的配置创建一个新任务并从指定阶段开始重跑，新任务记录其父任务 ID 并启动后台流水线。"""
     original = session.get(Task, task_id)
     if not original:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -237,16 +245,24 @@ def rerun_task(
     return _task_to_read(new_task, stages)
 
 
-@router.post("/{task_id}/stop")
-def stop_task(task_id: str, session: Session = Depends(get_session)):
+@router.post("/{task_id}/stop", summary="停止任务")
+def stop_task(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+):
+    """请求停止正在运行的任务（向流水线子进程发送终止信号）；无法停止时返回 400。"""
     ok = task_manager.stop_task(session, task_id)
     if not ok:
         raise HTTPException(status_code=400, detail="Task cannot be stopped")
     return {"ok": True}
 
 
-@router.get("/{task_id}/status")
-def get_task_status(task_id: str, session: Session = Depends(get_session)):
+@router.get("/{task_id}/status", summary="任务状态")
+def get_task_status(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+):
+    """获取任务实时状态：优先读取输出目录下的 pipeline-status.json，读取失败时回退到数据库中的状态与进度。"""
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -265,8 +281,12 @@ def get_task_status(task_id: str, session: Session = Depends(get_session)):
     }
 
 
-@router.get("/{task_id}/manifest")
-def get_task_manifest(task_id: str, session: Session = Depends(get_session)):
+@router.get("/{task_id}/manifest", summary="流水线清单")
+def get_task_manifest(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+):
+    """读取并返回任务输出目录下的流水线清单 pipeline-manifest.json；任务或清单不存在时返回 404。"""
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -276,8 +296,12 @@ def get_task_manifest(task_id: str, session: Session = Depends(get_session)):
     return json.loads(manifest_path.read_text(encoding="utf-8"))
 
 
-@router.get("/{task_id}/graph", response_model=TaskGraphRead)
-def get_task_graph(task_id: str, session: Session = Depends(get_session)):
+@router.get("/{task_id}/graph", response_model=TaskGraphRead, summary="工作流节点图")
+def get_task_graph(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+):
+    """返回任务的工作流节点图：优先取输出目录的工作流清单，缺失时由数据库中的阶段记录构建。"""
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -294,8 +318,13 @@ def get_task_graph(task_id: str, session: Session = Depends(get_session)):
     return build_workflow_graph_payload(payload)
 
 
-@router.get("/{task_id}/stages/{stage_name}/manifest")
-def get_stage_manifest(task_id: str, stage_name: str, session: Session = Depends(get_session)):
+@router.get("/{task_id}/stages/{stage_name}/manifest", summary="阶段清单")
+def get_stage_manifest(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    stage_name: Annotated[str, PathParam(description="阶段名（如 stage1/task-a/…/task-g、ocr-detect 等）")],
+    session: Session = Depends(get_session),
+):
+    """读取并返回指定阶段（stage1/task-a~task-g、ocr-detect 等）的清单 JSON；未知阶段返回 400，清单不存在返回 404。"""
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -325,8 +354,12 @@ def get_stage_manifest(task_id: str, stage_name: str, session: Session = Depends
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-@router.get("/{task_id}/artifacts")
-def list_artifacts(task_id: str, session: Session = Depends(get_session)):
+@router.get("/{task_id}/artifacts", summary="产物列表")
+def list_artifacts(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+):
+    """递归列出任务输出目录下的全部产物文件，返回相对路径、字节大小与后缀；目录不存在时返回空列表。"""
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -349,8 +382,12 @@ def list_artifacts(task_id: str, session: Session = Depends(get_session)):
     return {"artifacts": artifacts}
 
 
-@router.get("/{task_id}/delivery")
-def get_delivery(task_id: str, session: Session = Depends(get_session)):
+@router.get("/{task_id}/delivery", summary="交付文件列表")
+def get_delivery(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    session: Session = Depends(get_session),
+):
+    """列出任务输出目录下 delivery 子目录中的交付文件（如导出视频），返回文件名、相对路径、字节大小与后缀；目录不存在时返回空列表。"""
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
