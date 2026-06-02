@@ -32,6 +32,7 @@ from ..pipeline.manifest import now_iso
 from ..translation.backend import output_tag_for_language
 from ..utils.files import ensure_directory
 from .dub_benchmark import DubBenchmarkRequest, build_dub_benchmark
+from .remediation import build_remediation_plan
 from .translation_judge import JUDGE_FAIL_THRESHOLD, build_translation_judge
 
 QA_VERSION = "dub-qa-v0"
@@ -101,6 +102,7 @@ class DubQaArtifacts:
     markdown_path: Path
     benchmark_path: Path
     judge_path: Path | None = None
+    remediation_path: Path | None = None
 
 
 @dataclass(slots=True)
@@ -161,6 +163,13 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
     )
     qa_summary = _summarize(rows, mix_report=mix_report, judge_status=judge_status)
 
+    # Full-track audio paths for the original-vs-dub waveform compare. The
+    # isolated original vocal sits next to stage1's background output
+    # (background.<fmt> -> voice.<fmt>); the dub full track is task-e's output.
+    original_voice_rel = _original_voice_rel(mix_report, root)
+    dub_voice_path = root / "task-e" / "voice" / f"dub_voice.{target_lang}.wav"
+    dub_voice_rel = _rel_to_root(dub_voice_path, root) if dub_voice_path.exists() else None
+
     report = {
         "version": QA_VERSION,
         "created_at": now_iso(),
@@ -174,8 +183,19 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
             "translation": str(translation_path) if translation_path else None,
             "judge_scores": str(judge_path) if judge_path else None,
             "benchmark": str(benchmark_result.artifacts.benchmark_path),
+            # Full-track audio for the original-vs-dub waveform comparison
+            # (paths relative to the task output root, streamable as artifacts).
+            "original_voice": original_voice_rel,
+            "dub_voice": dub_voice_rel,
         },
     }
+    # Turn the per-segment defects into a prioritized remediation/optimization
+    # plan — embedded in the report for the UI and written as a standalone,
+    # machine-readable artifact an optimization loop / run-dub-repair can consume.
+    remediation = build_remediation_plan(report)
+    report["remediation"] = remediation
+    remediation_path = output_dir / f"remediation_plan.{target_lang}.json"
+    _write_json(remediation_path, remediation)
     _write_json(report_path, report)
     markdown_path.write_text(_markdown_report(report), encoding="utf-8")
 
@@ -186,6 +206,7 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
             "report": str(report_path),
             "markdown": str(markdown_path),
             "benchmark": str(benchmark_result.artifacts.benchmark_path),
+            "remediation": str(remediation_path),
             "judge_scores": str(judge_path) if judge_path else None,
         },
         "summary": {
@@ -212,6 +233,7 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
             markdown_path=markdown_path,
             benchmark_path=benchmark_result.artifacts.benchmark_path,
             judge_path=judge_path,
+            remediation_path=remediation_path,
         ),
         report=report,
         manifest=manifest,
@@ -365,6 +387,13 @@ def _build_row(
         "speaker_similarity": _number(item.get("speaker_similarity")),
         "text_similarity": _number(item.get("text_similarity")),
         "duration_ratio": duration_ratio,
+        # Timeline-fit detail for the per-segment duration bar: original window
+        # vs the dub's actual placed footprint (post atempo/stretch).
+        "source_duration_sec": _number(item.get("source_duration_sec")),
+        "generated_duration_sec": _number(item.get("generated_duration_sec")),
+        "fitted_duration_sec": _number(item.get("fitted_duration_sec")),
+        "placement_start": _coalesce_number(item.get("placement_start")),
+        "placement_end": _coalesce_number(item.get("placement_end")),
         "subtitle_coverage_ratio": subtitle_coverage,
         "qa_flags": item.get("qa_flags") if isinstance(item.get("qa_flags"), list) else [],
         "dropout_token_count": dropout_count,
@@ -594,6 +623,22 @@ def _segment_duration_ratio(item: dict[str, Any]) -> float | None:
     if isinstance(generated, (int, float)) and isinstance(source, (int, float)) and source > 0:
         return round(float(generated) / float(source), 4)
     return None
+
+
+def _original_voice_rel(mix_report: dict[str, Any], root: Path) -> str | None:
+    """Resolve the stage1 isolated-vocal track from the mix report's background path.
+
+    Stage1 writes ``voice.<fmt>`` and ``background.<fmt>`` side by side; the mix
+    report records the background path, so the original vocal is its sibling.
+    """
+    background = ((mix_report.get("input") or {}).get("background_path"))
+    if not background:
+        return None
+    background_path = Path(str(background))
+    voice_path = background_path.with_name(f"voice{background_path.suffix}")
+    if not voice_path.exists():
+        return None
+    return _rel_to_root(voice_path, root)
 
 
 def _rel_to_root(path_str: Any, root: Path) -> str | None:

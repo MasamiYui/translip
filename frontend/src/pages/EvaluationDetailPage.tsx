@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Gauge, Info, Play, RefreshCw, Trash2, X } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Gauge, Info, Play, RefreshCw, Sparkles, Trash2, X } from 'lucide-react'
 import { tasksApi } from '../api/tasks'
 import {
   ISSUE_TAGS,
@@ -13,9 +13,13 @@ import {
   type DubQaReport,
   type DubQaSegment,
   type IssueTag,
+  type SegmentDirective,
   type SegmentSeverity,
 } from '../api/evaluation'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
+import { RemediationPanel } from '../components/evaluation/RemediationPanel'
+import { SegmentTimingBar } from '../components/evaluation/SegmentTimingBar'
+import { WaveformCompare } from '../components/evaluation/WaveformCompare'
 import { useI18n } from '../i18n/useI18n'
 import { cn } from '../lib/utils'
 
@@ -48,6 +52,9 @@ export function EvaluationDetailPage() {
   const [withJudge, setWithJudge] = useState(false)
   const [filter, setFilter] = useState<Filter>('problems')
   const [selected, setSelected] = useState<DubQaSegment | null>(null)
+  // An explicit segment-id focus (set from the remediation panel "locate" links)
+  // overrides the chip filter until cleared.
+  const [focus, setFocus] = useState<{ ids: string[]; label: string } | null>(null)
 
   const taskQuery = useQuery({
     queryKey: ['task', taskId],
@@ -91,10 +98,14 @@ export function EvaluationDetailPage() {
 
   const filteredSegments = useMemo(() => {
     const segments = report?.segments ?? []
+    if (focus) {
+      const ids = new Set(focus.ids)
+      return segments.filter(s => ids.has(s.segment_id))
+    }
     if (filter === 'all') return segments
     if (filter === 'problems') return segments.filter(s => s.issue_tags.length > 0)
     return segments.filter(s => s.issue_tags.includes(filter))
-  }, [report, filter])
+  }, [report, filter, focus])
 
   return (
     <PageContainer className={`${APP_CONTENT_MAX_WIDTH} px-6 py-6`}>
@@ -168,12 +179,35 @@ export function EvaluationDetailPage() {
         <>
           <Scorecard report={report} latest={latest} onDelete={id => deleteMutation.mutate(id)} />
 
+          {/* Next optimizations: prioritized fixes + export for the AI loop */}
+          <div className="mt-5">
+            <RemediationPanel
+              taskId={taskId}
+              report={report}
+              onFocusSegments={(ids, label) => {
+                setFocus({ ids, label })
+                document.getElementById('eval-segment-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }}
+            />
+          </div>
+
+          {/* Original-vs-dub waveform comparison */}
+          <div className="mt-5">
+            <WaveformCompare
+              taskId={taskId}
+              report={report}
+              segments={report.segments}
+              selectedId={selected?.segment_id ?? null}
+              onSelectSegment={setSelected}
+            />
+          </div>
+
           {/* Issue filter chips */}
-          <div className="mb-3 mt-5 flex flex-wrap items-center gap-2">
-            <FilterChip active={filter === 'problems'} onClick={() => setFilter('problems')}>
+          <div id="eval-segment-table" className="mb-3 mt-5 flex flex-wrap items-center gap-2">
+            <FilterChip active={!focus && filter === 'problems'} onClick={() => { setFocus(null); setFilter('problems') }}>
               {t.evaluation.problemsOnly} ({report.qa_summary.problem_segment_count})
             </FilterChip>
-            <FilterChip active={filter === 'all'} onClick={() => setFilter('all')}>
+            <FilterChip active={!focus && filter === 'all'} onClick={() => { setFocus(null); setFilter('all') }}>
               {t.evaluation.filterAll} ({report.qa_summary.segment_count})
             </FilterChip>
             <span className="mx-1 h-4 w-px bg-[#e5e7eb]" />
@@ -182,15 +216,32 @@ export function EvaluationDetailPage() {
               return (
                 <FilterChip
                   key={tag}
-                  active={filter === tag}
+                  active={!focus && filter === tag}
                   disabled={count === 0}
-                  onClick={() => setFilter(tag)}
+                  onClick={() => { setFocus(null); setFilter(tag) }}
                 >
                   {t.evaluation.issues[tag]} ({count})
                 </FilterChip>
               )
             })}
           </div>
+
+          {/* Focus banner: explicit segment-id selection from the remediation panel */}
+          {focus && (
+            <div className="mb-3 flex items-center justify-between rounded-lg border border-[#3b5bdb]/20 bg-[#3b5bdb]/5 px-3 py-2 text-xs text-[#3b5bdb]">
+              <span>
+                {focus.label} · {focus.ids.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => setFocus(null)}
+                aria-label="clear focus"
+                className="flex items-center justify-center rounded-md p-1 font-medium hover:bg-[#3b5bdb]/10"
+              >
+                <X size={12} />
+              </button>
+            </div>
+          )}
 
           {/* Segment table */}
           <div className="overflow-hidden rounded-xl border border-[#e5e7eb] bg-white">
@@ -202,13 +253,14 @@ export function EvaluationDetailPage() {
                   <th className="px-3 py-2.5 font-medium">{t.evaluation.colSpeaker}</th>
                   <th className="px-3 py-2.5 font-medium">{t.evaluation.colSource}</th>
                   <th className="px-3 py-2.5 font-medium">{t.evaluation.colTarget}</th>
+                  <th className="px-3 py-2.5 font-medium">{t.evaluation.timing.col}</th>
                   <th className="px-3 py-2.5 font-medium">{t.evaluation.colIssues}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredSegments.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-3 py-8 text-center text-[#9ca3af]">
+                    <td colSpan={7} className="px-3 py-8 text-center text-[#9ca3af]">
                       {t.evaluation.emptyRows}
                     </td>
                   </tr>
@@ -237,6 +289,9 @@ export function EvaluationDetailPage() {
                         <div className="line-clamp-2">{seg.target_text || '—'}</div>
                       </td>
                       <td className="px-3 py-2.5">
+                        <SegmentTimingBar segment={seg} variant="compact" />
+                      </td>
+                      <td className="px-3 py-2.5">
                         <div className="flex flex-wrap gap-1">
                           {seg.issue_tags.map(tag => (
                             <IssueBadge key={tag} tag={tag} label={t.evaluation.issues[tag]} />
@@ -256,6 +311,7 @@ export function EvaluationDetailPage() {
         <SegmentDrawer
           taskId={taskId}
           segment={selected}
+          directive={report?.remediation?.segment_directives?.[selected.segment_id] ?? null}
           onClose={() => setSelected(null)}
         />
       )}
@@ -466,13 +522,25 @@ function IssueBadge({ tag, label }: { tag: IssueTag; label: string }) {
 function SegmentDrawer({
   taskId,
   segment,
+  directive,
   onClose,
 }: {
   taskId: string
   segment: DubQaSegment
+  directive: SegmentDirective | null
   onClose: () => void
 }) {
   const { t } = useI18n()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
       <button
@@ -508,6 +576,11 @@ function SegmentDrawer({
             </div>
           )}
 
+          {/* Diagnosis & recommended fix */}
+          {directive && (
+            <DiagnosisCard taskId={taskId} segment={segment} directive={directive} onNavigate={navigate} />
+          )}
+
           {/* A/B audio */}
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-lg border border-[#e5e7eb] p-3">
@@ -528,6 +601,11 @@ function SegmentDrawer({
               )}
             </div>
           </div>
+
+          {/* Timing: original window vs dub footprint */}
+          <Field label={t.evaluation.timing.col}>
+            <SegmentTimingBar segment={segment} variant="full" />
+          </Field>
 
           {/* Texts */}
           <Field label={t.evaluation.sourceText}>
@@ -562,6 +640,72 @@ function SegmentDrawer({
             </dl>
           </Field>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/** Root-cause + recommended-fix card shown at the top of the segment drawer. */
+function DiagnosisCard({
+  taskId,
+  segment,
+  directive,
+  onNavigate,
+}: {
+  taskId: string
+  segment: DubQaSegment
+  directive: SegmentDirective
+  onNavigate: (path: string) => void
+}) {
+  const { t } = useI18n()
+  const tr = t.evaluation.remediation
+  const ev = directive.evidence
+  const causeText = (defect: IssueTag): string => {
+    switch (defect) {
+      case 'undubbed':
+        return tr.cause.undubbed()
+      case 'pacing':
+        return tr.cause.pacing(ev.duration_ratio ?? 1)
+      case 'dropout':
+        return tr.cause.dropout(ev.dropout_ratio ?? 0)
+      case 'low_intelligibility':
+        return tr.cause.low_intelligibility(ev.text_similarity ?? 0)
+      case 'timbre_mismatch':
+        return tr.cause.timbre_mismatch(ev.speaker_similarity ?? 0)
+      case 'bad_translation':
+        return tr.cause.bad_translation(ev.judge_score ?? 0)
+      case 'inaudible':
+        return tr.cause.inaudible(ev.subtitle_coverage_ratio ?? 0)
+      default:
+        return ''
+    }
+  }
+  return (
+    <div className="rounded-lg border border-[#3b5bdb]/20 bg-[#3b5bdb]/[0.03] p-3">
+      <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-[#3b5bdb]">
+        <Sparkles size={13} /> {tr.drawerTitle}
+      </div>
+      <ul className="mb-2.5 space-y-1">
+        {segment.issue_tags.map(tag => (
+          <li key={tag} className="flex gap-1.5 text-xs text-[#4b5563]">
+            <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-[#9ca3af]" />
+            <span>{causeText(tag)}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="flex items-center justify-between gap-2 rounded-md bg-white px-2.5 py-2 ring-1 ring-[#e5e7eb]">
+        <div className="min-w-0">
+          <div className="text-[11px] text-[#9ca3af]">{tr.recommend}</div>
+          <div className="text-sm font-medium text-[#111827]">{tr.actionLabel[directive.primary_action]}</div>
+          <div className="text-[11px] text-[#9ca3af]">{tr.actionHint[directive.primary_action]}</div>
+        </div>
+        <button
+          type="button"
+          onClick={() => onNavigate(`/tasks/${encodeURIComponent(taskId)}/dubbing-editor`)}
+          className="flex shrink-0 items-center gap-1 rounded-md bg-[#3b5bdb] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-[#324bc0]"
+        >
+          {tr.goEditor} <ExternalLink size={12} />
+        </button>
       </div>
     </div>
   )

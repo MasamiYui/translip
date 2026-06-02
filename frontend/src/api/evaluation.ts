@@ -76,6 +76,12 @@ export interface DubQaSegment {
   speaker_similarity?: number | null
   text_similarity?: number | null
   duration_ratio?: number | null
+  // Timeline-fit detail (original window vs the dub's actual placed footprint).
+  source_duration_sec?: number | null
+  generated_duration_sec?: number | null
+  fitted_duration_sec?: number | null
+  placement_start?: number | null
+  placement_end?: number | null
   subtitle_coverage_ratio?: number | null
   qa_flags: string[]
   dropout_token_count: number
@@ -112,6 +118,93 @@ export interface DubQaSummary {
   judge_status: string
 }
 
+export type RemediationAction =
+  | 'rewrite_translation'
+  | 'resynthesize'
+  | 'switch_voice'
+  | 'switch_tts_backend'
+  | 'refit_timeline'
+  | 'retranslate'
+  | 'fill_undubbed'
+  | 'manual_review'
+
+export type RemediationExecutor = 'repair' | 'editor' | 'render' | 'rerun' | 'manual'
+
+export interface RemediationEvidence {
+  duration_ratio?: number | null
+  fit_strategy?: string | null
+  speaker_similarity?: number | null
+  text_similarity?: number | null
+  dropout_ratio?: number | null
+  subtitle_coverage_ratio?: number | null
+  judge_score?: number | null
+}
+
+export interface RemediationKnob {
+  stage: string
+  params: Record<string, string>
+}
+
+export interface SegmentDirective {
+  segment_id: string
+  start?: number | null
+  speaker_id?: string | null
+  severity: SegmentSeverity
+  defects: IssueTag[]
+  primary_action: RemediationAction
+  executor: RemediationExecutor
+  repair_action?: string | null
+  auto_fixable: boolean
+  gain: number
+  knob?: RemediationKnob | null
+  evidence: RemediationEvidence
+}
+
+export interface RemediationActionGroup {
+  action: RemediationAction
+  executor: RemediationExecutor
+  repair_action?: string | null
+  auto_fixable: boolean
+  knob?: RemediationKnob | null
+  segment_ids: string[]
+  count: number
+  total_gain: number
+}
+
+export interface DeliveryBlocker {
+  gate: string
+  status: string
+  segment_ids: string[]
+  count: number
+}
+
+export interface RemediationPlan {
+  version: string
+  summary: {
+    problem_count: number
+    auto_fixable_count: number
+    manual_count: number
+    recoverable_gain: number
+    total_gain: number
+  }
+  actions: RemediationActionGroup[]
+  next_best_actions: Array<{
+    action: RemediationAction
+    executor: RemediationExecutor
+    count: number
+    total_gain: number
+    auto_fixable: boolean
+  }>
+  delivery_blockers: DeliveryBlocker[]
+  repair_directive?: {
+    segment_ids: string[]
+    tts_backends: string[]
+    include_risk: boolean
+    attempts_per_item: number
+  } | null
+  segment_directives: Record<string, SegmentDirective>
+}
+
 export interface DubQaReport {
   version: string
   created_at: string
@@ -120,6 +213,7 @@ export interface DubQaReport {
   scorecard: DubQaScorecard
   qa_summary: DubQaSummary
   segments: DubQaSegment[]
+  remediation?: RemediationPlan | null
   input: Record<string, string | null>
 }
 
