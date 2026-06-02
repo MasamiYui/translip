@@ -39,6 +39,7 @@ from .dub_benchmark import (
     build_dub_benchmark,
     classify_pacing,
 )
+from .source_coverage import build_source_coverage
 from .translation_judge import JUDGE_FAIL_THRESHOLD, build_translation_judge
 
 QA_VERSION = "dub-qa-v0"
@@ -109,6 +110,7 @@ class DubQaRequest:
     source_lang: str = "zh"
     run_translation_judge: bool = False
     judge_path: Path | str | None = None
+    run_source_coverage: bool = True
 
     def normalized(self) -> "DubQaRequest":
         return DubQaRequest(
@@ -118,6 +120,7 @@ class DubQaRequest:
             source_lang=self.source_lang,
             run_translation_judge=self.run_translation_judge,
             judge_path=Path(self.judge_path).expanduser().resolve() if self.judge_path else None,
+            run_source_coverage=self.run_source_coverage,
         )
 
 
@@ -187,6 +190,8 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
         pipeline_root=root,
     )
     qa_summary = _summarize(rows, mix_report=mix_report, judge_status=judge_status)
+    if normalized.run_source_coverage:
+        qa_summary["source_coverage"] = _maybe_source_coverage(root, mix_report, normalized.source_lang)
 
     report = {
         "version": QA_VERSION,
@@ -608,6 +613,22 @@ def _build_backread_index(
     return index
 
 
+def _maybe_source_coverage(
+    pipeline_root: Path,
+    mix_report: dict[str, Any],
+    source_lang: str,
+) -> dict[str, Any] | None:
+    """Best-effort VAD reconciliation — never let it block the rest of the report."""
+    try:
+        return build_source_coverage(
+            pipeline_root=pipeline_root,
+            mix_report=mix_report,
+            source_lang=source_lang,
+        )
+    except Exception:  # pragma: no cover - diagnostics must not break the join
+        return None
+
+
 def _build_judge_index(judge_path: Path | None) -> dict[str, dict[str, Any]]:
     if judge_path is None:
         return {}
@@ -700,6 +721,17 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
 
+def _source_coverage_line(source_coverage: Any) -> str:
+    if not isinstance(source_coverage, dict):
+        return "- source coverage: `n/a`"
+    coverage = source_coverage.get("transcript_coverage")
+    windows = source_coverage.get("uncovered_window_count", 0)
+    return (
+        f"- source coverage: `{coverage}` "
+        f"(uncovered speech windows: `{windows}`, status: `{source_coverage.get('status')}`)"
+    )
+
+
 def _markdown_report(report: dict[str, Any]) -> str:
     summary = report.get("qa_summary", {})
     scorecard = report.get("scorecard", {})
@@ -710,6 +742,7 @@ def _markdown_report(report: dict[str, Any]) -> str:
         f"- score: `{scorecard.get('score')}`  status: `{scorecard.get('status')}`",
         f"- segments: `{summary.get('segment_count')}`  with issues: `{summary.get('problem_segment_count')}`",
         f"- judge: `{summary.get('judge_status')}`",
+        _source_coverage_line(summary.get("source_coverage")),
         "",
         "## Issue breakdown",
         "",

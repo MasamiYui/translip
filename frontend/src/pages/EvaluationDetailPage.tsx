@@ -12,6 +12,7 @@ import {
   type DubQaGate,
   type DubQaReport,
   type DubQaSegment,
+  type DubQaSummary,
   type IssueTag,
   type SegmentSeverity,
 } from '../api/evaluation'
@@ -167,6 +168,10 @@ export function EvaluationDetailPage() {
       {report && (
         <>
           <Scorecard report={report} latest={latest} onDelete={id => deleteMutation.mutate(id)} />
+
+          {report.qa_summary.source_coverage?.status === 'review' && (
+            <SourceCoverageBanner data={report.qa_summary.source_coverage} />
+          )}
 
           {/* Issue filter chips */}
           <div className="mb-3 mt-5 flex flex-wrap items-center gap-2">
@@ -335,6 +340,39 @@ function Scorecard({
               <GateChip key={gate.id} gate={gate} />
             ))}
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** Warns when the source audio has speech that no transcript line covers — lines likely
+ * dropped by VAD/diarization before task-c, which the per-segment table can never show. */
+function SourceCoverageBanner({ data }: { data: NonNullable<DubQaSummary['source_coverage']> }) {
+  const { t } = useI18n()
+  const pct = data.transcript_coverage != null ? `${Math.round(data.transcript_coverage * 100)}%` : '—'
+  return (
+    <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+      <div className="text-sm font-medium text-amber-800">{t.evaluation.sourceCoverage.title}</div>
+      <div className="mt-1 text-xs text-amber-700">{t.evaluation.sourceCoverage.hint}</div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-amber-800">
+        <span>
+          {t.evaluation.sourceCoverage.coverage}: <b>{pct}</b>
+        </span>
+        <span>
+          {t.evaluation.sourceCoverage.uncovered}: <b>{data.uncovered_window_count}</b>
+        </span>
+      </div>
+      {data.uncovered_windows.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {data.uncovered_windows.map((w, i) => (
+            <span
+              key={`${w.start}-${i}`}
+              className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-700"
+            >
+              {formatTime(w.start)}–{formatTime(w.end)} ({w.duration.toFixed(1)}s)
+            </span>
+          ))}
         </div>
       )}
     </div>

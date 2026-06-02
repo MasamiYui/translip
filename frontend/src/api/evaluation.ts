@@ -113,6 +113,17 @@ export interface DubQaSummary {
     coverage_ratio: number | null
   }
   dropout: { affected_count: number; average_ratio: number | null }
+  source_coverage?: {
+    status: string
+    transcript_coverage: number | null
+    detected_speech_sec: number
+    transcribed_speech_sec: number
+    uncovered_speech_sec: number
+    uncovered_window_count: number
+    uncovered_windows: { start: number; end: number; duration: number }[]
+    thresholds: { min_coverage: number; min_window_sec: number }
+    source_stem?: string
+  } | null
   translation_judge?: {
     status: string
     scored_count: number
