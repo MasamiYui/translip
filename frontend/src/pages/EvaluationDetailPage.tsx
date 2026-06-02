@@ -558,6 +558,13 @@ function SegmentDrawer({
           <Field label={t.evaluation.metrics}>
             <dl className="grid grid-cols-2 gap-y-1.5 text-xs">
               <Metric label={t.evaluation.speakerSim} value={segment.speaker_similarity} status={segment.speaker_status} />
+              {segment.speaker_similarity_centroid != null && (
+                <Metric
+                  label={t.evaluation.speakerSimCentroid}
+                  value={segment.speaker_similarity_centroid}
+                  status={segment.speaker_status_centroid}
+                />
+              )}
               <Metric label={t.evaluation.textSim} value={segment.text_similarity} status={segment.intelligibility_status} />
               <Metric label={t.evaluation.durationRatio} value={segment.duration_ratio} status={segment.duration_status} />
               <Metric label={t.evaluation.coverage} value={segment.subtitle_coverage_ratio} />

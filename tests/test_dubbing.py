@@ -6,8 +6,27 @@ import pytest
 import soundfile as sf
 
 from translip.dubbing.reference import prepare_reference_package, select_reference_candidates
-from translip.dubbing.runner import synthesize_speaker
+from translip.dubbing.runner import _resolve_speaker_prototype, synthesize_speaker
 from translip.types import DubbingRequest
+
+
+def test_resolve_speaker_prototype_matches_and_normalizes() -> None:
+    payload = {
+        "profiles": [
+            {"profile_id": "p0", "speaker_id": "spk_0000", "source_label": "SPEAKER_00",
+             "prototype_embedding": [3.0, 4.0]},
+            {"profile_id": "p1", "speaker_id": "spk_0001", "source_label": "SPEAKER_01",
+             "prototype_embedding": None},
+        ]
+    }
+    vector = _resolve_speaker_prototype(profiles_payload=payload, speaker_id="spk_0000")
+    assert vector is not None
+    assert abs(float(np.linalg.norm(np.asarray(vector))) - 1.0) < 1e-5  # unit-normalized
+    # Matching by source_label also works.
+    assert _resolve_speaker_prototype(profiles_payload=payload, speaker_id="SPEAKER_00") is not None
+    # No prototype, or no matching profile among several → None (centroid scoring skipped).
+    assert _resolve_speaker_prototype(profiles_payload=payload, speaker_id="spk_0001") is None
+    assert _resolve_speaker_prototype(profiles_payload=payload, speaker_id="missing") is None
 
 
 class FakeBackend:

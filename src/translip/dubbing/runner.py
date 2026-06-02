@@ -14,6 +14,7 @@ import numpy as np
 import soundfile as sf
 
 from ..exceptions import TranslipError
+from ..speaker_embedding import normalize_embedding
 from ..types import (
     DUBBING_QUALITY_CHECK_MODES,
     DubbingArtifacts,
@@ -123,6 +124,7 @@ def _synthesize_group(
     prepared_lock: threading.Lock,
     request: DubbingRequest,
     target_lang: str,
+    speaker_prototype: object | None = None,
 ) -> _GroupResult:
     """Synthesize a single segment group.
 
@@ -153,6 +155,7 @@ def _synthesize_group(
             work_dir=work_dir,
             request=request,
             target_lang=target_lang,
+            speaker_prototype=speaker_prototype,
         )
         audio_paths.append(synth_output.audio_path)
         report_rows.append(
@@ -185,6 +188,7 @@ def _synthesize_group(
             work_dir=work_dir,
             request=request,
             target_lang=target_lang,
+            speaker_prototype=speaker_prototype,
         )
         split_outputs = _split_unit_audio(
             unit_audio_path=synth_output.audio_path,
@@ -323,6 +327,10 @@ def synthesize_speaker(
             reference_clip_path=normalized_request.reference_clip_path,
             voice_bank_path=normalized_request.voice_bank_path,
         )
+        speaker_prototype = _resolve_speaker_prototype(
+            profiles_payload=profiles_payload,
+            speaker_id=normalized_request.speaker_id,
+        )
         succeeded_audio_paths: list[Path] = []
         report_segments: list[dict[str, Any]] = []
         prepared_references: dict[Path, ReferencePackage] = {}
@@ -351,6 +359,7 @@ def synthesize_speaker(
                 prepared_lock=prepared_lock,
                 request=normalized_request,
                 target_lang=target_lang,
+                speaker_prototype=speaker_prototype,
             )
 
         if max_workers <= 1:
@@ -748,6 +757,12 @@ def _segment_report_row(
             else None
         ),
         "speaker_status": speaker_status,
+        "speaker_similarity_centroid": (
+            round(float(getattr(evaluation, "speaker_similarity_centroid")), 4)
+            if getattr(evaluation, "speaker_similarity_centroid", None) is not None
+            else None
+        ),
+        "speaker_status_centroid": str(getattr(evaluation, "speaker_status_centroid", "skipped")),
         "backread_text": str(getattr(evaluation, "backread_text", "")),
         "text_similarity": round(float(getattr(evaluation, "text_similarity", 0.0) or 0.0), 4),
         "intelligibility_status": intelligibility_status,
@@ -810,6 +825,47 @@ def _dedupe(values: list[str]) -> list[str]:
     return result
 
 
+def _resolve_speaker_prototype(
+    *,
+    profiles_payload: dict[str, Any],
+    speaker_id: str,
+) -> object | None:
+    """The speaker's stored prototype centroid (task-b) as a unit-norm vector.
+
+    Matched by speaker_id, then source_label / profile_id, then the sole profile.
+    Returns None when no profile carries a prototype (e.g. voice-bank-only
+    references), in which case centroid scoring is simply skipped downstream.
+    """
+    profiles = profiles_payload.get("profiles", []) if isinstance(profiles_payload, dict) else []
+    target = str(speaker_id or "")
+    chosen: dict[str, Any] | None = None
+    for profile in profiles:
+        if not isinstance(profile, dict):
+            continue
+        identifiers = {
+            str(profile.get("speaker_id") or ""),
+            str(profile.get("source_label") or ""),
+            str(profile.get("profile_id") or ""),
+        }
+        if target and target in identifiers:
+            chosen = profile
+            break
+    if chosen is None and len(profiles) == 1 and isinstance(profiles[0], dict):
+        chosen = profiles[0]
+    if chosen is None:
+        return None
+    values = chosen.get("prototype_embedding")
+    if not isinstance(values, list) or not values:
+        return None
+    try:
+        vector = np.asarray(values, dtype=np.float32)
+    except (TypeError, ValueError):
+        return None
+    if vector.size == 0:
+        return None
+    return normalize_embedding(vector)
+
+
 def _select_reference_candidates(
     *,
     profiles_payload: dict[str, Any],
@@ -851,6 +907,7 @@ def _synthesize_with_quality_retry(
     work_dir: Path,
     request: DubbingRequest,
     target_lang: str,
+    speaker_prototype: object | None = None,
 ) -> tuple[SynthSegmentOutput, ReferencePackage, object, dict[str, Any]]:
     attempts: list[dict[str, Any]] = []
     retry_reasons: list[str] = []
@@ -894,6 +951,7 @@ def _synthesize_with_quality_retry(
                     segment=segment,
                     target_lang=target_lang,
                     request=request,
+                    speaker_prototype=speaker_prototype,
                 )
             except Exception as exc:  # pragma: no cover - covered by real pipeline run
                 synthesis_error = exc
@@ -1009,6 +1067,7 @@ def _evaluate_synthesized_segment(
     segment: SynthSegmentInput,
     target_lang: str,
     request: DubbingRequest,
+    speaker_prototype: object | None = None,
 ) -> SegmentEvaluation:
     if request.quality_check_mode == "duration-only":
         duration_ratio = (
@@ -1055,6 +1114,7 @@ def _evaluate_synthesized_segment(
         source_duration_sec=segment.source_duration_sec,
         requested_device=request.device,
         backread_model_name=request.backread_model,
+        centroid_embedding=speaker_prototype,
     )
 
 

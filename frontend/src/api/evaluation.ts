@@ -78,6 +78,8 @@ export interface DubQaSegment {
   intelligibility_status?: string | null
   duration_status?: string | null
   speaker_similarity?: number | null
+  speaker_similarity_centroid?: number | null
+  speaker_status_centroid?: string | null
   text_similarity?: number | null
   duration_ratio?: number | null
   placed_duration_ratio?: number | null

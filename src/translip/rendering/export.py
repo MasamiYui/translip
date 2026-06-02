@@ -168,6 +168,7 @@ def _build_quality_summary(*, items: list[dict[str, Any]]) -> dict[str, Any]:
         "overall_status_counts": _count_by(items, "overall_status"),
         "duration_status_counts": _count_by(items, "duration_status"),
         "speaker_status_counts": _count_by(items, "speaker_status"),
+        "speaker_status_centroid_counts": _count_by(items, "speaker_status_centroid"),
         "intelligibility_status_counts": _count_by(items, "intelligibility_status"),
         "mix_status_counts": _count_by(items, "mix_status"),
         "failure_reason_counts": _failure_reason_counts(items),
@@ -181,6 +182,7 @@ def _build_quality_summary(*, items: list[dict[str, Any]]) -> dict[str, Any]:
         },
         "medians": {
             "speaker_similarity": _median_number(items, "speaker_similarity"),
+            "speaker_similarity_centroid": _median_number(items, "speaker_similarity_centroid"),
             "text_similarity": _median_number(items, "text_similarity"),
             "duration_ratio": _median_duration_ratio(items),
             "quality_score": _median_number(items, "quality_score"),

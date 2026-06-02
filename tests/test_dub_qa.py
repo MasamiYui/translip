@@ -250,6 +250,58 @@ def test_dub_qa_pacing_subtypes_and_timbre_review(tmp_path: Path):
     assert (counts["cutoff"], counts["overcompressed"], counts["deadair"], counts["timbre_review"]) == (1, 1, 1, 1)
 
 
+def test_dub_qa_timbre_from_centroid(tmp_path: Path):
+    """The centroid opinion flags a dub that matched its reference clip but not the character."""
+    root = tmp_path / "pipeline"
+    tc = root / "task-c" / "voice" / "clip"
+    _write(
+        tc / "translation.en.json",
+        {"segments": [{"segment_id": f"c{i}", "speaker_label": "S", "start": float(i), "end": float(i) + 1,
+                       "source_text": "源句", "target_text": "line text"} for i in range(1, 3)]},
+    )
+    td = root / "task-d" / "voice" / "clip"
+    tdr = _write(td / "dub_report.en.json", {"segments": [{"segment_id": f"c{i}", "backread_text": "line text"} for i in range(1, 3)]})
+
+    def placed(seg_id, **over):
+        base = {
+            "segment_id": seg_id, "task_d_report_path": str(tdr), "audio_path": str(td / f"{seg_id}.wav"),
+            "mix_status": "placed", "overall_status": "passed", "speaker_status": "passed",
+            "speaker_status_centroid": "skipped", "intelligibility_status": "passed", "duration_status": "passed",
+            "speaker_similarity": 0.7, "text_similarity": 0.95, "source_duration_sec": 1.0,
+            "generated_duration_sec": 1.0, "applied_tempo": 1.0, "trimmed_tail_sec": 0.0, "dead_air_sec": 0.0,
+            "placed_duration_ratio": 1.0, "subtitle_coverage_ratio": 0.9, "dub_snr_db": 12.0, "qa_flags": [],
+        }
+        base.update(over)
+        return base
+
+    mix = {
+        "input": {"translation_path": str(tc / "translation.en.json"), "task_d_report_paths": [str(tdr)]},
+        "stats": {
+            "placed_count": 2, "skipped_count": 0, "skip_reason_counts": {},
+            "quality_summary": {
+                "total_count": 2, "overall_status_counts": {"passed": 2},
+                "speaker_status_counts": {"passed": 2},
+                "speaker_status_centroid_counts": {"failed": 1, "review": 1},
+                "intelligibility_status_counts": {"passed": 2},
+            },
+            "audible_coverage": {"failed_count": 0, "failed_segment_ids": []},
+        },
+        "placed_segments": [
+            placed("c1", speaker_status_centroid="failed", speaker_similarity_centroid=0.10),
+            placed("c2", speaker_status_centroid="review", speaker_similarity_centroid=0.35),
+        ],
+        "skipped_segments": [],
+    }
+    _write(root / "task-e" / "voice" / "mix_report.en.json", mix)
+
+    result = build_dub_qa(DubQaRequest(pipeline_root=root, output_dir=tmp_path / "analysis", target_lang="en"))
+    rows = {row["segment_id"]: row for row in result.report["segments"]}
+    # The reference cosine passed (0.7) but the centroid says mismatch / off.
+    assert "timbre_mismatch" in rows["c1"]["issue_tags"]
+    assert "timbre_review" in rows["c2"]["issue_tags"]
+    assert rows["c1"]["speaker_similarity_centroid"] == 0.10
+
+
 def test_dub_qa_flags_buried_dub(tmp_path: Path):
     """A placed segment whose dub sits below the SNR floor is inaudible → blocked."""
     root = tmp_path / "pipeline"

@@ -290,6 +290,9 @@ def _metrics(
     skip_reason_counts = stats.get("skip_reason_counts", {}) if isinstance(stats.get("skip_reason_counts"), dict) else {}
     speaker_failed_count = _status_count(quality, "speaker_status_counts", "failed")
     speaker_review_count = _status_count(quality, "speaker_status_counts", "review")
+    # Centroid (prototype) opinion — independent of the one reference clip cloned.
+    speaker_centroid_failed_count = _status_count(quality, "speaker_status_centroid_counts", "failed")
+    speaker_centroid_review_count = _status_count(quality, "speaker_status_centroid_counts", "review")
     intelligibility_failed_count = _status_count(quality, "intelligibility_status_counts", "failed")
     overall_failed_count = _status_count(quality, "overall_status_counts", "failed")
     pacing = _pacing_counts(mix_report)
@@ -306,6 +309,15 @@ def _metrics(
         "speaker_review_count": speaker_review_count,
         "speaker_review_ratio": round(speaker_review_count / max(total_count, 1), 4),
         "speaker_median_similarity": _number(medians.get("speaker_similarity")),
+        "speaker_centroid_failed_count": speaker_centroid_failed_count,
+        "speaker_centroid_review_count": speaker_centroid_review_count,
+        "speaker_centroid_review_ratio": round(speaker_centroid_review_count / max(total_count, 1), 4),
+        "speaker_centroid_median_similarity": _number(medians.get("speaker_similarity_centroid")),
+        # Worst-of the two timbre opinions — drives the gate + score so either signal
+        # (matches a bad reference clip, or drifts from the character centroid) counts.
+        "timbre_review_ratio": round(
+            max(speaker_review_count, speaker_centroid_review_count) / max(total_count, 1), 4
+        ),
         "pacing_cutoff_count": pacing["cutoff"],
         "pacing_overcompressed_count": pacing["overcompressed"],
         "pacing_deadair_count": pacing["deadair"],
@@ -356,7 +368,7 @@ def _status_and_reasons(metrics: dict[str, Any]) -> tuple[str, list[str]]:
         reasons.append("repair_manual_required")
     if metrics.get("pacing_cutoff_count", 0) > 0:
         reasons.append("dub_tail_cut_off")
-    if metrics.get("speaker_review_ratio", 0.0) > 0.30:
+    if metrics.get("timbre_review_ratio", metrics.get("speaker_review_ratio", 0.0)) > 0.30:
         reasons.append("timbre_review_band_high")
     if metrics.get("buried_count", 0) > 0:
         reasons.append("dub_buried_under_background")
@@ -388,7 +400,10 @@ def _score(metrics: dict[str, Any]) -> float:
     # Timbre that is audibly off but not catastrophic (the 0.25-0.45 review band)
     # used to contribute nothing; a job whose median similarity sits below the
     # pass line should not score ~95.
-    penalty += min(15.0, float(metrics.get("speaker_review_ratio", 0.0)) * 25.0)
+    penalty += min(
+        15.0,
+        float(metrics.get("timbre_review_ratio", metrics.get("speaker_review_ratio", 0.0))) * 25.0,
+    )
     # Post-fit pacing: cut-off tails (lost words) weigh heaviest, then rushed /
     # dead-air. Previously the score had no pacing term at all.
     penalty += min(
@@ -419,20 +434,19 @@ def _gates(metrics: dict[str, Any]) -> list[dict[str, Any]]:
                 if metrics["speaker_failed_ratio"] > 0.15
                 else "review"
                 if (
-                    metrics.get("speaker_review_ratio", 0.0) > 0.30
-                    or (
-                        isinstance(metrics.get("speaker_median_similarity"), (int, float))
-                        and metrics["speaker_median_similarity"] < TIMBRE_REVIEW_HIGH
-                    )
+                    metrics.get("timbre_review_ratio", 0.0) > 0.30
+                    or _below(metrics.get("speaker_median_similarity"), TIMBRE_REVIEW_HIGH)
+                    or _below(metrics.get("speaker_centroid_median_similarity"), TIMBRE_REVIEW_HIGH)
                 )
                 else "passed"
             ),
             "value": {
                 "speaker_failed_ratio": metrics["speaker_failed_ratio"],
-                "speaker_review_ratio": metrics.get("speaker_review_ratio", 0.0),
+                "timbre_review_ratio": metrics.get("timbre_review_ratio", 0.0),
                 "median_similarity": metrics.get("speaker_median_similarity"),
+                "centroid_median_similarity": metrics.get("speaker_centroid_median_similarity"),
             },
-            "threshold": "failed_ratio<=0.15 and review_ratio<=0.30 and median>=0.45",
+            "threshold": "failed_ratio<=0.15 and timbre_review_ratio<=0.30 and medians>=0.45",
         },
         {
             "id": "pacing",
@@ -535,6 +549,10 @@ def _status_count(quality: dict[str, Any], key: str, status: str) -> int:
     if not isinstance(counts, dict):
         return 0
     return _int(counts.get(status))
+
+
+def _below(value: Any, threshold: float) -> bool:
+    return isinstance(value, (int, float)) and value < threshold
 
 
 def _int(value: Any) -> int:

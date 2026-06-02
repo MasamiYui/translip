@@ -89,6 +89,10 @@ class TimelineItem:
     subtitle_end: float | None = None
     subtitle_coverage_ratio: float | None = None
     dubbing_window_policy: str | None = None
+    # Timbre vs the speaker's stored prototype centroid (task-b), independent of the
+    # one reference clip the TTS cloned from — see dubbing/metrics.evaluate_segment.
+    speaker_similarity_centroid: float | None = None
+    speaker_status_centroid: str = "skipped"
     # Post-fit measurements (what the listener actually hears, vs the raw-TTS
     # duration_status which is measured *before* the renderer time-fits the clip).
     # These let the evaluation separate the distinct pacing failures — tail cut
@@ -122,6 +126,10 @@ class TimelineItem:
             "speaker_status": self.speaker_status,
             "intelligibility_status": self.intelligibility_status,
             "speaker_similarity": round(self.speaker_similarity, 4) if self.speaker_similarity is not None else None,
+            "speaker_similarity_centroid": (
+                round(self.speaker_similarity_centroid, 4) if self.speaker_similarity_centroid is not None else None
+            ),
+            "speaker_status_centroid": self.speaker_status_centroid,
             "text_similarity": round(self.text_similarity, 4) if self.text_similarity is not None else None,
             "overall_status": self.overall_status,
             "mix_status": self.mix_status,
@@ -390,6 +398,8 @@ def _load_candidates(
                         speaker_status=str(row.get("speaker_status") or "unknown"),
                         intelligibility_status=str(row.get("intelligibility_status") or "unknown"),
                         speaker_similarity=_float_or_none(row.get("speaker_similarity")),
+                        speaker_similarity_centroid=_float_or_none(row.get("speaker_similarity_centroid")),
+                        speaker_status_centroid=str(row.get("speaker_status_centroid") or "skipped"),
                         text_similarity=_float_or_none(row.get("text_similarity")),
                         overall_status=str(row.get("overall_status") or "failed"),
                         task_d_report_path=report_path,
@@ -426,6 +436,8 @@ def _load_candidates(
                     row_for_mix.get("intelligibility_status") or row.get("intelligibility_status") or "unknown"
                 ),
                 speaker_similarity=_float_or_none(row_for_mix.get("speaker_similarity")),
+                speaker_similarity_centroid=_float_or_none(row_for_mix.get("speaker_similarity_centroid")),
+                speaker_status_centroid=str(row_for_mix.get("speaker_status_centroid") or "skipped"),
                 text_similarity=_float_or_none(row_for_mix.get("text_similarity")),
                 overall_status=str(row_for_mix.get("overall_status") or row.get("overall_status") or "failed"),
                 task_d_report_path=report_path,
@@ -540,6 +552,8 @@ def _apply_selected_override(*, row: dict[str, Any], selected: dict[str, Any] | 
         "duration_status": selected.get("duration_status") or row.get("duration_status"),
         "speaker_similarity": selected.get("speaker_similarity"),
         "speaker_status": selected.get("speaker_status") or row.get("speaker_status"),
+        "speaker_similarity_centroid": selected.get("speaker_similarity_centroid"),
+        "speaker_status_centroid": selected.get("speaker_status_centroid") or row.get("speaker_status_centroid"),
         "text_similarity": selected.get("text_similarity"),
         "intelligibility_status": selected.get("intelligibility_status") or row.get("intelligibility_status"),
         "overall_status": selected.get("overall_status") or row.get("overall_status"),

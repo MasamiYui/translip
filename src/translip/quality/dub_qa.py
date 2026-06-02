@@ -390,6 +390,8 @@ def _build_row(
         "intelligibility_status": item.get("intelligibility_status"),
         "duration_status": item.get("duration_status"),
         "speaker_similarity": _number(item.get("speaker_similarity")),
+        "speaker_similarity_centroid": _number(item.get("speaker_similarity_centroid")),
+        "speaker_status_centroid": item.get("speaker_status_centroid"),
         "text_similarity": _number(item.get("text_similarity")),
         "duration_ratio": duration_ratio,
         "placed_duration_ratio": _number(item.get("placed_duration_ratio")),
@@ -421,17 +423,20 @@ def _issue_tags(row: dict[str, Any]) -> list[str]:
         if row.get("source_text") or row.get("target_text"):
             tags.append(ISSUE_UNDUBBED)
     else:
-        if row.get("speaker_status") == "failed":
+        # Two independent timbre opinions: similarity to the reference clip the TTS
+        # cloned (speaker_*) and similarity to the speaker's prototype centroid
+        # (speaker_*_centroid). Either being catastrophic = mismatch; either being in
+        # the audibly-off 0.25-0.45 band = "存疑" (previously silent, hiding the bulk
+        # of the operator's "音色不对" complaint).
+        if row.get("speaker_status") == "failed" or row.get("speaker_status_centroid") == "failed":
             tags.append(ISSUE_TIMBRE)
-        else:
-            # The 0.25-0.45 "review" band is audibly off but not catastrophic; it
-            # used to be silent (only speaker_status=='failed' surfaced), hiding the
-            # bulk of the operator's "音色不对" complaint.
-            similarity = row.get("speaker_similarity")
-            if row.get("speaker_status") == "review" or (
-                isinstance(similarity, (int, float)) and TIMBRE_REVIEW_LOW <= similarity < TIMBRE_REVIEW_HIGH
-            ):
-                tags.append(ISSUE_TIMBRE_REVIEW)
+        elif (
+            row.get("speaker_status") == "review"
+            or row.get("speaker_status_centroid") == "review"
+            or _in_review_band(row.get("speaker_similarity"))
+            or _in_review_band(row.get("speaker_similarity_centroid"))
+        ):
+            tags.append(ISSUE_TIMBRE_REVIEW)
         if row.get("intelligibility_status") == "failed":
             tags.append(ISSUE_INTELLIGIBILITY)
         if (
@@ -458,6 +463,10 @@ def _issue_tags(row: dict[str, Any]) -> list[str]:
     if isinstance(judge_score, (int, float)) and judge_score < JUDGE_FAIL_THRESHOLD:
         tags.append(ISSUE_TRANSLATION)
     return tags
+
+
+def _in_review_band(similarity: Any) -> bool:
+    return isinstance(similarity, (int, float)) and TIMBRE_REVIEW_LOW <= similarity < TIMBRE_REVIEW_HIGH
 
 
 def _row_severity(issue_tags: list[str]) -> str:

@@ -29,6 +29,12 @@ class SegmentEvaluation:
     duration_status: str
     overall_status: str
     quality_flags: tuple[str, ...] = ()
+    # Similarity to the speaker's stored prototype centroid (task-b), not just the
+    # one reference clip this attempt cloned from. Catches a dub that matches a
+    # possibly-atypical reference but not the character overall. "skipped" when no
+    # centroid was supplied (e.g. voice-bank reference without a profile).
+    speaker_similarity_centroid: float | None = None
+    speaker_status_centroid: str = "skipped"
 
 
 @lru_cache(maxsize=4)
@@ -45,15 +51,26 @@ def evaluate_segment(
     source_duration_sec: float,
     requested_device: str,
     backread_model_name: str,
+    centroid_embedding: object | None = None,
 ) -> SegmentEvaluation:
     generated_waveform, generated_sample_rate = read_audio_mono(generated_audio_path)
-    speaker_similarity = _speaker_similarity(
+    ref_embedding, gen_embedding = _speaker_embeddings(
         reference_audio_path=reference_audio_path,
         generated_waveform=generated_waveform,
         generated_sample_rate=generated_sample_rate,
         requested_device=requested_device,
     )
+    speaker_similarity = (
+        float(ref_embedding @ gen_embedding) if ref_embedding is not None and gen_embedding is not None else None
+    )
     speaker_status = _speaker_status(speaker_similarity)
+    # Second, reference-independent opinion: does the dub match the speaker's
+    # prototype centroid? Reuses the embedding we already computed — no extra model.
+    speaker_similarity_centroid: float | None = None
+    speaker_status_centroid = "skipped"
+    if centroid_embedding is not None and gen_embedding is not None:
+        speaker_similarity_centroid = float(centroid_embedding @ gen_embedding)
+        speaker_status_centroid = _speaker_status(speaker_similarity_centroid)
     backread_text = _backread_text(
         generated_audio_path,
         target_lang=target_lang,
@@ -79,23 +96,26 @@ def evaluate_segment(
         duration_ratio=duration_ratio,
         duration_status=duration_status,
         overall_status=overall_status,
+        speaker_similarity_centroid=speaker_similarity_centroid,
+        speaker_status_centroid=speaker_status_centroid,
     )
 
 
-def _speaker_similarity(
+def _speaker_embeddings(
     *,
     reference_audio_path: Path,
     generated_waveform,
     generated_sample_rate: int,
     requested_device: str,
-) -> float | None:
+) -> tuple[object | None, object | None]:
+    """Embed the reference clip and the generated clip once, reused for both the
+    per-attempt and the centroid cosine. Both are unit-normalized, so the dot
+    product is cosine similarity."""
     device = resolve_speaker_device(requested_device)
     classifier = load_speechbrain_classifier(device)
     ref_embedding = _reference_embedding(reference_audio_path, device)
     gen_embedding = embedding_for_clip(classifier, generated_waveform, generated_sample_rate)
-    if ref_embedding is None or gen_embedding is None:
-        return None
-    return float(ref_embedding @ gen_embedding)
+    return ref_embedding, gen_embedding
 
 
 @lru_cache(maxsize=128)
