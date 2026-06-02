@@ -34,18 +34,6 @@ class InpaintBackend:
         raise NotImplementedError
 
 
-class OpenCVBackend(InpaintBackend):
-    """cv2 Telea inpainting — per-frame, zero extra deps, always available."""
-
-    name = "opencv"
-
-    def __init__(self, *, radius: int = 3) -> None:
-        self.radius = radius
-
-    def __call__(self, frames: list[np.ndarray], mask: np.ndarray) -> list[np.ndarray]:
-        return [cv2.inpaint(frame, mask, self.radius, cv2.INTER_LINEAR) for frame in frames]
-
-
 class SttnBackend(InpaintBackend):
     """STTN video inpainting with temporal neighbor/reference attention."""
 
@@ -168,4 +156,4 @@ def _process_banded(
     return out
 
 
-__all__ = ["InpaintBackend", "OpenCVBackend", "SttnBackend", "LamaBackend"]
+__all__ = ["InpaintBackend", "SttnBackend", "LamaBackend"]

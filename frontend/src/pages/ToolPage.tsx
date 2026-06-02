@@ -518,8 +518,8 @@ function renderControls(
       <div className="space-y-4">
         <div>
           <div className="mb-2 text-sm font-medium text-slate-700">{atomicTools.fields.preset}</div>
-          <div className="grid gap-2 md:grid-cols-3">
-            {(['fast', 'balanced', 'quality'] as const).map(option => (
+          <div className="grid gap-2 md:grid-cols-2">
+            {(['balanced', 'quality'] as const).map(option => (
               <button
                 key={option}
                 type="button"
@@ -549,7 +549,7 @@ function renderControls(
             <SelectField
               label={atomicTools.fields.backend}
               value={String(params.backend ?? '')}
-              options={['', 'sttn', 'lama', 'opencv']}
+              options={['', 'sttn', 'lama']}
               onChange={value => setField('backend', value)}
             />
             <SelectField
@@ -575,18 +575,6 @@ function renderControls(
               type="number"
               value={String(params.mask_dilate_y ?? '')}
               onChange={value => setField('mask_dilate_y', value === '' ? '' : Number(value))}
-            />
-            <TextField
-              label={atomicTools.fields.neighborStride}
-              type="number"
-              value={String(params.neighbor_stride ?? '')}
-              onChange={value => setField('neighbor_stride', value === '' ? '' : Number(value))}
-            />
-            <TextField
-              label={atomicTools.fields.referenceLength}
-              type="number"
-              value={String(params.reference_length ?? '')}
-              onChange={value => setField('reference_length', value === '' ? '' : Number(value))}
             />
           </div>
         </details>

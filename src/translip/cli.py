@@ -553,7 +553,7 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument(
         "--erase-backend",
         default=None,
-        choices=["sttn", "lama", "opencv"],
+        choices=["sttn", "lama"],
         help="Subtitle-erase inpainting backend (default sttn)",
     )
     pipeline_parser.add_argument(

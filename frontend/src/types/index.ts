@@ -230,7 +230,7 @@ export interface TaskConfig {
   max_compress_ratio?: number
   output_sample_rate?: number
   preview_format?: string
-  erase_backend?: 'sttn' | 'lama' | 'opencv'
+  erase_backend?: 'sttn' | 'lama'
   erase_device?: 'auto' | 'mps' | 'cuda' | 'cpu'
   erase_max_load?: number
 }

@@ -125,7 +125,7 @@ class PipelineRequest:
         )
     )
     # Hard-subtitle erasure (subtitle-erase node) — in-tree inpainting.
-    erase_backend: str = "sttn"  # sttn | lama | opencv
+    erase_backend: str = "sttn"  # sttn | lama
     erase_device: str = "auto"  # auto | mps | cuda | cpu
     erase_mask_dilate_x: int = 12
     erase_mask_dilate_y: int = 8

@@ -18,7 +18,7 @@ import numpy as np
 
 from ..config import settings
 from ..core import planning
-from ..core.backends import InpaintBackend, LamaBackend, OpenCVBackend, SttnBackend
+from ..core.backends import InpaintBackend, LamaBackend, SttnBackend
 from ..core.masks import create_mask
 from ..core.video_io import FFmpegVideoWriter, FramePrefetcher, has_audio_stream, remux_audio, stream_copy
 from ..models.domain import EraseBackend, EraseResult, VideoInfo
@@ -89,9 +89,6 @@ class EraseService:
         reference_length: int,
         progress_callback: ProgressCallback | None,
     ) -> InpaintBackend:
-        if kind is EraseBackend.OPENCV:
-            return OpenCVBackend()
-
         from ..utils.weights import ensure_weight
 
         torch_device = resolve_device(device)

@@ -17,13 +17,10 @@ class EraseBackend(str, Enum):
                    (temporal context, best general quality). Needs torch + weights.
     - ``lama``   : big-LaMa single-frame inpainting (sharpest stills / animation).
                    Needs torch + the TorchScript weight.
-    - ``opencv`` : cv2.inpaint (Telea). Zero extra deps; the always-available
-                   fallback when torch or model weights are missing.
     """
 
     STTN = "sttn"
     LAMA = "lama"
-    OPENCV = "opencv"
 
 
 @dataclass(frozen=True, slots=True)

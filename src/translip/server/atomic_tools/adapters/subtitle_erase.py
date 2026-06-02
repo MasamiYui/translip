@@ -20,18 +20,14 @@ class PresetProfile:
     backend: str
     mask_dilate_x: int
     mask_dilate_y: int
-    neighbor_stride: int
-    reference_length: int
     max_load: int
 
 
 PRESETS: dict[SubtitleErasePreset, PresetProfile] = {
-    # fast: OpenCV Telea — instant, no model, good enough for simple backgrounds.
-    "fast": PresetProfile(backend="opencv", mask_dilate_x=12, mask_dilate_y=8, neighbor_stride=5, reference_length=10, max_load=50),
     # balanced: STTN video inpainting — temporal coherence, best general default.
-    "balanced": PresetProfile(backend="sttn", mask_dilate_x=12, mask_dilate_y=8, neighbor_stride=5, reference_length=10, max_load=50),
+    "balanced": PresetProfile(backend="sttn", mask_dilate_x=12, mask_dilate_y=8, max_load=50),
     # quality: big-LaMa single-frame — sharpest fills (animation/stills); heavier.
-    "quality": PresetProfile(backend="lama", mask_dilate_x=12, mask_dilate_y=8, neighbor_stride=5, reference_length=10, max_load=30),
+    "quality": PresetProfile(backend="lama", mask_dilate_x=12, mask_dilate_y=8, max_load=30),
 }
 
 
@@ -48,8 +44,6 @@ def resolve_preset_params(params: dict[str, Any]) -> dict[str, Any]:
         "device": params.get("device") or "auto",
         "mask_dilate_x": pick("mask_dilate_x", base.mask_dilate_x),
         "mask_dilate_y": pick("mask_dilate_y", base.mask_dilate_y),
-        "neighbor_stride": pick("neighbor_stride", base.neighbor_stride),
-        "reference_length": pick("reference_length", base.reference_length),
         "max_load": pick("max_load", base.max_load),
         "event_lead_frames": pick("event_lead_frames", 3),
         "event_trail_frames": pick("event_trail_frames", 8),
@@ -83,10 +77,6 @@ def build_eraser_command(
         str(int(resolved["mask_dilate_x"])),
         "--mask-dilate-y",
         str(int(resolved["mask_dilate_y"])),
-        "--neighbor-stride",
-        str(int(resolved["neighbor_stride"])),
-        "--reference-length",
-        str(int(resolved["reference_length"])),
         "--max-load",
         str(int(resolved["max_load"])),
     ]
@@ -321,8 +311,8 @@ register_tool(
         tool_id="subtitle-erase",
         name_zh="字幕擦除",
         name_en="Subtitle Erase",
-        description_zh="擦除视频中的硬字幕（fast=OpenCV / balanced=STTN / quality=LaMa 三档预设）",
-        description_en="Remove hardcoded subtitles from video (fast=OpenCV / balanced=STTN / quality=LaMa presets)",
+        description_zh="擦除视频中的硬字幕（balanced=STTN / quality=LaMa 两档预设）",
+        description_en="Remove hardcoded subtitles from video (balanced=STTN / quality=LaMa presets)",
         category="video",
         icon="Eraser",
         accept_formats=[".mp4", ".mkv", ".avi", ".mov", ".json"],

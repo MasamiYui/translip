@@ -31,15 +31,13 @@ def test_resolve_preset_params_maps_each_preset_to_its_profile() -> None:
         assert resolved["backend"] == profile.backend
         assert resolved["mask_dilate_x"] == profile.mask_dilate_x
         assert resolved["mask_dilate_y"] == profile.mask_dilate_y
-        assert resolved["neighbor_stride"] == profile.neighbor_stride
-        assert resolved["reference_length"] == profile.reference_length
         assert resolved["max_load"] == profile.max_load
         assert resolved["device"] == "auto"
 
 
 def test_resolve_preset_params_advanced_overrides_take_priority() -> None:
     resolved = resolve_preset_params({
-        "preset": "fast",
+        "preset": "balanced",
         "backend": "lama",
         "device": "cpu",
         "mask_dilate_x": 99,
@@ -50,7 +48,7 @@ def test_resolve_preset_params_advanced_overrides_take_priority() -> None:
     assert resolved["mask_dilate_x"] == 99
     assert resolved["max_load"] == 12
     # Untouched fields stay on the preset baseline.
-    assert resolved["neighbor_stride"] == PRESETS["fast"].neighbor_stride
+    assert resolved["mask_dilate_y"] == PRESETS["balanced"].mask_dilate_y
 
 
 # ---------------------------------------------------------------------------
@@ -115,14 +113,13 @@ def test_build_eraser_command_includes_preset_parameters(tmp_path: Path) -> None
     assert cmd[cmd.index("--backend") + 1] == "sttn"
     assert cmd[cmd.index("--device") + 1] == "auto"
     assert cmd[cmd.index("--max-load") + 1] == str(PRESETS["balanced"].max_load)
-    assert cmd[cmd.index("--neighbor-stride") + 1] == str(PRESETS["balanced"].neighbor_stride)
     assert cmd[cmd.index("--output-name") + 1] == "erased.mp4"
     assert cmd[cmd.index("--detection") + 1] == str(tmp_path / "detection.json")
 
 
 def test_build_eraser_command_appends_regions(tmp_path: Path) -> None:
     resolved = resolve_preset_params({
-        "preset": "fast",
+        "preset": "quality",
         "regions": [(0.0, 0.7, 1.0, 0.95)],
     })
     cmd = build_eraser_command(
@@ -132,7 +129,7 @@ def test_build_eraser_command_appends_regions(tmp_path: Path) -> None:
         detection_json=None,
         resolved=resolved,
     )
-    assert cmd[cmd.index("--backend") + 1] == "opencv"
+    assert cmd[cmd.index("--backend") + 1] == "lama"
     assert "--detection" not in cmd
     region_index = cmd.index("--region")
     assert cmd[region_index + 1] == "0.0000,0.7000,1.0000,0.9500"
@@ -180,7 +177,7 @@ def test_subtitle_erase_adapter_expands_reused_detection_before_command(tmp_path
         out_video.write_bytes(b"\x00" * 16)
 
     adapter = SubtitleEraseAdapter()
-    params = adapter.validate_params({"file_id": "x", "detection_file_id": "y", "preset": "fast"})
+    params = adapter.validate_params({"file_id": "x", "detection_file_id": "y", "preset": "balanced"})
     progress = _StubProgress()
     progress.is_cancelled = lambda: False  # type: ignore[attr-defined]
 
@@ -459,7 +456,7 @@ def test_subtitle_erase_adapter_run_auto_detects_when_detection_missing(
         return {"detection_file": detection_path.name}
 
     adapter = SubtitleEraseAdapter()
-    params = adapter.validate_params({"file_id": "x", "preset": "fast"})
+    params = adapter.validate_params({"file_id": "x", "preset": "balanced"})
     assert params["detection_file_id"] is None
 
     progress = _StubProgress()
@@ -530,7 +527,7 @@ def test_subtitle_erase_adapter_run_invokes_command_and_writes_report(tmp_path: 
     params = adapter.validate_params({
         "file_id": "x",
         "detection_file_id": "y",
-        "preset": "fast",
+        "preset": "balanced",
     })
 
     progress = _StubProgress()
@@ -546,17 +543,17 @@ def test_subtitle_erase_adapter_run_invokes_command_and_writes_report(tmp_path: 
         result = adapter.run(params, input_dir, output_dir, progress)
 
     assert result["erased_file"] == "erased.mp4"
-    assert result["preset"] == "fast"
-    assert result["backend"] == "opencv"
+    assert result["preset"] == "balanced"
+    assert result["backend"] == "sttn"
     assert result["detection_source"] == "uploaded"
     assert (output_dir / "report.json").exists()
     report = json.loads((output_dir / "report.json").read_text(encoding="utf-8"))
-    assert report["preset"] == "fast"
-    assert report["resolved_parameters"]["backend"] == "opencv"
+    assert report["preset"] == "balanced"
+    assert report["resolved_parameters"]["backend"] == "sttn"
     assert report["detection_source"] == "uploaded"
     cmd = captured["cmd"]
     assert "translip.erase.extract" in cmd
-    assert cmd[cmd.index("--backend") + 1] == "opencv"
+    assert cmd[cmd.index("--backend") + 1] == "sttn"
     assert captured["should_cancel"] is not None
 
 

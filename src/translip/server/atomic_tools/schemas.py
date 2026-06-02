@@ -169,7 +169,7 @@ class MuxingToolRequest(BaseModel):
     audio_bitrate: str = "192k"
 
 
-SubtitleErasePreset = Literal["fast", "balanced", "quality"]
+SubtitleErasePreset = Literal["balanced", "quality"]
 
 
 class SubtitleDetectToolRequest(BaseModel):
@@ -185,7 +185,7 @@ class SubtitleEraseToolRequest(BaseModel):
     file_id: str
     detection_file_id: str | None = None
     preset: SubtitleErasePreset = "balanced"
-    backend: Literal["sttn", "lama", "opencv"] | None = None
+    backend: Literal["sttn", "lama"] | None = None
     device: Literal["auto", "mps", "cuda", "cpu"] | None = None
     sample_interval: float | None = None
     regions: list[tuple[float, float, float, float]] | None = None
@@ -193,6 +193,4 @@ class SubtitleEraseToolRequest(BaseModel):
     mask_dilate_y: int | None = None
     event_lead_frames: int | None = None
     event_trail_frames: int | None = None
-    neighbor_stride: int | None = None
-    reference_length: int | None = None
     max_load: int | None = None
