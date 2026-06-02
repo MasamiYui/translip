@@ -24,6 +24,36 @@ def test_subtitle_frames_converts_box_order_and_drops_tall_thin() -> None:
     assert frames[3] == [(100, 340, 300, 360)]
 
 
+def test_subtitle_frames_unions_polygon_wider_than_median_box() -> None:
+    # The OCR median `box` under-sizes long lines; the wider `polygon` carries the
+    # true text extent, so the mask box must cover the polygon (not just the box).
+    events = [
+        {
+            "start_frame": 1,
+            "end_frame": 1,
+            "box": [521, 622, 756, 717],  # 235px-wide median box
+            "polygon": [[441, 655], [839, 655], [839, 690], [441, 690]],  # 398px text
+        }
+    ]
+    frames = planning.subtitle_frames(events, yx_diff_px=10)
+    # x spans the polygon (441..839); y unions the padded box band (622..717).
+    assert frames[1] == [(441, 839, 622, 717)]
+
+
+def test_subtitle_frames_keeps_box_when_wider_than_polygon() -> None:
+    # When the box is already wider (short line, padded box), unioning is a no-op.
+    events = [
+        {
+            "start_frame": 3,
+            "end_frame": 3,
+            "box": [400, 600, 720, 760],  # x 400..720, y 600..760
+            "polygon": [[450, 725], [560, 725], [560, 755], [450, 755]],  # x 450..560
+        }
+    ]
+    frames = planning.subtitle_frames(events, yx_diff_px=10)
+    assert frames[3] == [(400, 720, 600, 760)]
+
+
 def test_plan_ranges_groups_and_merges_to_reference_length() -> None:
     events = [{"start_frame": 10, "end_frame": 12, "box": [100, 300, 340, 360]}]
     frames = planning.subtitle_frames(events)
