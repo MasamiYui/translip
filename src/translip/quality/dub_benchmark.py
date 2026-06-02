@@ -312,11 +312,16 @@ def _metrics(
         "speaker_centroid_failed_count": speaker_centroid_failed_count,
         "speaker_centroid_review_count": speaker_centroid_review_count,
         "speaker_centroid_review_ratio": round(speaker_centroid_review_count / max(total_count, 1), 4),
+        "speaker_centroid_failed_ratio": round(speaker_centroid_failed_count / max(total_count, 1), 4),
         "speaker_centroid_median_similarity": _number(medians.get("speaker_similarity_centroid")),
         # Worst-of the two timbre opinions — drives the gate + score so either signal
-        # (matches a bad reference clip, or drifts from the character centroid) counts.
+        # (matches a bad reference clip, or drifts from the character centroid) counts,
+        # both for the audibly-off review band AND for outright mismatch (failed).
         "timbre_review_ratio": round(
             max(speaker_review_count, speaker_centroid_review_count) / max(total_count, 1), 4
+        ),
+        "timbre_failed_ratio": round(
+            max(speaker_failed_count, speaker_centroid_failed_count) / max(total_count, 1), 4
         ),
         "pacing_cutoff_count": pacing["cutoff"],
         "pacing_overcompressed_count": pacing["overcompressed"],
@@ -356,7 +361,7 @@ def _status_and_reasons(metrics: dict[str, Any]) -> tuple[str, list[str]]:
         reasons.append("audible_coverage_failed")
     if metrics["overall_failed_ratio"] > 0.05:
         reasons.append("upstream_failed_segments")
-    if metrics["speaker_failed_ratio"] > 0.15:
+    if metrics.get("timbre_failed_ratio", metrics["speaker_failed_ratio"]) > 0.15:
         reasons.append("speaker_similarity_failed")
     if metrics["intelligibility_failed_ratio"] > 0.10:
         reasons.append("intelligibility_failed")
@@ -391,7 +396,7 @@ def _score(metrics: dict[str, Any]) -> float:
     penalty += max(0.0, 1.0 - float(metrics["coverage_ratio"])) * 60.0
     penalty += min(30.0, float(metrics["audible_failed_count"]) * 10.0)
     penalty += float(metrics["overall_failed_ratio"]) * 20.0
-    penalty += float(metrics["speaker_failed_ratio"]) * 25.0
+    penalty += float(metrics.get("timbre_failed_ratio", metrics["speaker_failed_ratio"])) * 25.0
     penalty += float(metrics["intelligibility_failed_ratio"]) * 25.0
     penalty += min(20.0, float(metrics["character_review_count"]) * 4.0)
     penalty += min(25.0, float(metrics["character_blocked_count"]) * 10.0)
@@ -431,7 +436,7 @@ def _gates(metrics: dict[str, Any]) -> list[dict[str, Any]]:
             "label": "Speaker / timbre consistency",
             "status": (
                 "failed"
-                if metrics["speaker_failed_ratio"] > 0.15
+                if metrics.get("timbre_failed_ratio", metrics["speaker_failed_ratio"]) > 0.15
                 else "review"
                 if (
                     metrics.get("timbre_review_ratio", 0.0) > 0.30

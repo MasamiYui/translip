@@ -300,6 +300,11 @@ def test_dub_qa_timbre_from_centroid(tmp_path: Path):
     assert "timbre_mismatch" in rows["c1"]["issue_tags"]
     assert "timbre_review" in rows["c2"]["issue_tags"]
     assert rows["c1"]["speaker_similarity_centroid"] == 0.10
+    # The centroid mismatch (P1 in the QA table) must also move the benchmark: it
+    # drives timbre_failed_ratio, the score penalty, and the gate to "failed".
+    sc = result.report["scorecard"]
+    assert sc["metrics"]["timbre_failed_ratio"] == 0.5
+    assert next(g for g in sc["gates"] if g["id"] == "speaker_consistency")["status"] == "failed"
 
 
 def test_dub_qa_flags_buried_dub(tmp_path: Path):
