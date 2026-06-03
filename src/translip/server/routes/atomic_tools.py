@@ -97,16 +97,20 @@ def delete_job(
 
 
 @router.post("/jobs/{job_id}/rerun", response_model=JobResponse, summary="重跑作业")
-def rerun_job(job_id: Annotated[str, Path(description="作业 ID")]) -> JobResponse:
+async def rerun_job(job_id: Annotated[str, Path(description="作业 ID")]) -> JobResponse:
     """以原作业的参数重新创建并启动一个原子工具作业，返回新作业信息。"""
     try:
-        return job_manager.rerun_job(job_id)
+        job = job_manager.rerun_job(job_id)
     except KeyError as exc:
         raise HTTPException(status_code=404, detail="Job not found") from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=429, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    # Like run_tool: create_job only writes the pending row; execution must be
+    # scheduled explicitly or the reran job sits in "pending" forever.
+    asyncio.get_running_loop().create_task(job_manager.execute_job(job.job_id))
+    return job
 
 
 @router.post("/jobs/{job_id}/stop", summary="停止作业")
