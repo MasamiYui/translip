@@ -803,8 +803,9 @@ const zhMessages = {
       maxLoad: '单批最大帧数',
       maskDilateX: '蒙版水平膨胀',
       maskDilateY: '蒙版垂直膨胀',
-      neighborStride: '相邻帧步长',
-      referenceLength: '参考帧间隔',
+      neighborStride: '相邻帧步长（仅 STTN）',
+      referenceLength: '参考帧间隔（区间合并；STTN 还作参考帧采样）',
+      backendFollowPreset: '跟随预设',
     },
     options: {
       mode: {
@@ -2300,8 +2301,9 @@ const enMessages: LocaleMessages = {
       maxLoad: 'Max Frames / Batch',
       maskDilateX: 'Mask Dilate X',
       maskDilateY: 'Mask Dilate Y',
-      neighborStride: 'Neighbor Stride',
-      referenceLength: 'Reference Length',
+      neighborStride: 'Neighbor Stride (STTN only)',
+      referenceLength: 'Reference Length (range merge; also STTN sampling)',
+      backendFollowPreset: 'Follow preset',
     },
     options: {
       mode: {

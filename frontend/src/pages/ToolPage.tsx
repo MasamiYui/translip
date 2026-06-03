@@ -514,6 +514,9 @@ function renderControls(
 
   if (toolId === 'subtitle-erase') {
     const preset = String(params.preset ?? 'balanced')
+    const backendRaw = String(params.backend ?? '')
+    const effectiveBackend = backendRaw || (preset === 'quality' ? 'lama' : 'sttn')
+    const showNeighborStride = effectiveBackend !== 'lama'
     return (
       <div className="space-y-4">
         <div>
@@ -548,8 +551,12 @@ function renderControls(
           <div className="mt-3 grid gap-4 md:grid-cols-3">
             <SelectField
               label={atomicTools.fields.backend}
-              value={String(params.backend ?? '')}
-              options={['', 'sttn', 'lama']}
+              value={backendRaw}
+              options={[
+                { value: '', label: atomicTools.fields.backendFollowPreset },
+                'sttn',
+                'lama',
+              ]}
               onChange={value => setField('backend', value)}
             />
             <SelectField
@@ -576,12 +583,14 @@ function renderControls(
               value={String(params.mask_dilate_y ?? '')}
               onChange={value => setField('mask_dilate_y', value === '' ? '' : Number(value))}
             />
-            <TextField
-              label={atomicTools.fields.neighborStride}
-              type="number"
-              value={String(params.neighbor_stride ?? '')}
-              onChange={value => setField('neighbor_stride', value === '' ? '' : Number(value))}
-            />
+            {showNeighborStride && (
+              <TextField
+                label={atomicTools.fields.neighborStride}
+                type="number"
+                value={String(params.neighbor_stride ?? '')}
+                onChange={value => setField('neighbor_stride', value === '' ? '' : Number(value))}
+              />
+            )}
             <TextField
               label={atomicTools.fields.referenceLength}
               type="number"
