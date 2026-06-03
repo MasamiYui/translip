@@ -176,9 +176,12 @@ def _run_pipeline_in_thread(task_id: str) -> None:
             task.status = pipeline_status
             if pipeline_status in ("succeeded", "partial_success"):
                 task.overall_progress = 100.0
-            task.finished_at = datetime.now()
+            now = datetime.now()
+            task.finished_at = now
+            if task.started_at is not None:
+                task.elapsed_sec = round((now - task.started_at).total_seconds(), 3)
             task.manifest_path = str(result.manifest_path) if result.manifest_path else None
-            task.updated_at = datetime.now()
+            task.updated_at = now
             session.add(
                 TaskLog(
                     task_id=task_id,
@@ -198,8 +201,11 @@ def _run_pipeline_in_thread(task_id: str) -> None:
             if task:
                 task.status = "failed"
                 task.error_message = str(exc)
-                task.finished_at = datetime.now()
-                task.updated_at = datetime.now()
+                now = datetime.now()
+                task.finished_at = now
+                if task.started_at is not None:
+                    task.elapsed_sec = round((now - task.started_at).total_seconds(), 3)
+                task.updated_at = now
                 session.add(TaskLog(task_id=task_id, action="failed", detail=str(exc)[:500]))
                 session.commit()
 
@@ -318,8 +324,15 @@ def _sync_status_to_db(task_id: str, status_path: Path) -> None:
                 break
             task.overall_progress = payload.get("overall_progress_percent", task.overall_progress)
             task.current_stage = payload.get("current_stage", task.current_stage)
-            if payload.get("status") in ("succeeded", "partial_success", "failed"):
-                task.status = payload["status"]
+            payload_status = payload.get("status")
+            if payload_status in ("succeeded", "partial_success", "failed"):
+                task.status = payload_status
+                if task.finished_at is None:
+                    task.finished_at = datetime.now()
+                if task.elapsed_sec is None and task.started_at is not None:
+                    task.elapsed_sec = round(
+                        (task.finished_at - task.started_at).total_seconds(), 3
+                    )
             task.updated_at = datetime.now()
 
             for stage_data in payload.get("nodes", payload.get("stages", [])):
@@ -399,8 +412,11 @@ class TaskManager:
             return False
         task.status = "failed"
         task.error_message = "Stopped by user"
-        task.finished_at = datetime.now()
-        task.updated_at = datetime.now()
+        now = datetime.now()
+        task.finished_at = now
+        if task.started_at is not None:
+            task.elapsed_sec = round((now - task.started_at).total_seconds(), 3)
+        task.updated_at = now
         session.add(TaskLog(task_id=task_id, action="stopped"))
         session.commit()
         return True

@@ -191,6 +191,8 @@ function TaskRow({ task, selected, onSelect, onDelete, onClick }: {
 }) {
   const { formatDuration, formatRelativeTime, getLanguageLabel, t } = useI18n()
 
+  const elapsedSec = computeElapsedSec(task)
+
   return (
     <tr
       className={`border-b border-[#f9fafb] last:border-0 hover:bg-[#fafafa] cursor-pointer group transition-colors ${
@@ -224,7 +226,7 @@ function TaskRow({ task, selected, onSelect, onDelete, onClick }: {
         {getLanguageLabel(task.source_lang)} → {getLanguageLabel(task.target_lang)}
       </td>
       <td className="px-4 py-3.5 text-[#6b7280] tabular-nums" onClick={onClick}>
-        {formatDuration(task.elapsed_sec)}
+        {formatDuration(elapsedSec)}
       </td>
       <td className="px-4 py-3.5 text-[#9ca3af]" onClick={onClick}>
         {formatRelativeTime(task.created_at)}
@@ -240,4 +242,19 @@ function TaskRow({ task, selected, onSelect, onDelete, onClick }: {
       </td>
     </tr>
   )
+}
+
+function computeElapsedSec(task: Task): number | undefined {
+  if (typeof task.elapsed_sec === 'number') return task.elapsed_sec
+  if (!task.started_at) return undefined
+  const startMs = new Date(task.started_at).getTime()
+  if (Number.isNaN(startMs)) return undefined
+  const endMs = task.finished_at
+    ? new Date(task.finished_at).getTime()
+    : task.status === 'running'
+      ? Date.now()
+      : NaN
+  if (Number.isNaN(endMs)) return undefined
+  const diff = (endMs - startMs) / 1000
+  return diff >= 0 ? diff : undefined
 }
