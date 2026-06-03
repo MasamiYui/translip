@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 348" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ea" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="esh2" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .t1{font-size:13px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="348" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">精简基座 + 可选 extra：用到才装、用到才 import</text>
+  <text x="32" y="66" class="s" font-size="13.5">基础安装只有 18 个依赖；重而可选的能力装进 extra，并且全部 lazy import。</text>
+
+  <!-- base kernel -->
+  <rect x="48" y="132" width="230" height="132" rx="14" fill="#eef2ff" stroke="#6366f1" stroke-width="2" filter="url(#esh2)"/>
+  <text x="163" y="170" text-anchor="middle" class="t1" font-size="15" fill="#4338ca">基础安装</text>
+  <text x="163" y="196" text-anchor="middle" class="t2">18 个依赖 · 轻量内核</text>
+  <text x="163" y="220" text-anchor="middle" class="t2" fill="#475569" font-weight="600">整条主流水线都能跑</text>
+  <text x="163" y="244" text-anchor="middle" class="mono" fill="#6366f1">uv sync</text>
+
+  <!-- optional extras -->
+  <rect x="540" y="120" width="372" height="58" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.6" stroke-dasharray="7 5"/>
+  <text x="560" y="146" class="t1" fill="#475569">extra: ocr</text>
+  <text x="560" y="166" class="t2">PaddleOCR 一整套（硬字幕检测）</text>
+  <text x="892" y="153" text-anchor="end" class="mono" fill="#94a3b8">--extra ocr</text>
+
+  <rect x="540" y="190" width="372" height="58" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.6" stroke-dasharray="7 5"/>
+  <text x="560" y="216" class="t1" fill="#475569">extra: erase</text>
+  <text x="560" y="236" class="t2">cv2 栈（字幕擦除 · STTN / big-LaMa）</text>
+  <text x="892" y="223" text-anchor="end" class="mono" fill="#94a3b8">--extra erase</text>
+
+  <rect x="540" y="260" width="372" height="50" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.6" stroke-dasharray="7 5"/>
+  <text x="560" y="284" class="t1" fill="#475569">extra: dev</text>
+  <text x="560" y="301" class="t2">pytest 等（测试）</text>
+  <text x="892" y="289" text-anchor="end" class="mono" fill="#94a3b8">--extra dev</text>
+
+  <!-- dashed connectors -->
+  <path d="M278,168 L408,168 L408,149 L536,149" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#ea)"/>
+  <path d="M278,198 L408,198 L408,219 L536,219" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#ea)"/>
+  <path d="M278,228 L380,228 L380,285 L536,285" stroke="#94a3b8" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#ea)"/>
+  <text x="413" y="120" class="t2" fill="#94a3b8">可选 · lazy import</text>
+
+  <text x="32" y="332" class="s" font-size="12.5">没装也不影响其余流水线；只有真正运行到那一步，才会给你一个清晰的"缺依赖"报错——而不是启动就背着一身重量。</text>
+</svg>

@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 372" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ga" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="gsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#gsh);}
+      .t1{font-size:12.5px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:10.5px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="372" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">上云：默认关、需主动扳开、缺钥匙就当场报错</text>
+  <text x="32" y="66" class="s" font-size="13.5">选翻译后端：默认 local-m2m100 全程本机；切到 deepseek 才走这道闸。</text>
+
+  <!-- start -->
+  <rect class="box" x="32" y="156" width="140" height="74" rx="12"/>
+  <rect x="32" y="156" width="6" height="74" rx="3" fill="#64748b"/>
+  <text x="102" y="190" class="t1" text-anchor="middle">选翻译后端</text>
+  <text x="102" y="210" class="t2" text-anchor="middle">--translation-backend</text>
+
+  <!-- default branch: local -->
+  <path class="ln" d="M172,180 L196,180 L196,124 L218,124" marker-end="url(#ga)"/>
+  <text x="206" y="116" class="t2" fill="#0f766e" font-weight="700">默认</text>
+  <rect class="box" x="220" y="98" width="186" height="56" rx="12"/>
+  <rect x="220" y="98" width="6" height="56" rx="3" fill="#14b8a6"/>
+  <text x="313" y="122" class="t1" text-anchor="middle" fill="#0f766e">local-m2m100</text>
+  <text x="313" y="140" class="t2" text-anchor="middle">offline · no network</text>
+
+  <path class="ln" d="M406,126 L430,126" marker-end="url(#ga)"/>
+  <rect x="432" y="98" width="206" height="56" rx="12" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.5"/>
+  <text x="535" y="122" text-anchor="middle" font-size="12.5" font-weight="700" fill="#047857">全程本机 · 不上网</text>
+  <text x="535" y="140" text-anchor="middle" font-size="10.5" fill="#059669">默认路径</text>
+
+  <!-- opt-in branch: deepseek -->
+  <path class="ln" d="M172,206 L196,206 L196,262 L218,262" marker-end="url(#ga)"/>
+  <text x="198" y="282" class="t2" fill="#4338ca" font-weight="700">主动扳开</text>
+  <rect class="box" x="220" y="234" width="186" height="56" rx="12"/>
+  <rect x="220" y="234" width="6" height="56" rx="3" fill="#6366f1"/>
+  <text x="313" y="258" class="t1" text-anchor="middle" fill="#4338ca">deepseek</text>
+  <text x="313" y="276" class="mono t2" text-anchor="middle">requires_network=True</text>
+
+  <!-- gate -->
+  <path class="ln" d="M406,262 L430,262" marker-end="url(#ga)"/>
+  <rect class="box" x="432" y="234" width="150" height="56" rx="12"/>
+  <rect x="432" y="234" width="6" height="56" rx="3" fill="#f59e0b"/>
+  <text x="510" y="266" class="t1" text-anchor="middle">有 API Key？</text>
+
+  <!-- outcomes -->
+  <path class="ln" d="M582,250 L606,250 L606,224 L630,224" marker-end="url(#ga)"/>
+  <text x="600" y="216" class="t2" fill="#059669" font-weight="700">有</text>
+  <rect x="632" y="198" width="240" height="50" rx="10" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+  <text x="752" y="219" text-anchor="middle" font-size="12.5" font-weight="700" fill="#475569">上云翻译</text>
+  <text x="752" y="236" text-anchor="middle" font-size="10.5" fill="#94a3b8">这一步、且仅这一步离开本机</text>
+
+  <path class="ln" d="M582,274 L606,274 L606,300 L630,300" marker-end="url(#ga)"/>
+  <text x="600" y="316" class="t2" fill="#b45309" font-weight="700">无</text>
+  <rect x="632" y="276" width="240" height="50" rx="10" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
+  <text x="752" y="297" text-anchor="middle" font-size="12" font-weight="700" fill="#b45309">BackendUnavailableError</text>
+  <text x="752" y="314" text-anchor="middle" font-size="10.5" fill="#d97706">当场报错 · 不偷偷上传、不静默降级</text>
+
+  <text x="32" y="356" class="s" font-size="12.5">数据要离开本机，永远是一个显式、可见的动作——不会藏在默认值里，也不会静默发生。</text>
+</svg>

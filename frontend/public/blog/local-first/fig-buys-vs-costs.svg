@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 400" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ba2" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="bsh2" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#bsh2);}
+      .row{font-size:12.5px;fill:#334155;}
+      .sub{font-size:10.5px;fill:#94a3b8;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="400" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">本地优先：买到的，与它的代价</text>
+  <text x="32" y="66" class="s" font-size="13.5">决策记录不假装没有代价——把它摊开，再说清怎么压到可接受。</text>
+
+  <!-- panel: buys -->
+  <rect class="box" x="32" y="100" width="288" height="266" rx="12"/>
+  <rect x="32" y="100" width="6" height="266" rx="3" fill="#14b8a6"/>
+  <text x="54" y="130" class="h" font-size="14.5" fill="#0f766e">✓ 买到了什么</text>
+  <g>
+    <circle cx="58" cy="166" r="4" fill="#059669"/><text x="74" y="170" class="row" font-weight="700">隐私</text><text x="120" y="170" class="row">素材不出本机</text>
+    <circle cx="58" cy="206" r="4" fill="#059669"/><text x="74" y="210" class="row" font-weight="700">离线可跑</text><text x="146" y="210" class="row">没网也能跑全程</text>
+    <circle cx="58" cy="246" r="4" fill="#059669"/><text x="74" y="250" class="row" font-weight="700">不计费</text><text x="128" y="250" class="row">没有按分钟账单</text>
+    <circle cx="58" cy="286" r="4" fill="#059669"/><text x="74" y="290" class="row" font-weight="700">可复现</text><text x="128" y="290" class="row">本地权重钉死</text>
+    <text x="74" y="312" class="sub">云端模型会在你脚下变</text>
+  </g>
+
+  <!-- panel: costs -->
+  <rect class="box" x="340" y="100" width="288" height="266" rx="12"/>
+  <rect x="340" y="100" width="6" height="266" rx="3" fill="#f59e0b"/>
+  <text x="362" y="130" class="h" font-size="14.5" fill="#b45309">！ 代价</text>
+  <g>
+    <circle cx="366" cy="172" r="4" fill="#d97706"/><text x="382" y="176" class="row" font-weight="700">模型有体积</text><text x="382" y="196" class="sub">第一次要下载、占盘</text>
+    <circle cx="366" cy="230" r="4" fill="#d97706"/><text x="382" y="234" class="row" font-weight="700">本机更慢</text><text x="382" y="254" class="sub">CPU / MPS 不及云端 GPU</text>
+    <circle cx="366" cy="288" r="4" fill="#d97706"/><text x="382" y="292" class="row" font-weight="700">你得管权重</text><text x="382" y="312" class="sub">哪个缺、去哪下、放哪</text>
+  </g>
+
+  <!-- arrow costs -> mitigations -->
+  <path d="M628,233 L652,233" stroke="#94a3b8" stroke-width="1.6" fill="none" marker-end="url(#ba2)"/>
+
+  <!-- panel: mitigations -->
+  <rect class="box" x="654" y="100" width="274" height="266" rx="12"/>
+  <rect x="654" y="100" width="6" height="266" rx="3" fill="#6366f1"/>
+  <text x="676" y="130" class="h" font-size="14.5" fill="#4338ca">→ 怎么压下去</text>
+  <g>
+    <circle cx="680" cy="172" r="4" fill="#6366f1"/><text x="696" y="176" class="row" font-weight="700">为笔记本调的默认值</text><text x="696" y="196" class="sub">MPS 回退 · CDX23 overlap 0.5</text>
+    <circle cx="680" cy="230" r="4" fill="#6366f1"/><text x="696" y="234" class="row" font-weight="700">精简基座 + lazy extra</text><text x="696" y="254" class="sub">18 个依赖 · 重的用到才装</text>
+    <circle cx="680" cy="288" r="4" fill="#6366f1"/><text x="696" y="292" class="row" font-weight="700">一键模型管理</text><text x="696" y="312" class="sub">检测 / 下载到本地缓存</text>
+  </g>
+
+  <text x="32" y="390" class="s" font-size="12">本地优先的代价是真的；它被一整套"为本地而调"的默认值和可选依赖压到了可接受。</text>
+</svg>
