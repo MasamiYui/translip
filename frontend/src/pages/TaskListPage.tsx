@@ -6,8 +6,11 @@ import { tasksApi } from '../api/tasks'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { StatusBadge } from '../components/shared/StatusBadge'
 import { ProgressBar } from '../components/shared/ProgressBar'
+import { Pagination } from '../components/shared/Pagination'
 import type { Task } from '../types'
 import { useI18n } from '../i18n/useI18n'
+
+const DEFAULT_PAGE_SIZE = 20
 
 export function TaskListPage() {
   const { t } = useI18n()
@@ -16,16 +19,17 @@ export function TaskListPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const { data, isLoading } = useQuery({
-    queryKey: ['tasks', statusFilter, search, page],
+    queryKey: ['tasks', statusFilter, search, page, pageSize],
     queryFn: () =>
       tasksApi.list({
         status: statusFilter === 'all' ? undefined : statusFilter,
         search: search || undefined,
         page,
-        size: 20,
+        size: pageSize,
       }),
     refetchInterval: 5000,
   })
@@ -37,7 +41,8 @@ export function TaskListPage() {
 
   const items = data?.items ?? []
   const total = data?.total ?? 0
-  const pageCount = Math.ceil(total / 20)
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const safePage = Math.min(page, pageCount)
   const statusOptions = [
     { value: 'all', label: t.tasks.filters.all },
     { value: 'running', label: t.tasks.filters.running },
@@ -160,24 +165,17 @@ export function TaskListPage() {
       </div>
 
       {/* Pagination */}
-      {pageCount > 1 && (
-        <div className="flex items-center justify-between text-sm text-[#6b7280]">
-          <span>{t.tasks.totalCount(total)}</span>
-          <div className="flex gap-1">
-            {Array.from({ length: pageCount }, (_, i) => i + 1).map(p => (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={`h-8 w-8 rounded-lg text-xs font-semibold transition-all ${
-                  p === page ? 'bg-[#3b5bdb] text-white' : 'text-[#6b7280] hover:bg-[#f3f4f6]'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      <Pagination
+        page={safePage}
+        pageCount={pageCount}
+        onChange={setPage}
+        total={total}
+        pageSize={pageSize}
+        onPageSizeChange={(size) => {
+          setPageSize(size)
+          setPage(1)
+        }}
+      />
     </PageContainer>
   )
 }

@@ -16,6 +16,10 @@ const zhMessages = {
     close: '关闭',
     retry: '重试',
     notAvailable: '—',
+    totalCount: (count: number) => `共 ${count} 条`,
+    prevPage: '上一页',
+    nextPage: '下一页',
+    perPage: (count: number) => `每页 ${count} 条`,
   },
   nav: {
     dashboard: '仪表盘',
@@ -1500,6 +1504,10 @@ const enMessages: LocaleMessages = {
     close: 'Close',
     retry: 'Retry',
     notAvailable: '—',
+    totalCount: (count: number) => `Total ${count}`,
+    prevPage: 'Previous',
+    nextPage: 'Next',
+    perPage: (count: number) => `${count} / page`,
   },
   nav: {
     dashboard: 'Dashboard',

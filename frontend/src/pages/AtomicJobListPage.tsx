@@ -4,16 +4,21 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, Search } from 'lucide-react'
 import { atomicToolsApi } from '../api/atomic-tools'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
+import { Pagination } from '../components/shared/Pagination'
 import { ProgressBar } from '../components/shared/ProgressBar'
 import { StatusBadge } from '../components/shared/StatusBadge'
 import { useI18n } from '../i18n/useI18n'
 import type { AtomicJobRead } from '../types/atomic-tools'
+
+const DEFAULT_PAGE_SIZE = 20
 
 export function AtomicJobListPage() {
   const { t, formatDuration, formatRelativeTime } = useI18n()
   const [statusFilter, setStatusFilter] = useState('all')
   const [toolFilter, setToolFilter] = useState('all')
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
 
   const { data: tools = [] } = useQuery({
     queryKey: ['atomic-tools'],
@@ -21,13 +26,14 @@ export function AtomicJobListPage() {
     staleTime: 30_000,
   })
   const { data } = useQuery({
-    queryKey: ['atomic-tool-jobs', statusFilter, toolFilter, search],
+    queryKey: ['atomic-tool-jobs', statusFilter, toolFilter, search, page, pageSize],
     queryFn: () =>
       atomicToolsApi.listJobs({
         status: statusFilter === 'all' ? undefined : statusFilter,
         tool_id: toolFilter === 'all' ? undefined : toolFilter,
         search: search.trim() || undefined,
-        size: 50,
+        page,
+        size: pageSize,
       }),
     refetchInterval: 3000,
   })
@@ -37,6 +43,9 @@ export function AtomicJobListPage() {
   }, [tools])
 
   const jobs = data?.items ?? []
+  const total = data?.total ?? 0
+  const pageCount = Math.max(1, Math.ceil(total / pageSize))
+  const safePage = Math.min(page, pageCount)
   const statusOptions = [
     { value: 'all', label: t.tasks.filters.all },
     { value: 'running', label: t.status.running },
@@ -65,7 +74,7 @@ export function AtomicJobListPage() {
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#9ca3af]" size={13} />
           <input
             value={search}
-            onChange={event => setSearch(event.target.value)}
+            onChange={event => { setSearch(event.target.value); setPage(1) }}
             placeholder={t.atomicJobs.filters.searchPlaceholder}
             className="w-full rounded-lg border border-[#e5e7eb] bg-white py-2 pl-9 pr-3 text-sm text-[#374151] transition-all focus:border-[#3b5bdb] focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20"
           />
@@ -75,7 +84,7 @@ export function AtomicJobListPage() {
             <button
               key={option.value}
               type="button"
-              onClick={() => setStatusFilter(option.value)}
+              onClick={() => { setStatusFilter(option.value); setPage(1) }}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
                 statusFilter === option.value
                   ? 'bg-[#3b5bdb] text-white shadow-sm'
@@ -89,7 +98,7 @@ export function AtomicJobListPage() {
         <select
           aria-label={t.atomicJobs.columns.tool}
           value={toolFilter}
-          onChange={event => setToolFilter(event.target.value)}
+          onChange={event => { setToolFilter(event.target.value); setPage(1) }}
           className="rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-semibold text-[#6b7280] outline-none transition-all hover:bg-[#f9fafb] hover:text-[#374151] focus:border-[#3b5bdb] focus:ring-2 focus:ring-[#3b5bdb]/20"
         >
           <option value="all">{t.atomicJobs.filters.allTools}</option>
@@ -132,7 +141,17 @@ export function AtomicJobListPage() {
         )}
       </div>
 
-      <div className="text-xs font-semibold text-[#9ca3af]">{t.atomicJobs.totalCount(data?.total ?? 0)}</div>
+      <Pagination
+        page={safePage}
+        pageCount={pageCount}
+        onChange={setPage}
+        total={total}
+        pageSize={pageSize}
+        onPageSizeChange={(size) => {
+          setPageSize(size)
+          setPage(1)
+        }}
+      />
     </PageContainer>
   )
 }
