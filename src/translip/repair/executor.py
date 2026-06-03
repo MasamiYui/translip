@@ -498,14 +498,11 @@ def _backend_for(
     cached = backend_cache.get(backend_name)
     if cached is not None:
         return cached
-    if backend_name == "moss-tts-nano-onnx":
-        backend: TTSBackend = MossTtsNanoOnnxBackend(requested_device=request.device)
-    elif backend_name == "qwen3tts":
-        backend = QwenTTSBackend(requested_device=request.device)
-    elif backend_name == "voxcpm2":
-        backend = VoxCPMTTSBackend(requested_device=request.device)
-    else:
+    if backend_name not in TTS_BACKENDS:
         raise TranslipError(f"Unsupported repair TTS backend: {backend_name}")
+    # Dispatch through the shared registry (lazy-imports the backend impl) rather
+    # than referencing backend classes that aren't imported here.
+    backend: TTSBackend = TTS_BACKENDS.create(backend_name, device=request.device)
     backend_cache[backend_name] = backend
     return backend
 

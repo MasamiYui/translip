@@ -628,3 +628,86 @@ def test_run_dub_repair_blocks_pitch_class_drift_against_character_ledger(tmp_pa
     assert attempts["stats"]["selected_count"] == 0
     assert selected["stats"]["selected_count"] == 0
     assert manual["stats"]["manual_required_count"] == 1
+
+
+def test_build_repair_plan_force_includes_qa_flagged_segment() -> None:
+    """QA-bridge: a segment task-d passed is still queued when force-included.
+
+    Mirrors the auto-fix path where the dub-QA flags a defect on the final mix
+    that task-d's own metrics missed; without force-inclusion it would never be
+    attempted by the repair tournament.
+    """
+    from translip.repair.planner import build_repair_plan
+
+    translation = {
+        "segments": [
+            {
+                "segment_id": "seg-ok",
+                "speaker_id": "spk_0",
+                "source_text": "你好",
+                "target_text": "Hello there.",
+                "start": 0.0,
+                "end": 2.0,
+                "duration": 2.0,
+                "qa_flags": [],
+            }
+        ]
+    }
+    report = {
+        "speaker_id": "spk_0",
+        "reference": {"path": "/ref.wav"},
+        "segments": [
+            {
+                "segment_id": "seg-ok",
+                "speaker_id": "spk_0",
+                "target_text": "Hello there.",
+                "source_duration_sec": 2.0,
+                "generated_duration_sec": 2.0,
+                "duration_ratio": 1.0,
+                "duration_status": "passed",
+                "speaker_similarity": 0.8,
+                "speaker_status": "passed",
+                "text_similarity": 1.0,
+                "intelligibility_status": "passed",
+                "overall_status": "passed",
+                "audio_path": "/seg-ok.wav",
+                "reference_path": "/ref.wav",
+            }
+        ],
+    }
+    profiles = {
+        "profiles": [
+            {
+                "profile_id": "p0",
+                "speaker_id": "spk_0",
+                "reference_clips": [
+                    {"path": "/ref.wav", "text": "reference text long enough", "duration": 9.0, "rms": 0.05}
+                ],
+            }
+        ]
+    }
+
+    base = build_repair_plan(
+        translation_payload=translation,
+        profiles_payload=profiles,
+        task_d_reports=[report],
+        target_lang="en",
+        glossary=[],
+    )
+    assert base["stats"]["repair_count"] == 0  # passing segment isn't queued
+
+    bridged = build_repair_plan(
+        translation_payload=translation,
+        profiles_payload=profiles,
+        task_d_reports=[report],
+        target_lang="en",
+        glossary=[],
+        include_segment_ids={"seg-ok"},
+    )
+    assert bridged["stats"]["repair_count"] == 1
+    item = bridged["items"][0]
+    assert item["segment_id"] == "seg-ok"
+    assert item["failure_reasons"] == ["qa_flagged"]
+    assert item["queue_class"] == "risk_only"
+    assert "regenerate_candidates" in item["suggested_actions"]
+    assert "switch_reference_audio" in item["suggested_actions"]

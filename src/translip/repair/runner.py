@@ -21,6 +21,7 @@ class RepairPlanRequest:
     target_lang: str = "en"
     glossary_path: Path | str | None = None
     max_items: int | None = None
+    include_segment_ids: list[str] | None = None
 
     def normalized(self) -> "RepairPlanRequest":
         return RepairPlanRequest(
@@ -38,6 +39,7 @@ class RepairPlanRequest:
                 else None
             ),
             max_items=self.max_items,
+            include_segment_ids=list(self.include_segment_ids) if self.include_segment_ids else None,
         )
 
 
@@ -78,6 +80,7 @@ def plan_dub_repair(request: RepairPlanRequest) -> RepairPlanResult:
         target_lang=normalized.target_lang,
         glossary=glossary,
         max_items=normalized.max_items,
+        include_segment_ids=set(normalized.include_segment_ids) if normalized.include_segment_ids else None,
     )
 
     repair_queue = {

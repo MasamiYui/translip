@@ -240,9 +240,32 @@ export function taskInputFileUrl(taskId: string): string {
   return `/api/tasks/${encodeURIComponent(taskId)}/input-file`
 }
 
+export interface AutoFixResult {
+  before_score?: number | null
+  after_score?: number | null
+  before_problem_count?: number | null
+  after_problem_count?: number | null
+  repaired_count?: number
+  requested_count?: number
+  tts_backends?: string[]
+  device?: string
+  rolled_back?: boolean
+  new_analysis_id?: string | null
+}
+
+export interface AutoFixJob extends Omit<Analysis, 'result'> {
+  result?: AutoFixResult | null
+}
+
 export const evaluationApi = {
   list: (taskId: string) =>
     api.get<Analysis[]>(`/api/tasks/${taskId}/analyses`).then(r => r.data),
+
+  autoFix: (taskId: string, body: { segment_ids?: string[]; tts_backends?: string[] }) =>
+    api.post<AutoFixJob>(`/api/tasks/${taskId}/auto-fix`, body).then(r => r.data),
+
+  getAutoFix: (taskId: string, jobId: string) =>
+    api.get<AutoFixJob>(`/api/tasks/${taskId}/auto-fix/${jobId}`).then(r => r.data),
 
   get: (taskId: string, analysisId: string) =>
     api.get<Analysis>(`/api/tasks/${taskId}/analyses/${analysisId}`).then(r => r.data),

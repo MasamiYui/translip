@@ -428,6 +428,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     repair_parser.add_argument("--glossary", default=None, help="Optional glossary JSON path")
     repair_parser.add_argument("--max-items", type=int, default=None, help="Optional cap for highest-priority repair items")
+    repair_parser.add_argument(
+        "--include-segment-id",
+        action="append",
+        dest="include_segment_ids",
+        default=None,
+        help="Force-queue this segment even if Task D passed it (e.g. a dub-QA-only defect); may be repeated",
+    )
 
     repair_run_parser = subparsers.add_parser(
         "run-dub-repair",
@@ -1054,6 +1061,7 @@ def main(argv: list[str] | None = None) -> int:
             target_lang=args.target_lang,
             glossary_path=args.glossary,
             max_items=args.max_items,
+            include_segment_ids=args.include_segment_ids,
         )
         result = plan_dub_repair(request)
         print(f"repair_queue={result.artifacts.repair_queue_path}")

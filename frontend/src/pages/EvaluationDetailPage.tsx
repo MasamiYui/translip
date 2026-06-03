@@ -72,7 +72,9 @@ export function EvaluationDetailPage() {
     },
   })
 
-  const latest = analysesQuery.data?.[0]
+  // The report view tracks the latest dub-qa; auto-fix rows live in the same
+  // table but must not hijack the report (they have no dub-qa report shape).
+  const latest = analysesQuery.data?.find(a => a.analysis_type === 'dub-qa')
 
   const reportQuery = useQuery({
     queryKey: ['analysis-report', taskId, latest?.id],
@@ -187,6 +189,10 @@ export function EvaluationDetailPage() {
               onFocusSegments={(ids, label) => {
                 setFocus({ ids, label })
                 document.getElementById('eval-segment-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }}
+              onApplied={() => {
+                setFocus(null)
+                queryClient.invalidateQueries({ queryKey: ['analyses', taskId] })
               }}
             />
           </div>

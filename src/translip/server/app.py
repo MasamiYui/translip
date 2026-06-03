@@ -12,6 +12,7 @@ from . import cache_manager
 from .database import init_db
 from .atomic_tools.job_manager import job_manager
 from .routes.analysis import router as analysis_router
+from .routes.autofix import router as autofix_router
 from .routes.api_docs import router as api_docs_router
 from .routes.artifacts import router as artifacts_router
 from .routes.atomic_tools import router as atomic_tools_router
@@ -72,6 +73,7 @@ app.include_router(works_router)
 app.include_router(work_types_router)
 app.include_router(system_router)
 app.include_router(analysis_router)
+app.include_router(autofix_router)
 app.include_router(artifacts_router)
 app.include_router(atomic_tools_router)
 app.include_router(api_docs_router)

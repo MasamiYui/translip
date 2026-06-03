@@ -1,9 +1,13 @@
+import { useEffect, useRef, useState } from 'react'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Download, ExternalLink, Filter, Sparkles } from 'lucide-react'
-import type {
-  DubQaReport,
-  RemediationActionGroup,
-  RemediationExecutor,
+import { Download, ExternalLink, Filter, Loader2, Sparkles, Wand2 } from 'lucide-react'
+import {
+  evaluationApi,
+  type AutoFixJob,
+  type DubQaReport,
+  type RemediationActionGroup,
+  type RemediationExecutor,
 } from '../../api/evaluation'
 import { useI18n } from '../../i18n/useI18n'
 import { cn } from '../../lib/utils'
@@ -33,15 +37,48 @@ export function RemediationPanel({
   taskId,
   report,
   onFocusSegments,
+  onApplied,
 }: {
   taskId: string
   report: DubQaReport
   onFocusSegments: (segmentIds: string[], label: string) => void
+  onApplied: () => void
 }) {
   const { t } = useI18n()
   const tr = t.evaluation.remediation
   const navigate = useNavigate()
   const plan = report.remediation
+
+  const repairSegs = plan?.repair_directive?.segment_ids ?? []
+  const [jobId, setJobId] = useState<string | null>(null)
+  const appliedRef = useRef(false)
+
+  const startFix = useMutation({
+    mutationFn: () => evaluationApi.autoFix(taskId, { segment_ids: repairSegs }),
+    onSuccess: job => {
+      appliedRef.current = false
+      setJobId(job.id)
+    },
+  })
+  const jobQuery = useQuery({
+    queryKey: ['auto-fix', taskId, jobId],
+    enabled: !!jobId,
+    queryFn: () => evaluationApi.getAutoFix(taskId, jobId!),
+    refetchInterval: q => {
+      const s = (q.state.data as AutoFixJob | undefined)?.status
+      return s === 'pending' || s === 'running' ? 3000 : false
+    },
+  })
+  const job = jobQuery.data
+  const fixing = startFix.isPending || job?.status === 'pending' || job?.status === 'running'
+
+  // When a fix lands, refresh the evaluation once so the improved report loads.
+  useEffect(() => {
+    if (job?.status === 'succeeded' && !appliedRef.current) {
+      appliedRef.current = true
+      onApplied()
+    }
+  }, [job?.status, onApplied])
 
   if (!plan || plan.summary.problem_count === 0) {
     return (
@@ -66,15 +103,59 @@ export function RemediationPanel({
             <div className="text-xs text-[#9ca3af]">{tr.subtitle}</div>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={exportPlan}
-          title={tr.exportHint}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-[#e5e7eb] px-2.5 py-1.5 text-xs font-medium text-[#374151] hover:bg-[#f9fafb]"
-        >
-          <Download size={13} /> {tr.export}
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {repairSegs.length > 0 && (
+            <button
+              type="button"
+              onClick={() => startFix.mutate()}
+              disabled={fixing}
+              title={tr.autoFixHint}
+              className={cn(
+                'flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-white',
+                fixing ? 'cursor-not-allowed bg-[#9aa7e8]' : 'bg-[#3b5bdb] hover:bg-[#324bc0]',
+              )}
+            >
+              {fixing ? <Loader2 size={13} className="animate-spin" /> : <Wand2 size={13} />}
+              {fixing ? tr.autoFixing : tr.autoFix}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={exportPlan}
+            title={tr.exportHint}
+            className="flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] px-2.5 py-1.5 text-xs font-medium text-[#374151] hover:bg-[#f9fafb]"
+          >
+            <Download size={13} /> {tr.export}
+          </button>
+        </div>
       </div>
+
+      {/* Auto-fix outcome */}
+      {job?.status === 'succeeded' && job.result && (
+        <div
+          className={cn(
+            'mb-3 rounded-lg px-3 py-2 text-xs font-medium',
+            job.result.rolled_back
+              ? 'bg-amber-50 text-amber-700'
+              : (job.result.repaired_count ?? 0) > 0
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'bg-[#f3f4f6] text-[#6b7280]',
+          )}
+        >
+          {job.result.rolled_back
+            ? tr.autoFixRolledBack(job.result.before_score ?? 0, job.result.after_score ?? 0)
+            : (job.result.repaired_count ?? 0) > 0
+              ? tr.autoFixResult(
+                  job.result.before_score ?? 0,
+                  job.result.after_score ?? 0,
+                  job.result.repaired_count ?? 0,
+                )
+              : tr.autoFixNoChange(job.result.before_score ?? 0, job.result.after_score ?? 0)}
+        </div>
+      )}
+      {job?.status === 'failed' && (
+        <div className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{tr.autoFixFailed}</div>
+      )}
 
       {/* Summary */}
       <div className="mb-3 text-xs text-[#6b7280]">

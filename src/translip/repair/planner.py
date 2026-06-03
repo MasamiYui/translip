@@ -16,7 +16,13 @@ def build_repair_plan(
     target_lang: str,
     glossary: list[GlossaryEntry],
     max_items: int | None = None,
+    include_segment_ids: set[str] | None = None,
 ) -> dict[str, Any]:
+    # ``include_segment_ids`` force-queues segments the dub-QA flagged on the final
+    # mix even when task-d's own metrics passed them, so the evaluation's defects
+    # and the repair tournament stay in sync (otherwise QA-only defects are never
+    # attempted). They enter as risk-only ``qa_flagged`` items.
+    include = include_segment_ids or set()
     translation_by_id = {
         str(row.get("segment_id")): row
         for row in translation_payload.get("segments", [])
@@ -24,7 +30,12 @@ def build_repair_plan(
     }
     report_rows = _collect_report_rows(task_d_reports)
     items = [
-        _repair_item(row=row, translation=translation_by_id.get(str(row.get("segment_id"))), report=report)
+        _repair_item(
+            row=row,
+            translation=translation_by_id.get(str(row.get("segment_id"))),
+            report=report,
+            force=str(row.get("segment_id") or "") in include,
+        )
         for report, row in report_rows
     ]
     items = [item for item in items if item is not None]
@@ -67,10 +78,15 @@ def _repair_item(
     row: dict[str, Any],
     translation: dict[str, Any] | None,
     report: dict[str, Any],
+    force: bool = False,
 ) -> dict[str, Any] | None:
     failure_reasons = _failure_reasons(row=row, translation=translation)
     if not failure_reasons:
-        return None
+        if not force:
+            return None
+        # Force-included by the QA bridge: synthesize a reason so the standard
+        # queue/rewrite/reference machinery still builds entries for it.
+        failure_reasons = ["qa_flagged"]
     strict_blocker = _strict_blocker(failure_reasons)
     segment_id = str(row.get("segment_id") or "")
     source_duration_sec = float(row.get("source_duration_sec") or (translation or {}).get("duration") or 0.0)
@@ -149,6 +165,11 @@ def _suggested_actions(failure_reasons: list[str]) -> list[str]:
         actions.append("switch_reference_audio")
     if {"duration_failed", "speaker_failed", "intelligibility_failed"}.issubset(reasons):
         actions.append("switch_tts_backend")
+    if "qa_flagged" in reasons:
+        # QA-only defect: try the full tournament (re-synth + rewrite + alt refs).
+        actions.append("regenerate_candidates")
+        actions.append("rewrite_for_dubbing")
+        actions.append("switch_reference_audio")
     if "missing_audio_path" in reasons:
         actions.append("manual_review")
     if not actions:
@@ -176,6 +197,8 @@ def _priority_score(failure_reasons: list[str], *, duration_ratio: float) -> flo
         score += 1.4
     if "too_short_source" in reasons:
         score += 0.7
+    if "qa_flagged" in reasons:
+        score += 0.8
     if duration_ratio >= 2.5 or (0.0 < duration_ratio <= 0.35):
         score += 1.4
     return round(score, 3)

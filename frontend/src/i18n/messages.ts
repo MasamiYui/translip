@@ -236,6 +236,16 @@ const zhMessages = {
       manual: '人工',
       drawerTitle: '诊断 & 建议',
       recommend: '建议',
+      autoFix: '一键自动修复',
+      autoFixHint: '对可自动修复片段重合成 → 重混 → 重评测',
+      autoFixing: '修复中…',
+      autoFixResult: (before: number, after: number, repaired: number) =>
+        `修复完成 · 评分 ${before} → ${after} · 重合成 ${repaired} 段`,
+      autoFixNoChange: (before: number, after: number) =>
+        `已重跑 · 评分 ${before} → ${after} · 无片段达替换门槛`,
+      autoFixRolledBack: (before: number, after: number) =>
+        `已回滚 · 修复后评分 ${after} 低于原 ${before},保留原成片`,
+      autoFixFailed: '修复失败,详见日志',
       actionLabel: {
         rewrite_translation: '缩短 / 改写译文',
         resynthesize: '重新合成',
@@ -1711,6 +1721,16 @@ const enMessages: LocaleMessages = {
       manual: 'Manual',
       drawerTitle: 'Diagnosis & fix',
       recommend: 'Suggested',
+      autoFix: 'Auto-fix',
+      autoFixHint: 'Re-synthesize fixable segments → re-mix → re-evaluate',
+      autoFixing: 'Fixing…',
+      autoFixResult: (before: number, after: number, repaired: number) =>
+        `Done · score ${before} → ${after} · ${repaired} re-synthesized`,
+      autoFixNoChange: (before: number, after: number) =>
+        `Re-ran · score ${before} → ${after} · no segment beat the bar`,
+      autoFixRolledBack: (before: number, after: number) =>
+        `Rolled back · fixed score ${after} below original ${before}, kept the original cut`,
+      autoFixFailed: 'Auto-fix failed — see logs',
       actionLabel: {
         rewrite_translation: 'Shorten / rewrite',
         resynthesize: 'Re-synthesize',
