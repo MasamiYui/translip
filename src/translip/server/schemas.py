@@ -89,7 +89,7 @@ class TaskConfigInput(BaseModel):
     audio_source: str = Field(default="both", description="音频来源选择（人声/背景/两者）")
     subtitle_source: str = Field(default="asr", description="字幕来源，如转写（asr）或字幕识别（OCR）")
     # Subtitle erase (subtitle-erase node)
-    erase_backend: Literal["sttn", "lama", "opencv"] = Field(default="sttn", description="字幕擦除后端：sttn/lama/opencv")
+    erase_backend: Literal["sttn", "lama"] = Field(default="sttn", description="字幕擦除后端：sttn/lama")
     erase_device: Literal["auto", "mps", "cuda", "cpu"] = Field(default="auto", description="字幕擦除计算设备")
     erase_max_load: int = Field(default=50, gt=0, description="字幕擦除时单批最大加载帧数")
     # Stage 1

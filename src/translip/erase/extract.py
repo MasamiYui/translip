@@ -39,7 +39,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--input", required=True)
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--detection", default=None, help="OCR detection.json (omit when using --region)")
-    parser.add_argument("--backend", default="sttn", choices=["sttn", "lama", "opencv"])
+    parser.add_argument("--backend", default="sttn", choices=["sttn", "lama"])
     parser.add_argument("--device", default="auto", choices=["auto", "mps", "cuda", "cpu"])
     parser.add_argument("--mask-dilate-x", type=int, default=12)
     parser.add_argument("--mask-dilate-y", type=int, default=8)

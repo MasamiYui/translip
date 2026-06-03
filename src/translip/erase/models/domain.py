@@ -13,17 +13,14 @@ from enum import Enum
 class EraseBackend(str, Enum):
     """Inpainting backend used to fill the masked subtitle region.
 
-    - ``sttn``   : Spatial-Temporal Transformer Network video inpainting
-                   (temporal context, best general quality). Needs torch + weights.
-    - ``lama``   : big-LaMa single-frame inpainting (sharpest stills / animation).
-                   Needs torch + the TorchScript weight.
-    - ``opencv`` : cv2.inpaint (Telea). Zero extra deps; the always-available
-                   fallback when torch or model weights are missing.
+    - ``sttn`` : Spatial-Temporal Transformer Network video inpainting
+                 (temporal context, best general quality). Needs torch + weights.
+    - ``lama`` : big-LaMa single-frame inpainting (sharpest stills / animation).
+                 Needs torch + the TorchScript weight.
     """
 
     STTN = "sttn"
     LAMA = "lama"
-    OPENCV = "opencv"
 
 
 @dataclass(frozen=True, slots=True)

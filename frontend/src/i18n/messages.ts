@@ -863,12 +863,10 @@ const zhMessages = {
       quickMetrics: '抽样指标',
     },
     presetLabels: {
-      fast: '快速',
       balanced: '均衡',
       quality: '高质量',
     },
     presetHints: {
-      fast: '速度优先：OpenCV TELEA 算法，秒级出片，适合简单背景的日常样片',
       balanced: '均衡档：STTN 神经网络视频修复，带时序建模，质量与速度兼顾（默认）',
       quality: '质量优先：big-LaMa 深度修复模型，单帧最清晰，动画/静帧更优，macOS 自动启用 MPS 加速',
     },
@@ -895,7 +893,6 @@ const zhMessages = {
       preparing: '准备擦除参数…',
       erasing: '正在擦除字幕…',
       erasing_sttn: '正在擦除字幕（STTN 视频修复）…',
-      erasing_opencv: '正在擦除字幕（OpenCV 快速模式）…',
       erasing_lama: '正在擦除字幕（LaMa 高质量模式）…',
       muxing: '正在封装音轨…',
       detecting_subtitles: '检测字幕中…',
@@ -2363,12 +2360,10 @@ const enMessages: LocaleMessages = {
       quickMetrics: 'Quick Metrics',
     },
     presetLabels: {
-      fast: 'Fast',
       balanced: 'Balanced',
       quality: 'Quality',
     },
     presetHints: {
-      fast: 'Speed first: OpenCV TELEA inpainting, seconds per minute, best for simple backgrounds',
       balanced: 'Balanced: STTN neural video inpainting with temporal modeling (default)',
       quality: 'Quality first: big-LaMa deep inpainting, sharpest per-frame fills for animation/stills (MPS on macOS)',
     },
@@ -2395,7 +2390,6 @@ const enMessages: LocaleMessages = {
       preparing: 'Preparing erase parameters…',
       erasing: 'Erasing subtitles…',
       erasing_sttn: 'Erasing subtitles (STTN video inpainting)…',
-      erasing_opencv: 'Erasing subtitles (OpenCV fast)…',
       erasing_lama: 'Erasing subtitles (LaMa quality)…',
       muxing: 'Muxing audio…',
       detecting_subtitles: 'Detecting subtitles…',

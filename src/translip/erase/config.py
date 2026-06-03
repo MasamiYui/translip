@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     SUBTITLE_ERASE_LOCAL_MODELS_ONLY: bool = False
 
     # Default inpainting backend and device.
-    ERASE_BACKEND: str = "sttn"  # sttn | lama | opencv
+    ERASE_BACKEND: str = "sttn"  # sttn | lama
     ERASE_DEVICE: str = "auto"  # auto | mps | cuda | cpu
 
     # Mask construction.

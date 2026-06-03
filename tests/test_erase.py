@@ -107,23 +107,25 @@ def test_get_inpaint_bands_empty_mask_returns_nothing() -> None:
     assert get_inpaint_bands(640, 360, 100, np.zeros((360, 640), np.uint8)) == []
 
 
-def test_erase_extract_opencv_end_to_end(tmp_path: Path) -> None:
+def test_erase_extract_sttn_empty_events_stream_copies(tmp_path: Path) -> None:
+    """Smoke test for extract.erase_to_dir without requiring downloaded weights.
+
+    Empty events trigger the stream-copy passthrough, so no inpainting backend is
+    actually instantiated; we still exercise the CLI path with backend=sttn.
+    """
     cv2 = pytest.importorskip("cv2")
     from translip.erase.extract import erase_to_dir
 
     width, height, frames, fps = 320, 176, 24, 24.0
     src = tmp_path / "src.mp4"
-    sub = (60, 150, 260, 168)  # x1,y1,x2,y2
     writer = cv2.VideoWriter(str(src), cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height))
     for i in range(frames):
-        img = np.full((height, width, 3), (i * 7) % 255, np.uint8)
-        cv2.rectangle(img, (sub[0], sub[1]), (sub[2], sub[3]), (255, 255, 255), -1)
-        writer.write(img)
+        writer.write(np.full((height, width, 3), (i * 7) % 255, np.uint8))
     writer.release()
 
     detection = {
         "video": {"fps": fps, "width": width, "height": height, "total_frames": frames, "duration": frames / fps},
-        "events": [{"index": 1, "start_frame": 0, "end_frame": frames - 1, "box": list(sub), "confidence": 0.9}],
+        "events": [],
     }
     detection_path = tmp_path / "detection.json"
     detection_path.write_text(json.dumps(detection), encoding="utf-8")
@@ -133,29 +135,14 @@ def test_erase_extract_opencv_end_to_end(tmp_path: Path) -> None:
         input_path=src,
         output_dir=output_dir,
         detection_path=detection_path,
-        backend="opencv",
+        backend="sttn",
     )
 
     clean = output_dir / "clean_video.mp4"
     assert manifest["status"] == "succeeded"
-    assert manifest["backend"] == "opencv"
+    assert manifest["backend"] == "sttn"
     assert clean.exists()
     assert (output_dir / "subtitle-erase-manifest.json").exists()
-
-    # The cleaned video keeps the frame count and changes the subtitle band.
-    cap_o, cap_e = cv2.VideoCapture(str(src)), cv2.VideoCapture(str(clean))
-    try:
-        out_frames = int(cap_e.get(cv2.CAP_PROP_FRAME_COUNT))
-        assert abs(out_frames - frames) <= 1
-        cap_o.set(cv2.CAP_PROP_POS_FRAMES, 5)
-        cap_e.set(cv2.CAP_PROP_POS_FRAMES, 5)
-        _, fo = cap_o.read()
-        _, fe = cap_e.read()
-        band = (slice(sub[1], sub[3]), slice(sub[0], sub[2]))
-        assert float(np.abs(fo[band].astype(float) - fe[band].astype(float)).mean()) > 5.0
-    finally:
-        cap_o.release()
-        cap_e.release()
 
 
 def test_erase_empty_detection_stream_copies(tmp_path: Path) -> None:
@@ -184,4 +171,4 @@ def test_erase_empty_detection_stream_copies(tmp_path: Path) -> None:
 
 
 def test_erase_backend_enum_values() -> None:
-    assert {b.value for b in EraseBackend} == {"sttn", "lama", "opencv"}
+    assert {b.value for b in EraseBackend} == {"sttn", "lama"}
