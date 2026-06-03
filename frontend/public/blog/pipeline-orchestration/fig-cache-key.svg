@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 396" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ka" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="ksh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#ksh);}
+      .t1{font-size:13px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="396" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">缓存键：参数 + 上游指纹 → 哈希 → 四关判定</text>
+  <text x="32" y="66" class="s" font-size="13.5">把"会影响产物的一切"喂进 SHA256；命中要四关都过，任一不过就重算这一站。</text>
+
+  <!-- inputs -->
+  <rect class="box" x="32" y="110" width="226" height="84" rx="12"/>
+  <rect x="32" y="110" width="6" height="84" rx="3" fill="#6366f1"/>
+  <text x="52" y="135" class="t1" fill="#4338ca">这一站在乎的参数</text>
+  <text x="52" y="158" class="t2 mono">translation_backend</text>
+  <text x="52" y="176" class="t2 mono">condense_mode · target_lang …</text>
+
+  <rect class="box" x="32" y="212" width="226" height="98" rx="12"/>
+  <rect x="32" y="212" width="6" height="98" rx="3" fill="#14b8a6"/>
+  <text x="52" y="237" class="t1" fill="#0f766e">每个上游产物的内容指纹</text>
+  <text x="52" y="260" class="t2 mono">segments.zh.json → sha256</text>
+  <text x="52" y="278" class="t2 mono">speaker_profiles.json → sha256</text>
+  <text x="52" y="296" class="t2" fill="#94a3b8">= 文件字节的 SHA256</text>
+
+  <!-- merge into SHA256 -->
+  <path class="ln" d="M258,152 L276,152 L276,196 L292,196" marker-end="url(#ka)"/>
+  <path class="ln" d="M258,261 L276,261 L276,224 L292,224" marker-end="url(#ka)"/>
+
+  <rect class="box" x="294" y="174" width="120" height="72" rx="12"/>
+  <rect x="294" y="174" width="6" height="72" rx="3" fill="#4f46e5"/>
+  <text x="356" y="216" class="t1" text-anchor="middle" font-size="15" fill="#4338ca">SHA256</text>
+
+  <rect x="290" y="258" width="128" height="28" rx="8" fill="#0f172a"/>
+  <text x="354" y="277" text-anchor="middle" class="mono" font-size="11" fill="#e2e8f0">cache_key = a3f9…e21</text>
+
+  <!-- gates -->
+  <path class="ln" d="M414,210 L434,210 L434,210 L452,210" marker-end="url(#ka)"/>
+  <rect class="box" x="454" y="104" width="244" height="208" rx="12"/>
+  <rect x="454" y="104" width="244" height="34" rx="12" fill="#f1f5f9"/>
+  <rect x="454" y="120" width="244" height="18" fill="#f1f5f9"/>
+  <text x="576" y="127" text-anchor="middle" font-size="12.5" font-weight="700" fill="#334155">命中 = 四关都过</text>
+
+  <g>
+    <rect x="472" y="156" width="18" height="18" rx="5" fill="#ecfdf5" stroke="#a7f3d0"/>
+    <path d="M476,165 l3,3 l6,-7" stroke="#059669" stroke-width="1.8" fill="none"/>
+    <text x="500" y="170" class="t2" font-size="12">① manifest 还在</text>
+  </g>
+  <g>
+    <rect x="472" y="194" width="18" height="18" rx="5" fill="#ecfdf5" stroke="#a7f3d0"/>
+    <path d="M476,203 l3,3 l6,-7" stroke="#059669" stroke-width="1.8" fill="none"/>
+    <text x="500" y="208" class="t2" font-size="12">② 产物文件都在</text>
+  </g>
+  <g>
+    <rect x="472" y="232" width="18" height="18" rx="5" fill="#ecfdf5" stroke="#a7f3d0"/>
+    <path d="M476,241 l3,3 l6,-7" stroke="#059669" stroke-width="1.8" fill="none"/>
+    <text x="500" y="246" class="t2" font-size="12">③ 上次 status=succeeded</text>
+  </g>
+  <g>
+    <rect x="472" y="270" width="18" height="18" rx="5" fill="#ecfdf5" stroke="#a7f3d0"/>
+    <path d="M476,279 l3,3 l6,-7" stroke="#059669" stroke-width="1.8" fill="none"/>
+    <text x="500" y="284" class="t2" font-size="12">④ 缓存键没变</text>
+  </g>
+
+  <!-- outcomes -->
+  <path class="ln" d="M698,168 L724,168" marker-end="url(#ka)"/>
+  <text x="711" y="158" class="t2" text-anchor="middle" fill="#059669">都过</text>
+  <rect x="726" y="140" width="202" height="56" rx="10" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.5"/>
+  <text x="827" y="164" text-anchor="middle" font-size="12.5" font-weight="700" fill="#047857">命中 · 复用</text>
+  <text x="827" y="182" text-anchor="middle" font-size="11" fill="#059669">整站跳过，不起子进程</text>
+
+  <path class="ln" d="M698,256 L724,256" marker-end="url(#ka)"/>
+  <text x="711" y="246" class="t2" text-anchor="middle" fill="#b45309">任一不过</text>
+  <rect x="726" y="228" width="202" height="56" rx="10" fill="#fffbeb" stroke="#fde68a" stroke-width="1.5"/>
+  <text x="827" y="252" text-anchor="middle" font-size="12.5" font-weight="700" fill="#b45309">未命中 · 重算</text>
+  <text x="827" y="270" text-anchor="middle" font-size="11" fill="#d97706">起子进程，重跑这一站</text>
+
+  <text x="32" y="356" class="s" font-size="12.5">键里嵌了上游文件的指纹——所以上游产物一变，下游的键自动失效。无需任何人手写"谁依赖谁要一起重算"。</text>
+</svg>

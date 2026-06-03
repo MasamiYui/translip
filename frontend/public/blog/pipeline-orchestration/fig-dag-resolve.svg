@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 422" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="da" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="dsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#dsh);}
+      .t1{font-size:13px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="422" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="20">三层各管一件事：声明依赖 → 挑节点 → 排出执行顺序</text>
+  <text x="32" y="66" class="s" font-size="13.5">换模板只是点亮不同子图；节点定义和依赖一行都不用改。</text>
+
+  <!-- panel 1: nodes.py -->
+  <rect class="box" x="32" y="100" width="300" height="288" rx="12"/>
+  <rect x="32" y="100" width="6" height="288" rx="3" fill="#64748b"/>
+  <text x="54" y="128" class="t1">nodes.py · 每个节点声明依赖谁</text>
+  <text x="54" y="162" class="mono" fill="#334155">stage1<tspan fill="#94a3b8">  ← ()</tspan></text>
+  <text x="54" y="188" class="mono" fill="#334155">task-a<tspan fill="#94a3b8">  ← stage1</tspan></text>
+  <text x="54" y="214" class="mono" fill="#334155">task-b<tspan fill="#94a3b8">  ← stage1, task-a</tspan></text>
+  <text x="54" y="240" class="mono" fill="#334155">task-c<tspan fill="#94a3b8">  ← task-a, task-b</tspan></text>
+  <text x="54" y="266" class="mono" fill="#334155">task-d<tspan fill="#94a3b8">  ← task-b, task-c</tspan></text>
+  <text x="54" y="292" class="mono" fill="#334155">task-e<tspan fill="#94a3b8">  ← stage1,a,c,d</tspan></text>
+  <text x="54" y="318" class="mono" fill="#334155">task-g<tspan fill="#94a3b8">  ← ()</tspan></text>
+  <text x="54" y="352" class="t2" fill="#94a3b8" font-style="italic">＋ ocr-detect / asr-ocr-correct / subtitle-erase … 分支节点</text>
+
+  <path class="ln" d="M332,244 L360,244" marker-end="url(#da)"/>
+
+  <!-- panel 2: templates.py -->
+  <rect class="box" x="362" y="100" width="262" height="288" rx="12"/>
+  <rect x="362" y="100" width="6" height="288" rx="3" fill="#4f46e5"/>
+  <text x="384" y="128" class="t1" fill="#4338ca">templates.py · 挑要跑的节点</text>
+
+  <rect x="382" y="150" width="222" height="48" rx="10" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1.5"/>
+  <circle cx="400" cy="174" r="5" fill="#4f46e5"/>
+  <text x="416" y="171" class="t2" font-weight="700" fill="#4338ca">asr-dub-basic</text>
+  <text x="416" y="188" class="t2" fill="#6366f1">stage1·a·b·c·d·e·g（7 节点）</text>
+
+  <rect x="382" y="208" width="222" height="40" rx="10" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+  <circle cx="400" cy="228" r="5" fill="#cbd5e1"/>
+  <text x="416" y="232" class="t2" fill="#475569">asr-dub+ocr-subs</text>
+
+  <rect x="382" y="258" width="222" height="40" rx="10" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+  <circle cx="400" cy="278" r="5" fill="#cbd5e1"/>
+  <text x="416" y="282" class="t2" fill="#475569">asr-dub+ocr-subs+erase</text>
+
+  <text x="384" y="332" class="t2" fill="#94a3b8">只列"要哪些节点"，</text>
+  <text x="384" y="350" class="t2" fill="#94a3b8">传递依赖由 graph 自动补全。</text>
+
+  <path class="ln" d="M624,244 L652,244" marker-end="url(#da)"/>
+
+  <!-- panel 3: graph.py topo order -->
+  <rect class="box" x="654" y="100" width="274" height="288" rx="12"/>
+  <rect x="654" y="100" width="6" height="288" rx="3" fill="#14b8a6"/>
+  <text x="676" y="128" class="t1" fill="#0f766e">graph.py · 补全依赖 + 拓扑排序</text>
+
+  <g font-family="'SF Mono',ui-monospace,Menlo,Consolas,monospace">
+    <text x="676" y="162" font-size="12" fill="#0f766e" font-weight="700">1</text><text x="700" y="162" class="t2" font-size="12.5" fill="#334155">stage1</text>
+    <text x="676" y="190" font-size="12" fill="#0f766e" font-weight="700">2</text><text x="700" y="190" class="t2" font-size="12.5" fill="#334155">task-a</text>
+    <text x="676" y="218" font-size="12" fill="#0f766e" font-weight="700">3</text><text x="700" y="218" class="t2" font-size="12.5" fill="#334155">task-b</text>
+    <text x="676" y="246" font-size="12" fill="#0f766e" font-weight="700">4</text><text x="700" y="246" class="t2" font-size="12.5" fill="#334155">task-c</text>
+    <text x="676" y="274" font-size="12" fill="#0f766e" font-weight="700">5</text><text x="700" y="274" class="t2" font-size="12.5" fill="#334155">task-d</text>
+    <text x="676" y="302" font-size="12" fill="#0f766e" font-weight="700">6</text><text x="700" y="302" class="t2" font-size="12.5" fill="#334155">task-e</text>
+    <text x="676" y="330" font-size="12" fill="#0f766e" font-weight="700">7</text><text x="700" y="330" class="t2" font-size="12.5" fill="#334155">task-g</text>
+  </g>
+  <line x1="690" y1="150" x2="690" y2="338" stroke="#a7f3d0" stroke-width="1.4"/>
+  <text x="676" y="362" class="t2" fill="#94a3b8">同层先后由 sequence_hint 定；有环则直接报错。</text>
+
+  <text x="32" y="410" class="s" font-size="12.5">三层互不越界：节点不知道被谁选中、模板不管依赖怎么补、graph 不管节点具体干什么——加一个新阶段，基本不动编排主循环。</text>
+</svg>

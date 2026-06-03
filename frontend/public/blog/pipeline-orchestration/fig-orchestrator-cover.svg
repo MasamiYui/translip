@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <radialGradient id="oglow" cx="50%" cy="38%" r="60%">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+    <marker id="oa" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="osh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+    <style>
+      .t1{font-size:15px;font-weight:700;}
+      .t2{font-size:12px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="600" fill="#fbfcfe"/>
+  <rect x="0" y="0" width="960" height="600" fill="url(#oglow)"/>
+
+  <!-- kicker -->
+  <circle cx="68" cy="68" r="5" fill="#4f46e5"/>
+  <text x="84" y="73" font-size="14.5" font-weight="700" fill="#475569" letter-spacing="0.5">幕后 · 博客 · 架构</text>
+
+  <!-- orchestrator hub -->
+  <circle cx="480" cy="206" r="120" fill="none" stroke="#6366f1" stroke-width="1.4" stroke-opacity="0.16"/>
+  <circle cx="480" cy="206" r="94" fill="none" stroke="#6366f1" stroke-width="1.4" stroke-opacity="0.22"/>
+  <circle cx="480" cy="206" r="66" fill="#fff" stroke="#6366f1" stroke-width="2.2" filter="url(#osh)"/>
+  <text x="480" y="202" text-anchor="middle" font-size="21" font-weight="700" fill="#4338ca">编排器</text>
+  <text x="480" y="226" text-anchor="middle" font-size="12.5" fill="#6366f1">不碰算法</text>
+
+  <!-- conducting fan lines to the DAG row -->
+  <g stroke="#6366f1" stroke-width="1.4" stroke-opacity="0.16" fill="none">
+    <path d="M480,206 L118,430"/>
+    <path d="M480,206 L263,430"/>
+    <path d="M480,206 L408,430"/>
+    <path d="M480,206 L553,430"/>
+    <path d="M480,206 L698,430"/>
+    <path d="M480,206 L843,430"/>
+  </g>
+
+  <!-- tagline -->
+  <text x="480" y="360" text-anchor="middle" font-size="17" fill="#64748b">一条缓存感知的子进程 DAG</text>
+
+  <!-- subprocess sandbox around the running node -->
+  <rect x="489" y="416" width="128" height="112" rx="14" fill="none" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="6 5" stroke-opacity="0.6"/>
+  <text x="553" y="410" text-anchor="middle" class="t2" fill="#6366f1" font-weight="700">子进程</text>
+
+  <!-- DAG row -->
+  <!-- stage1 done -->
+  <rect x="60" y="430" width="116" height="84" rx="13" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.6" filter="url(#osh)"/>
+  <text x="118" y="466" text-anchor="middle" class="t1" fill="#047857">stage1</text>
+  <text x="118" y="488" text-anchor="middle" class="t2" fill="#059669">✓ 复用</text>
+  <!-- task-a done -->
+  <rect x="205" y="430" width="116" height="84" rx="13" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.6" filter="url(#osh)"/>
+  <text x="263" y="466" text-anchor="middle" class="t1" fill="#047857">task-a</text>
+  <text x="263" y="488" text-anchor="middle" class="t2" fill="#059669">✓ 复用</text>
+  <!-- task-b done -->
+  <rect x="350" y="430" width="116" height="84" rx="13" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.6" filter="url(#osh)"/>
+  <text x="408" y="466" text-anchor="middle" class="t1" fill="#047857">task-b</text>
+  <text x="408" y="488" text-anchor="middle" class="t2" fill="#059669">✓ 复用</text>
+  <!-- task-c running -->
+  <rect x="495" y="430" width="116" height="84" rx="13" fill="#eef2ff" stroke="#6366f1" stroke-width="2" filter="url(#osh)"/>
+  <text x="553" y="466" text-anchor="middle" class="t1" fill="#4338ca">task-c</text>
+  <text x="553" y="488" text-anchor="middle" class="t2" fill="#6366f1">● 运行中</text>
+  <!-- task-d pending -->
+  <rect x="640" y="430" width="116" height="84" rx="13" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.6" filter="url(#osh)"/>
+  <text x="698" y="466" text-anchor="middle" class="t1" fill="#94a3b8">task-d</text>
+  <text x="698" y="488" text-anchor="middle" class="t2" fill="#94a3b8">待运行</text>
+  <!-- task-e pending -->
+  <rect x="785" y="430" width="116" height="84" rx="13" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.6" filter="url(#osh)"/>
+  <text x="843" y="466" text-anchor="middle" class="t1" fill="#94a3b8">task-e</text>
+  <text x="843" y="488" text-anchor="middle" class="t2" fill="#94a3b8">待运行</text>
+
+  <!-- spine arrows -->
+  <g>
+    <path d="M176,472 L203,472" class="ln" stroke="#94a3b8" stroke-width="1.6" fill="none" marker-end="url(#oa)"/>
+    <path d="M321,472 L348,472" stroke="#94a3b8" stroke-width="1.6" fill="none" marker-end="url(#oa)"/>
+    <path d="M466,472 L493,472" stroke="#94a3b8" stroke-width="1.6" fill="none" marker-end="url(#oa)"/>
+    <path d="M611,472 L638,472" stroke="#94a3b8" stroke-width="1.6" fill="none" marker-end="url(#oa)"/>
+    <path d="M756,472 L783,472" stroke="#94a3b8" stroke-width="1.6" fill="none" marker-end="url(#oa)"/>
+  </g>
+
+  <!-- cache key chip -->
+  <rect x="288" y="546" width="384" height="34" rx="10" fill="#0f172a"/>
+  <text x="480" y="568" text-anchor="middle" class="mono" font-size="12" fill="#e2e8f0">cache_key = sha256( params ＋ 上游指纹 )</text>
+</svg>

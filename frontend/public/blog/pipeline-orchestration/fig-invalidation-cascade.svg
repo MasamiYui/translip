@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 372" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="va" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <marker id="vaw" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#f59e0b"/>
+    </marker>
+    <filter id="vsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .t1{font-size:13px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="372" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">翻一个开关，失效只精准地沿 DAG 往下传</text>
+  <text x="32" y="66" class="s" font-size="13.5">把翻译后端换成 deepseek：只有 task-c 及其下游重算，上游整段命中、直接复用。</text>
+
+  <!-- flag chip -->
+  <rect x="448" y="100" width="232" height="30" rx="8" fill="#0f172a"/>
+  <text x="564" y="120" text-anchor="middle" class="mono" font-size="11" fill="#e2e8f0">› --translation-backend deepseek</text>
+  <path d="M564,130 L564,176" stroke="#f59e0b" stroke-width="1.8" fill="none" marker-end="url(#vaw)"/>
+  <text x="690" y="120" class="t2" fill="#b45309">← 只动了这一站的参数</text>
+
+  <!-- zone labels -->
+  <text x="248" y="166" class="t2" text-anchor="middle" font-weight="700" fill="#047857">命中 · 复用</text>
+  <text x="724" y="166" class="t2" text-anchor="middle" font-weight="700" fill="#b45309">失效 · 重算</text>
+  <line x1="476" y1="178" x2="476" y2="300" stroke="#cbd5e1" stroke-width="1.4" stroke-dasharray="5 5"/>
+
+  <!-- nodes: cached -->
+  <g>
+    <rect x="32" y="184" width="128" height="74" rx="12" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.5" filter="url(#vsh)"/>
+    <text x="96" y="214" class="t1" text-anchor="middle" fill="#047857">stage1</text>
+    <text x="96" y="234" class="t2" text-anchor="middle" fill="#059669">✓ 命中复用</text>
+  </g>
+  <g>
+    <rect x="184" y="184" width="128" height="74" rx="12" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.5" filter="url(#vsh)"/>
+    <text x="248" y="214" class="t1" text-anchor="middle" fill="#047857">task-a</text>
+    <text x="248" y="234" class="t2" text-anchor="middle" fill="#059669">✓ 命中复用</text>
+  </g>
+  <g>
+    <rect x="336" y="184" width="128" height="74" rx="12" fill="#ecfdf5" stroke="#a7f3d0" stroke-width="1.5" filter="url(#vsh)"/>
+    <text x="400" y="214" class="t1" text-anchor="middle" fill="#047857">task-b</text>
+    <text x="400" y="234" class="t2" text-anchor="middle" fill="#059669">✓ 命中复用</text>
+  </g>
+
+  <!-- nodes: recompute -->
+  <g>
+    <rect x="488" y="184" width="128" height="74" rx="12" fill="#fffbeb" stroke="#fde68a" stroke-width="1.6" filter="url(#vsh)"/>
+    <text x="552" y="212" class="t1" text-anchor="middle" fill="#b45309">task-c</text>
+    <text x="552" y="232" class="t2" text-anchor="middle" fill="#d97706">● 键变了 → 重算</text>
+  </g>
+  <g>
+    <rect x="640" y="184" width="128" height="74" rx="12" fill="#fffbeb" stroke="#fde68a" stroke-width="1.6" filter="url(#vsh)"/>
+    <text x="704" y="212" class="t1" text-anchor="middle" fill="#b45309">task-d</text>
+    <text x="704" y="232" class="t2" text-anchor="middle" fill="#d97706">● 上游指纹变</text>
+  </g>
+  <g>
+    <rect x="792" y="184" width="128" height="74" rx="12" fill="#fffbeb" stroke="#fde68a" stroke-width="1.6" filter="url(#vsh)"/>
+    <text x="856" y="212" class="t1" text-anchor="middle" fill="#b45309">task-e</text>
+    <text x="856" y="232" class="t2" text-anchor="middle" fill="#d97706">● 上游指纹变</text>
+  </g>
+
+  <!-- spine arrows -->
+  <path class="ln" d="M160,221 L182,221" marker-end="url(#va)"/>
+  <path class="ln" d="M312,221 L334,221" marker-end="url(#va)"/>
+  <path class="ln" d="M464,221 L486,221" marker-end="url(#va)"/>
+  <path d="M616,221 L638,221" stroke="#f59e0b" stroke-width="1.8" fill="none" marker-end="url(#vaw)"/>
+  <path d="M768,221 L790,221" stroke="#f59e0b" stroke-width="1.8" fill="none" marker-end="url(#vaw)"/>
+
+  <text x="32" y="324" class="s" font-size="12.5">task-c 重算 → 它的新产物 translation.json 内容指纹改变 → task-d / task-e 的缓存键随之失效、自动重算。</text>
+  <text x="32" y="346" class="s" font-size="12.5">stage1 / task-a / task-b 的键纹丝没动——改个 backend 就触发"选择性重算"，背后就是这套内容寻址的连锁。</text>
+</svg>

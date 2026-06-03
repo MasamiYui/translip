@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 410" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="sa" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="ssh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#ssh);}
+      .t1{font-size:13px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;fill:#e2e8f0;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="410" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">每一站都是一条独立的命令：吃文件、吐文件 + manifest</text>
+  <text x="32" y="66" class="s" font-size="13.5">阶段之间不传内存对象，只把磁盘上的文件交接给下一站。</text>
+
+  <!-- input doc -->
+  <rect class="box" x="32" y="158" width="148" height="104" rx="12"/>
+  <rect x="32" y="158" width="6" height="104" rx="3" fill="#64748b"/>
+  <text x="106" y="200" class="t1" text-anchor="middle">voice.wav</text>
+  <text x="106" y="222" class="t2" text-anchor="middle">stage1 的产物</text>
+  <text x="106" y="240" class="t2" text-anchor="middle" fill="#94a3b8">音频文件</text>
+
+  <path class="ln" d="M180,210 L202,210" marker-end="url(#sa)"/>
+
+  <!-- command 1 -->
+  <rect class="box" x="204" y="150" width="184" height="120" rx="12"/>
+  <rect x="204" y="150" width="6" height="120" rx="3" fill="#6366f1"/>
+  <rect x="222" y="166" width="152" height="24" rx="6" fill="#0f172a"/>
+  <text x="232" y="182" class="mono">› translip transcribe</text>
+  <text x="296" y="222" class="t1" text-anchor="middle" fill="#4338ca">task-a · 转写</text>
+  <text x="296" y="244" class="t2" text-anchor="middle">读文件 → 写产物 + manifest</text>
+
+  <path class="ln" d="M388,210 L410,210" marker-end="url(#sa)"/>
+
+  <!-- handoff doc -->
+  <rect class="box" x="412" y="150" width="162" height="120" rx="12"/>
+  <rect x="412" y="150" width="6" height="120" rx="3" fill="#14b8a6"/>
+  <text x="493" y="180" class="t2" text-anchor="middle" font-weight="700" fill="#0f766e">task-a 产物</text>
+  <text x="493" y="206" class="t1" text-anchor="middle" font-size="12">segments.zh.json</text>
+  <text x="493" y="226" class="t2" text-anchor="middle">task-a-manifest.json</text>
+  <text x="493" y="252" class="t2" text-anchor="middle" font-style="italic" fill="#94a3b8">＝ task-c 的输入</text>
+
+  <path class="ln" d="M574,210 L596,210" marker-end="url(#sa)"/>
+
+  <!-- command 2 -->
+  <rect class="box" x="598" y="150" width="184" height="120" rx="12"/>
+  <rect x="598" y="150" width="6" height="120" rx="3" fill="#6366f1"/>
+  <rect x="616" y="166" width="156" height="24" rx="6" fill="#0f172a"/>
+  <text x="626" y="182" class="mono">› translip translate-script</text>
+  <text x="690" y="222" class="t1" text-anchor="middle" fill="#4338ca">task-c · 翻译</text>
+  <text x="690" y="244" class="t2" text-anchor="middle">读文件 → 写产物 + manifest</text>
+
+  <path class="ln" d="M782,210 L804,210" marker-end="url(#sa)"/>
+
+  <!-- output doc -->
+  <rect class="box" x="806" y="158" width="122" height="104" rx="12"/>
+  <rect x="806" y="158" width="6" height="104" rx="3" fill="#64748b"/>
+  <text x="867" y="196" class="t1" text-anchor="middle" font-size="11.5">translation</text>
+  <text x="867" y="212" class="t1" text-anchor="middle" font-size="11.5">.en.json</text>
+  <text x="867" y="236" class="t2" text-anchor="middle">+ manifest</text>
+
+  <text x="32" y="304" class="s" font-size="12.5">这条命令和你在终端里敲的 <tspan font-family="'SF Mono',ui-monospace,Menlo,monospace" font-size="11.5" fill="#475569">uv run translip transcribe …</tspan> 是同一份阶段代码——单独跑、与流水线里跑，是同一段逻辑的两个入口。</text>
+  <text x="32" y="326" class="s" font-size="12.5">manifest 记下"用了什么参数、跑出哪些产物、成没成功"——它就是下一节缓存判定与全局报告的依据。</text>
+</svg>
