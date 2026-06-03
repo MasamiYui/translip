@@ -143,7 +143,7 @@ export function TaskListPage() {
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.tasks.columns.language}</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.tasks.columns.duration}</th>
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.tasks.columns.createdAt}</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] w-16"></th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#9ca3af] w-20">{t.tasks.columns.actions}</th>
               </tr>
             </thead>
             <tbody>
@@ -193,7 +193,7 @@ function TaskRow({ task, selected, onSelect, onDelete, onClick }: {
 
   return (
     <tr
-      className={`border-b border-[#f9fafb] last:border-0 hover:bg-[#fafafa] cursor-pointer group transition-colors ${
+      className={`border-b border-[#f9fafb] last:border-0 hover:bg-[#fafafa] cursor-pointer transition-colors ${
         task.status === 'running' ? 'border-l-2 border-l-[#3b5bdb]' : ''
       }`}
     >
@@ -229,13 +229,14 @@ function TaskRow({ task, selected, onSelect, onDelete, onClick }: {
       <td className="px-4 py-3.5 text-[#9ca3af]" onClick={onClick}>
         {formatRelativeTime(task.created_at)}
       </td>
-      <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
+      <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
         <button
           onClick={onDelete}
-          className="opacity-0 group-hover:opacity-100 rounded-lg p-1.5 text-red-400 transition-all hover:bg-red-50 hover:text-red-600"
+          className="inline-flex items-center justify-center rounded-lg p-1.5 text-[#9ca3af] transition-colors hover:bg-red-50 hover:text-red-600"
           title={t.tasks.deleteAction}
+          aria-label={t.tasks.deleteAction}
         >
-          <Trash2 size={13} />
+          <Trash2 size={14} />
         </button>
       </td>
     </tr>

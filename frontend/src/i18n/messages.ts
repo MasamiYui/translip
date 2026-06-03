@@ -917,7 +917,10 @@ const zhMessages = {
     rerun: '重新运行',
     stop: '停止任务',
     delete: '删除记录',
+    deleteAction: '删除',
+    deleteSelected: (count: number) => `删除 ${count} 项`,
     deleteConfirm: '确定删除此原子任务及其产物？',
+    deleteConfirmMany: (count: number) => `确定删除 ${count} 个原子任务及其产物？`,
     filters: {
       allStatuses: '全部状态',
       allTools: '全部工具',
@@ -937,6 +940,7 @@ const zhMessages = {
       artifacts: '产物',
       duration: '耗时',
       createdAt: '创建时间',
+      actions: '操作',
     },
     preview: {
       preview: '预览',
@@ -2415,7 +2419,10 @@ const enMessages: LocaleMessages = {
     rerun: 'Rerun',
     stop: 'Stop Task',
     delete: 'Delete Record',
+    deleteAction: 'Delete',
+    deleteSelected: (count: number) => `Delete ${count} items`,
     deleteConfirm: 'Delete this atomic job and its artifacts?',
+    deleteConfirmMany: (count: number) => `Delete ${count} atomic jobs and their artifacts?`,
     filters: {
       allStatuses: 'All statuses',
       allTools: 'All tools',
@@ -2435,6 +2442,7 @@ const enMessages: LocaleMessages = {
       artifacts: 'Artifacts',
       duration: 'Duration',
       createdAt: 'Created',
+      actions: 'Actions',
     },
     preview: {
       preview: 'Preview',
