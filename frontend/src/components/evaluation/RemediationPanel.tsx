@@ -72,6 +72,13 @@ export function RemediationPanel({
   const job = jobQuery.data
   const fixing = startFix.isPending || job?.status === 'pending' || job?.status === 'running'
 
+  // Which of the 4 steps (plan → repair → render → evaluate) the worker is on.
+  const progress = job?.progress
+  const phaseKey = progress?.phase as keyof typeof tr.autoFixPhase | undefined
+  const phaseLabel = (phaseKey && tr.autoFixPhase[phaseKey]) || tr.autoFixing
+  const step = progress?.step ?? 0
+  const totalSteps = progress?.total ?? 4
+
   // When a fix lands, refresh the evaluation once so the improved report loads.
   useEffect(() => {
     if (job?.status === 'succeeded' && !appliedRef.current) {
@@ -129,6 +136,30 @@ export function RemediationPanel({
           </button>
         </div>
       </div>
+
+      {/* Auto-fix progress — phase label + 4-step bar while running */}
+      {fixing && (
+        <div className="mb-3 rounded-lg bg-[#eef1fe] px-3 py-2">
+          <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-[#3b5bdb]">
+            <span className="flex items-center gap-1.5">
+              <Loader2 size={11} className="animate-spin" />
+              {phaseLabel}
+            </span>
+            {step > 0 && <span className="tabular-nums opacity-70">{step}/{totalSteps}</span>}
+          </div>
+          <div className="flex gap-1">
+            {Array.from({ length: totalSteps }).map((_, i) => (
+              <div
+                key={i}
+                className={cn(
+                  'h-1 flex-1 rounded-full transition-colors',
+                  i < step ? 'bg-[#3b5bdb]' : 'bg-[#c7d0f5]',
+                )}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Auto-fix outcome */}
       {job?.status === 'succeeded' && job.result && (

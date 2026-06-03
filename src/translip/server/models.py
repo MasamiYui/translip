@@ -71,6 +71,8 @@ class Analysis(SQLModel, table=True):
     params: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
     # Stores the lightweight summary (score / issue counts), not the full per-segment report.
     result: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
+    # Transient per-phase progress while running (auto-fix only): {"step", "total", "phase"}.
+    progress: Optional[Dict[str, Any]] = Field(default=None, sa_column=Column(JSON))
     # Path to the full dub_qa_report.{lang}.json, relative to the task output_root.
     report_path: Optional[str] = Field(default=None)
     error_message: Optional[str] = Field(default=None)

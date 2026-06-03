@@ -243,6 +243,12 @@ const zhMessages = {
       autoFix: '一键自动修复',
       autoFixHint: '对可自动修复片段重合成 → 重混 → 重评测',
       autoFixing: '修复中…',
+      autoFixPhase: {
+        plan: '规划修复',
+        repair: '重新合成',
+        render: '重混成片',
+        evaluate: '重新评测',
+      },
       autoFixResult: (before: number, after: number, repaired: number) =>
         `修复完成 · 评分 ${before} → ${after} · 重合成 ${repaired} 段`,
       autoFixNoChange: (before: number, after: number) =>
@@ -1732,6 +1738,12 @@ const enMessages: LocaleMessages = {
       autoFix: 'Auto-fix',
       autoFixHint: 'Re-synthesize fixable segments → re-mix → re-evaluate',
       autoFixing: 'Fixing…',
+      autoFixPhase: {
+        plan: 'Planning fixes',
+        repair: 'Re-synthesizing',
+        render: 'Re-mixing',
+        evaluate: 'Re-evaluating',
+      },
       autoFixResult: (before: number, after: number, repaired: number) =>
         `Done · score ${before} → ${after} · ${repaired} re-synthesized`,
       autoFixNoChange: (before: number, after: number) =>

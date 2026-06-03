@@ -157,6 +157,24 @@ def _run_cli(args: list[Any], log_path: Path) -> None:
         raise RuntimeError(f"`{args[0]}` failed (exit {proc.returncode}); see logs/{log_path.name}")
 
 
+_TOTAL_PHASES = 4
+
+
+def _set_phase(job_id: str, step: int, phase: str) -> None:
+    """Record which of the 4 auto-fix steps is running so the UI can show a progress bar.
+
+    Phases (step): plan(1) -> repair(2) -> render(3) -> evaluate(4). Cleared on terminal status.
+    """
+    with Session(engine) as session:
+        job = session.get(Analysis, job_id)
+        if job is None:
+            return
+        job.progress = {"step": step, "total": _TOTAL_PHASES, "phase": phase}
+        job.updated_at = datetime.now()
+        session.add(job)
+        session.commit()
+
+
 def _log_tail(log_path: Path, lines: int = 12) -> str:
     try:
         return "\n".join(log_path.read_text(encoding="utf-8").splitlines()[-lines:])
@@ -266,6 +284,7 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
         # 1) Plan: build the repair queue / rewrite / reference plans. Force-queue
         #    the QA-flagged segments so defects the evaluation found on the final
         #    mix (but task-d passed) are actually attempted, not silently skipped.
+        _set_phase(job_id, 1, "plan")
         plan_args: list[Any] = [
             "plan-dub-repair",
             "--translation", translation,
@@ -280,6 +299,7 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
         _run_cli(plan_args, log_path)
 
         # 2) Run: tournament-synthesize the flagged segments, select the best.
+        _set_phase(job_id, 2, "repair")
         run_args: list[Any] = [
             "run-dub-repair",
             "--repair-queue", plan_dir / f"repair_queue.{target_lang}.json",
@@ -328,6 +348,7 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
                 shutil.copy2(src, backup_dir / name)
 
         # 3) Render: re-mix with the repaired audio, overwriting task-e in place.
+        _set_phase(job_id, 3, "render")
         _run_cli(
             [
                 "render-dub",
@@ -344,6 +365,7 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
         )
 
         # 4) Re-evaluate the new mix.
+        _set_phase(job_id, 4, "evaluate")
         reeval_id = f"ana-{uuid.uuid4().hex[:12]}"
         result = build_dub_qa(
             DubQaRequest(
@@ -415,6 +437,7 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
                 return
             job.status = "succeeded"
             job.result = payload
+            job.progress = None
             job.report_path = report_rel if not regressed else None
             job.finished_at = datetime.now()
             job.updated_at = datetime.now()
@@ -433,6 +456,7 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
                 return
             job.status = "failed"
             job.error_message = message[:1500]
+            job.progress = None
             job.finished_at = datetime.now()
             job.updated_at = datetime.now()
             job.elapsed_sec = round(time.monotonic() - started, 3)

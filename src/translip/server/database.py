@@ -41,6 +41,7 @@ def _ensure_columns() -> None:
     additions = [
         ("tasks", "work_id", "VARCHAR"),
         ("tasks", "episode_label", "VARCHAR"),
+        ("analyses", "progress", "JSON"),
     ]
     with engine.connect() as conn:
         for table, column, ddl in additions:

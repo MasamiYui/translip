@@ -253,8 +253,18 @@ export interface AutoFixResult {
   new_analysis_id?: string | null
 }
 
+/** Which of the 4 auto-fix steps is currently running (for the progress bar). */
+export type AutoFixPhase = 'plan' | 'repair' | 'render' | 'evaluate'
+
+export interface AutoFixProgress {
+  step: number
+  total: number
+  phase: AutoFixPhase | string
+}
+
 export interface AutoFixJob extends Omit<Analysis, 'result'> {
   result?: AutoFixResult | null
+  progress?: AutoFixProgress | null
 }
 
 export const evaluationApi = {

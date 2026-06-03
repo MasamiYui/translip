@@ -51,6 +51,10 @@ class AnalysisRead(BaseModel):
         default=None,
         description="轻量汇总结果（评分、问题计数等）；完整逐句报告通过 /report 接口获取。未完成时为空。",
     )
+    progress: Optional[dict[str, Any]] = Field(
+        default=None,
+        description="运行中的阶段进度（仅一键自动修复填充）：step（当前第几步）/ total（总步数）/ phase（阶段标识：plan/repair/render/evaluate）。完成后清空。",
+    )
     report_path: Optional[str] = Field(
         default=None,
         description="完整配音质量报告文件相对任务输出根目录的路径；分析成功后填充。",
@@ -73,6 +77,7 @@ def _to_read(analysis: Analysis) -> AnalysisRead:
         source_lang=analysis.source_lang,
         params=analysis.params or {},
         result=analysis.result,
+        progress=analysis.progress,
         report_path=analysis.report_path,
         error_message=analysis.error_message,
         created_at=analysis.created_at,
