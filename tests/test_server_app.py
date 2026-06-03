@@ -137,3 +137,68 @@ def test_global_config_can_clear_optional_advanced_defaults(tmp_path, monkeypatc
     raw = json.loads((tmp_path / "config.json").read_text(encoding="utf-8"))
     assert "deepseek_model" not in raw["global"]
     assert "dubbing_workers" not in raw["global"]
+
+
+def test_config_defaults_expose_subtitle_erase_knobs() -> None:
+    client = TestClient(app_module.app)
+
+    payload = client.get("/api/config/defaults").json()
+
+    assert payload["erase_backend"] == "sttn"
+    assert payload["erase_device"] == "auto"
+    assert payload["erase_max_load"] == 50
+    assert payload["erase_mask_dilate_x"] == 12
+    assert payload["erase_mask_dilate_y"] == 8
+    assert payload["erase_event_lead_frames"] == 3
+    assert payload["erase_event_trail_frames"] == 8
+    assert payload["erase_neighbor_stride"] == 5
+    assert payload["erase_reference_length"] == 10
+
+
+def test_global_config_round_trips_subtitle_erase_defaults(tmp_path, monkeypatch) -> None:
+    from translip.server.routes import config as config_routes
+
+    monkeypatch.setattr(config_routes, "CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(config_routes, "CONFIG_PATH", tmp_path / "config.json")
+
+    client = TestClient(app_module.app)
+
+    update = {
+        "erase_backend": "lama",
+        "erase_device": "cpu",
+        "erase_max_load": 30,
+        "erase_mask_dilate_x": 20,
+        "erase_mask_dilate_y": 14,
+        "erase_event_lead_frames": 5,
+        "erase_event_trail_frames": 12,
+        "erase_neighbor_stride": 4,
+        "erase_reference_length": 8,
+        "music_backend": "demucs",
+        "dialogue_backend": "cdx23",
+    }
+
+    response = client.put("/api/config/global", json=update)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ok"] is True
+    for key, value in update.items():
+        assert payload["config"][key] == value
+
+    # New tasks read these defaults via /api/config/defaults; confirm they persist.
+    saved = client.get("/api/config/defaults").json()
+    for key, value in update.items():
+        assert saved[key] == value
+
+
+def test_global_config_rejects_invalid_subtitle_erase_knobs(tmp_path, monkeypatch) -> None:
+    from translip.server.routes import config as config_routes
+
+    monkeypatch.setattr(config_routes, "CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(config_routes, "CONFIG_PATH", tmp_path / "config.json")
+
+    client = TestClient(app_module.app)
+
+    assert client.put("/api/config/global", json={"erase_max_load": 0}).status_code == 400
+    assert client.put("/api/config/global", json={"erase_neighbor_stride": 0}).status_code == 400
+    assert client.put("/api/config/global", json={"erase_mask_dilate_x": -1}).status_code == 400

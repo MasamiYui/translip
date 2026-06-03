@@ -217,7 +217,6 @@ export interface TaskConfig {
   dubbing_quality_check?: 'standard' | 'duration-only'
   dub_repair_enabled?: boolean
   dub_repair_backend?: string[]
-  dub_repair_backends?: string[]
   dub_repair_max_items?: number
   dub_repair_attempts_per_item?: number
   dub_repair_include_risk?: boolean
@@ -233,6 +232,12 @@ export interface TaskConfig {
   erase_backend?: 'sttn' | 'lama'
   erase_device?: 'auto' | 'mps' | 'cuda' | 'cpu'
   erase_max_load?: number
+  erase_mask_dilate_x?: number
+  erase_mask_dilate_y?: number
+  erase_event_lead_frames?: number
+  erase_event_trail_frames?: number
+  erase_neighbor_stride?: number
+  erase_reference_length?: number
 }
 
 export interface CreateTaskRequest {

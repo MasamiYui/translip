@@ -439,3 +439,87 @@ def test_rerun_task_upgrades_legacy_erase_defaults(tmp_path: Path, monkeypatch) 
     assert rerun.config["video_source"] == "clean_if_available"
     assert rerun.delivery_config["subtitle_mode"] == "english_only"
     assert "task-g" in [stage.stage_name for stage in rerun.stages]
+
+
+def test_task_config_accepts_subtitle_erase_controls() -> None:
+    config = TaskConfigInput(
+        erase_backend="lama",
+        erase_device="cpu",
+        erase_max_load=30,
+        erase_mask_dilate_x=20,
+        erase_mask_dilate_y=14,
+        erase_event_lead_frames=5,
+        erase_event_trail_frames=12,
+        erase_neighbor_stride=4,
+        erase_reference_length=8,
+    )
+
+    assert config.erase_backend == "lama"
+    assert config.erase_device == "cpu"
+    assert config.erase_max_load == 30
+    assert config.erase_mask_dilate_x == 20
+    assert config.erase_mask_dilate_y == 14
+    assert config.erase_event_lead_frames == 5
+    assert config.erase_event_trail_frames == 12
+    assert config.erase_neighbor_stride == 4
+    assert config.erase_reference_length == 8
+
+    # backend is constrained to the two pipeline-supported inpainters
+    with pytest.raises(ValidationError):
+        TaskConfigInput(erase_backend="opencv")
+    with pytest.raises(ValidationError):
+        TaskConfigInput(erase_device="gpu")
+    # positive-only knobs
+    with pytest.raises(ValidationError):
+        TaskConfigInput(erase_max_load=0)
+    with pytest.raises(ValidationError):
+        TaskConfigInput(erase_neighbor_stride=0)
+    with pytest.raises(ValidationError):
+        TaskConfigInput(erase_reference_length=0)
+    # non-negative knobs
+    with pytest.raises(ValidationError):
+        TaskConfigInput(erase_mask_dilate_x=-1)
+    with pytest.raises(ValidationError):
+        TaskConfigInput(erase_event_lead_frames=-1)
+
+
+def test_build_pipeline_request_maps_subtitle_erase_controls(tmp_path: Path) -> None:
+    from translip.server.task_manager import _build_pipeline_request
+
+    task = Task(
+        id="task-erase-config",
+        name="Erase Config",
+        status="pending",
+        input_path=str(tmp_path / "input.mp4"),
+        output_root=str(tmp_path / "output"),
+        source_lang="zh",
+        target_lang="en",
+        config={
+            "pipeline": {
+                "template": "asr-dub+ocr-subs+erase",
+                "erase_backend": "lama",
+                "erase_device": "cpu",
+                "erase_max_load": 30,
+                "erase_mask_dilate_x": 20,
+                "erase_mask_dilate_y": 14,
+                "erase_event_lead_frames": 5,
+                "erase_event_trail_frames": 12,
+                "erase_neighbor_stride": 4,
+                "erase_reference_length": 8,
+            }
+        },
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+
+    request = _build_pipeline_request(task)
+
+    assert request.erase_backend == "lama"
+    assert request.erase_device == "cpu"
+    assert request.erase_max_load == 30
+    assert request.erase_mask_dilate_x == 20
+    assert request.erase_mask_dilate_y == 14
+    assert request.erase_event_lead_frames == 5
+    assert request.erase_event_trail_frames == 12
+    assert request.erase_neighbor_stride == 4
+    assert request.erase_reference_length == 8

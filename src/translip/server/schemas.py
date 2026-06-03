@@ -92,6 +92,12 @@ class TaskConfigInput(BaseModel):
     erase_backend: Literal["sttn", "lama"] = Field(default="sttn", description="字幕擦除后端：sttn/lama")
     erase_device: Literal["auto", "mps", "cuda", "cpu"] = Field(default="auto", description="字幕擦除计算设备")
     erase_max_load: int = Field(default=50, gt=0, description="字幕擦除时单批最大加载帧数")
+    erase_mask_dilate_x: int = Field(default=12, ge=0, description="字幕擦除掩码横向膨胀像素（增大可消除残留，过大易溢出）")
+    erase_mask_dilate_y: int = Field(default=8, ge=0, description="字幕擦除掩码纵向膨胀像素（增大可消除残留，过大易溢出）")
+    erase_event_lead_frames: int = Field(default=3, ge=0, description="字幕事件提前擦除帧数（处理淡入）")
+    erase_event_trail_frames: int = Field(default=8, ge=0, description="字幕事件延后擦除帧数（处理淡出）")
+    erase_neighbor_stride: int = Field(default=5, gt=0, description="STTN 时间邻域采样步长")
+    erase_reference_length: int = Field(default=10, gt=0, description="STTN 全局参考帧步长")
     # Stage 1
     separation_mode: str = Field(default="auto", description="stage1 分离模式，auto 为自动判断")
     separation_quality: str = Field(default="balanced", description="stage1 人声/背景分离质量档位")

@@ -87,6 +87,16 @@ _DEFAULT_CONFIG = {
     "bilingual_chinese_position": "bottom",
     "bilingual_english_position": "top",
     "bilingual_export_strategy": "auto_standard_bilingual",
+    # Subtitle erase (subtitle-erase node, +erase template only)
+    "erase_backend": "sttn",
+    "erase_device": "auto",
+    "erase_mask_dilate_x": 12,
+    "erase_mask_dilate_y": 8,
+    "erase_event_lead_frames": 3,
+    "erase_event_trail_frames": 8,
+    "erase_neighbor_stride": 5,
+    "erase_reference_length": 10,
+    "erase_max_load": 50,
 }
 
 
@@ -129,6 +139,8 @@ class GlobalConfigRequest(BaseModel):
     keep_intermediate: Optional[bool] = Field(default=None, description="是否保留流水线中间产物")
     separation_mode: Optional[str] = Field(default=None, description="stage1 人声/背景分离模式，如 auto")
     separation_quality: Optional[str] = Field(default=None, description="stage1 分离质量档位，如 balanced")
+    music_backend: Optional[str] = Field(default=None, description="stage1 背景音乐分离后端，如 demucs")
+    dialogue_backend: Optional[str] = Field(default=None, description="stage1 人声/对白分离后端，如 cdx23")
     stage1_output_format: Optional[str] = Field(default=None, description="stage1 输出音频格式，如 mp3/wav")
     audio_stream_index: Optional[int] = Field(default=None, description="源视频中要处理的音轨索引，从 0 开始")
     asr_model: Optional[str] = Field(default=None, description="task-a 转写所用 ASR 模型名，如 paraformer-zh")
@@ -187,6 +199,15 @@ class GlobalConfigRequest(BaseModel):
     bilingual_chinese_position: Optional[str] = Field(default=None, description="双语字幕中文行位置，如 bottom")
     bilingual_english_position: Optional[str] = Field(default=None, description="双语字幕英文行位置，如 top")
     bilingual_export_strategy: Optional[str] = Field(default=None, description="双语字幕导出策略，如 auto_standard_bilingual")
+    erase_backend: Optional[str] = Field(default=None, description="字幕擦除后端：sttn/lama（仅 +擦除 模板生效）")
+    erase_device: Optional[str] = Field(default=None, description="字幕擦除计算设备，如 auto/mps/cuda/cpu")
+    erase_mask_dilate_x: Optional[int] = Field(default=None, description="字幕擦除掩码横向膨胀像素，需大于等于 0")
+    erase_mask_dilate_y: Optional[int] = Field(default=None, description="字幕擦除掩码纵向膨胀像素，需大于等于 0")
+    erase_event_lead_frames: Optional[int] = Field(default=None, description="字幕事件提前擦除帧数，需大于等于 0")
+    erase_event_trail_frames: Optional[int] = Field(default=None, description="字幕事件延后擦除帧数，需大于等于 0")
+    erase_neighbor_stride: Optional[int] = Field(default=None, description="STTN 时间邻域采样步长，需大于 0")
+    erase_reference_length: Optional[int] = Field(default=None, description="STTN 全局参考帧步长，需大于 0")
+    erase_max_load: Optional[int] = Field(default=None, description="字幕擦除单批最大加载帧数，需大于 0")
 
 
 def _validate_global_update(update: dict[str, Any]) -> None:
@@ -200,10 +221,21 @@ def _validate_global_update(update: dict[str, Any]) -> None:
         "dub_repair_max_items",
         "dub_repair_attempts_per_item",
         "output_sample_rate",
+        "erase_max_load",
+        "erase_neighbor_stride",
+        "erase_reference_length",
     ):
         if field in update and update[field] is not None and int(update[field]) <= 0:
             raise HTTPException(status_code=400, detail=f"{field} must be greater than 0")
-    for field in ("audio_stream_index", "subtitle_font_size", "subtitle_margin_v"):
+    for field in (
+        "audio_stream_index",
+        "subtitle_font_size",
+        "subtitle_margin_v",
+        "erase_mask_dilate_x",
+        "erase_mask_dilate_y",
+        "erase_event_lead_frames",
+        "erase_event_trail_frames",
+    ):
         if field in update and update[field] is not None and int(update[field]) < 0:
             raise HTTPException(status_code=400, detail=f"{field} must be greater than or equal to 0")
     if "max_compress_ratio" in update and update["max_compress_ratio"] is not None and float(update["max_compress_ratio"]) <= 0:

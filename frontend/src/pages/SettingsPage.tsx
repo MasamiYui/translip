@@ -29,6 +29,8 @@ const defaultGlobalConfig: GlobalConfigDraft = {
   keep_intermediate: false,
   separation_mode: 'auto',
   separation_quality: 'balanced',
+  music_backend: 'demucs',
+  dialogue_backend: 'cdx23',
   stage1_output_format: 'mp3',
   audio_stream_index: 0,
   asr_model: 'small',
@@ -68,6 +70,25 @@ const defaultGlobalConfig: GlobalConfigDraft = {
   preview_format: 'wav',
   subtitle_mode: 'none',
   subtitle_render_source: 'ocr',
+  subtitle_font: '',
+  subtitle_font_size: 0,
+  subtitle_color: '#FFFFFF',
+  subtitle_outline_color: '#000000',
+  subtitle_outline_width: 2,
+  subtitle_position: 'bottom',
+  subtitle_margin_v: 0,
+  subtitle_bold: false,
+  bilingual_chinese_position: 'bottom',
+  bilingual_english_position: 'top',
+  erase_backend: 'sttn',
+  erase_device: 'auto',
+  erase_mask_dilate_x: 12,
+  erase_mask_dilate_y: 8,
+  erase_event_lead_frames: 3,
+  erase_event_trail_frames: 8,
+  erase_neighbor_stride: 5,
+  erase_reference_length: 10,
+  erase_max_load: 50,
 }
 
 const FASTER_WHISPER_MODEL_OPTIONS = ['tiny', 'base', 'small', 'medium', 'large-v3'].map(value => ({
@@ -732,7 +753,7 @@ function AdvancedSettingsSection({
   onSave: () => void
 }) {
   const { t } = useI18n()
-  const repairBackends = config.dub_repair_backend ?? config.dub_repair_backends ?? []
+  const repairBackends = config.dub_repair_backend ?? []
   const asrBackend = config.asr_backend ?? 'faster-whisper'
   const asrModelOptions = asrBackend === 'funasr' ? FUNASR_MODEL_OPTIONS : FASTER_WHISPER_MODEL_OPTIONS
   const asrModelValue = asrModelOptions.some(option => option.value === config.asr_model)
@@ -742,7 +763,7 @@ function AdvancedSettingsSection({
     const next = enabled
       ? Array.from(new Set([...repairBackends, backend]))
       : repairBackends.filter(item => item !== backend)
-    onPatch({ dub_repair_backend: next, dub_repair_backends: next })
+    onPatch({ dub_repair_backend: next })
   }
   const patchAsrBackend = (backend: string) => {
     onPatch({
@@ -892,6 +913,36 @@ function AdvancedSettingsSection({
           />
         </AdvancedSettingsGroup>
 
+        <AdvancedSettingsGroup title="字幕擦除" description="subtitle-erase 节点用 OCR 检测框对原片硬字幕做视频修复（仅 +字幕擦除 模板生效）。掩码膨胀越大越能消除残留但易溢出；邻域/参考步长仅 STTN 后端生效。">
+          <SettingsSelect
+            label="擦除后端"
+            value={config.erase_backend ?? 'sttn'}
+            options={[
+              { value: 'sttn', label: 'STTN（时序修复，默认）' },
+              { value: 'lama', label: 'LaMa（单帧最锐，较慢）' },
+            ]}
+            onChange={value => onPatch({ erase_backend: value as TaskConfig['erase_backend'] })}
+          />
+          <SettingsSelect
+            label="计算设备"
+            value={config.erase_device ?? 'auto'}
+            options={[
+              { value: 'auto', label: 'auto' },
+              { value: 'mps', label: 'mps (Apple)' },
+              { value: 'cuda', label: 'cuda' },
+              { value: 'cpu', label: 'cpu' },
+            ]}
+            onChange={value => onPatch({ erase_device: value as TaskConfig['erase_device'] })}
+          />
+          <SettingsNumber label="掩码横向膨胀 (px)" value={config.erase_mask_dilate_x ?? 12} min={0} step={1} onChange={value => onPatch({ erase_mask_dilate_x: value })} />
+          <SettingsNumber label="掩码纵向膨胀 (px)" value={config.erase_mask_dilate_y ?? 8} min={0} step={1} onChange={value => onPatch({ erase_mask_dilate_y: value })} />
+          <SettingsNumber label="事件提前帧（淡入）" value={config.erase_event_lead_frames ?? 3} min={0} step={1} onChange={value => onPatch({ erase_event_lead_frames: value })} />
+          <SettingsNumber label="事件延后帧（淡出）" value={config.erase_event_trail_frames ?? 8} min={0} step={1} onChange={value => onPatch({ erase_event_trail_frames: value })} />
+          <SettingsNumber label="STTN 邻域步长" value={config.erase_neighbor_stride ?? 5} min={1} step={1} onChange={value => onPatch({ erase_neighbor_stride: value })} />
+          <SettingsNumber label="STTN 参考帧步长" value={config.erase_reference_length ?? 10} min={1} step={1} onChange={value => onPatch({ erase_reference_length: value })} />
+          <SettingsNumber label="单批最大帧数" value={config.erase_max_load ?? 50} min={1} step={1} onChange={value => onPatch({ erase_max_load: value })} />
+        </AdvancedSettingsGroup>
+
         <AdvancedSettingsGroup title="翻译" description="Task C 翻译配音脚本；OCR 字幕翻译也复用这些后端设置。">
           <SettingsSelect
             label="翻译后端"
@@ -924,6 +975,12 @@ function AdvancedSettingsSection({
             value={config.deepseek_model ?? ''}
             placeholder="deepseek-v4-pro"
             onChange={value => onPatch({ deepseek_model: value || null })}
+          />
+          <SettingsText
+            label="DeepSeek API 地址"
+            value={config.deepseek_base_url ?? ''}
+            placeholder="https://api.deepseek.com"
+            onChange={value => onPatch({ deepseek_base_url: value || null })}
           />
           <SettingsSelect
             label="文稿校正 LLM 仲裁"
@@ -1043,7 +1100,7 @@ function AdvancedSettingsSection({
           <SettingsNumber label="最大压缩比例" value={config.max_compress_ratio ?? 1.45} min={0.1} step={0.05} onChange={value => onPatch({ max_compress_ratio: value })} />
         </AdvancedSettingsGroup>
 
-        <AdvancedSettingsGroup title="导出与字幕" description="Task G 交付视频、字幕叠加和双语字幕布局默认值。">
+        <AdvancedSettingsGroup title="导出与字幕" description="Task G 交付视频、字幕叠加和双语字幕布局默认值。字幕模式选「无字幕」以外时显示样式选项。">
           <SettingsSelect
             label="成品字幕模式"
             value={config.subtitle_mode ?? 'none'}
@@ -1064,6 +1121,85 @@ function AdvancedSettingsSection({
             ]}
             onChange={value => onPatch({ subtitle_render_source: value as TaskConfig['subtitle_render_source'] })}
           />
+          {(config.subtitle_mode ?? 'none') !== 'none' && (
+            <>
+              <SettingsText
+                label="字幕字体"
+                value={config.subtitle_font ?? ''}
+                placeholder="Noto Sans / Source Han Sans"
+                onChange={value => onPatch({ subtitle_font: value || null })}
+              />
+              <SettingsNumber
+                label="字号 (0=自动)"
+                value={config.subtitle_font_size ?? 0}
+                min={0}
+                step={1}
+                onChange={value => onPatch({ subtitle_font_size: value })}
+              />
+              <SettingsColor
+                label="字幕颜色"
+                value={config.subtitle_color ?? '#FFFFFF'}
+                onChange={value => onPatch({ subtitle_color: value })}
+              />
+              <SettingsColor
+                label="描边颜色"
+                value={config.subtitle_outline_color ?? '#000000'}
+                onChange={value => onPatch({ subtitle_outline_color: value })}
+              />
+              <SettingsNumber
+                label="描边宽度"
+                value={config.subtitle_outline_width ?? 2}
+                min={0}
+                step={0.5}
+                onChange={value => onPatch({ subtitle_outline_width: value })}
+              />
+              <SettingsSelect
+                label="字幕位置"
+                value={config.subtitle_position ?? 'bottom'}
+                options={[
+                  { value: 'bottom', label: '底部' },
+                  { value: 'top', label: '顶部' },
+                ]}
+                onChange={value => onPatch({ subtitle_position: value as TaskConfig['subtitle_position'] })}
+              />
+              <SettingsNumber
+                label="垂直边距"
+                value={config.subtitle_margin_v ?? 0}
+                min={0}
+                step={1}
+                onChange={value => onPatch({ subtitle_margin_v: value })}
+              />
+              <SettingsField label="字幕加粗">
+                <SettingsCheckbox
+                  label="加粗"
+                  checked={config.subtitle_bold ?? false}
+                  onChange={value => onPatch({ subtitle_bold: value })}
+                />
+              </SettingsField>
+            </>
+          )}
+          {(config.subtitle_mode ?? 'none') === 'bilingual' && (
+            <>
+              <SettingsSelect
+                label="双语·中文位置"
+                value={config.bilingual_chinese_position ?? 'bottom'}
+                options={[
+                  { value: 'bottom', label: '底部' },
+                  { value: 'top', label: '顶部' },
+                ]}
+                onChange={value => onPatch({ bilingual_chinese_position: value as TaskConfig['bilingual_chinese_position'] })}
+              />
+              <SettingsSelect
+                label="双语·英文位置"
+                value={config.bilingual_english_position ?? 'top'}
+                options={[
+                  { value: 'bottom', label: '底部' },
+                  { value: 'top', label: '顶部' },
+                ]}
+                onChange={value => onPatch({ bilingual_english_position: value as TaskConfig['bilingual_english_position'] })}
+              />
+            </>
+          )}
         </AdvancedSettingsGroup>
       </div>
 
@@ -1161,6 +1297,38 @@ function SettingsText({
         onChange={event => onChange(event.target.value)}
         className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
       />
+    </label>
+  )
+}
+
+function SettingsColor({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: string
+  onChange: (value: string) => void
+}) {
+  return (
+    <label>
+      <span className="mb-1.5 block text-sm font-medium text-slate-700">{label}</span>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          aria-label={`${label} 取色器`}
+          value={value}
+          onChange={event => onChange(event.target.value)}
+          className="h-9 w-12 shrink-0 cursor-pointer rounded-lg border border-slate-200 bg-white p-1"
+        />
+        <input
+          type="text"
+          aria-label={label}
+          value={value}
+          onChange={event => onChange(event.target.value)}
+          className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+        />
+      </div>
     </label>
   )
 }
