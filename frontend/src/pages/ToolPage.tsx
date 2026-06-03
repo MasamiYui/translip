@@ -69,11 +69,18 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
   const [translationInputMode, setTranslationInputMode] = useState<'text' | 'file'>('text')
   const [textInput, setTextInput] = useState(() => prefill?.text ?? '')
   const [params, setParams] = useState<ToolParams>(getDefaultParams(toolId))
+  const [originalVideoUrl, setOriginalVideoUrl] = useState<string | null>(null)
 
   useEffect(() => {
     if (toolId !== 'transcription' || !globalDefaults) return
     setParams(prev => applyTranscriptionGlobalDefaults(prev, globalDefaults))
   }, [globalDefaults, toolId])
+
+  useEffect(() => {
+    return () => {
+      if (originalVideoUrl) URL.revokeObjectURL(originalVideoUrl)
+    }
+  }, [originalVideoUrl])
 
   if (!tool) {
     return (
@@ -92,6 +99,12 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     : 'grid gap-4'
 
   async function handleFileSelected(slot: string, file: File) {
+    if (toolId === 'subtitle-erase' && slot === 'file' && file.type.startsWith('video/')) {
+      setOriginalVideoUrl(prev => {
+        if (prev) URL.revokeObjectURL(prev)
+        return URL.createObjectURL(file)
+      })
+    }
     const uploaded = await uploadFile(file)
     setFileRefs(prev => ({ ...prev, [slot]: uploaded }))
   }
@@ -112,6 +125,10 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     setTextInput('')
     setTranslationInputMode('text')
     setParams(getDefaultParams(toolId, globalDefaults))
+    setOriginalVideoUrl(prev => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
     reset()
   }
 
@@ -177,7 +194,13 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
       </section>
 
       {/* Results render below the controls */}
-      <ResultPanel toolId={toolId} job={job} artifacts={artifacts} getDownloadUrl={getDownloadUrl} />
+      <ResultPanel
+        toolId={toolId}
+        job={job}
+        artifacts={artifacts}
+        getDownloadUrl={getDownloadUrl}
+        originalVideoUrl={originalVideoUrl}
+      />
     </PageContainer>
   )
 }

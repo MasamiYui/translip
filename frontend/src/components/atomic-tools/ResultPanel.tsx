@@ -1,4 +1,5 @@
 import { Download, FileText, CheckCircle2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../../i18n/useI18n'
 import { CrossToolAction } from './CrossToolAction'
 import type { ArtifactInfo, AtomicJob } from '../../types/atomic-tools'
@@ -9,6 +10,7 @@ interface ResultPanelProps {
   job: AtomicJob | null
   artifacts: ArtifactInfo[]
   getDownloadUrl: (filename: string) => string
+  originalVideoUrl?: string | null
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
@@ -18,7 +20,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string 
   pending: { label: 'PENDING', color: 'text-[#9ca3af]', dot: 'bg-[#d1d5db]' },
 }
 
-export function ResultPanel({ toolId, job, artifacts, getDownloadUrl }: ResultPanelProps) {
+export function ResultPanel({ toolId, job, artifacts, getDownloadUrl, originalVideoUrl }: ResultPanelProps) {
   const { t } = useI18n()
   if (!job) return null
 
@@ -32,7 +34,7 @@ export function ResultPanel({ toolId, job, artifacts, getDownloadUrl }: ResultPa
     compareOriginal: t.atomicTools.result.compareOriginal,
     compareErased: t.atomicTools.result.compareErased,
     quickMetrics: t.atomicTools.result.quickMetrics,
-  })
+  }, originalVideoUrl ?? null)
 
   return (
     <section className="space-y-4">
@@ -250,23 +252,136 @@ function buildSubtitleEraseCompare(
   artifacts: ArtifactInfo[],
   getDownloadUrl: (filename: string) => string,
   labels: { compareTitle: string; compareOriginal: string; compareErased: string; quickMetrics: string },
+  originalVideoUrl: string | null,
 ) {
   if (toolId !== 'subtitle-erase') return null
   const erased = artifacts.find(item => /erased\.(mp4|mov|mkv|webm)$/i.test(item.filename))
   if (!erased) return null
 
   const result = job.result ?? {}
-  const sourceUrl = typeof result.source_url === 'string' ? result.source_url : null
-  const metrics = result.quick_metrics as Record<string, unknown> | null | undefined
+  const sourceUrlFromResult = typeof result.source_url === 'string' ? result.source_url : null
+  const sourceUrl = sourceUrlFromResult ?? originalVideoUrl
+  const metricsRaw = (result.quick_metrics ?? result.metrics) as Record<string, unknown> | null | undefined
+  const metrics = metricsRaw && typeof metricsRaw === 'object' ? metricsRaw : null
+
+  return (
+    <SubtitleEraseCompare
+      labels={labels}
+      sourceUrl={sourceUrl ?? null}
+      erasedUrl={getDownloadUrl(erased.filename)}
+      metrics={metrics}
+    />
+  )
+}
+
+function SubtitleEraseCompare({
+  labels,
+  sourceUrl,
+  erasedUrl,
+  metrics,
+}: {
+  labels: { compareTitle: string; compareOriginal: string; compareErased: string; quickMetrics: string }
+  sourceUrl: string | null
+  erasedUrl: string
+  metrics: Record<string, unknown> | null
+}) {
+  const originalRef = useRef<HTMLVideoElement | null>(null)
+  const erasedRef = useRef<HTMLVideoElement | null>(null)
+  const [synced, setSynced] = useState(true)
+  const syncingRef = useRef(false)
+
+  useEffect(() => {
+    if (!synced) return
+    const original = originalRef.current
+    const erased = erasedRef.current
+    if (!original || !erased) return
+
+    const mirror = (source: HTMLVideoElement, target: HTMLVideoElement, kind: 'play' | 'pause' | 'seek' | 'rate') => {
+      if (syncingRef.current) return
+      syncingRef.current = true
+      try {
+        if (kind === 'play' && target.paused) void target.play().catch(() => undefined)
+        if (kind === 'pause' && !target.paused) target.pause()
+        if (kind === 'seek') target.currentTime = source.currentTime
+        if (kind === 'rate') target.playbackRate = source.playbackRate
+      } finally {
+        syncingRef.current = false
+      }
+    }
+
+    const onPlayO = () => mirror(original, erased, 'play')
+    const onPauseO = () => mirror(original, erased, 'pause')
+    const onSeekO = () => mirror(original, erased, 'seek')
+    const onRateO = () => mirror(original, erased, 'rate')
+    const onPlayE = () => mirror(erased, original, 'play')
+    const onPauseE = () => mirror(erased, original, 'pause')
+    const onSeekE = () => mirror(erased, original, 'seek')
+    const onRateE = () => mirror(erased, original, 'rate')
+
+    original.addEventListener('play', onPlayO)
+    original.addEventListener('pause', onPauseO)
+    original.addEventListener('seeked', onSeekO)
+    original.addEventListener('ratechange', onRateO)
+    erased.addEventListener('play', onPlayE)
+    erased.addEventListener('pause', onPauseE)
+    erased.addEventListener('seeked', onSeekE)
+    erased.addEventListener('ratechange', onRateE)
+
+    return () => {
+      original.removeEventListener('play', onPlayO)
+      original.removeEventListener('pause', onPauseO)
+      original.removeEventListener('seeked', onSeekO)
+      original.removeEventListener('ratechange', onRateO)
+      erased.removeEventListener('play', onPlayE)
+      erased.removeEventListener('pause', onPauseE)
+      erased.removeEventListener('seeked', onSeekE)
+      erased.removeEventListener('ratechange', onRateE)
+    }
+  }, [synced, sourceUrl, erasedUrl])
+
+  const handlePlayBoth = () => {
+    const original = originalRef.current
+    const erased = erasedRef.current
+    if (original && erased) {
+      original.currentTime = 0
+      erased.currentTime = 0
+      void original.play().catch(() => undefined)
+      void erased.play().catch(() => undefined)
+    }
+  }
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <div className="mb-3 text-sm font-medium text-slate-700">{labels.compareTitle}</div>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm font-medium text-slate-700">{labels.compareTitle}</div>
+        <div className="flex items-center gap-3">
+          {sourceUrl && (
+            <label className="inline-flex items-center gap-1.5 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={synced}
+                onChange={event => setSynced(event.target.checked)}
+                className="accent-blue-600"
+              />
+              <span>同步播放</span>
+            </label>
+          )}
+          {sourceUrl && (
+            <button
+              type="button"
+              onClick={handlePlayBoth}
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 transition hover:bg-slate-100"
+            >
+              ▶ 同步重播
+            </button>
+          )}
+        </div>
+      </div>
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <div className="mb-1 text-xs uppercase tracking-widest text-slate-400">{labels.compareOriginal}</div>
           {sourceUrl ? (
-            <video controls className="w-full rounded-xl" src={sourceUrl} />
+            <video ref={originalRef} controls className="w-full rounded-xl bg-black" src={sourceUrl} />
           ) : (
             <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-slate-300 text-xs text-slate-400">
               —
@@ -275,10 +390,10 @@ function buildSubtitleEraseCompare(
         </div>
         <div>
           <div className="mb-1 text-xs uppercase tracking-widest text-slate-400">{labels.compareErased}</div>
-          <video controls className="w-full rounded-xl" src={getDownloadUrl(erased.filename)} />
+          <video ref={erasedRef} controls className="w-full rounded-xl bg-black" src={erasedUrl} />
         </div>
       </div>
-      {metrics && typeof metrics === 'object' && (
+      {metrics && (
         <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl bg-white px-3 py-2 text-xs text-slate-600 md:grid-cols-4">
           <div className="col-span-2 text-[11px] uppercase tracking-widest text-slate-400 md:col-span-4">
             {labels.quickMetrics}
@@ -287,7 +402,13 @@ function buildSubtitleEraseCompare(
             <div key={key} className="flex justify-between gap-2">
               <span className="text-slate-400">{key}</span>
               <span className="font-mono text-slate-700">
-                {typeof value === 'number' ? value.toFixed(3) : String(value)}
+                {typeof value === 'number'
+                  ? Number.isFinite(value)
+                    ? value.toFixed(3)
+                    : String(value)
+                  : typeof value === 'object' && value !== null
+                    ? JSON.stringify(value)
+                    : String(value)}
               </span>
             </div>
           ))}
