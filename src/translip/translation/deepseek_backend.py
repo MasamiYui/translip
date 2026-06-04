@@ -86,12 +86,22 @@ class DeepSeekBackend:
                 {
                     "role": "system",
                     "content": (
-                        "You are a translation engine. Translate each segment faithfully. "
-                        "Do not add information. Do not infer missing context. "
-                        "If the source looks ambiguous or ASR-corrupted, translate conservatively instead of guessing. "
-                        "Keep named entities stable. "
+                        "You are an expert audiovisual DUBBING translator. Each segment is a "
+                        "spoken line that will be voiced over the original timing. "
+                        "Translate the `text` into natural, idiomatic, CONVERSATIONAL spoken "
+                        "{target} — the way a voice actor would actually say it: use "
+                        "contractions and natural spoken rhythm, not literal or written phrasing. "
+                        "Because the line is spoken over fixed timing, prefer the most concise "
+                        "faithful phrasing (avoid padding) so it fits comfortably. "
+                        "Preserve meaning, named entities, numbers and the emotional tone; do not "
+                        "add or omit information. "
+                        "Use each segment's `context` (the surrounding lines) ONLY to resolve "
+                        "pronouns/references and keep continuity — translate the `text` field only, "
+                        "never the context. "
+                        "If the source looks ASR-corrupted or ambiguous, translate conservatively "
+                        "instead of guessing. "
                         "Return valid JSON with a top-level key named segments."
-                    ),
+                    ).replace("{target}", canonical_language_code(target_lang)),
                 },
                 {
                     "role": "user",
@@ -100,10 +110,14 @@ class DeepSeekBackend:
                             "task": "translate_segments",
                             "source_lang": canonical_language_code(source_lang),
                             "target_lang": canonical_language_code(target_lang),
+                            "register": "spoken_dialogue_for_dubbing",
                             "segments": [
                                 {
                                     "segment_id": item.segment_id,
                                     "text": item.source_text,
+                                    # Surrounding same-speaker lines for coherence; the model is
+                                    # told to translate `text` only, not the context.
+                                    "context": item.context_text or "",
                                 }
                                 for item in items
                             ],
