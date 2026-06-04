@@ -13,6 +13,13 @@ interface HeaderProps {
   onToggleLayoutMode?: () => void
 }
 
+function shortDeviceLabel(device: string): string {
+  if (device.startsWith('MPS')) return 'MPS'
+  if (device.startsWith('CUDA')) return 'CUDA'
+  if (device.startsWith('CPU')) return 'CPU'
+  return device
+}
+
 export function Header({
   workbench = false,
   sidebarOffset = 220,
@@ -45,9 +52,12 @@ export function Header({
       <div />
       <div className="flex items-center gap-3">
         {sysInfo && (
-          <div className="hidden items-center gap-1.5 text-xs text-[#6b7280] sm:flex">
+          <div
+            className="hidden items-center gap-1.5 text-xs text-[#6b7280] sm:flex"
+            title={sysInfo.device}
+          >
             <Monitor size={13} className="text-[#9ca3af]" />
-            <span className="font-medium">{sysInfo.device}</span>
+            <span className="font-medium">{shortDeviceLabel(sysInfo.device)}</span>
           </div>
         )}
         {sysInfo ? (
