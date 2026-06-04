@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 452" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="rsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .nm{font-size:13px;font-weight:700;fill:#0f172a;}
+      .note{font-size:11px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+      .mlab{font-size:11px;fill:#475569;font-weight:700;}
+      .tot{font-size:11px;fill:#94a3b8;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="452" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">一段像样的参考，是怎么被挑出来的</text>
+  <text x="32" y="66" class="s" font-size="13.5">时长 0.5 + 文本 0.3 + 响度 0.2 − 风险——可解释的打分，不随机抓一段；8–10.5 秒是甜区。</text>
+
+  <!-- duration sweet-zone ruler -->
+  <rect x="60" y="92" width="840" height="34" rx="10" fill="#f1f5f9" stroke="#e2e8f0"/>
+  <rect x="60" y="92" width="233" height="34" rx="10" fill="#fef2f2"/>
+  <rect x="760" y="92" width="140" height="34" rx="10" fill="#fef2f2"/>
+  <rect x="433" y="92" width="117" height="34" rx="6" fill="#dcfce7" stroke="#86efac"/>
+  <text x="176" y="114" text-anchor="middle" class="note" fill="#b91c1c">&lt; 5s 太短，不要</text>
+  <text x="491" y="113" text-anchor="middle" font-size="11.5" font-weight="700" fill="#15803d">甜区 8–10.5s</text>
+  <text x="830" y="114" text-anchor="middle" class="note" fill="#b91c1c">&gt; 15s 太长，不要</text>
+  <line x1="293" y1="126" x2="293" y2="136" stroke="#94a3b8"/>
+  <text x="293" y="148" text-anchor="middle" class="tot">5s</text>
+  <line x1="760" y1="126" x2="760" y2="136" stroke="#94a3b8"/>
+  <text x="760" y="148" text-anchor="middle" class="tot">15s</text>
+
+  <!-- Candidate A: winner -->
+  <rect x="32" y="170" width="212" height="250" rx="14" fill="#fff" stroke="#86efac" stroke-width="2.2" filter="url(#rsh)"/>
+  <rect x="166" y="160" width="62" height="24" rx="12" fill="#16a34a"/>
+  <text x="197" y="177" text-anchor="middle" font-size="11.5" font-weight="700" fill="#fff">✓ 胜出</text>
+  <text x="50" y="200" class="nm">候选 A</text>
+  <text x="226" y="200" text-anchor="end" font-size="12" font-weight="700" fill="#15803d">9.2s</text>
+  <rect x="50" y="212" width="176" height="38" rx="8" fill="#f0fdf4" stroke="#dcfce7"/>
+  <polyline points="60,231 66,221 72,239 78,216 84,242 90,222 96,236 102,213 108,243 114,222 120,238 126,217 132,240 138,225 144,235 150,219 156,239 162,224 168,236 174,227 180,233 186,221 192,237 198,226 204,234 210,229 216,232" fill="none" stroke="#16a34a" stroke-width="1.8" stroke-linejoin="round"/>
+  <g font-size="11">
+    <text x="50" y="278" class="mlab">时长</text><rect x="92" y="270" width="120" height="8" rx="4" fill="#eef2f7"/><rect x="92" y="270" width="120" height="8" rx="4" fill="#3b5bdb"/>
+    <text x="50" y="300" class="mlab">文本</text><rect x="92" y="292" width="120" height="8" rx="4" fill="#eef2f7"/><rect x="92" y="292" width="120" height="8" rx="4" fill="#4f46e5"/>
+    <text x="50" y="322" class="mlab">响度</text><rect x="92" y="314" width="120" height="8" rx="4" fill="#eef2f7"/><rect x="92" y="314" width="120" height="8" rx="4" fill="#0ea5e9"/>
+  </g>
+  <text x="50" y="356" font-size="13" font-weight="800" fill="#15803d">总分 1.00</text>
+  <text x="50" y="392" class="note mono">duration=1.00,text=1.00,</text>
+  <text x="50" y="408" class="note mono">rms=1.00,risk=-0.00</text>
+
+  <!-- Candidate B -->
+  <rect x="256" y="170" width="212" height="250" rx="14" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#rsh)"/>
+  <text x="274" y="200" class="nm">候选 B</text>
+  <text x="450" y="200" text-anchor="end" font-size="12" font-weight="700" fill="#475569">6.1s</text>
+  <rect x="274" y="212" width="176" height="38" rx="8" fill="#f8fafc" stroke="#eef2f7"/>
+  <polyline points="284,231 290,224 296,236 302,220 308,238 314,226 320,233 326,219 332,237 338,225 344,234 350,222 356,236 362,227 368,232 374,224 380,235 386,228 392,231 398,226 404,232 410,229 416,231" fill="none" stroke="#64748b" stroke-width="1.8" stroke-linejoin="round"/>
+  <g font-size="11">
+    <text x="274" y="278" class="mlab">时长</text><rect x="316" y="270" width="120" height="8" rx="4" fill="#eef2f7"/><rect x="316" y="270" width="84" height="8" rx="4" fill="#3b5bdb"/>
+    <text x="274" y="300" class="mlab">文本</text><rect x="316" y="292" width="120" height="8" rx="4" fill="#eef2f7"/><rect x="316" y="292" width="96" height="8" rx="4" fill="#4f46e5"/>
+    <text x="274" y="322" class="mlab">响度</text><rect x="316" y="314" width="120" height="8" rx="4" fill="#eef2f7"/><rect x="316" y="314" width="120" height="8" rx="4" fill="#0ea5e9"/>
+  </g>
+  <text x="274" y="356" font-size="13" font-weight="800" fill="#475569">总分 0.79</text>
+  <text x="274" y="392" class="note">够用，但偏短，</text>
+  <text x="274" y="408" class="note">排在 A 之后。</text>
+
+  <!-- Candidate C: rejected too short -->
+  <rect x="480" y="170" width="212" height="250" rx="14" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <rect x="600" y="160" width="74" height="24" rx="12" fill="#fee2e2"/>
+  <text x="637" y="177" text-anchor="middle" font-size="11" font-weight="700" fill="#b91c1c">弃 · 太短</text>
+  <text x="498" y="200" class="nm" fill="#94a3b8">候选 C</text>
+  <text x="674" y="200" text-anchor="end" font-size="12" font-weight="700" fill="#b91c1c">3.4s</text>
+  <rect x="498" y="212" width="176" height="38" rx="8" fill="#f1f5f9" stroke="#eef2f7"/>
+  <polyline points="540,231 546,225 552,235 558,224 564,234 570,227 576,232 582,228 588,231 594,229" fill="none" stroke="#cbd5e1" stroke-width="1.8" stroke-linejoin="round"/>
+  <text x="586" y="300" text-anchor="middle" font-size="12" font-weight="700" fill="#94a3b8">低于 5 秒硬下限</text>
+  <text x="586" y="322" text-anchor="middle" class="note">音色信息不够，根本</text>
+  <text x="586" y="338" text-anchor="middle" class="note">不进打分</text>
+  <text x="498" y="392" class="note">兜底：把几段短的</text>
+  <text x="498" y="408" class="note">拼成一段达标的。</text>
+
+  <!-- Candidate D: laughter penalty -->
+  <rect x="704" y="170" width="212" height="250" rx="14" fill="#fff" stroke="#fde68a" stroke-width="1.8" filter="url(#rsh)"/>
+  <rect x="820" y="160" width="80" height="24" rx="12" fill="#fffbeb" stroke="#fde68a"/>
+  <text x="860" y="177" text-anchor="middle" font-size="11" font-weight="700" fill="#b45309">笑场 · 降权</text>
+  <text x="722" y="200" class="nm">候选 D</text>
+  <text x="898" y="200" text-anchor="end" font-size="12" font-weight="700" fill="#475569">11.8s</text>
+  <rect x="722" y="212" width="176" height="38" rx="8" fill="#fffbeb" stroke="#fef3c7"/>
+  <text x="730" y="236" class="mono" font-size="11" fill="#b45309">"哈哈哈…对啊"</text>
+  <g font-size="11">
+    <text x="722" y="278" class="mlab">时长</text><rect x="764" y="270" width="120" height="8" rx="4" fill="#eef2f7"/><rect x="764" y="270" width="72" height="8" rx="4" fill="#3b5bdb"/>
+    <text x="722" y="300" class="mlab">文本</text><rect x="764" y="292" width="120" height="8" rx="4" fill="#eef2f7"/><rect x="764" y="292" width="120" height="8" rx="4" fill="#4f46e5"/>
+    <text x="722" y="322" class="mlab" fill="#b45309">风险</text><rect x="764" y="314" width="120" height="8" rx="4" fill="#eef2f7"/><rect x="764" y="314" width="26" height="8" rx="4" fill="#ef4444"/>
+  </g>
+  <text x="722" y="356" font-size="13" font-weight="800" fill="#475569">总分 0.69</text>
+  <text x="722" y="392" class="note">笑声会被克隆"传染"，</text>
+  <text x="722" y="408" class="note">只当平局裁判，不一票否决。</text>
+</svg>

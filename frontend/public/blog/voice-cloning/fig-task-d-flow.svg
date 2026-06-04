@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="fsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <marker id="fa" markerWidth="11" markerHeight="11" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,4 L0,8 Z" fill="#94a3b8"/>
+    </marker>
+    <marker id="far" markerWidth="10" markerHeight="10" refX="5" refY="8" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,0 L4,9 Z" fill="#ef4444"/>
+    </marker>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .bt{font-size:12.5px;font-weight:800;}
+      .note{font-size:10.5px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;font-size:9.5px;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="360" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">一次 synthesize-speaker 的完整流程</text>
+  <text x="32" y="66" class="s" font-size="13.5">吃上游两站的产物，挑参考 → 逐句合成（带重试）→ 逐句自检，落下音频 + 报告 + 一段试听 demo。</text>
+
+  <!-- Box 1: inputs -->
+  <rect x="24" y="104" width="176" height="132" rx="13" fill="#fff" stroke="#c7d2fe" stroke-width="1.6" filter="url(#fsh)"/>
+  <rect x="24" y="104" width="6" height="132" rx="3" fill="#4f46e5"/>
+  <text x="46" y="130" class="bt" fill="#3730a3">输入</text>
+  <rect x="44" y="142" width="140" height="30" rx="7" fill="#eef2ff" stroke="#c7d2fe"/>
+  <text x="54" y="161" class="mono" fill="#4338ca">translation.en.json</text>
+  <text x="54" y="172" class="note" fill="#94a3b8">Task C · 译好的台词</text>
+  <rect x="44" y="184" width="140" height="30" rx="7" fill="#eef2ff" stroke="#c7d2fe"/>
+  <text x="54" y="203" class="mono" fill="#4338ca">speaker_profiles.json</text>
+  <text x="54" y="214" class="note" fill="#94a3b8">Task B · 画像 + 参考</text>
+
+  <path d="M200,170 L226,170" fill="none" stroke="#94a3b8" stroke-width="2.4" marker-end="url(#fa)"/>
+
+  <!-- Box 2: select reference -->
+  <rect x="228" y="104" width="148" height="132" rx="13" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#fsh)"/>
+  <rect x="228" y="104" width="6" height="132" rx="3" fill="#3b5bdb"/>
+  <text x="250" y="130" class="bt" fill="#3730a3">① 选参考</text>
+  <text x="250" y="154" class="note">打分挑最像样的</text>
+  <text x="250" y="172" class="note">一段当"音色提示词"</text>
+  <rect x="250" y="186" width="104" height="30" rx="7" fill="#f8fafc" stroke="#eef2f7"/>
+  <text x="260" y="205" class="mono" fill="#475569">selection_reason</text>
+
+  <path d="M376,170 L402,170" fill="none" stroke="#94a3b8" stroke-width="2.4" marker-end="url(#fa)"/>
+
+  <!-- Box 3: synthesize -->
+  <rect x="404" y="104" width="176" height="132" rx="13" fill="#fff" stroke="#bae6fd" stroke-width="1.6" filter="url(#fsh)"/>
+  <rect x="404" y="104" width="6" height="132" rx="3" fill="#0ea5e9"/>
+  <text x="426" y="130" class="bt" fill="#0369a1">② 逐句合成</text>
+  <text x="426" y="152" class="note">参考赛 · 静音重试 · 换参考</text>
+  <text x="426" y="169" class="note">最好的那次胜出</text>
+  <rect x="426" y="180" width="134" height="36" rx="8" fill="#f0f9ff" stroke="#bae6fd"/>
+  <polyline points="436,198 442,190 448,206 454,188 460,206 466,192 472,202 478,186 484,208 490,192 496,204 502,190 508,206 514,196 520,202 526,190 532,204 538,194 544,202 550,196" fill="none" stroke="#0ea5e9" stroke-width="1.6" stroke-linejoin="round"/>
+  <text x="552" y="159" text-anchor="end" class="note" fill="#0369a1">MOSS/Qwen/VoxCPM</text>
+
+  <path d="M580,170 L606,170" fill="none" stroke="#94a3b8" stroke-width="2.4" marker-end="url(#fa)"/>
+
+  <!-- Box 4: self-check -->
+  <rect x="608" y="104" width="152" height="132" rx="13" fill="#fff" stroke="#fde68a" stroke-width="1.6" filter="url(#fsh)"/>
+  <rect x="608" y="104" width="6" height="132" rx="3" fill="#f59e0b"/>
+  <text x="630" y="130" class="bt" fill="#b45309">③ 三轴自检</text>
+  <text x="630" y="153" class="note">音色 · 可懂度 · 时长</text>
+  <text x="630" y="171" class="note">backread 回读</text>
+  <rect x="630" y="184" width="108" height="30" rx="7" fill="#fffbeb" stroke="#fde68a"/>
+  <text x="684" y="203" text-anchor="middle" class="note" fill="#b45309">取最差定 overall</text>
+
+  <path d="M760,170 L786,170" fill="none" stroke="#94a3b8" stroke-width="2.4" marker-end="url(#fa)"/>
+
+  <!-- Box 5: outputs -->
+  <rect x="788" y="92" width="148" height="156" rx="13" fill="#fff" stroke="#bbf7d0" stroke-width="1.6" filter="url(#fsh)"/>
+  <rect x="788" y="92" width="6" height="156" rx="3" fill="#16a34a"/>
+  <text x="810" y="118" class="bt" fill="#15803d">产物</text>
+  <g class="mono" fill="#047857">
+    <rect x="806" y="128" width="118" height="24" rx="6" fill="#f0fdf4" stroke="#dcfce7"/><text x="814" y="144">speaker_segments</text>
+    <rect x="806" y="156" width="118" height="24" rx="6" fill="#f0fdf4" stroke="#dcfce7"/><text x="814" y="172">speaker_demo.wav</text>
+    <rect x="806" y="184" width="118" height="24" rx="6" fill="#f0fdf4" stroke="#dcfce7"/><text x="814" y="200">segments/*.wav</text>
+    <rect x="806" y="212" width="118" height="24" rx="6" fill="#f0fdf4" stroke="#dcfce7"/><text x="814" y="228">task-d-manifest</text>
+  </g>
+
+  <!-- intercept branch from self-check -->
+  <path d="M684,236 L684,272" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#far)"/>
+  <rect x="556" y="276" width="256" height="32" rx="9" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="684" y="297" text-anchor="middle" font-size="11.5" font-weight="700" fill="#b91c1c">✗ 不合格 · 当场拦下，不进时间线</text>
+
+  <!-- bottom note -->
+  <rect x="24" y="276" width="500" height="56" rx="11" fill="#f8fafc" stroke="#eef2f7"/>
+  <text x="44" y="299" class="note" fill="#475569"><tspan font-weight="700" fill="#334155">挑谁配 / 配哪句，也可解释：</tspan>只挑可克隆的说话人</text>
+  <text x="44" y="318" class="note" fill="#475569">（<tspan class="mono" fill="#b45309">non_cloneable</tspan> 跳过）· 段落优先 1–6 秒、不带"源句过短"标记</text>
+</svg>

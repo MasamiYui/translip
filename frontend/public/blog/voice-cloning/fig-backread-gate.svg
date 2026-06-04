@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 462" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="gsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <marker id="ga" markerWidth="10" markerHeight="10" refX="6" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8"/>
+    </marker>
+    <marker id="gar" markerWidth="10" markerHeight="10" refX="6" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#ef4444"/>
+    </marker>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ct{font-size:13px;font-weight:800;}
+      .note{font-size:11px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+      .leg{font-size:10px;fill:#94a3b8;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="462" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">生成完不算数——让机器把自己说的话，再听一遍</text>
+  <text x="32" y="66" class="s" font-size="13.5">每合成一句，立刻过三关：音色、可懂度、时长。取最差的一关定生死；不合格当场拦下、重试。</text>
+
+  <!-- synthesized clip (input) -->
+  <rect x="32" y="150" width="150" height="150" rx="14" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#gsh)"/>
+  <rect x="32" y="150" width="6" height="150" rx="3" fill="#6366f1"/>
+  <text x="56" y="182" class="ct" fill="#3730a3">合成音</text>
+  <rect x="52" y="198" width="110" height="44" rx="8" fill="#f8fafc" stroke="#eef2f7"/>
+  <polyline points="62,220 68,210 74,228 80,206 86,230 92,212 98,224 104,204 110,230 116,212 122,226 128,208 134,228 140,214 146,224 152,216" fill="none" stroke="#6366f1" stroke-width="1.8" stroke-linejoin="round"/>
+  <text x="56" y="266" class="note mono">segment_id</text>
+  <text x="56" y="286" class="note">刚生成的一句</text>
+  <path d="M182,225 L206,225" fill="none" stroke="#94a3b8" stroke-width="2.4" marker-end="url(#ga)"/>
+
+  <!-- Check 1: timbre -->
+  <rect x="214" y="92" width="494" height="84" rx="12" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#gsh)"/>
+  <rect x="214" y="92" width="6" height="84" rx="3" fill="#3b5bdb"/>
+  <text x="236" y="122" class="ct" fill="#3730a3">① 音色 · ECAPA 余弦</text>
+  <text x="236" y="144" class="note">合成音 vs 参考，编成 192 维声纹算余弦</text>
+  <text x="236" y="162" class="leg">和 Task B「认人」同一把尺子</text>
+  <rect x="438" y="120" width="248" height="10" rx="5" fill="#fdecea"/>
+  <rect x="488" y="120" width="40" height="10" rx="5" fill="#fef3c7"/>
+  <rect x="528" y="120" width="158" height="10" rx="5" fill="#dcfce7"/>
+  <circle cx="552" cy="125" r="6" fill="#16a34a" stroke="#fff" stroke-width="2"/>
+  <text x="438" y="150" class="leg">&lt;0.25 不符</text>
+  <text x="508" y="150" text-anchor="middle" class="leg">0.25–0.45 存疑</text>
+  <text x="686" y="150" text-anchor="end" class="leg" fill="#15803d">≥0.45 相符 ✓</text>
+
+  <!-- Check 2: backread (the star) -->
+  <rect x="214" y="190" width="494" height="84" rx="12" fill="#fff" stroke="#7dd3fc" stroke-width="2.2" filter="url(#gsh)"/>
+  <rect x="214" y="190" width="6" height="84" rx="3" fill="#0ea5e9"/>
+  <text x="236" y="218" class="ct" fill="#0369a1">② 可懂度 · backread 回读</text>
+  <text x="236" y="240" class="note">把合成音<tspan font-weight="700" fill="#0369a1">重新转写一遍</tspan>，和目标文本比相似度</text>
+  <text x="236" y="258" class="leg">≥0.9 过 · 专抓"音色对、却把词吞了"</text>
+  <!-- mini loop: audio -> ASR -> text -> compare target -->
+  <rect x="470" y="206" width="56" height="26" rx="6" fill="#f0f9ff" stroke="#bae6fd"/>
+  <text x="498" y="223" text-anchor="middle" font-size="10.5" font-weight="700" fill="#0369a1">合成音</text>
+  <path d="M526,219 L548,219" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#ga)"/>
+  <text x="537" y="212" text-anchor="middle" class="leg">ASR</text>
+  <rect x="550" y="206" width="64" height="26" rx="6" fill="#fff" stroke="#e2e8f0"/>
+  <text x="582" y="223" text-anchor="middle" class="mono" font-size="10" fill="#334155">转写文本</text>
+  <path d="M614,219 L636,219" fill="none" stroke="#94a3b8" stroke-width="2" marker-end="url(#ga)"/>
+  <text x="625" y="212" text-anchor="middle" class="leg">difflib</text>
+  <rect x="638" y="206" width="58" height="26" rx="6" fill="#ecfdf5" stroke="#a7f3d0"/>
+  <text x="667" y="223" text-anchor="middle" font-size="10.5" font-weight="700" fill="#047857">target</text>
+  <text x="470" y="252" class="leg" fill="#0369a1">缺的字、糊的词，这里当场对不上</text>
+
+  <!-- Check 3: duration -->
+  <rect x="214" y="288" width="494" height="84" rx="12" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#gsh)"/>
+  <rect x="214" y="288" width="6" height="84" rx="3" fill="#f59e0b"/>
+  <text x="236" y="318" class="ct" fill="#b45309">③ 时长 · generated / source</text>
+  <text x="236" y="340" class="note">合成音多长、原句多长，比一比松紧</text>
+  <text x="236" y="358" class="leg">为下一棒的时间线贴合，先把风险分出来</text>
+  <rect x="438" y="316" width="248" height="10" rx="5" fill="#f1f5f9"/>
+  <rect x="496" y="316" width="132" height="10" rx="5" fill="#dcfce7"/>
+  <circle cx="556" cy="321" r="6" fill="#16a34a" stroke="#fff" stroke-width="2"/>
+  <text x="438" y="346" class="leg">0</text>
+  <text x="556" y="346" text-anchor="middle" class="leg" fill="#15803d">0.7–1.35 过</text>
+  <text x="686" y="346" text-anchor="end" class="leg">2×</text>
+
+  <!-- verdict -->
+  <rect x="740" y="92" width="188" height="280" rx="14" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#gsh)"/>
+  <rect x="740" y="92" width="6" height="280" rx="3" fill="#6366f1"/>
+  <text x="764" y="124" class="ct" fill="#3730a3">overall</text>
+  <text x="764" y="146" class="note">= 取三者最差</text>
+  <line x1="764" y1="158" x2="908" y2="158" stroke="#eef2f7"/>
+  <rect x="764" y="174" width="144" height="58" rx="10" fill="#f0fdf4" stroke="#bbf7d0"/>
+  <text x="778" y="200" font-size="12.5" font-weight="800" fill="#15803d">✓ 全过</text>
+  <text x="778" y="220" class="note" fill="#15803d">→ 进时间线（Task E）</text>
+  <rect x="764" y="244" width="144" height="78" rx="10" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="778" y="270" font-size="12.5" font-weight="800" fill="#b91c1c">✗ 有败</text>
+  <text x="778" y="290" class="note" fill="#b91c1c">→ 当场拦下</text>
+  <text x="778" y="308" class="note" fill="#b91c1c">→ 重试 / 换参考</text>
+
+  <!-- retry loop back to synthesis -->
+  <path d="M764,332 C620,420 300,420 110,332 L110,304" fill="none" stroke="#ef4444" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#gar)"/>
+  <text x="437" y="432" text-anchor="middle" font-size="11.5" font-weight="700" fill="#b91c1c">不合格不是终点——静音就再来一次、弱了就换下一条参考，最好的那次胜出</text>
+</svg>

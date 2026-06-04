@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 392" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="ush" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <marker id="ua" markerWidth="11" markerHeight="11" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,4 L0,8 Z" fill="#6366f1"/>
+    </marker>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ct{font-size:13px;font-weight:800;}
+      .note{font-size:11px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+      .chip{font-size:13px;font-weight:800;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="392" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">一句"好。"，得借邻居的语气</text>
+  <text x="32" y="66" class="s" font-size="13.5">极短句单独念容易发飘——把相邻几句并成一个单元一起念（语气连贯），再按时长切回独立片段。</text>
+
+  <!-- LEFT: single-shot (bad) -->
+  <rect x="32" y="92" width="412" height="272" rx="14" fill="#fff" stroke="#fecaca" stroke-width="1.8" filter="url(#ush)"/>
+  <rect x="32" y="92" width="6" height="272" rx="3" fill="#ef4444"/>
+  <text x="56" y="122" class="ct" fill="#b91c1c">✗ 单独合成</text>
+  <text x="56" y="143" class="note">太短、没上下文，模型撑不起一个自然的语气</text>
+
+  <g>
+    <rect x="56" y="158" width="80" height="40" rx="10" fill="#fef2f2" stroke="#fecaca"/>
+    <text x="96" y="183" text-anchor="middle" class="chip" fill="#b91c1c">"好。"</text>
+    <rect x="150" y="160" width="262" height="36" rx="8" fill="#f8fafc" stroke="#eef2f7"/>
+    <polyline points="160,178 166,166 172,190 178,164 184,188 190,172 196,184 202,162 208,192 214,170 220,186 226,166 232,188 238,176 244,182 250,168 256,186 262,172 268,184 274,176 280,180 286,170 292,186 298,178 304,182 310,176 316,180 322,178 328,179 334,178" fill="none" stroke="#ef4444" stroke-width="1.6" stroke-linejoin="round"/>
+    <text x="404" y="183" text-anchor="end" class="note" fill="#b91c1c">发飘</text>
+  </g>
+  <g>
+    <rect x="56" y="206" width="80" height="40" rx="10" fill="#fef2f2" stroke="#fecaca"/>
+    <text x="96" y="231" text-anchor="middle" class="chip" fill="#b91c1c">"是吗？"</text>
+    <rect x="150" y="208" width="262" height="36" rx="8" fill="#f8fafc" stroke="#eef2f7"/>
+    <polyline points="160,226 166,214 172,236 178,212 184,238 190,220 196,232 202,210 208,240 214,216 220,234 226,214 232,236 238,224 244,230 250,216 256,234 262,220 268,232 274,224 280,228 286,218 292,234 298,226 304,230 310,224 316,228 322,226 328,227 334,226" fill="none" stroke="#f59e0b" stroke-width="1.6" stroke-linejoin="round"/>
+    <text x="404" y="231" text-anchor="end" class="note" fill="#b45309">别扭</text>
+  </g>
+  <g>
+    <rect x="56" y="254" width="80" height="40" rx="10" fill="#fef2f2" stroke="#fecaca"/>
+    <text x="96" y="279" text-anchor="middle" class="chip" fill="#b91c1c">"走。"</text>
+    <rect x="150" y="256" width="262" height="36" rx="8" fill="#f8fafc" stroke="#eef2f7"/>
+    <polyline points="160,274 166,264 172,284 178,262 184,286 190,270 196,280 202,260 208,288 214,268 220,282 226,264 232,284 238,272 244,280 250,266 256,284 262,270 268,282 274,274 280,278 286,268 292,284 298,276 304,280 310,274 316,278 322,276 328,277 334,276" fill="none" stroke="#ef4444" stroke-width="1.6" stroke-linejoin="round"/>
+    <text x="404" y="279" text-anchor="end" class="note" fill="#b91c1c">发飘</text>
+  </g>
+  <text x="238" y="320" text-anchor="middle" class="note" fill="#b91c1c">为了让机器念得像人，先把题目改得像人会说话 ↓</text>
+
+  <!-- arrow -->
+  <path d="M456,228 L500,228" fill="none" stroke="#6366f1" stroke-width="3.5" marker-end="url(#ua)"/>
+  <text x="478" y="218" text-anchor="middle" font-size="11" font-weight="700" fill="#4338ca">合并</text>
+
+  <!-- RIGHT: merge then split (good) -->
+  <rect x="512" y="92" width="416" height="272" rx="14" fill="#fff" stroke="#bbf7d0" stroke-width="1.8" filter="url(#ush)"/>
+  <rect x="512" y="92" width="6" height="272" rx="3" fill="#16a34a"/>
+  <text x="536" y="122" class="ct" fill="#15803d">✓ 并成一个单元，再切回去</text>
+  <text x="536" y="143" class="note">2–4 句、跨度 ≤ 8s、共享上下文单元的短句搭伴念</text>
+
+  <!-- merged text -->
+  <rect x="536" y="156" width="368" height="34" rx="9" fill="#f0fdf4" stroke="#dcfce7"/>
+  <text x="552" y="178" class="chip" font-size="13" fill="#15803d">"好。是吗？走。"</text>
+  <text x="892" y="178" text-anchor="end" class="note" fill="#15803d">一段连贯的语流</text>
+
+  <!-- one smooth unit waveform -->
+  <rect x="536" y="200" width="368" height="58" rx="8" fill="#f8fafc" stroke="#eef2f7"/>
+  <polyline points="544,229 552,214 560,242 568,210 576,238 584,218 592,236 600,212 608,240 616,220 624,234 632,216 640,238 648,224 656,232 664,214 672,240 680,222 688,236 696,218 704,238 712,224 720,232 728,216 736,238 744,226 752,234 760,218 768,236 776,222 784,234 792,220 800,236 808,226 816,232 824,218 832,238 840,224 848,232 856,222 864,230 872,224 880,228 888,225 896,229" fill="none" stroke="#16a34a" stroke-width="2" stroke-linejoin="round"/>
+  <!-- cut lines (split back by duration) -->
+  <line x1="664" y1="200" x2="664" y2="258" stroke="#0ea5e9" stroke-width="1.6" stroke-dasharray="4 3"/>
+  <line x1="800" y1="200" x2="800" y2="258" stroke="#0ea5e9" stroke-width="1.6" stroke-dasharray="4 3"/>
+  <text x="600" y="252" text-anchor="middle" font-size="9.5" fill="#0369a1" class="mono">cut</text>
+  <text x="732" y="252" text-anchor="middle" font-size="9.5" fill="#0369a1" class="mono">cut</text>
+
+  <!-- split pieces with seg ids -->
+  <rect x="536" y="270" width="120" height="34" rx="7" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="596" y="285" text-anchor="middle" class="mono" font-size="10.5" fill="#1d4ed8">seg_07</text>
+  <text x="596" y="299" text-anchor="middle" font-size="9.5" fill="#64748b">1.0s</text>
+  <rect x="664" y="270" width="128" height="34" rx="7" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="728" y="285" text-anchor="middle" class="mono" font-size="10.5" fill="#1d4ed8">seg_08</text>
+  <text x="728" y="299" text-anchor="middle" font-size="9.5" fill="#64748b">1.4s</text>
+  <rect x="800" y="270" width="104" height="34" rx="7" fill="#eff6ff" stroke="#bfdbfe"/>
+  <text x="852" y="285" text-anchor="middle" class="mono" font-size="10.5" fill="#1d4ed8">seg_09</text>
+  <text x="852" y="299" text-anchor="middle" font-size="9.5" fill="#64748b">0.8s</text>
+
+  <text x="720" y="338" text-anchor="middle" class="note" fill="#15803d">念得连贯、自然，又保住了一句一段的 segment_id 边界</text>
+</svg>
