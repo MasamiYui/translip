@@ -2,6 +2,25 @@ import api from './client'
 
 export type AnalysisStatus = 'pending' | 'running' | 'succeeded' | 'failed'
 
+/** Sequential phase a running dub-qa evaluation is currently in (for the stepper). */
+export type DubQaPhase =
+  | 'judge'
+  | 'scorecard'
+  | 'segments'
+  | 'remediation'
+  | 'embeddings'
+  | 'pitch'
+  | 'mel'
+
+export interface DubQaProgress {
+  /** 1-based current step. */
+  step: number
+  /** Total planned steps for this run (excludes the judge when not requested). */
+  total: number
+  /** Current phase key; maps to a localized label. */
+  phase: DubQaPhase | string
+}
+
 export interface AnalysisSummary {
   score?: number | null
   status?: string | null
@@ -19,6 +38,7 @@ export interface Analysis {
   source_lang: string
   params: { run_translation_judge?: boolean }
   result?: AnalysisSummary | null
+  progress?: DubQaProgress | null
   report_path?: string | null
   error_message?: string | null
   created_at: string

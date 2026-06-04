@@ -23,9 +23,14 @@ import difflib
 import json
 import re
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+# Reports the active evaluation phase: (step, total, phase_key). Steps are
+# 1-based; `total` reflects only the phases actually planned for this run.
+PhaseCallback = Callable[[int, int, str], None]
 
 from ..exceptions import BackendUnavailableError
 from ..pipeline.manifest import now_iso
@@ -119,7 +124,7 @@ class DubQaResult:
     manifest: dict[str, Any]
 
 
-def build_dub_qa(request: DubQaRequest) -> DubQaResult:
+def build_dub_qa(request: DubQaRequest, *, on_phase: PhaseCallback | None = None) -> DubQaResult:
     normalized = request.normalized()
     started_at = now_iso()
     started_monotonic = time.monotonic()
@@ -131,11 +136,28 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
     markdown_path = output_dir / f"dub_qa_report.{target_lang}.md"
     manifest_path = output_dir / "dub-qa-manifest.json"
 
+    # Sequential phases for honest step-based progress. The translation judge
+    # is only planned (and counted) when explicitly requested; the rest always
+    # run (the three enrichments are best-effort but still occupy a step).
+    phases: list[str] = []
+    if normalized.run_translation_judge:
+        phases.append("judge")
+    phases.extend(["scorecard", "segments", "remediation", "embeddings", "pitch", "mel"])
+
+    def _phase(name: str) -> None:
+        if on_phase is None or name not in phases:
+            return
+        try:
+            on_phase(phases.index(name) + 1, len(phases), name)
+        except Exception:  # pragma: no cover - progress is best-effort
+            pass
+
     mix_report_path = root / "task-e" / "voice" / f"mix_report.{target_lang}.json"
     mix_report = _read_json(mix_report_path)
     translation_path = _resolve_translation_path(root, mix_report, target_lang)
 
     # 1) Optional (paid) translation judge.
+    _phase("judge")
     judge_path, judge_status = _maybe_judge(
         normalized=normalized,
         translation_path=translation_path,
@@ -143,6 +165,7 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
     )
 
     # 2) Aggregate scorecard (reuses the pipeline benchmark, fresh copy in our dir).
+    _phase("scorecard")
     benchmark_dir = ensure_directory(output_dir / "benchmark")
     benchmark_result = build_dub_benchmark(
         DubBenchmarkRequest(
@@ -153,6 +176,7 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
     )
 
     # 3) Per-segment join.
+    _phase("segments")
     placed = _as_list(mix_report.get("placed_segments"))
     skipped = _as_list(mix_report.get("skipped_segments"))
     translation_index = _index_segments(_read_json(translation_path) if translation_path else {})
@@ -202,6 +226,7 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
     # Turn the per-segment defects into a prioritized remediation/optimization
     # plan — embedded in the report for the UI and written as a standalone,
     # machine-readable artifact an optimization loop / run-dub-repair can consume.
+    _phase("remediation")
     remediation = build_remediation_plan(report)
     report["remediation"] = remediation
     remediation_path = output_dir / f"remediation_plan.{target_lang}.json"
@@ -209,6 +234,7 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
     # Best-effort: enrich the report with raw ECAPA speaker embeddings so the
     # UI can render an embedding scatter (PCA projection). Failures are
     # silently noted via report["embedding_meta"] without breaking dub-qa.
+    _phase("embeddings")
     try:
         from .dub_embeddings import enrich_report_with_embeddings
 
@@ -218,6 +244,7 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
     # Best-effort: extract per-segment F0 (pitch) contours via librosa.pyin so
     # the UI can render an original-vs-dub melody comparison. Same defensive
     # handling as the embedding enrichment above.
+    _phase("pitch")
     try:
         from .dub_pitch import enrich_report_with_pitch
 
@@ -227,6 +254,7 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
     # Best-effort: extract per-segment mel spectrograms (uint8 quantized) so the UI
     # can render side-by-side spectrogram heatmaps for an acoustic texture sanity
     # check. Same defensive handling as the pitch enrichment above.
+    _phase("mel")
     try:
         from .dub_mel import enrich_report_with_mel
 

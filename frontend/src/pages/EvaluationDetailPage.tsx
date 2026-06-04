@@ -164,10 +164,35 @@ export function EvaluationDetailPage() {
         </div>
       </div>
 
-      {/* Status line */}
+      {/* Status line — a stage stepper, not a fabricated percentage. The
+          fraction + phase label is the honest signal; the bar mirrors it. */}
       {running && (
-        <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-2.5 text-sm text-[#3b5bdb]">
-          {t.evaluation.running}
+        <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-[#3b5bdb]">
+          <div className="flex items-center justify-between gap-3">
+            <span className="font-medium">{t.evaluation.running}</span>
+            {latest?.progress && (
+              <span className="text-xs tabular-nums text-[#3b5bdb]/80">
+                {t.evaluation.runningPhaseMap[latest.progress.phase] ?? latest.progress.phase}
+                {' · '}
+                {latest.progress.step}/{latest.progress.total}
+              </span>
+            )}
+          </div>
+          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-blue-100">
+            {latest?.progress ? (
+              <div
+                className="h-full rounded-full bg-[#3b5bdb] transition-[width] duration-500 ease-out"
+                style={{
+                  width: `${Math.round(
+                    (latest.progress.step / Math.max(1, latest.progress.total)) * 100,
+                  )}%`,
+                }}
+              />
+            ) : (
+              // No phase reported yet (just queued) — indeterminate, no fake position.
+              <div className="h-full w-1/3 animate-pulse rounded-full bg-[#3b5bdb]/60" />
+            )}
+          </div>
         </div>
       )}
       {latest?.status === 'failed' && (

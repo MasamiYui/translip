@@ -231,6 +231,24 @@ def _run_dub_qa_in_thread(analysis_id: str) -> None:
         run_translation_judge = bool((analysis.params or {}).get("run_translation_judge"))
 
     out_dir = output_root / "analysis" / analysis_id
+
+    def _set_phase(step: int, total: int, phase: str) -> None:
+        """Persist the active evaluation phase so the UI can render a stepper.
+
+        Best-effort: a failed progress write must never abort the evaluation.
+        """
+        try:
+            with Session(engine) as s:
+                row = s.get(Analysis, analysis_id)
+                if row is None:
+                    return
+                row.progress = {"step": step, "total": total, "phase": phase}
+                row.updated_at = datetime.now()
+                s.add(row)
+                s.commit()
+        except Exception:  # noqa: BLE001 - progress is non-critical
+            logger.debug("Failed to persist dub-qa phase for %s", analysis_id, exc_info=True)
+
     try:
         result = build_dub_qa(
             DubQaRequest(
@@ -239,7 +257,8 @@ def _run_dub_qa_in_thread(analysis_id: str) -> None:
                 target_lang=target_lang,
                 source_lang=source_lang,
                 run_translation_judge=run_translation_judge,
-            )
+            ),
+            on_phase=_set_phase,
         )
         try:
             report_rel = str(result.artifacts.report_path.resolve().relative_to(output_root.resolve()))
@@ -254,6 +273,7 @@ def _run_dub_qa_in_thread(analysis_id: str) -> None:
             analysis.status = "succeeded"
             analysis.result = summary
             analysis.report_path = report_rel
+            analysis.progress = None
             analysis.finished_at = datetime.now()
             analysis.updated_at = datetime.now()
             analysis.elapsed_sec = elapsed
@@ -267,6 +287,7 @@ def _run_dub_qa_in_thread(analysis_id: str) -> None:
                 return
             analysis.status = "failed"
             analysis.error_message = str(exc)[:1000]
+            analysis.progress = None
             analysis.finished_at = datetime.now()
             analysis.updated_at = datetime.now()
             session.add(analysis)
