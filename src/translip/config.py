@@ -46,7 +46,10 @@ DEFAULT_RENDER_FIT_POLICY = "conservative"
 DEFAULT_RENDER_FIT_BACKEND = "atempo"
 DEFAULT_RENDER_MIX_PROFILE = "preview"
 DEFAULT_RENDER_DUCKING_MODE = "static"
-DEFAULT_RENDER_OUTPUT_SAMPLE_RATE = 24_000
+# Mix/deliver at 48 kHz so the music+SFX bed keeps its high-frequency "air"
+# instead of being band-limited to ~12 kHz. The 24 kHz TTS clips upsample
+# cleanly via soxr; downstream AAC handles 48 kHz natively.
+DEFAULT_RENDER_OUTPUT_SAMPLE_RATE = 48_000
 DEFAULT_RENDER_BACKGROUND_GAIN_DB = -8.0
 DEFAULT_RENDER_WINDOW_DUCKING_DB = -3.0
 DEFAULT_RENDER_PREVIEW_FORMAT = "wav"

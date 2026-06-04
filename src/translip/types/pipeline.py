@@ -76,7 +76,7 @@ class PipelineRequest:
     mix_profile: MixProfileName = "preview"
     ducking_mode: DuckingModeName = "static"
     preview_format: PreviewFormat = "wav"
-    output_sample_rate: int = 24_000
+    output_sample_rate: int = 48_000
     background_gain_db: float = -8.0
     window_ducking_db: float = -3.0
     max_compress_ratio: float = 1.45
