@@ -624,26 +624,50 @@ export function TaskDetailPage() {
                     <span className="text-xs text-slate-400">— {lastExportStrategyLabel}</span>
                   )}
                 </div>
-                <div className="space-y-0.5">
-                  {exportFiles.map(file => (
-                    <a
-                      key={file.path}
-                      href={getArtifactHref(task.id, file.path)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="group flex items-center justify-between gap-3 rounded px-1 py-1.5 transition-colors hover:bg-white"
-                      aria-label={`下载${file.label}`}
-                      title={`下载${file.label}`}
-                    >
-                      <div className="min-w-0">
-                        <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{file.label}</span>
-                        <span className="ml-2 truncate text-xs text-slate-400">{file.path}</span>
+                <div className="space-y-2">
+                  {exportFiles.map(file => {
+                    const href = getArtifactHref(task.id, file.path)
+                    const previewKind = getInlinePreviewKind(file.path)
+                    return (
+                      <div key={file.path} className="rounded px-1 py-1.5 transition-colors hover:bg-white">
+                        <a
+                          href={href}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="group flex items-center justify-between gap-3"
+                          aria-label={`下载${file.label}`}
+                          title={`下载${file.label}`}
+                        >
+                          <div className="min-w-0">
+                            <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900">{file.label}</span>
+                            <span className="ml-2 truncate text-xs text-slate-400">{file.path}</span>
+                          </div>
+                          <span aria-hidden="true" className={DOWNLOAD_ICON_BUTTON_CLASS}>
+                            <Download size={12} />
+                          </span>
+                        </a>
+                        {previewKind === 'video' && (
+                          <div className="mt-2 overflow-hidden rounded-md border border-slate-200 bg-slate-100">
+                            <video
+                              src={href}
+                              controls
+                              playsInline
+                              preload="metadata"
+                              className="mx-auto block max-h-[360px] w-auto max-w-full"
+                            />
+                          </div>
+                        )}
+                        {previewKind === 'audio' && (
+                          <audio
+                            src={href}
+                            controls
+                            preload="metadata"
+                            className="mt-2 h-9 w-full max-w-sm"
+                          />
+                        )}
                       </div>
-                      <span aria-hidden="true" className={DOWNLOAD_ICON_BUTTON_CLASS}>
-                        <Download size={12} />
-                      </span>
-                    </a>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -1202,6 +1226,24 @@ function resolveLastExportStrategyLabel(task: Task): string | null {
 
 function getArtifactHref(taskId: string, path: string): string {
   return `/api/tasks/${taskId}/artifacts/${path}`
+}
+
+const INLINE_VIDEO_EXTENSIONS = new Set(['mp4', 'webm', 'mov', 'm4v', 'ogv'])
+const INLINE_AUDIO_EXTENSIONS = new Set(['mp3', 'wav', 'm4a', 'aac', 'flac', 'ogg', 'oga'])
+
+function getInlinePreviewKind(path: string): 'video' | 'audio' | null {
+  const dotIndex = path.lastIndexOf('.')
+  if (dotIndex < 0 || dotIndex === path.length - 1) {
+    return null
+  }
+  const ext = path.slice(dotIndex + 1).toLowerCase()
+  if (INLINE_VIDEO_EXTENSIONS.has(ext)) {
+    return 'video'
+  }
+  if (INLINE_AUDIO_EXTENSIONS.has(ext)) {
+    return 'audio'
+  }
+  return null
 }
 
 function getTaskInputHref(taskId: string): string {
