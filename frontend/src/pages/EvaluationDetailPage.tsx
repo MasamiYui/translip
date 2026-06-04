@@ -388,6 +388,22 @@ function Scorecard({
         </MetricCell>
       </div>
 
+      {/* Timeline pressure: trim-loss / overflow the headline score under-weights */}
+      {summary.timeline &&
+        ((summary.timeline.overflow_segment_count ?? 0) > 0 ||
+          (summary.timeline.cut_audio_sec ?? 0) > 0) && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#6b7280]">
+            {(summary.timeline.cut_audio_sec ?? 0) > 0 && (
+              <span className="font-medium text-amber-700">
+                {t.evaluation.lostAudio(summary.timeline.cut_audio_sec)}
+              </span>
+            )}
+            {(summary.timeline.overflow_segment_count ?? 0) > 0 && (
+              <span>{t.evaluation.overflowSegs(summary.timeline.overflow_segment_count)}</span>
+            )}
+          </div>
+        )}
+
       {/* Gates */}
       {report.scorecard.gates.length > 0 && (
         <div className="mt-4 border-t border-[#f3f4f6] pt-4">

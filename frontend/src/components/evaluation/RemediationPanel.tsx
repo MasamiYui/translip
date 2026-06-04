@@ -72,12 +72,15 @@ export function RemediationPanel({
   const job = jobQuery.data
   const fixing = startFix.isPending || job?.status === 'pending' || job?.status === 'running'
 
-  // Which of the 4 steps (plan → repair → render → evaluate) the worker is on.
+  // Which of the 4 steps (plan → repair → render → evaluate) the worker is on,
+  // and which iterative round it is running.
   const progress = job?.progress
   const phaseKey = progress?.phase as keyof typeof tr.autoFixPhase | undefined
   const phaseLabel = (phaseKey && tr.autoFixPhase[phaseKey]) || tr.autoFixing
   const step = progress?.step ?? 0
   const totalSteps = progress?.total ?? 4
+  const round = progress?.round ?? 0
+  const totalRounds = progress?.total_rounds ?? 0
 
   // When a fix lands, refresh the evaluation once so the improved report loads.
   useEffect(() => {
@@ -143,6 +146,11 @@ export function RemediationPanel({
           <div className="mb-1.5 flex items-center justify-between text-[11px] font-medium text-[#3b5bdb]">
             <span className="flex items-center gap-1.5">
               <Loader2 size={11} className="animate-spin" />
+              {round > 0 && totalRounds > 0 && (
+                <span className="rounded bg-[#3b5bdb]/10 px-1.5 py-0.5 tabular-nums">
+                  {tr.roundProgress(round, totalRounds)}
+                </span>
+              )}
               {phaseLabel}
             </span>
             {step > 0 && <span className="tabular-nums opacity-70">{step}/{totalSteps}</span>}
@@ -182,6 +190,9 @@ export function RemediationPanel({
                   job.result.repaired_count ?? 0,
                 )
               : tr.autoFixNoChange(job.result.before_score ?? 0, job.result.after_score ?? 0)}
+          {(job.result.rounds_run ?? 0) > 1 && (
+            <span className="opacity-70"> · {tr.roundsSummary(job.result.rounds_run ?? 0)}</span>
+          )}
         </div>
       )}
       {job?.status === 'failed' && (

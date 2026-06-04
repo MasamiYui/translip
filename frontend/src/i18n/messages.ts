@@ -160,6 +160,8 @@ const zhMessages = {
     segments: '片段数',
     problems: '问题片段',
     dubCoverage: '配音覆盖',
+    lostAudio: (sec: number) => `切尾丢失约 ${sec.toFixed(1)}s 配音`,
+    overflowSegs: (n: number) => `${n} 段配音超出窗口`,
     noReport: '尚无评测结果，点击「开始评测」生成',
     loadingReport: '正在加载评测结果…',
     failedHint: '评测失败',
@@ -271,6 +273,8 @@ const zhMessages = {
       autoFixRolledBack: (before: number, after: number) =>
         `已回滚 · 修复后评分 ${after} 低于原 ${before},保留原成片`,
       autoFixFailed: '修复失败,详见日志',
+      roundProgress: (cur: number, total: number) => `第 ${cur}/${total} 轮`,
+      roundsSummary: (n: number) => `${n} 轮迭代`,
       actionLabel: {
         rewrite_translation: '缩短 / 改写译文',
         resynthesize: '重新合成',
@@ -1672,6 +1676,8 @@ const enMessages: LocaleMessages = {
     segments: 'Segments',
     problems: 'Problem segments',
     dubCoverage: 'Dub coverage',
+    lostAudio: (sec: number) => `~${sec.toFixed(1)}s dub lost to tail-trim`,
+    overflowSegs: (n: number) => `${n} dubs overrun their window`,
     noReport: 'No analysis yet — click "Run analysis" to generate one',
     loadingReport: 'Loading analysis result…',
     failedHint: 'Analysis failed',
@@ -1783,6 +1789,8 @@ const enMessages: LocaleMessages = {
       autoFixRolledBack: (before: number, after: number) =>
         `Rolled back · fixed score ${after} below original ${before}, kept the original cut`,
       autoFixFailed: 'Auto-fix failed — see logs',
+      roundProgress: (cur: number, total: number) => `Round ${cur}/${total}`,
+      roundsSummary: (n: number) => `${n} rounds`,
       actionLabel: {
         rewrite_translation: 'Shorten / rewrite',
         resynthesize: 'Re-synthesize',

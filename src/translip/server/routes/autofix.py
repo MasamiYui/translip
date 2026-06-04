@@ -1,18 +1,29 @@
-"""One-click auto-fix for dub evaluation.
+"""One-click, *iterative* auto-fix for dub evaluation.
 
 Takes the auto-fixable segments surfaced by the remediation plan and runs the
-real repair pipeline end-to-end in a background thread:
+real repair pipeline end-to-end, in a background thread, **for up to N rounds**:
 
-    plan-dub-repair  ->  run-dub-repair (tournament, scoped to the segments)
-                     ->  render-dub (--selected-segments, re-mix into task-e)
-                     ->  re-evaluate (build_dub_qa)
+    round r:  plan-dub-repair  ->  run-dub-repair (tournament, scoped to targets)
+                              ->  render-dub (--selected-segments, re-mix task-e)
+                              ->  re-evaluate (build_dub_qa)  ->  keep | rollback
+
+Each round targets the segments the *current* report still flags as
+auto-fixable, minus any segment already attempted (so the loop chips through a
+large problem set across rounds and never oscillates — a segment is attempted at
+most once). A round is kept only if the global score improves (or ties with
+fewer problems); otherwise its render is rolled back and the loop tries the
+remaining segments. Accepted repairs accumulate via a cumulative
+``selected_segments`` set so a later round's re-render never drops an earlier
+round's fixes. The loop stops when the report has no more auto-fixable segments
+or the round budget is exhausted — i.e. it iterates toward convergence rather
+than taking a single shot.
 
 Each step is an isolated ``python -m translip`` subprocess (so heavy TTS models
 are freed on exit and a crash can't poison the server), mirroring how the
 pipeline orchestrator shells out. Progress is tracked in the ``analyses`` table
-as an ``auto-fix`` row; on success it also writes a fresh ``dub-qa`` analysis for
-the improved mix so the evaluation page shows the new (hopefully better) report.
-The job result records before/after score so the UI can show the delta.
+as an ``auto-fix`` row; on net improvement it also writes a fresh ``dub-qa``
+analysis for the best mix so the evaluation page shows the new report. The job
+result records the per-round trajectory plus overall before/after score.
 """
 
 from __future__ import annotations
@@ -45,18 +56,24 @@ router = APIRouter(prefix="/api/tasks", tags=["analysis"])
 AUTO_FIX_TYPE = "auto-fix"
 _FALLBACK_BACKEND = "voxcpm2"
 
+# Minimum score gain for a round to be kept. Below this a round is treated as
+# noise (TTS is partly stochastic) and rolled back so we never ship a cut that
+# is not clearly better than where the round started.
+_ACCEPT_EPS = 0.5
+
 
 class AutoFixRequest(BaseModel):
     segment_ids: list[str] = Field(
         default_factory=list,
-        description="要修复的片段 id（取自 remediation 的 repair_directive）；为空则由修复引擎按风险队列自动选取。",
+        description="要修复的片段 id（取自 remediation 的 repair_directive）；为空则由评测报告按风险自动选取。仅用于第 1 轮，后续轮次从最新报告重新推导剩余问题段。",
     )
     tts_backends: list[str] = Field(
         default_factory=list,
         description="修复使用的 TTS 后端；为空则沿用任务原后端，原后端不可用（如 moss 未安装）时回退到 voxcpm2。",
     )
     attempts_per_item: int = Field(default=3, ge=1, le=6, description="每个片段尝试的候选数（文本×参考×后端）。")
-    max_items: int = Field(default=20, ge=1, le=100, description="最多修复的片段数上限。")
+    max_items: int = Field(default=20, ge=1, le=100, description="每轮最多修复的片段数上限。")
+    max_rounds: int = Field(default=3, ge=1, le=6, description="最多迭代修复的轮数；每轮针对当前报告剩余的可自动修复片段，逐轮收敛。")
 
 
 @router.post("/{task_id}/auto-fix", response_model=AnalysisRead, summary="一键自动修复")
@@ -65,7 +82,7 @@ def create_auto_fix(
     body: AutoFixRequest | None = None,
     session: Session = Depends(get_session),
 ):
-    """对已评测任务的可自动修复片段发起一键修复（重合成 → 重混 → 重评测），后台异步运行。
+    """对已评测任务的可自动修复片段发起一键迭代修复（重合成 → 重混 → 重评测，多轮收敛），后台异步运行。
 
     若已有 auto-fix 在运行则直接返回该记录。任务无输出时返回 409。
     """
@@ -119,8 +136,95 @@ def get_auto_fix(
 
 
 # --------------------------------------------------------------------------- #
-# Worker
+# Pure decision helpers (unit-tested without any I/O)
 # --------------------------------------------------------------------------- #
+
+
+def _auto_fix_targets(report: dict[str, Any], attempted: set[str], max_items: int) -> list[str]:
+    """The next round's targets: auto-fixable, repair-driven segment ids from a
+    dub-qa ``report``, minus segments already attempted, de-duplicated and capped.
+
+    Reads ``report["remediation"]["repair_directive"]["segment_ids"]`` — the
+    exact handoff the remediation planner produces for ``run-dub-repair``.
+    """
+    remediation = report.get("remediation") if isinstance(report, dict) else None
+    directive = (remediation or {}).get("repair_directive") if isinstance(remediation, dict) else None
+    ids = (directive or {}).get("segment_ids") if isinstance(directive, dict) else None
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in ids or []:
+        sid = str(raw)
+        if not sid or sid in attempted or sid in seen:
+            continue
+        seen.add(sid)
+        out.append(sid)
+        if len(out) >= max_items:
+            break
+    return out
+
+
+def _round_accepted(
+    before_score: Any,
+    after_score: Any,
+    before_problems: Any,
+    after_problems: Any,
+    eps: float = _ACCEPT_EPS,
+) -> bool:
+    """Keep a round only when it is clearly better than where it started.
+
+    Score gain >= ``eps`` wins. A near-tie on score is kept only if the problem
+    count strictly dropped. When scores are unavailable, fall back to the
+    problem count. This is the per-round gate that guarantees the loop is
+    monotonic (it never ships a worse cut).
+    """
+    bs = before_score if isinstance(before_score, (int, float)) else None
+    as_ = after_score if isinstance(after_score, (int, float)) else None
+    bp = before_problems if isinstance(before_problems, (int, float)) else None
+    ap = after_problems if isinstance(after_problems, (int, float)) else None
+    if bs is not None and as_ is not None:
+        if as_ >= bs + eps:
+            return True
+        if as_ <= bs - eps:
+            return False
+        # Near-tie on score → only accept if it removed problems.
+        if bp is not None and ap is not None:
+            return ap < bp
+        return False
+    if bp is not None and ap is not None:
+        return ap < bp
+    return False
+
+
+def _merge_selected_segments(base_segments: list[dict[str, Any]], round_path: Path) -> list[dict[str, Any]]:
+    """Union accepted repairs with a round's fresh ``selected_segments`` payload.
+
+    Keyed by ``segment_id`` (the latest attempt wins, though segments are
+    attempted at most once). The cumulative set is what each re-render consumes,
+    so a later round never drops an earlier round's accepted fix.
+    """
+    by_id: dict[str, dict[str, Any]] = {}
+    for seg in base_segments:
+        sid = str(seg.get("segment_id") or "")
+        if sid:
+            by_id[sid] = seg
+    fresh = _read_json(round_path).get("segments") if round_path.exists() else None
+    for seg in fresh or []:
+        if isinstance(seg, dict) and seg.get("segment_id"):
+            by_id[str(seg["segment_id"])] = seg
+    return list(by_id.values())
+
+
+# --------------------------------------------------------------------------- #
+# I/O helpers
+# --------------------------------------------------------------------------- #
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001
+        return {}
+    return payload if isinstance(payload, dict) else {}
 
 
 def _moss_available() -> bool:
@@ -157,19 +261,27 @@ def _run_cli(args: list[Any], log_path: Path) -> None:
         raise RuntimeError(f"`{args[0]}` failed (exit {proc.returncode}); see logs/{log_path.name}")
 
 
-_TOTAL_PHASES = 4
+_PHASES_PER_ROUND = 4
 
 
-def _set_phase(job_id: str, step: int, phase: str) -> None:
-    """Record which of the 4 auto-fix steps is running so the UI can show a progress bar.
+def _set_phase(job_id: str, step: int, phase: str, round_idx: int, total_rounds: int) -> None:
+    """Record which step of which round is running so the UI can show progress.
 
-    Phases (step): plan(1) -> repair(2) -> render(3) -> evaluate(4). Cleared on terminal status.
+    Per round: plan(1) -> repair(2) -> render(3) -> evaluate(4). ``round`` /
+    ``total_rounds`` let the UI render "round 2/3". Cleared on terminal status.
+    Keeps the legacy ``step``/``total`` keys so older UI builds still work.
     """
     with Session(engine) as session:
         job = session.get(Analysis, job_id)
         if job is None:
             return
-        job.progress = {"step": step, "total": _TOTAL_PHASES, "phase": phase}
+        job.progress = {
+            "step": step,
+            "total": _PHASES_PER_ROUND,
+            "phase": phase,
+            "round": round_idx,
+            "total_rounds": total_rounds,
+        }
         job.updated_at = datetime.now()
         session.add(job)
         session.commit()
@@ -208,7 +320,13 @@ def _render_flags(output_root: Path, target_lang: str) -> list[str]:
     return flags
 
 
-def _latest_dubqa_summary(task_id: str) -> dict[str, Any]:
+def _latest_dubqa_report(task_id: str, output_root: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return ``(summary, report)`` for the latest succeeded dub-qa analysis.
+
+    ``summary`` is the lightweight DB row result (score / problem count);
+    ``report`` is the full on-disk report (segments + remediation) used to pick
+    the first round's targets. Either may be ``{}`` if unavailable.
+    """
     with Session(engine) as session:
         row = session.exec(
             select(Analysis)
@@ -217,7 +335,19 @@ def _latest_dubqa_summary(task_id: str) -> dict[str, Any]:
             .where(Analysis.status == "succeeded")
             .order_by(Analysis.created_at.desc())
         ).first()
-        return dict(row.result or {}) if row else {}
+        if row is None:
+            return {}, {}
+        summary = dict(row.result or {})
+        report_path = row.report_path
+    report: dict[str, Any] = {}
+    if report_path:
+        report = _read_json(output_root / report_path)
+    return summary, report
+
+
+# --------------------------------------------------------------------------- #
+# Worker
+# --------------------------------------------------------------------------- #
 
 
 def _run_auto_fix_in_thread(job_id: str) -> None:
@@ -245,9 +375,10 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
         source_lang = task.source_lang
         params = dict(job.params or {})
 
-    seg_ids = list(params.get("segment_ids") or [])
+    seg_ids_req = list(params.get("segment_ids") or [])
     attempts = int(params.get("attempts_per_item") or 3)
     max_items = int(params.get("max_items") or 20)
+    max_rounds = int(params.get("max_rounds") or 3)
     task_request = _task_request(output_root)
     backends = _choose_backends(list(params.get("tts_backends") or []), task_request)
     device = "cpu" if _FALLBACK_BACKEND in backends else str(task_request.get("device") or "auto")
@@ -273,65 +404,16 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
             raise RuntimeError("no stage1 background track found")
         background = backgrounds[0]
 
-        before = _latest_dubqa_summary(task_id)
-        td_flags: list[str] = []
+        before_summary, before_report = _latest_dubqa_report(task_id, output_root)
+        overall_before_score = before_summary.get("score")
+        overall_before_problems = before_summary.get("problem_segment_count")
+
+        td_flags: list[Any] = []
         for report in task_d_reports:
             td_flags += ["--task-d-report", report]
 
         plan_dir = output_root / "task-d" / "voice" / "repair-plan"
         run_dir = output_root / "task-d" / "voice" / "repair-run"
-
-        # 1) Plan: build the repair queue / rewrite / reference plans. Force-queue
-        #    the QA-flagged segments so defects the evaluation found on the final
-        #    mix (but task-d passed) are actually attempted, not silently skipped.
-        _set_phase(job_id, 1, "plan")
-        plan_args: list[Any] = [
-            "plan-dub-repair",
-            "--translation", translation,
-            "--profiles", profiles,
-            *td_flags,
-            "--output-dir", plan_dir,
-            "--target-lang", target_lang,
-            "--max-items", max_items,
-        ]
-        for sid in seg_ids:
-            plan_args += ["--include-segment-id", sid]
-        _run_cli(plan_args, log_path)
-
-        # 2) Run: tournament-synthesize the flagged segments, select the best.
-        _set_phase(job_id, 2, "repair")
-        run_args: list[Any] = [
-            "run-dub-repair",
-            "--repair-queue", plan_dir / f"repair_queue.{target_lang}.json",
-            "--rewrite-plan", plan_dir / f"rewrite_plan.{target_lang}.json",
-            "--reference-plan", plan_dir / f"reference_plan.{target_lang}.json",
-            "--output-dir", run_dir,
-            "--device", device,
-            "--max-items", max_items,
-            "--attempts-per-item", attempts,
-            "--include-risk",
-        ]
-        for backend in backends:
-            run_args += ["--tts-backend", backend]
-        for sid in seg_ids:
-            run_args += ["--segment-id", sid]
-        if ledger.exists():
-            run_args += ["--character-ledger", ledger]
-        _run_cli(run_args, log_path)
-
-        selected_path = run_dir / f"selected_segments.{target_lang}.json"
-        selected_count = 0
-        try:
-            selected_count = int(
-                json.loads(selected_path.read_text(encoding="utf-8")).get("stats", {}).get("selected_count", 0)
-            )
-        except Exception:  # noqa: BLE001
-            pass
-
-        # Snapshot task-e before overwriting, so a regression can be rolled back —
-        # the repair's per-segment accept gate is local, but the benchmark is
-        # global, so "fixing more" can still lower the overall score (e.g. timbre
-        # drift). Auto-fix must never ship a worse cut than it started with.
         voice_dir = output_root / "task-e" / "voice"
         snap_names = [
             f"dub_voice.{target_lang}.wav",
@@ -340,96 +422,206 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
             f"timeline.{target_lang}.json",
             "task-e-manifest.json",
         ]
-        backup_dir = voice_dir / f".autofix-backup-{job_id}"
-        backup_dir.mkdir(parents=True, exist_ok=True)
-        for name in snap_names:
-            src = voice_dir / name
-            if src.exists():
-                shutil.copy2(src, backup_dir / name)
+        cumulative_selected = run_dir / f"selected_segments.cumulative.{target_lang}.json"
 
-        # 3) Render: re-mix with the repaired audio, overwriting task-e in place.
-        _set_phase(job_id, 3, "render")
-        _run_cli(
-            [
-                "render-dub",
-                "--background", background,
-                "--segments", segments,
+        # Rolling "best so far" state. We never ship a cut worse than this.
+        best_score = overall_before_score
+        best_problems = overall_before_problems
+        best_report = before_report
+        best_report_rel: str | None = None
+        accepted_segments: list[dict[str, Any]] = []
+        attempted: set[str] = set()
+        rounds_log: list[dict[str, Any]] = []
+        total_repaired = 0
+        final_analysis_id: str | None = None
+
+        for round_idx in range(1, max_rounds + 1):
+            if round_idx == 1 and seg_ids_req:
+                # Honor the caller's explicit selection for the first pass.
+                seen: set[str] = set()
+                targets = []
+                for sid in seg_ids_req:
+                    s = str(sid)
+                    if s and s not in seen:
+                        seen.add(s)
+                        targets.append(s)
+                targets = targets[:max_items]
+            else:
+                targets = _auto_fix_targets(best_report, attempted, max_items)
+            if not targets:
+                break  # converged — nothing left the loop can auto-fix
+            attempted |= set(targets)
+
+            # 1) Plan: build the repair queue / rewrite / reference plans, force-
+            #    queuing this round's targets so QA-flagged defects are attempted.
+            _set_phase(job_id, 1, "plan", round_idx, max_rounds)
+            plan_args: list[Any] = [
+                "plan-dub-repair",
                 "--translation", translation,
+                "--profiles", profiles,
                 *td_flags,
-                "--selected-segments", selected_path,
-                "--output-dir", output_root / "task-e",
+                "--output-dir", plan_dir,
                 "--target-lang", target_lang,
-                *_render_flags(output_root, target_lang),
-            ],
-            log_path,
-        )
+                "--max-items", max_items,
+            ]
+            for sid in targets:
+                plan_args += ["--include-segment-id", sid]
+            _run_cli(plan_args, log_path)
 
-        # 4) Re-evaluate the new mix.
-        _set_phase(job_id, 4, "evaluate")
-        reeval_id = f"ana-{uuid.uuid4().hex[:12]}"
-        result = build_dub_qa(
-            DubQaRequest(
-                pipeline_root=output_root,
-                output_dir=output_root / "analysis" / reeval_id,
-                target_lang=target_lang,
-                source_lang=source_lang,
-            )
-        )
-        after = dict(result.manifest.get("summary", {}))
-        try:
-            report_rel = str(result.artifacts.report_path.resolve().relative_to(output_root.resolve()))
-        except ValueError:
-            report_rel = str(result.artifacts.report_path)
+            # 2) Run: tournament-synthesize the targets, select the best.
+            _set_phase(job_id, 2, "repair", round_idx, max_rounds)
+            run_args: list[Any] = [
+                "run-dub-repair",
+                "--repair-queue", plan_dir / f"repair_queue.{target_lang}.json",
+                "--rewrite-plan", plan_dir / f"rewrite_plan.{target_lang}.json",
+                "--reference-plan", plan_dir / f"reference_plan.{target_lang}.json",
+                "--output-dir", run_dir,
+                "--device", device,
+                "--max-items", max_items,
+                "--attempts-per-item", attempts,
+                "--include-risk",
+            ]
+            for backend in backends:
+                run_args += ["--tts-backend", backend]
+            for sid in targets:
+                run_args += ["--segment-id", sid]
+            if ledger.exists():
+                run_args += ["--character-ledger", ledger]
+            _run_cli(run_args, log_path)
 
-        before_score = before.get("score")
-        after_score = after.get("score")
-        regressed = (
-            isinstance(before_score, (int, float))
-            and isinstance(after_score, (int, float))
-            and after_score < before_score
-        )
-
-        if regressed:
-            # Restore the better previous cut; keep the prior evaluation as latest.
-            for name in snap_names:
-                bak = backup_dir / name
-                if bak.exists():
-                    shutil.copy2(bak, voice_dir / name)
-            kept_analysis_id = None
-        else:
-            # Improvement (or tie): surface the new mix as a fresh dub-qa analysis.
-            now = datetime.now()
-            with Session(engine) as session:
-                session.add(
-                    Analysis(
-                        id=reeval_id,
-                        task_id=task_id,
-                        analysis_type="dub-qa",
-                        status="succeeded",
-                        target_lang=target_lang,
-                        source_lang=source_lang,
-                        params={"run_translation_judge": False, "via": "auto-fix"},
-                        result=after,
-                        report_path=report_rel,
-                        started_at=now,
-                        finished_at=now,
-                    )
+            round_selected = run_dir / f"selected_segments.{target_lang}.json"
+            round_selected_count = 0
+            try:
+                round_selected_count = int(
+                    _read_json(round_selected).get("stats", {}).get("selected_count", 0)
                 )
-                session.commit()
-            kept_analysis_id = reeval_id
-        shutil.rmtree(backup_dir, ignore_errors=True)
+            except Exception:  # noqa: BLE001
+                pass
 
+            # Accumulate accepted repairs + this round's selections, so the re-
+            # render keeps earlier rounds' fixes (render uses base task-d audio
+            # for any segment NOT in selected_segments).
+            candidate_segments = _merge_selected_segments(accepted_segments, round_selected)
+            run_dir.mkdir(parents=True, exist_ok=True)
+            cumulative_selected.write_text(
+                json.dumps(
+                    {"stats": {"selected_count": len(candidate_segments)}, "segments": candidate_segments},
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            # Snapshot the current best task-e so this round can be rolled back.
+            backup_dir = voice_dir / f".autofix-backup-{job_id}-r{round_idx}"
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            for name in snap_names:
+                src = voice_dir / name
+                if src.exists():
+                    shutil.copy2(src, backup_dir / name)
+
+            # 3) Render: re-mix with the cumulative repaired audio.
+            _set_phase(job_id, 3, "render", round_idx, max_rounds)
+            _run_cli(
+                [
+                    "render-dub",
+                    "--background", background,
+                    "--segments", segments,
+                    "--translation", translation,
+                    *td_flags,
+                    "--selected-segments", cumulative_selected,
+                    "--output-dir", output_root / "task-e",
+                    "--target-lang", target_lang,
+                    *_render_flags(output_root, target_lang),
+                ],
+                log_path,
+            )
+
+            # 4) Re-evaluate the new mix.
+            _set_phase(job_id, 4, "evaluate", round_idx, max_rounds)
+            reeval_id = f"ana-{uuid.uuid4().hex[:12]}"
+            result = build_dub_qa(
+                DubQaRequest(
+                    pipeline_root=output_root,
+                    output_dir=output_root / "analysis" / reeval_id,
+                    target_lang=target_lang,
+                    source_lang=source_lang,
+                )
+            )
+            after = dict(result.manifest.get("summary", {}))
+            after_score = after.get("score")
+            after_problems = after.get("problem_segment_count")
+            try:
+                report_rel = str(result.artifacts.report_path.resolve().relative_to(output_root.resolve()))
+            except ValueError:
+                report_rel = str(result.artifacts.report_path)
+
+            accepted = _round_accepted(best_score, after_score, best_problems, after_problems)
+            rounds_log.append(
+                {
+                    "round": round_idx,
+                    "targets": len(targets),
+                    "repaired": round_selected_count,
+                    "before_score": best_score,
+                    "after_score": after_score,
+                    "before_problem_count": best_problems,
+                    "after_problem_count": after_problems,
+                    "accepted": accepted,
+                }
+            )
+
+            if accepted:
+                total_repaired += round_selected_count
+                best_score = after_score
+                best_problems = after_problems
+                best_report = result.report
+                best_report_rel = report_rel
+                accepted_segments = candidate_segments
+                final_analysis_id = reeval_id
+                now = datetime.now()
+                with Session(engine) as session:
+                    session.add(
+                        Analysis(
+                            id=reeval_id,
+                            task_id=task_id,
+                            analysis_type="dub-qa",
+                            status="succeeded",
+                            target_lang=target_lang,
+                            source_lang=source_lang,
+                            params={"run_translation_judge": False, "via": "auto-fix", "round": round_idx},
+                            result=after,
+                            report_path=report_rel,
+                            started_at=now,
+                            finished_at=now,
+                        )
+                    )
+                    session.commit()
+                shutil.rmtree(backup_dir, ignore_errors=True)
+            else:
+                # Restore the better previous cut; targets stay in ``attempted``
+                # so they are not retried. The loop continues with any remaining
+                # auto-fixable segments next round.
+                for name in snap_names:
+                    bak = backup_dir / name
+                    if bak.exists():
+                        shutil.copy2(bak, voice_dir / name)
+                shutil.rmtree(backup_dir, ignore_errors=True)
+
+        improved = final_analysis_id is not None
         payload = {
-            "before_score": before_score,
-            "after_score": after_score,
-            "before_problem_count": before.get("problem_segment_count"),
-            "after_problem_count": after.get("problem_segment_count"),
-            "repaired_count": selected_count,
-            "requested_count": len(seg_ids),
+            "before_score": overall_before_score,
+            "after_score": best_score,
+            "before_problem_count": overall_before_problems,
+            "after_problem_count": best_problems,
+            "rounds_run": len(rounds_log),
+            "rounds": rounds_log,
+            "repaired_count": total_repaired,
+            "requested_count": len(seg_ids_req),
             "tts_backends": backends,
             "device": device,
-            "rolled_back": regressed,
-            "new_analysis_id": kept_analysis_id,
+            "max_rounds": max_rounds,
+            "rolled_back": not improved,
+            "new_analysis_id": final_analysis_id,
         }
         with Session(engine) as session:
             job = session.get(Analysis, job_id)
@@ -438,7 +630,7 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
             job.status = "succeeded"
             job.result = payload
             job.progress = None
-            job.report_path = report_rel if not regressed else None
+            job.report_path = best_report_rel if improved else None
             job.finished_at = datetime.now()
             job.updated_at = datetime.now()
             job.elapsed_sec = round(time.monotonic() - started, 3)

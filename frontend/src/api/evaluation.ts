@@ -108,6 +108,16 @@ export interface DubQaSummary {
     coverage_ratio: number | null
   }
   dropout: { affected_count: number; average_ratio: number | null }
+  // Timeline pressure: how much the dub overruns its windows and how much audio
+  // is lost to tail-trimming (the perceived-quality dimension the score under-weights).
+  timeline?: {
+    overflow_segment_count: number
+    severe_overflow_count: number
+    unfitted_count: number
+    max_duration_ratio: number | null
+    avg_overflow_ratio: number | null
+    cut_audio_sec: number
+  }
   translation_judge?: {
     status: string
     scored_count: number
@@ -240,6 +250,17 @@ export function taskInputFileUrl(taskId: string): string {
   return `/api/tasks/${encodeURIComponent(taskId)}/input-file`
 }
 
+export interface AutoFixRound {
+  round: number
+  targets: number
+  repaired: number
+  before_score?: number | null
+  after_score?: number | null
+  before_problem_count?: number | null
+  after_problem_count?: number | null
+  accepted: boolean
+}
+
 export interface AutoFixResult {
   before_score?: number | null
   after_score?: number | null
@@ -251,6 +272,10 @@ export interface AutoFixResult {
   device?: string
   rolled_back?: boolean
   new_analysis_id?: string | null
+  // Iterative loop: per-round trajectory + how many rounds ran.
+  rounds_run?: number
+  max_rounds?: number
+  rounds?: AutoFixRound[]
 }
 
 /** Which of the 4 auto-fix steps is currently running (for the progress bar). */
@@ -260,6 +285,9 @@ export interface AutoFixProgress {
   step: number
   total: number
   phase: AutoFixPhase | string
+  // Which round of the iterative loop is running.
+  round?: number
+  total_rounds?: number
 }
 
 export interface AutoFixJob extends Omit<Analysis, 'result'> {
@@ -271,8 +299,10 @@ export const evaluationApi = {
   list: (taskId: string) =>
     api.get<Analysis[]>(`/api/tasks/${taskId}/analyses`).then(r => r.data),
 
-  autoFix: (taskId: string, body: { segment_ids?: string[]; tts_backends?: string[] }) =>
-    api.post<AutoFixJob>(`/api/tasks/${taskId}/auto-fix`, body).then(r => r.data),
+  autoFix: (
+    taskId: string,
+    body: { segment_ids?: string[]; tts_backends?: string[]; max_rounds?: number },
+  ) => api.post<AutoFixJob>(`/api/tasks/${taskId}/auto-fix`, body).then(r => r.data),
 
   getAutoFix: (taskId: string, jobId: string) =>
     api.get<AutoFixJob>(`/api/tasks/${taskId}/auto-fix/${jobId}`).then(r => r.data),

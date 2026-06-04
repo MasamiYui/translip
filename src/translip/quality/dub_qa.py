@@ -59,6 +59,12 @@ ALL_ISSUES = (
 DROPOUT_RATIO_THRESHOLD = 0.34  # >~1/3 of target tokens missing in the read-back
 DROPOUT_MIN_TOKENS = 4  # ignore very short segments (ASR noise dominates)
 INAUDIBLE_COVERAGE_THRESHOLD = 0.50
+# A placed dub this much longer than its window is overflowing hard: tempo-fitting
+# either over-accelerates the speech or the tail gets cut. ``duration_status``
+# only *fails* outside [0.55, 1.65], so segments in the 1.45–1.65 band slip
+# through as "review" — yet that band is where most perceived tail-trim damage
+# lives. Flagging it here routes those segments to the rewrite/repair loop.
+SEVERE_OVERFLOW_RATIO = 1.45
 
 # Severity of each issue (highest wins for a segment's overall severity).
 _ISSUE_SEVERITY = {
@@ -428,7 +434,11 @@ def _issue_tags(row: dict[str, Any]) -> list[str]:
             and row["dropout_ratio"] >= DROPOUT_RATIO_THRESHOLD
         ):
             tags.append(ISSUE_DROPOUT)
-        if row.get("duration_status") == "failed":
+        ratio = row.get("duration_ratio")
+        severe_overflow = (
+            isinstance(ratio, (int, float)) and ratio >= SEVERE_OVERFLOW_RATIO
+        ) or row.get("fit_strategy") == "overflow_unfitted"
+        if row.get("duration_status") == "failed" or severe_overflow:
             tags.append(ISSUE_PACING)
         coverage = row.get("subtitle_coverage_ratio")
         if isinstance(coverage, (int, float)) and coverage < INAUDIBLE_COVERAGE_THRESHOLD:
@@ -479,6 +489,36 @@ def _summarize(
         if isinstance(row.get("judge_score"), (int, float)):
             judge_scores.append(float(row["judge_score"]))
 
+    # Timeline pressure: how much the dub overruns its windows and how much
+    # audio is actually lost to tail-trimming. This is the perceived-quality
+    # dimension the headline score under-weights, so surface it explicitly.
+    overflow_ratios: list[float] = []
+    severe_overflow_count = 0
+    unfitted_count = 0
+    cut_audio_sec = 0.0
+    for row in rows:
+        if not row.get("placed"):
+            continue
+        ratio = row.get("duration_ratio")
+        if isinstance(ratio, (int, float)) and ratio > 1.0:
+            overflow_ratios.append(float(ratio))
+        if isinstance(ratio, (int, float)) and ratio >= SEVERE_OVERFLOW_RATIO:
+            severe_overflow_count += 1
+        if row.get("fit_strategy") == "overflow_unfitted":
+            unfitted_count += 1
+            generated = row.get("generated_duration_sec")
+            fitted = row.get("fitted_duration_sec")
+            if isinstance(generated, (int, float)) and isinstance(fitted, (int, float)):
+                cut_audio_sec += max(0.0, float(generated) - float(fitted))
+    timeline = {
+        "overflow_segment_count": len(overflow_ratios),
+        "severe_overflow_count": severe_overflow_count,
+        "unfitted_count": unfitted_count,
+        "max_duration_ratio": round(max(overflow_ratios), 4) if overflow_ratios else None,
+        "avg_overflow_ratio": round(sum(overflow_ratios) / len(overflow_ratios), 4) if overflow_ratios else None,
+        "cut_audio_sec": round(cut_audio_sec, 3),
+    }
+
     stats = mix_report.get("stats", {}) if isinstance(mix_report.get("stats"), dict) else {}
     skip_reason_counts = stats.get("skip_reason_counts", {}) if isinstance(stats.get("skip_reason_counts"), dict) else {}
     total = len(rows)
@@ -512,6 +552,7 @@ def _summarize(
             "affected_count": issue_counts[ISSUE_DROPOUT],
             "average_ratio": round(sum(dropout_ratios) / len(dropout_ratios), 4) if dropout_ratios else None,
         },
+        "timeline": timeline,
         "translation_judge": translation_judge,
         "judge_status": judge_status,
     }

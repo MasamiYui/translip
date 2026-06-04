@@ -224,6 +224,76 @@ def test_translation_judge_with_mocked_api(tmp_path: Path, monkeypatch):
     assert payload["stats"]["failed_count"] == 1
 
 
+def _overflow_pipeline(root: Path) -> None:
+    """A pipeline where placed dubs overflow their windows to varying degrees."""
+    tc = root / "task-c" / "voice" / "clip"
+    _write(tc / "translation.en.json", {"segments": [
+        {"segment_id": "ok", "speaker_label": "A", "start": 0.0, "end": 3.0,
+         "source_text": "正常", "target_text": "fine"},
+        {"segment_id": "severe", "speaker_label": "A", "start": 3.0, "end": 6.0,
+         "source_text": "稍微长一点点的句子", "target_text": "a sentence that runs a bit long"},
+        {"segment_id": "cut", "speaker_label": "A", "start": 6.0, "end": 9.0,
+         "source_text": "被切尾的句子", "target_text": "this one gets its tail cut"},
+    ]})
+
+    def placed(seg_id, **over):
+        base = {
+            "segment_id": seg_id, "audio_path": str(tc / f"{seg_id}.wav"), "mix_status": "placed",
+            "overall_status": "passed", "speaker_status": "passed",
+            "intelligibility_status": "passed", "duration_status": "passed",
+            "speaker_similarity": 0.7, "text_similarity": 0.95,
+            "source_duration_sec": 3.0, "generated_duration_sec": 3.0,
+            "fitted_duration_sec": 3.0, "subtitle_coverage_ratio": 0.9, "qa_flags": [],
+        }
+        base.update(over)
+        return base
+
+    _write(root / "task-e" / "voice" / "mix_report.en.json", {
+        "input": {"translation_path": str(tc / "translation.en.json")},
+        "stats": {"placed_count": 3, "skipped_count": 0,
+                  "quality_summary": {"total_count": 3, "overall_status_counts": {"passed": 3}}},
+        "placed_segments": [
+            placed("ok", anchor_start=0.0, anchor_end=3.0),
+            # ratio 1.55 → in the [1.35,1.65] "review" band (NOT duration_status=failed),
+            # but severe enough to trim → must be flagged pacing.
+            placed("severe", anchor_start=3.0, anchor_end=6.0,
+                   generated_duration_sec=4.65, fitted_duration_sec=3.0, duration_status="review"),
+            # Couldn't fit at all → 2.0s of dub audio cut off.
+            placed("cut", anchor_start=6.0, anchor_end=9.0,
+                   generated_duration_sec=5.0, fitted_duration_sec=3.0,
+                   fit_strategy="overflow_unfitted", duration_status="review"),
+        ],
+        "skipped_segments": [],
+    })
+
+
+def test_severe_overflow_is_flagged_pacing(tmp_path: Path):
+    root = tmp_path / "pipeline"
+    _overflow_pipeline(root)
+    result = build_dub_qa(DubQaRequest(pipeline_root=root, output_dir=tmp_path / "out", target_lang="en"))
+    rows = {row["segment_id"]: row for row in result.report["segments"]}
+
+    assert rows["ok"]["issue_tags"] == []  # ratio 1.0 → clean
+    # 1.55× overflow slips through duration_status as "review", but is trimmed →
+    # flagged pacing so the remediation/auto-fix loop will target it.
+    assert "pacing" in rows["severe"]["issue_tags"]
+    assert "pacing" in rows["cut"]["issue_tags"]
+
+
+def test_timeline_summary_quantifies_overflow_and_cut_audio(tmp_path: Path):
+    root = tmp_path / "pipeline"
+    _overflow_pipeline(root)
+    result = build_dub_qa(DubQaRequest(pipeline_root=root, output_dir=tmp_path / "out", target_lang="en"))
+    timeline = result.report["qa_summary"]["timeline"]
+
+    assert timeline["overflow_segment_count"] == 2  # severe (1.55) + cut (1.67)
+    assert timeline["severe_overflow_count"] == 2
+    assert timeline["unfitted_count"] == 1
+    # Only the unfitted segment lost audio: 5.0 generated - 3.0 fitted = 2.0s.
+    assert timeline["cut_audio_sec"] == 2.0
+    assert timeline["max_duration_ratio"] >= 1.66
+
+
 def test_translation_judge_missing_key_raises(tmp_path: Path, monkeypatch):
     monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
     translation = _write(
