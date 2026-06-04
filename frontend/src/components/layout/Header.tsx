@@ -1,15 +1,25 @@
 import type { CSSProperties } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Monitor, Zap, AlertCircle } from 'lucide-react'
+import { Monitor, Zap, AlertCircle, PanelLeft, PanelTop } from 'lucide-react'
 import { systemApi } from '../../api/config'
 import { useI18n } from '../../i18n/useI18n'
+import type { LayoutMode } from './MainLayout'
 
 interface HeaderProps {
   workbench?: boolean
   sidebarOffset?: number
+  topOffset?: number
+  layoutMode?: LayoutMode
+  onToggleLayoutMode?: () => void
 }
 
-export function Header({ workbench = false, sidebarOffset = 220 }: HeaderProps) {
+export function Header({
+  workbench = false,
+  sidebarOffset = 220,
+  topOffset = 0,
+  layoutMode = 'left',
+  onToggleLayoutMode,
+}: HeaderProps) {
   const { locale, setLocale, t } = useI18n()
   const { data: sysInfo } = useQuery({
     queryKey: ['system-info'],
@@ -19,12 +29,18 @@ export function Header({ workbench = false, sidebarOffset = 220 }: HeaderProps) 
   })
 
   const heightClass = workbench ? 'h-12' : 'h-[60px]'
-  const sidebarOffsetStyle = { '--sidebar-offset': `${sidebarOffset}px` } as CSSProperties
+  const headerStyle = {
+    '--sidebar-offset': `${sidebarOffset}px`,
+    '--top-nav-offset': `${topOffset}px`,
+  } as CSSProperties
+
+  const isTopMode = layoutMode === 'top'
+  const switchTitle = isTopMode ? t.nav.layoutModeLeft : t.nav.layoutModeTop
 
   return (
     <header
-      style={sidebarOffsetStyle}
-      className={`fixed top-0 right-0 left-0 md:left-[var(--sidebar-offset)] ${heightClass} bg-white/90 backdrop-blur-md border-b border-[#f3f4f6] flex items-center justify-between px-5 z-30 transition-[left] duration-200 ease-out`}
+      style={headerStyle}
+      className={`fixed right-0 left-0 md:left-[var(--sidebar-offset)] top-[var(--top-nav-offset)] ${heightClass} bg-white/90 backdrop-blur-md border-b border-[#f3f4f6] flex items-center justify-between px-5 z-30 transition-[left,top] duration-200 ease-out print:hidden`}
     >
       <div />
       <div className="flex items-center gap-3">
@@ -74,6 +90,20 @@ export function Header({ workbench = false, sidebarOffset = 220 }: HeaderProps) 
             EN
           </button>
         </div>
+
+        {/* Layout mode switcher */}
+        {onToggleLayoutMode && (
+          <button
+            type="button"
+            onClick={onToggleLayoutMode}
+            title={switchTitle}
+            aria-label={switchTitle}
+            data-testid="toggle-layout-mode"
+            className="flex h-7 w-7 items-center justify-center rounded-md border border-[#e5e7eb] bg-[#f9fafb] text-[#6b7280] transition-colors hover:bg-white hover:text-[#111827]"
+          >
+            {isTopMode ? <PanelLeft size={14} /> : <PanelTop size={14} />}
+          </button>
+        )}
       </div>
     </header>
   )

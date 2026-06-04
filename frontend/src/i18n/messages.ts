@@ -39,6 +39,8 @@ const zhMessages = {
     subtitle: 'Pipeline Manager',
     collapseSidebar: '收起侧边栏',
     expandSidebar: '展开侧边栏',
+    layoutModeLeft: '切换到左侧菜单',
+    layoutModeTop: '切换到顶部菜单',
   },
   blog: {
     title: '博客',
@@ -1554,6 +1556,8 @@ const enMessages: LocaleMessages = {
     subtitle: 'Pipeline Manager',
     collapseSidebar: 'Collapse sidebar',
     expandSidebar: 'Expand sidebar',
+    layoutModeLeft: 'Switch to left sidebar menu',
+    layoutModeTop: 'Switch to top menu',
   },
   blog: {
     title: 'Blog',
