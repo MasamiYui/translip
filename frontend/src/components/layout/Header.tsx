@@ -20,6 +20,8 @@ function shortDeviceLabel(device: string): string {
   return device
 }
 
+export { shortDeviceLabel }
+
 export function Header({
   workbench = false,
   sidebarOffset = 220,

@@ -32,6 +32,7 @@ import { cn } from '../../lib/utils'
 import { useI18n } from '../../i18n/useI18n'
 import { atomicToolsApi } from '../../api/atomic-tools'
 import { systemApi } from '../../api/config'
+import { shortDeviceLabel } from './Header'
 import type { ToolInfo } from '../../types/atomic-tools'
 
 const TOOL_ICON_MAP: Record<string, LucideIcon> = {
@@ -380,9 +381,12 @@ export function TopNav({ height = 60, onToggleLayoutMode }: TopNavProps = {}) {
       {/* Right utility cluster */}
       <div className="ml-2 flex items-center gap-2.5 shrink-0">
         {sysInfo && (
-          <div className="hidden items-center gap-1.5 text-xs text-[#6b7280] lg:flex">
+          <div
+            className="hidden items-center gap-1.5 text-xs text-[#6b7280] lg:flex"
+            title={sysInfo.device}
+          >
             <Monitor size={13} className="text-[#9ca3af]" />
-            <span className="font-medium">{sysInfo.device}</span>
+            <span className="font-medium">{shortDeviceLabel(sysInfo.device)}</span>
           </div>
         )}
         {sysInfo ? (
