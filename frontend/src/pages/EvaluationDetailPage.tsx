@@ -240,29 +240,41 @@ export function EvaluationDetailPage() {
             />
           </div>
 
-          {/* Issue filter chips */}
-          <div id="eval-segment-table" className="mb-3 mt-5 flex flex-wrap items-center gap-2">
-            <FilterChip active={!focus && filter === 'problems'} onClick={() => { setFocus(null); setFilter('problems') }}>
-              {t.evaluation.problemsOnly} ({report.qa_summary.problem_segment_count})
-            </FilterChip>
-            <FilterChip active={!focus && filter === 'all'} onClick={() => { setFocus(null); setFilter('all') }}>
-              {t.evaluation.filterAll} ({report.qa_summary.segment_count})
-            </FilterChip>
-            <span className="mx-1 h-4 w-px bg-[#e5e7eb]" />
-            {ISSUE_TAGS.map(tag => {
-              const count = report.qa_summary.issue_counts[tag] ?? 0
-              return (
-                <FilterChip
-                  key={tag}
-                  active={!focus && filter === tag}
-                  disabled={count === 0}
-                  onClick={() => { setFocus(null); setFilter(tag) }}
-                >
-                  {t.evaluation.issues[tag]} ({count})
-                </FilterChip>
-              )
-            })}
+          {/* Segments section: title + scope toggle, then issue-type filters */}
+          <div id="eval-segment-table" className="mb-3 mt-7 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-sm font-semibold text-[#111827]">{t.evaluation.segmentsTitle}</h2>
+              <span className="text-xs tabular-nums text-[#9ca3af]">{filteredSegments.length}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <FilterChip active={!focus && filter === 'problems'} onClick={() => { setFocus(null); setFilter('problems') }}>
+                {t.evaluation.problemsOnly} ({report.qa_summary.problem_segment_count})
+              </FilterChip>
+              <FilterChip active={!focus && filter === 'all'} onClick={() => { setFocus(null); setFilter('all') }}>
+                {t.evaluation.filterAll} ({report.qa_summary.segment_count})
+              </FilterChip>
+            </div>
           </div>
+
+          {/* Issue-type filters — only tags that actually occur (no dead zero chips) */}
+          {(() => {
+            const present = ISSUE_TAGS.filter(tag => (report.qa_summary.issue_counts[tag] ?? 0) > 0)
+            if (present.length === 0) return null
+            return (
+              <div className="mb-3 flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-[11px] text-[#9ca3af]">{t.evaluation.filterByIssue}</span>
+                {present.map(tag => (
+                  <FilterChip
+                    key={tag}
+                    active={!focus && filter === tag}
+                    onClick={() => { setFocus(null); setFilter(tag) }}
+                  >
+                    {t.evaluation.issues[tag]} ({report.qa_summary.issue_counts[tag] ?? 0})
+                  </FilterChip>
+                ))}
+              </div>
+            )
+          })()}
 
           {/* Focus banner: explicit segment-id selection from the remediation panel */}
           {focus && (
@@ -285,7 +297,7 @@ export function EvaluationDetailPage() {
           <div className="overflow-hidden rounded-xl border border-[#e5e7eb] bg-white">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-[#f3f4f6] text-left text-xs text-[#9ca3af]">
+                <tr className="border-b border-[#e5e7eb] text-left text-xs text-[#9ca3af]">
                   <th className="px-3 py-2.5 font-medium">{t.evaluation.colTime}</th>
                   <th className="px-3 py-2.5 font-medium">{t.evaluation.colSeverity}</th>
                   <th className="px-3 py-2.5 font-medium">{t.evaluation.colSpeaker}</th>
@@ -370,61 +382,81 @@ function Scorecard({
   const summary = report.qa_summary
   const score = report.scorecard.score
   const judgeStatus = summary.judge_status as keyof typeof t.evaluation.judgeStatusMap
+  // The score reads as the headline number, so tie its color to the verdict —
+  // a single source of truth. A failing score should never look neutral.
+  const scoreTone =
+    report.scorecard.status === 'deliverable_candidate'
+      ? 'text-emerald-600'
+      : report.scorecard.status === 'blocked'
+        ? 'text-red-600'
+        : 'text-amber-600'
+  // The judge is a run mode, not a quality result — only emphasize it once a
+  // real grade exists; otherwise keep it muted so it doesn't rival the score.
+  const judgeGraded = judgeStatus === 'generated' || judgeStatus === 'provided'
   return (
     <div className="rounded-xl border border-[#e5e7eb] bg-white p-5">
-      {/* Meta row: verdict on the left, timestamp + actions on the right */}
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-[#9ca3af]">{t.evaluation.status}</span>
+      {/* Meta row: timestamp + actions, right-aligned (verdict moves into the hero) */}
+      {latest && (
+        <div className="mb-3 flex items-center justify-end gap-2 text-xs text-[#9ca3af]">
+          <span>
+            {t.evaluation.createdAt} {new Date(latest.created_at).toLocaleString()}
+          </span>
+          <button
+            type="button"
+            onClick={() => onDelete(latest.id)}
+            className="flex items-center justify-center rounded-md p-1.5 text-[#9ca3af] hover:bg-red-50 hover:text-red-500"
+            title={t.evaluation.deleteAnalysis}
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+      )}
+
+      {/* Hero row: score + verdict on the left, compact stat group on the right */}
+      <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
+        <div className="flex items-center gap-5">
+          <div className="flex flex-col">
+            <span className="text-[11px] font-medium text-[#9ca3af]">{t.evaluation.score}</span>
+            <div className="flex items-baseline gap-1.5">
+              <span className={cn('text-[2.5rem] font-bold leading-none tabular-nums', scoreTone)}>
+                {score}
+              </span>
+              <span className="text-sm text-[#9ca3af]">/ 100</span>
+            </div>
+          </div>
           <VerdictBadge verdict={report.scorecard.status} />
         </div>
-        {latest && (
-          <div className="flex items-center gap-2 text-xs text-[#9ca3af]">
-            <span>
-              {t.evaluation.createdAt} {new Date(latest.created_at).toLocaleString()}
-            </span>
-            <button
-              type="button"
-              onClick={() => onDelete(latest.id)}
-              className="flex items-center justify-center rounded-md p-1.5 text-[#9ca3af] hover:bg-red-50 hover:text-red-500"
-              title={t.evaluation.deleteAnalysis}
-            >
-              <Trash2 size={14} />
-            </button>
-          </div>
-        )}
-      </div>
 
-      {/* Metric strip: evenly distributed cards, content centered in each */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <MetricCell label={t.evaluation.score}>
-          <span className="text-3xl font-bold text-[#111827]">{score}</span>
-        </MetricCell>
-        <MetricCell label={t.evaluation.dubCoverage}>
-          <span className={summary.coverage.undubbed_count > 0 ? 'text-red-600' : 'text-[#111827]'}>
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-3">
+          <Stat
+            label={t.evaluation.dubCoverage}
+            tone={summary.coverage.undubbed_count > 0 ? 'text-red-600' : 'text-[#111827]'}
+          >
             {summary.coverage.dubbed_count}/{summary.coverage.translated_count}
             {summary.coverage.coverage_ratio != null
               ? ` (${Math.round(summary.coverage.coverage_ratio * 100)}%)`
               : ''}
-          </span>
-        </MetricCell>
-        <MetricCell label={t.evaluation.problems}>
-          <span className={summary.problem_segment_count > 0 ? 'text-amber-600' : 'text-[#111827]'}>
+          </Stat>
+          <Stat
+            label={t.evaluation.problems}
+            tone={summary.problem_segment_count > 0 ? 'text-amber-600' : 'text-[#111827]'}
+          >
             {summary.problem_segment_count}
-          </span>
-        </MetricCell>
-        <MetricCell label={t.evaluation.judgeStatusLabel}>
-          <span className="text-[#111827]">
+          </Stat>
+          <Stat
+            label={t.evaluation.judgeStatusLabel}
+            tone={judgeGraded ? 'text-[#111827]' : 'text-[#9ca3af]'}
+          >
             {t.evaluation.judgeStatusMap[judgeStatus] ?? judgeStatus}
-          </span>
-        </MetricCell>
+          </Stat>
+        </div>
       </div>
 
       {/* Timeline pressure: trim-loss / overflow the headline score under-weights */}
       {summary.timeline &&
         ((summary.timeline.overflow_segment_count ?? 0) > 0 ||
           (summary.timeline.cut_audio_sec ?? 0) > 0) && (
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#6b7280]">
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-[#6b7280]">
             {(summary.timeline.cut_audio_sec ?? 0) > 0 && (
               <span className="font-medium text-amber-700">
                 {t.evaluation.lostAudio(summary.timeline.cut_audio_sec)}
@@ -451,11 +483,13 @@ function Scorecard({
   )
 }
 
-function MetricCell({ label, children }: { label: string; children: ReactNode }) {
+function Stat({ label, tone, children }: { label: string; tone?: string; children: ReactNode }) {
   return (
-    <div className="flex min-h-[5.5rem] flex-col items-center justify-center gap-1 rounded-xl bg-[#f9fafb] px-3 py-4 text-center transition-colors hover:bg-[#f3f4f6]">
-      <div className="text-xl font-bold leading-tight text-[#111827]">{children}</div>
-      <div className="text-xs font-medium text-[#9ca3af]">{label}</div>
+    <div className="flex flex-col gap-0.5">
+      <span className={cn('text-lg font-semibold leading-tight tabular-nums', tone ?? 'text-[#111827]')}>
+        {children}
+      </span>
+      <span className="text-[11px] font-medium text-[#9ca3af]">{label}</span>
     </div>
   )
 }
