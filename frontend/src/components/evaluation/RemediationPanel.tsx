@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { Download, ExternalLink, Filter, Loader2, Sparkles, Wand2 } from 'lucide-react'
 import {
   evaluationApi,
+  type Analysis,
   type AutoFixJob,
   type DubQaReport,
   type RemediationActionGroup,
@@ -36,11 +37,14 @@ function downloadJson(filename: string, data: unknown) {
 export function RemediationPanel({
   taskId,
   report,
+  autoFixJob,
   onFocusSegments,
   onApplied,
 }: {
   taskId: string
   report: DubQaReport
+  /** Latest auto-fix row from the analyses list, used to recover an in-flight job after a page refresh. */
+  autoFixJob?: Analysis
   onFocusSegments: (segmentIds: string[], label: string) => void
   onApplied: () => void
 }) {
@@ -71,6 +75,19 @@ export function RemediationPanel({
   })
   const job = jobQuery.data
   const fixing = startFix.isPending || job?.status === 'pending' || job?.status === 'running'
+
+  // Recover an in-flight auto-fix started before a page refresh: the locally held
+  // jobId lives only in component state, so on reload it's gone and the progress
+  // bar would vanish even though the worker is still running. The analyses list
+  // (polled by the parent while anything runs) carries the running row — adopt
+  // its id so jobQuery resumes polling and the bar reappears.
+  useEffect(() => {
+    if (jobId) return
+    if (autoFixJob && (autoFixJob.status === 'pending' || autoFixJob.status === 'running')) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- adopting an external in-flight job into local polling state
+      setJobId(autoFixJob.id)
+    }
+  }, [jobId, autoFixJob])
 
   // Which of the 4 steps (plan → repair → render → evaluate) the worker is on,
   // and which iterative round it is running.

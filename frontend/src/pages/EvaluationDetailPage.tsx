@@ -75,6 +75,11 @@ export function EvaluationDetailPage() {
   // The report view tracks the latest dub-qa; auto-fix rows live in the same
   // table but must not hijack the report (they have no dub-qa report shape).
   const latest = analysesQuery.data?.find(a => a.analysis_type === 'dub-qa')
+  // The most recent auto-fix row (list is created_at-desc). Passed to the
+  // remediation panel so a job started before a page refresh — whose only
+  // client-side handle (jobId) was lost on reload — is recovered and its
+  // progress bar reappears.
+  const latestAutoFix = analysesQuery.data?.find(a => a.analysis_type === 'auto-fix')
 
   const reportQuery = useQuery({
     queryKey: ['analysis-report', taskId, latest?.id],
@@ -186,6 +191,7 @@ export function EvaluationDetailPage() {
             <RemediationPanel
               taskId={taskId}
               report={report}
+              autoFixJob={latestAutoFix}
               onFocusSegments={(ids, label) => {
                 setFocus({ ids, label })
                 document.getElementById('eval-segment-table')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
