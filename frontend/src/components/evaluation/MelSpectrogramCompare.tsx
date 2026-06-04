@@ -7,6 +7,7 @@ interface MelSpectrogramCompareProps {
   report: DubQaReport
   selectedId?: string | null
   onSelectSegment?: (segment: DubQaSegment) => void
+  embedded?: boolean
 }
 
 const LANE_HEIGHT = 64
@@ -204,6 +205,7 @@ export function MelSpectrogramCompare({
   report,
   selectedId,
   onSelectSegment,
+  embedded = false,
 }: MelSpectrogramCompareProps) {
   const { t } = useI18n()
   const tx = t.evaluation.melCompare
@@ -222,7 +224,11 @@ export function MelSpectrogramCompare({
   const dbMax = report.mel_meta?.db_max ?? 0
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div
+      className={cn(
+        !embedded && 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm',
+      )}
+    >
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-slate-900">{tx.title}</h3>

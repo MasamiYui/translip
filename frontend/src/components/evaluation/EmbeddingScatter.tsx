@@ -186,9 +186,10 @@ interface Props {
   report: DubQaReport
   selectedId?: string | null
   onSelectSegment?: (segment: DubQaSegment) => void
+  embedded?: boolean
 }
 
-export function EmbeddingScatter({ report, selectedId, onSelectSegment }: Props) {
+export function EmbeddingScatter({ report, selectedId, onSelectSegment, embedded = false }: Props) {
   const { t } = useI18n()
   const tr = t.evaluation.embeddingScatter
   const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -228,7 +229,12 @@ export function EmbeddingScatter({ report, selectedId, onSelectSegment }: Props)
 
   if (!projection || !transform) {
     return (
-      <div className="rounded-xl border border-[#e5e7eb] bg-white p-4 text-center text-xs text-[#9ca3af]">
+      <div
+        className={cn(
+          'p-4 text-center text-xs text-[#9ca3af]',
+          !embedded && 'rounded-xl border border-[#e5e7eb] bg-white',
+        )}
+      >
         {tr.empty}
       </div>
     )
@@ -252,7 +258,13 @@ export function EmbeddingScatter({ report, selectedId, onSelectSegment }: Props)
   const refPoints = projection.points.filter(p => p.kind === 'reference')
 
   return (
-    <div className="rounded-xl border border-[#e5e7eb] bg-white p-4">
+    <div
+      className={cn(
+        'p-4',
+        !embedded && 'rounded-xl border border-[#e5e7eb] bg-white',
+        embedded && 'p-0',
+      )}
+    >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-[#111827]">{tr.title}</div>

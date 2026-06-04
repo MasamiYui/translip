@@ -308,12 +308,14 @@ export function WaveformCompare({
   segments,
   selectedId,
   onSelectSegment,
+  embedded = false,
 }: {
   taskId: string
   report: DubQaReport
   segments: DubQaSegment[]
   selectedId?: string | null
   onSelectSegment: (seg: DubQaSegment) => void
+  embedded?: boolean
 }) {
   const { t } = useI18n()
   const tc = t.evaluation.compare
@@ -438,7 +440,12 @@ export function WaveformCompare({
 
   if (!originalUrl && !dubUrl) {
     return (
-      <div className="rounded-xl border border-[#e5e7eb] bg-white p-4 text-center text-xs text-[#9ca3af]">
+      <div
+        className={cn(
+          'p-4 text-center text-xs text-[#9ca3af]',
+          !embedded && 'rounded-xl border border-[#e5e7eb] bg-white',
+        )}
+      >
         {tc.unavailable}
       </div>
     )
@@ -456,7 +463,13 @@ export function WaveformCompare({
       : []
 
   return (
-    <div className="rounded-xl border border-[#e5e7eb] bg-white p-4">
+    <div
+      className={cn(
+        'p-4',
+        !embedded && 'rounded-xl border border-[#e5e7eb] bg-white',
+        embedded && 'p-0',
+      )}
+    >
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="text-sm font-semibold text-[#111827]">{tc.title}</div>
         <div className="flex items-center gap-2">

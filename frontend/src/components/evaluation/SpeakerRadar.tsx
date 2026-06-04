@@ -125,7 +125,7 @@ function formatRaw(axis: AxisKey, raw: number | null): string {
   return `${Math.round(raw * 100)}%`
 }
 
-export function SpeakerRadar({ segments }: { segments: DubQaSegment[] }) {
+export function SpeakerRadar({ segments, embedded = false }: { segments: DubQaSegment[]; embedded?: boolean }) {
   const { t } = useI18n()
   const tr = t.evaluation.speakerRadar
   const profiles = useMemo(() => aggregateSpeakerProfiles(segments), [segments])
@@ -134,7 +134,12 @@ export function SpeakerRadar({ segments }: { segments: DubQaSegment[] }) {
 
   if (profiles.length === 0) {
     return (
-      <div className="rounded-xl border border-[#e5e7eb] bg-white p-4 text-center text-xs text-[#9ca3af]">
+      <div
+        className={cn(
+          'p-4 text-center text-xs text-[#9ca3af]',
+          !embedded && 'rounded-xl border border-[#e5e7eb] bg-white',
+        )}
+      >
         {tr.empty}
       </div>
     )
@@ -160,7 +165,13 @@ export function SpeakerRadar({ segments }: { segments: DubQaSegment[] }) {
   const labelAnchors = AXIS_KEYS.map((_, i) => axisPoint(i, axisCount, 1.18))
 
   return (
-    <div className="rounded-xl border border-[#e5e7eb] bg-white p-4">
+    <div
+      className={cn(
+        'p-4',
+        !embedded && 'rounded-xl border border-[#e5e7eb] bg-white',
+        embedded && 'p-0',
+      )}
+    >
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-semibold text-[#111827]">{tr.title}</div>

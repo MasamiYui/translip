@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Gauge, Info, Play, RefreshCw, Sparkles, Trash2, X } from 'lucide-react'
@@ -19,11 +19,7 @@ import {
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { RemediationPanel } from '../components/evaluation/RemediationPanel'
 import { SegmentTimingBar } from '../components/evaluation/SegmentTimingBar'
-import { SpeakerRadar } from '../components/evaluation/SpeakerRadar'
-import { EmbeddingScatter } from '../components/evaluation/EmbeddingScatter'
-import { PitchContourCompare } from '../components/evaluation/PitchContourCompare'
-import { MelSpectrogramCompare } from '../components/evaluation/MelSpectrogramCompare'
-import { WaveformCompare } from '../components/evaluation/WaveformCompare'
+import { DiagnosticsTabs } from '../components/evaluation/DiagnosticsTabs'
 import { useI18n } from '../i18n/useI18n'
 import { cn } from '../lib/utils'
 
@@ -207,9 +203,10 @@ export function EvaluationDetailPage() {
             />
           </div>
 
-          {/* Original-vs-dub waveform comparison */}
+          {/* Tabbed diagnostics card: video / waveform / speaker radar / embedding /
+              pitch / mel-spectrogram. Tabs without data are auto-hidden. */}
           <div className="mt-5">
-            <WaveformCompare
+            <DiagnosticsTabs
               taskId={taskId}
               report={report}
               segments={report.segments}
@@ -217,50 +214,6 @@ export function EvaluationDetailPage() {
               onSelectSegment={setSelected}
             />
           </div>
-
-          {/* Per-speaker 5-axis radar (timbre / intelligibility / pacing / issue-free / coverage) */}
-          <div className="mt-5">
-            <SpeakerRadar segments={report.segments} />
-          </div>
-
-          {/* PCA scatter of per-segment ECAPA-TDNN speaker embeddings; renders only when the
-              report carries `speaker_embedding` data (newer dub-qa runs / backfilled reports). */}
-          {report.embedding_meta?.status === 'ok' &&
-            report.segments.some(s => Array.isArray(s.speaker_embedding) && s.speaker_embedding.length > 0) ? (
-            <div className="mt-5">
-              <EmbeddingScatter
-                report={report}
-                selectedId={selected?.segment_id ?? null}
-                onSelectSegment={setSelected}
-              />
-            </div>
-          ) : null}
-
-          {/* Per-segment F0 contour comparison (original-vs-dub melody). Renders only when the
-              report carries pitch_contour data (newer dub-qa runs / backfilled via dub_pitch CLI). */}
-          {report.pitch_meta?.status === 'ok' &&
-            report.segments.some(s => s.pitch_contour) ? (
-            <div className="mt-5">
-              <PitchContourCompare
-                report={report}
-                selectedId={selected?.segment_id ?? null}
-                onSelectSegment={setSelected}
-              />
-            </div>
-          ) : null}
-
-          {/* Per-segment mel-spectrogram heatmap comparison (original vs dub acoustic texture).
-              Renders only when the report carries mel_spectrogram data. */}
-          {report.mel_meta?.status === 'ok' &&
-            report.segments.some(s => s.mel_spectrogram) ? (
-            <div className="mt-5">
-              <MelSpectrogramCompare
-                report={report}
-                selectedId={selected?.segment_id ?? null}
-                onSelectSegment={setSelected}
-              />
-            </div>
-          ) : null}
 
           {/* Issue filter chips */}
           <div id="eval-segment-table" className="mb-3 mt-5 flex flex-wrap items-center gap-2">
@@ -841,6 +794,24 @@ function DropoutText({ target, backread }: { target: string; backread: string })
   )
 }
 
+function useIsVideoSrc(src: string): boolean {
+  const { data } = useQuery({
+    queryKey: ['media-kind', src],
+    queryFn: async () => {
+      try {
+        const res = await fetch(src, { method: 'HEAD' })
+        const ct = res.headers.get('Content-Type') ?? ''
+        return ct.startsWith('video/')
+      } catch {
+        return true
+      }
+    },
+    staleTime: Infinity,
+    gcTime: Infinity,
+  })
+  return data ?? true
+}
+
 function OriginalSegmentPlayer({
   src,
   start,
@@ -852,19 +823,22 @@ function OriginalSegmentPlayer({
   end: number
   playLabel: string
 }) {
-  const ref = useRef<HTMLVideoElement>(null)
+  const ref = useRef<HTMLVideoElement | HTMLAudioElement>(null)
+  const isVideo = useIsVideoSrc(src)
+  const hasRange = end > start
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
     const onTimeUpdate = () => {
-      if (end > start && el.currentTime >= end) {
+      if (hasRange && el.currentTime >= end) {
         el.pause()
+        el.currentTime = start
       }
     }
     el.addEventListener('timeupdate', onTimeUpdate)
     return () => el.removeEventListener('timeupdate', onTimeUpdate)
-  }, [start, end])
+  }, [start, end, hasRange])
 
   const playSegment = () => {
     const el = ref.current
@@ -873,15 +847,54 @@ function OriginalSegmentPlayer({
     void el.play()
   }
 
+  const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const el = ref.current
+    if (!el) return
+    if (e.key === ' ' || e.code === 'Space') {
+      e.preventDefault()
+      if (el.paused) {
+        if (hasRange && (el.currentTime < start || el.currentTime >= end)) {
+          el.currentTime = start
+        }
+        void el.play()
+      } else {
+        el.pause()
+      }
+    }
+  }
+
   return (
-    <div className="space-y-2">
-      <video ref={ref} src={src} controls className="w-full rounded bg-black" preload="metadata" />
+    <div className="space-y-2" onKeyDown={onKeyDown} tabIndex={-1}>
+      {isVideo ? (
+        <video
+          ref={ref as RefObject<HTMLVideoElement>}
+          src={src}
+          controls
+          playsInline
+          className="w-full rounded bg-black"
+          preload="metadata"
+        />
+      ) : (
+        <audio
+          ref={ref as RefObject<HTMLAudioElement>}
+          src={src}
+          controls
+          className="w-full"
+          preload="metadata"
+        />
+      )}
       <button
         type="button"
         onClick={playSegment}
+        title={hasRange ? `${formatTime(start)} – ${formatTime(end)}` : undefined}
         className="flex w-full items-center justify-center gap-1.5 rounded-md bg-[#f3f4f6] px-2 py-1.5 text-xs font-medium text-[#374151] hover:bg-[#e5e7eb]"
       >
         <Play size={12} /> {playLabel}
+        {hasRange && (
+          <span className="text-[10px] text-[#9ca3af]">
+            {formatTime(start)}–{formatTime(end)}
+          </span>
+        )}
       </button>
     </div>
   )

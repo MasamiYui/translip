@@ -7,6 +7,7 @@ interface PitchContourCompareProps {
   report: DubQaReport
   selectedId?: string | null
   onSelectSegment?: (segment: DubQaSegment) => void
+  embedded?: boolean
 }
 
 const CHART_HEIGHT = 96
@@ -148,6 +149,7 @@ export function PitchContourCompare({
   report,
   selectedId,
   onSelectSegment,
+  embedded = false,
 }: PitchContourCompareProps) {
   const { t } = useI18n()
   const tx = t.evaluation.pitchCompare
@@ -170,7 +172,11 @@ export function PitchContourCompare({
   const hiddenCount = items.length - visible.length
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div
+      className={cn(
+        !embedded && 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm',
+      )}
+    >
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-base font-semibold text-slate-900">{tx.title}</h3>
