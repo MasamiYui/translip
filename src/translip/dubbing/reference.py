@@ -225,12 +225,15 @@ def _rms_score(rms: float) -> float:
 
 
 def _risk_penalty(text: str) -> float:
-    patterns = [
-        r"[!！?？~]{2,}",
-        r"(哈哈|呵呵|hahaha|lol)",
-    ]
+    # Only laughter/filler makes a poor timbre reference (the clone inherits the
+    # laugh). Mere emphasis ("!!", "??") is normal, expressive speech and is good
+    # reference material — especially for dramatic content — so it is no longer
+    # penalised, and the laughter penalty is softened from a near-disqualifier to
+    # a tie-breaker.
     lowered = text.lower()
-    return 0.35 if any(re.search(pattern, lowered) for pattern in patterns) else 0.0
+    if re.search(r"(哈哈|呵呵|hahaha|lol)", lowered):
+        return 0.15
+    return 0.0
 
 
 def _concatenated_fallback(profile: dict[str, Any]) -> list[ReferenceCandidate]:
