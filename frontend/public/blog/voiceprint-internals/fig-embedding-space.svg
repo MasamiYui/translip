@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 468" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="essh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .note{font-size:11px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+      .rl{font-size:11px;fill:#94a3b8;font-weight:700;}
+      .rv{font-size:12.5px;font-weight:700;fill:#334155;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="468" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">192 维里，「是同一个人」长什么样</text>
+  <text x="32" y="66" class="s" font-size="13.5">每段话是单位球面上的一个方向；同一个人挤成一簇、不同人被角度间隔推开。认人 = 量夹角余弦。</text>
+
+  <!-- sphere -->
+  <circle cx="276" cy="280" r="150" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+  <ellipse cx="276" cy="280" rx="150" ry="54" fill="none" stroke="#eef2f7" stroke-width="1.4"/>
+  <ellipse cx="276" cy="280" rx="56" ry="150" fill="none" stroke="#eef2f7" stroke-width="1.4"/>
+  <circle cx="276" cy="280" r="3" fill="#94a3b8"/>
+
+  <!-- spk_0000 cluster (up-right) + prototype + rays -->
+  <line x1="276" y1="280" x2="388" y2="186" stroke="#c7d2fe" stroke-width="1.4"/>
+  <line x1="276" y1="280" x2="372" y2="200" stroke="#c7d2fe" stroke-width="1.4"/>
+  <line x1="276" y1="280" x2="396" y2="206" stroke="#3b5bdb" stroke-width="2.4"/>
+  <circle cx="388" cy="186" r="5" fill="#3b5bdb"/>
+  <circle cx="372" cy="200" r="5" fill="#3b5bdb"/>
+  <circle cx="402" cy="180" r="5" fill="#3b5bdb"/>
+  <circle cx="396" cy="206" r="8" fill="#1e3a8a"/>
+  <text x="416" y="178" font-size="11.5" font-weight="800" fill="#1e3a8a" class="mono">spk_0000</text>
+  <text x="416" y="194" font-size="10" fill="#1e3a8a">类心 = 画像方向</text>
+
+  <!-- spk_0001 cluster (down-left) -->
+  <line x1="276" y1="280" x2="176" y2="372" stroke="#cbd5e1" stroke-width="2.2"/>
+  <circle cx="176" cy="372" r="5" fill="#64748b"/>
+  <circle cx="160" cy="356" r="5" fill="#64748b"/>
+  <circle cx="190" cy="386" r="5" fill="#64748b"/>
+  <text x="120" y="408" font-size="11.5" font-weight="800" fill="#475569" class="mono">spk_0001</text>
+
+  <!-- angle arc between the two prototypes -->
+  <path d="M330,233 A 70 70 0 0 1 226 349" fill="none" stroke="#f59e0b" stroke-width="2" stroke-dasharray="4 3"/>
+  <text x="250" y="250" font-size="12" font-weight="800" fill="#d97706">夹角大 → 余弦小</text>
+  <!-- small angle within cluster -->
+  <text x="356" y="240" font-size="10.5" fill="#3730a3">同人夹角小</text>
+
+  <!-- right legend panel -->
+  <rect x="470" y="96" width="458" height="338" rx="14" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#essh)"/>
+
+  <text x="494" y="130" class="rl">认人的数学</text>
+  <text x="494" y="152" class="rv">两个单位向量的点积 = <tspan class="mono" fill="#4338ca">cos(夹角)</tspan></text>
+  <text x="494" y="172" class="note">训练用 AAM-Softmax（角度间隔），所以验证用余弦。</text>
+  <line x1="494" y1="188" x2="904" y2="188" stroke="#eef2f7"/>
+
+  <text x="494" y="214" class="rl">Task B · 认人 / 建画像</text>
+  <text x="494" y="236" class="rv">取「类心」当画像，先踢掉余弦 &lt; 0.6 的离群样本</text>
+  <text x="494" y="255" class="note mono" fill="#94a3b8">_cosine(center, emb) &gt;= 0.6 才保留</text>
+  <line x1="494" y1="271" x2="904" y2="271" stroke="#eef2f7"/>
+
+  <text x="494" y="297" class="rl">Task D · 回听验收（同一把尺）</text>
+  <!-- threshold bar: cosine low → high -->
+  <clipPath id="tbar"><rect x="494" y="312" width="410" height="20" rx="10"/></clipPath>
+  <g clip-path="url(#tbar)">
+    <rect x="494" y="312" width="150" height="20" fill="#fee2e2"/>
+    <rect x="644" y="312" width="110" height="20" fill="#fef9c3"/>
+    <rect x="754" y="312" width="150" height="20" fill="#dcfce7"/>
+  </g>
+  <rect x="494" y="312" width="410" height="20" rx="10" fill="none" stroke="#e2e8f0"/>
+  <line x1="644" y1="309" x2="644" y2="335" stroke="#f59e0b" stroke-width="1.4"/>
+  <line x1="754" y1="309" x2="754" y2="335" stroke="#16a34a" stroke-width="1.4"/>
+  <text x="569" y="326" text-anchor="middle" font-size="10.5" font-weight="700" fill="#b91c1c">败</text>
+  <text x="699" y="326" text-anchor="middle" font-size="10.5" font-weight="700" fill="#a16207">存疑</text>
+  <text x="829" y="326" text-anchor="middle" font-size="10.5" font-weight="700" fill="#15803d">过</text>
+  <text x="494" y="356" class="note">低余弦 ← <tspan class="mono" fill="#b91c1c">&lt;0.25</tspan> · <tspan class="mono" fill="#a16207">0.25–0.45</tspan> · <tspan class="mono" fill="#15803d">≥0.45</tspan> → 高余弦</text>
+
+  <text x="494" y="392" class="rl">向量里装了什么</text>
+  <text x="494" y="414" class="rv" fill="#3730a3">留下身份核 · 丢掉说了什么字 / 语种 / 背景噪声</text>
+
+  <text x="276" y="452" text-anchor="middle" class="note">同一套数学，量了两件事：认人，和验收克隆。</text>
+</svg>

@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 432" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="slsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <marker id="sld" markerWidth="11" markerHeight="11" refX="5" refY="8" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,0 L4,9 Z" fill="#94a3b8"/>
+    </marker>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .nm{font-size:14.5px;font-weight:800;}
+      .role{font-size:11px;font-weight:800;}
+      .note{font-size:11px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="432" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">一个血统，两副面孔：认人的尺，也是教说话的老师</text>
+  <text x="32" y="66" class="s" font-size="13.5">「把人压成一个与内容无关的身份向量」这一个能力，朝识别用是法官，朝生成用是老师。</text>
+
+  <!-- root node -->
+  <rect x="300" y="92" width="360" height="74" rx="14" fill="#eef2ff" stroke="#c7d2fe" stroke-width="2" filter="url(#slsh)"/>
+  <text x="480" y="122" text-anchor="middle" font-size="15.5" font-weight="800" fill="#3730a3">说话人验证网（ECAPA 血统）</text>
+  <text x="480" y="146" text-anchor="middle" class="note" fill="#4338ca">把一个人 → 一个与内容无关的 192 维身份向量</text>
+
+  <!-- fan-out arrows -->
+  <path d="M360,166 L196,210" fill="none" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#sld)"/>
+  <path d="M480,166 L480,210" fill="none" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#sld)"/>
+  <path d="M600,166 L764,210" fill="none" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#sld)"/>
+
+  <!-- Card 1: Task B judge -->
+  <rect x="40" y="216" width="272" height="158" rx="14" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#slsh)"/>
+  <rect x="40" y="216" width="6" height="158" rx="3" fill="#3b5bdb"/>
+  <text x="62" y="246" class="nm" fill="#3730a3">Task B · 认人</text>
+  <rect x="222" y="228" width="74" height="22" rx="11" fill="#eef2ff" stroke="#c7d2fe"/>
+  <text x="259" y="243" text-anchor="middle" class="role" fill="#4338ca">法官</text>
+  <text x="62" y="280" class="note">量两段话是不是同一个人，</text>
+  <text x="62" y="300" class="note">把碎片化的说话人收敛成稳定身份。</text>
+  <rect x="62" y="320" width="228" height="38" rx="8" fill="#f8fafc" stroke="#eef2f7"/>
+  <text x="74" y="344" class="mono" font-size="11" fill="#334155">cos(画像, 这段) → spk_0000</text>
+
+  <!-- Card 2: Task D seed teacher -->
+  <rect x="344" y="216" width="272" height="158" rx="14" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#slsh)"/>
+  <rect x="344" y="216" width="6" height="158" rx="3" fill="#059669"/>
+  <text x="366" y="246" class="nm" fill="#047857">Task D · 克隆的种子</text>
+  <rect x="528" y="228" width="74" height="22" rx="11" fill="#ecfdf5" stroke="#a7f3d0"/>
+  <text x="565" y="243" text-anchor="middle" class="role" fill="#047857">老师</text>
+  <text x="366" y="280" class="note">同源的「说话人编码器」把音色，</text>
+  <text x="366" y="300" class="note">递给 TTS——顺着这个方向发声。</text>
+  <rect x="366" y="320" width="228" height="38" rx="8" fill="#f0fdf4" stroke="#dcfce7"/>
+  <text x="378" y="344" class="mono" font-size="11" fill="#166534">音色向量 → 零样本 TTS</text>
+
+  <!-- Card 3: Task D gate judge -->
+  <rect x="648" y="216" width="272" height="158" rx="14" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#slsh)"/>
+  <rect x="648" y="216" width="6" height="158" rx="3" fill="#3b5bdb"/>
+  <text x="670" y="246" class="nm" fill="#3730a3">Task D · 回听验收</text>
+  <rect x="832" y="228" width="74" height="22" rx="11" fill="#eef2ff" stroke="#c7d2fe"/>
+  <text x="869" y="243" text-anchor="middle" class="role" fill="#4338ca">法官</text>
+  <text x="670" y="280" class="note">合成完，把合成音和原参考，</text>
+  <text x="670" y="300" class="note">各编码一次，算余弦验收。</text>
+  <rect x="670" y="320" width="228" height="38" rx="8" fill="#f8fafc" stroke="#eef2f7"/>
+  <text x="682" y="344" class="mono" font-size="11" fill="#334155">cos(合成, 参考) ≥0.45 过</text>
+
+  <!-- bottom -->
+  <text x="480" y="406" text-anchor="middle" font-size="13.5" fill="#475569">同一个血统露了三次脸 —— <tspan font-weight="700" fill="#334155">法官和老师，本是一人。</tspan></text>
+</svg>

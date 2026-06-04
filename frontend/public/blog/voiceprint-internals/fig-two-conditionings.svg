@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 484" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="tcsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <marker id="tcr" markerWidth="11" markerHeight="11" refX="6" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,4 L0,8 Z" fill="#94a3b8"/>
+    </marker>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .box{font-size:12.5px;font-weight:700;fill:#334155;}
+      .sub{font-size:10.5px;fill:#64748b;}
+      .tag{font-size:11px;font-weight:800;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="484" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">克隆的两种喂法：压成一个向量，还是当提示词续写</text>
+  <text x="32" y="66" class="s" font-size="13.5">同样一段参考，两种把「音色」交给生成模型的哲学——一个求纯净可控，一个求像得彻底。</text>
+
+  <!-- ROW 1: global vector -->
+  <rect x="32" y="92" width="896" height="148" rx="14" fill="#fff" stroke="#c7d2fe" stroke-width="2" filter="url(#tcsh)"/>
+  <rect x="32" y="92" width="6" height="148" rx="3" fill="#3b5bdb"/>
+  <text x="56" y="120" class="tag" fill="#3730a3">哲学一 · 全局音色向量</text>
+  <rect x="232" y="104" width="156" height="22" rx="11" fill="#eef2ff" stroke="#c7d2fe"/>
+  <text x="310" y="119" text-anchor="middle" font-size="11" font-weight="700" fill="#4338ca">解耦 · 可控 · 不串味</text>
+  <text x="780" y="120" text-anchor="end" class="sub" fill="#4338ca">SV2TTS · CosyVoice · Qwen xvec</text>
+
+  <!-- row1 flow -->
+  <rect x="56" y="150" width="120" height="58" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="116" y="176" text-anchor="middle" class="box">参考音频</text>
+  <text x="116" y="195" text-anchor="middle" class="sub">几秒钟</text>
+  <path d="M178,179 L210,179" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#tcr)"/>
+  <rect x="212" y="150" width="138" height="58" rx="10" fill="#eef2ff" stroke="#c7d2fe"/>
+  <text x="281" y="174" text-anchor="middle" class="box" fill="#3730a3">认人的网</text>
+  <text x="281" y="194" text-anchor="middle" class="sub" fill="#4338ca">ECAPA 式编码器</text>
+  <path d="M352,179 L384,179" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#tcr)"/>
+  <rect x="386" y="158" width="120" height="42" rx="10" fill="#fff" stroke="#c7d2fe"/>
+  <text x="446" y="183" text-anchor="middle" class="mono" font-size="12" fill="#4338ca">音色向量 v</text>
+  <path d="M508,179 L556,179" stroke="#94a3b8" stroke-width="2.4" marker-end="url(#tcr)"/>
+  <text x="532" y="170" text-anchor="middle" class="sub" fill="#4338ca">注入</text>
+  <rect x="558" y="150" width="186" height="58" rx="10" fill="#f0f9ff" stroke="#bae6fd"/>
+  <text x="651" y="174" text-anchor="middle" class="box" fill="#0369a1">流匹配 / 扩散解码器</text>
+  <text x="651" y="194" text-anchor="middle" class="sub" fill="#0369a1">谁来说 ⊕ 说什么</text>
+  <rect x="566" y="116" width="170" height="26" rx="8" fill="#ecfdf5" stroke="#a7f3d0"/>
+  <text x="651" y="133" text-anchor="middle" class="sub" fill="#047857">文本 → 语义（说什么）</text>
+  <path d="M651,142 L651,150" stroke="#10b981" stroke-width="2" marker-end="url(#tcr)"/>
+  <path d="M746,179 L786,179" stroke="#94a3b8" stroke-width="2.4" marker-end="url(#tcr)"/>
+  <rect x="788" y="150" width="120" height="58" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="848" y="176" text-anchor="middle" class="box">新语音</text>
+  <text x="848" y="195" text-anchor="middle" class="sub">任意文本 × 任意 v</text>
+
+  <!-- ROW 2: in-context prompt -->
+  <rect x="32" y="256" width="896" height="148" rx="14" fill="#fff" stroke="#bbf7d0" stroke-width="2" filter="url(#tcsh)"/>
+  <rect x="32" y="256" width="6" height="148" rx="3" fill="#059669"/>
+  <text x="56" y="284" class="tag" fill="#047857">哲学二 · 把参考当提示词续写</text>
+  <rect x="280" y="268" width="186" height="22" rx="11" fill="#ecfdf5" stroke="#a7f3d0"/>
+  <text x="373" y="283" text-anchor="middle" font-size="11" font-weight="700" fill="#047857">像得彻底 · 连情绪/环境一起借</text>
+  <text x="908" y="284" text-anchor="end" class="sub" fill="#047857">VALL-E · Qwen icl · VoxCPM ultimate · MOSS</text>
+
+  <!-- row2 flow -->
+  <rect x="56" y="314" width="120" height="58" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="116" y="340" text-anchor="middle" class="box">参考音频</text>
+  <text x="116" y="359" text-anchor="middle" class="sub">几秒钟</text>
+  <path d="M178,343 L210,343" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#tcr)"/>
+  <rect x="212" y="314" width="138" height="58" rx="10" fill="#ecfdf5" stroke="#a7f3d0"/>
+  <text x="281" y="338" text-anchor="middle" class="box" fill="#047857">神经编解码器</text>
+  <text x="281" y="358" text-anchor="middle" class="sub" fill="#047857">音频 → 声学 token</text>
+  <path d="M352,343 L384,343" stroke="#94a3b8" stroke-width="2.2" marker-end="url(#tcr)"/>
+  <rect x="386" y="322" width="132" height="42" rx="10" fill="#fff" stroke="#a7f3d0"/>
+  <text x="452" y="347" text-anchor="middle" class="mono" font-size="11.5" fill="#047857">token 前缀</text>
+  <path d="M520,343 L556,343" stroke="#94a3b8" stroke-width="2.4" marker-end="url(#tcr)"/>
+  <text x="538" y="334" text-anchor="middle" class="sub" fill="#047857">当前缀</text>
+  <rect x="558" y="314" width="186" height="58" rx="10" fill="#f0f9ff" stroke="#bae6fd"/>
+  <text x="651" y="338" text-anchor="middle" class="box" fill="#0369a1">语言模型续写</text>
+  <text x="651" y="358" text-anchor="middle" class="sub" fill="#0369a1">顺着这个人往下接</text>
+  <rect x="566" y="280" width="170" height="26" rx="8" fill="#ecfdf5" stroke="#a7f3d0"/>
+  <text x="651" y="297" text-anchor="middle" class="sub" fill="#047857">新文本（要念的字）</text>
+  <path d="M651,306 L651,314" stroke="#10b981" stroke-width="2" marker-end="url(#tcr)"/>
+  <path d="M746,343 L786,343" stroke="#94a3b8" stroke-width="2.4" marker-end="url(#tcr)"/>
+  <rect x="788" y="314" width="120" height="58" rx="10" fill="#f8fafc" stroke="#e2e8f0"/>
+  <text x="848" y="340" text-anchor="middle" class="box">新语音</text>
+  <text x="848" y="359" text-anchor="middle" class="sub">续出来的</text>
+
+  <!-- bottom -->
+  <text x="480" y="442" text-anchor="middle" font-size="13" fill="#475569"><tspan font-weight="700" fill="#3730a3">要不要参考文本</tspan>，本质是它站在哪种哲学上：抽全局向量的只要音频；上下文续写的，多给一句参考文本能对得更准。</text>
+  <text x="480" y="466" text-anchor="middle" font-size="12.5" fill="#64748b">VoxCPM 更进一步——<tspan font-weight="700" fill="#047857">无 tokenizer</tspan>，连离散 token 都省了，直接在连续表示上生成。</text>
+</svg>

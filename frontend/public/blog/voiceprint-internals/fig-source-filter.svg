@@ -1,0 +1,85 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 452" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="sfsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .cap{font-size:11px;fill:#94a3b8;font-weight:700;}
+      .nm{font-size:15px;font-weight:800;}
+      .note{font-size:11px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="452" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">声音 = 一个源，穿过一条滤波器</text>
+  <text x="32" y="66" class="s" font-size="13.5">源-滤波器模型：声门产生带基频的嗡鸣，再被你独有的声道「挑食」地放大某些频率——身份主要锁在后者。</text>
+
+  <!-- SOURCE card -->
+  <rect x="32" y="98" width="250" height="244" rx="14" fill="#fff" stroke="#fde68a" stroke-width="1.5" filter="url(#sfsh)"/>
+  <rect x="32" y="98" width="6" height="244" rx="3" fill="#f59e0b"/>
+  <text x="54" y="132" class="nm" fill="#b45309">源 · 声门</text>
+  <text x="54" y="154" class="cap" fill="#d97706">决定音高 F0 · 嗓音质地</text>
+  <!-- harmonic comb -->
+  <line x1="56" y1="300" x2="258" y2="300" stroke="#e2e8f0"/>
+  <g stroke="#f59e0b" stroke-width="3" stroke-linecap="round">
+    <line x1="70" y1="300" x2="70" y2="206"/>
+    <line x1="92" y1="300" x2="92" y2="222"/>
+    <line x1="114" y1="300" x2="114" y2="234"/>
+    <line x1="136" y1="300" x2="136" y2="246"/>
+    <line x1="158" y1="300" x2="158" y2="256"/>
+    <line x1="180" y1="300" x2="180" y2="264"/>
+    <line x1="202" y1="300" x2="202" y2="272"/>
+    <line x1="224" y1="300" x2="224" y2="278"/>
+    <line x1="246" y1="300" x2="246" y2="284"/>
+  </g>
+  <text x="156" y="324" text-anchor="middle" class="note">一串等间隔的谐波（基频 + 倍频）</text>
+
+  <!-- times -->
+  <text x="306" y="232" text-anchor="middle" font-size="30" font-weight="800" fill="#94a3b8">×</text>
+
+  <!-- FILTER card -->
+  <rect x="338" y="98" width="284" height="244" rx="14" fill="#fff" stroke="#c7d2fe" stroke-width="2" filter="url(#sfsh)"/>
+  <rect x="338" y="98" width="6" height="244" rx="3" fill="#3b5bdb"/>
+  <text x="360" y="132" class="nm" fill="#3730a3">滤波器 · 声道</text>
+  <rect x="520" y="114" width="92" height="22" rx="11" fill="#eef2ff" stroke="#c7d2fe"/>
+  <text x="566" y="129" text-anchor="middle" font-size="11" font-weight="700" fill="#4338ca">身份在这里</text>
+  <text x="360" y="154" class="cap" fill="#4338ca">决定音色 · 共振峰 · 说的元音</text>
+  <!-- formant envelope over comb -->
+  <line x1="362" y1="300" x2="600" y2="300" stroke="#e2e8f0"/>
+  <g stroke="#cbd5e1" stroke-width="2" stroke-linecap="round">
+    <line x1="376" y1="300" x2="376" y2="240"/>
+    <line x1="398" y1="300" x2="398" y2="210"/>
+    <line x1="420" y1="300" x2="420" y2="252"/>
+    <line x1="442" y1="300" x2="442" y2="226"/>
+    <line x1="464" y1="300" x2="464" y2="268"/>
+    <line x1="486" y1="300" x2="486" y2="214"/>
+    <line x1="508" y1="300" x2="508" y2="262"/>
+    <line x1="530" y1="300" x2="530" y2="248"/>
+    <line x1="552" y1="300" x2="552" y2="276"/>
+    <line x1="574" y1="300" x2="574" y2="270"/>
+    <line x1="596" y1="300" x2="596" y2="284"/>
+  </g>
+  <path d="M366,256 Q398,196 430,236 Q470,200 498,210 Q540,238 600,272" fill="none" stroke="#4338ca" stroke-width="2.6"/>
+  <circle cx="404" cy="206" r="3.5" fill="#4338ca"/><text x="404" y="196" text-anchor="middle" font-size="9.5" fill="#4338ca">F1</text>
+  <circle cx="492" cy="208" r="3.5" fill="#4338ca"/><text x="492" y="198" text-anchor="middle" font-size="9.5" fill="#4338ca">F2</text>
+  <text x="480" y="324" text-anchor="middle" class="note">包络的尖峰 = 共振峰，由声道形状决定</text>
+
+  <!-- equals -->
+  <text x="646" y="232" text-anchor="middle" font-size="30" font-weight="800" fill="#94a3b8">=</text>
+
+  <!-- VOICE card -->
+  <rect x="678" y="98" width="250" height="244" rx="14" fill="#fff" stroke="#bbf7d0" stroke-width="1.5" filter="url(#sfsh)"/>
+  <rect x="678" y="98" width="6" height="244" rx="3" fill="#059669"/>
+  <text x="700" y="132" class="nm" fill="#047857">你的声音</text>
+  <text x="700" y="154" class="cap" fill="#059669">谐波被包络塑形后的波形</text>
+  <rect x="700" y="192" width="206" height="96" rx="10" fill="#f8fafc" stroke="#eef2f7"/>
+  <polyline points="712,240 718,214 724,262 730,206 736,266 742,218 748,256 754,200 760,268 766,216 772,258 778,208 784,262 790,228 796,252 802,212 808,262 814,218 820,256 826,228 832,250 838,222 844,258 850,230 856,250 862,238 868,248 874,242 880,244 886,242 892,243" fill="none" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="803" y="312" text-anchor="middle" class="note">既带着你的音高，也带着你的音色</text>
+
+  <!-- bottom banner -->
+  <text x="480" y="392" text-anchor="middle" font-size="13.5" fill="#475569">源与滤波器<tspan font-weight="700" fill="#334155">可以独立变化</tspan>：能不改音色地换音高（唱歌），也能不改音高地换元音。</text>
+  <text x="480" y="418" text-anchor="middle" font-size="13.5" fill="#475569">一个人的<tspan font-weight="700" fill="#4338ca">身份，主要锁在那条滤波器的形状里</tspan> —— 它几乎不随你说什么字、什么语种而变。</text>
+</svg>

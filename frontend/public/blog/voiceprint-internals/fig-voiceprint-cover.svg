@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <radialGradient id="vglow" cx="58%" cy="36%" r="64%">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="vsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+    <marker id="vbig" markerWidth="11" markerHeight="11" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,4 L0,8 Z" fill="#6366f1"/>
+    </marker>
+    <style>
+      .t1{font-size:15px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11.5px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="600" fill="#fbfcfe"/>
+  <rect x="0" y="0" width="960" height="600" fill="url(#vglow)"/>
+
+  <!-- kicker -->
+  <circle cx="68" cy="64" r="5" fill="#4f46e5"/>
+  <text x="84" y="69" font-size="14.5" font-weight="700" fill="#475569" letter-spacing="0.5">幕后 · 博客 · 算法 · 深潜</text>
+
+  <!-- LEFT: one utterance -->
+  <rect x="40" y="196" width="236" height="208" rx="16" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#vsh)"/>
+  <rect x="40" y="196" width="6" height="208" rx="3" fill="#3b5bdb"/>
+  <text x="66" y="230" class="t1" font-size="15" fill="#3730a3">一段话 · 一个人开口</text>
+  <rect x="62" y="252" width="192" height="82" rx="10" fill="#f8fafc" stroke="#eef2f7"/>
+  <polyline points="76,293 82,275 88,309 94,268 100,313 106,278 112,304 118,261 124,317 130,276 136,306 142,268 148,310 154,283 160,302 166,272 172,310 178,278 184,304 190,285 196,300 202,281 208,306 214,287 220,301 226,290 232,298 238,293 244,294 250,293" fill="none" stroke="#3b5bdb" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="66" y="362" class="t2">音高在变 · 说的字在变 · 背景在变</text>
+  <text x="66" y="386" font-size="12" font-weight="700" fill="#475569">但「这个人」自始至终都在</text>
+
+  <!-- arrow 1 -->
+  <path d="M284,300 L348,300" fill="none" stroke="#6366f1" stroke-width="3.5" marker-end="url(#vbig)"/>
+  <text x="316" y="290" text-anchor="middle" font-size="11.5" font-weight="700" fill="#4338ca">压成</text>
+
+  <!-- CENTER: identity vector -->
+  <rect x="360" y="248" width="232" height="104" rx="16" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1.5" filter="url(#vsh)"/>
+  <text x="476" y="282" text-anchor="middle" font-size="15.5" font-weight="800" fill="#3730a3">身份向量 · 192 维</text>
+  <text x="476" y="306" text-anchor="middle" class="mono" font-size="11.5" fill="#4338ca">[ 0.07, −0.12, 0.33, … ]</text>
+  <text x="476" y="332" text-anchor="middle" class="t2" font-size="11.5">只装「与内容无关的身份核」</text>
+
+  <!-- arrow 2 -->
+  <path d="M600,300 L662,300" fill="none" stroke="#6366f1" stroke-width="3.5" marker-end="url(#vbig)"/>
+  <text x="631" y="290" text-anchor="middle" font-size="11.5" font-weight="700" fill="#4338ca">落到</text>
+
+  <!-- RIGHT: a region on the sphere -->
+  <circle cx="800" cy="300" r="104" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1.5"/>
+  <ellipse cx="800" cy="300" rx="104" ry="38" fill="none" stroke="#eef2f7" stroke-width="1.4"/>
+  <ellipse cx="800" cy="300" rx="40" ry="104" fill="none" stroke="#eef2f7" stroke-width="1.4"/>
+  <!-- his cluster (tight) -->
+  <circle cx="846" cy="250" r="4.5" fill="#3b5bdb"/>
+  <circle cx="858" cy="262" r="4.5" fill="#3b5bdb"/>
+  <circle cx="838" cy="266" r="4.5" fill="#3b5bdb"/>
+  <circle cx="854" cy="248" r="4.5" fill="#3b5bdb"/>
+  <circle cx="848" cy="262" r="7" fill="#1e3a8a"/>
+  <text x="876" y="240" font-size="10.5" font-weight="700" fill="#1e3a8a">他的一簇</text>
+  <!-- other speakers (scattered, gray) -->
+  <circle cx="752" cy="340" r="4" fill="#cbd5e1"/>
+  <circle cx="770" cy="358" r="4" fill="#cbd5e1"/>
+  <circle cx="828" cy="356" r="4" fill="#cbd5e1"/>
+  <circle cx="748" cy="286" r="4" fill="#cbd5e1"/>
+  <circle cx="794" cy="362" r="4" fill="#cbd5e1"/>
+  <text x="724" y="376" font-size="10.5" fill="#94a3b8">别人</text>
+  <text x="800" y="430" text-anchor="middle" class="t2">他在「声音空间」里占的一片地</text>
+
+  <!-- tagline -->
+  <text x="480" y="496" text-anchor="middle" font-size="17" fill="#334155">声纹不是一道刻痕 —— 是一个人在声音空间里占的<tspan font-weight="700" fill="#4338ca">一片区域</tspan></text>
+  <text x="480" y="528" text-anchor="middle" class="t2" font-size="12.5">深潜 · 声纹的本质，与音色在模型内部的样子</text>
+</svg>
