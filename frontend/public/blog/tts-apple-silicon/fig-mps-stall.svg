@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="msh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <marker id="mga" markerWidth="10" markerHeight="10" refX="6" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#94a3b8"/>
+    </marker>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .chip{font-size:12px;font-weight:700;}
+      .note{font-size:11px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="360" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">同一个模型,换块芯片,提速全失效</text>
+  <text x="32" y="66" class="s" font-size="13.5">榜单前排为 CUDA 调优——这些加速器在 Apple Silicon 上要么 no-op,要么卡在 CPU 上成了独木桥。</text>
+
+  <!-- Lane 1: NVIDIA / CUDA -->
+  <rect x="32" y="92" width="896" height="92" rx="13" fill="#f0fdf4" stroke="#bbf7d0" stroke-width="1.5"/>
+  <rect x="44" y="104" width="120" height="68" rx="10" fill="#fff" stroke="#bbf7d0"/>
+  <text x="104" y="134" text-anchor="middle" font-size="13" font-weight="800" fill="#15803d">NVIDIA</text>
+  <text x="104" y="154" text-anchor="middle" class="note" fill="#16a34a">CUDA</text>
+  <rect x="180" y="116" width="150" height="44" rx="9" fill="#fff" stroke="#dcfce7" filter="url(#msh)"/>
+  <text x="255" y="135" text-anchor="middle" class="chip mono" fill="#334155">torch.compile</text>
+  <text x="255" y="152" text-anchor="middle" font-size="11" font-weight="700" fill="#16a34a">✓ 生效</text>
+  <rect x="342" y="116" width="150" height="44" rx="9" fill="#fff" stroke="#dcfce7" filter="url(#msh)"/>
+  <text x="417" y="135" text-anchor="middle" class="chip mono" fill="#334155">CUDA Graphs</text>
+  <text x="417" y="152" text-anchor="middle" font-size="11" font-weight="700" fill="#16a34a">✓ 生效</text>
+  <rect x="504" y="116" width="150" height="44" rx="9" fill="#fff" stroke="#dcfce7" filter="url(#msh)"/>
+  <text x="579" y="135" text-anchor="middle" class="chip" fill="#334155">降噪器</text>
+  <text x="579" y="152" text-anchor="middle" font-size="11" font-weight="700" fill="#16a34a">✓ 在 GPU</text>
+  <path d="M662,138 L686,138" fill="none" stroke="#94a3b8" stroke-width="2.4" marker-end="url(#mga)"/>
+  <rect x="694" y="112" width="220" height="52" rx="10" fill="#dcfce7"/>
+  <text x="804" y="135" text-anchor="middle" font-size="13" font-weight="800" fill="#15803d">快 · RTF ≥ 1</text>
+  <text x="804" y="153" text-anchor="middle" class="note" fill="#15803d">实时,榜单上的速度</text>
+
+  <!-- Lane 2: Apple / MPS -->
+  <rect x="32" y="204" width="896" height="92" rx="13" fill="#fef2f2" stroke="#fecaca" stroke-width="1.5"/>
+  <rect x="44" y="216" width="120" height="68" rx="10" fill="#fff" stroke="#fecaca"/>
+  <text x="104" y="246" text-anchor="middle" font-size="13" font-weight="800" fill="#b91c1c">Apple M4</text>
+  <text x="104" y="266" text-anchor="middle" class="note" fill="#ef4444">MPS</text>
+  <rect x="180" y="228" width="150" height="44" rx="9" fill="#fff" stroke="#fee2e2" filter="url(#msh)"/>
+  <text x="255" y="247" text-anchor="middle" class="chip mono" fill="#334155">torch.compile</text>
+  <text x="255" y="264" text-anchor="middle" font-size="11" font-weight="700" fill="#b91c1c">✗ no-op</text>
+  <rect x="342" y="228" width="150" height="44" rx="9" fill="#fff" stroke="#fee2e2" filter="url(#msh)"/>
+  <text x="417" y="247" text-anchor="middle" class="chip mono" fill="#334155">CUDA Graphs</text>
+  <text x="417" y="264" text-anchor="middle" font-size="11" font-weight="700" fill="#b91c1c">✗ 失效</text>
+  <rect x="504" y="228" width="150" height="44" rx="9" fill="#fff" stroke="#fef3c7" filter="url(#msh)"/>
+  <text x="579" y="247" text-anchor="middle" class="chip" fill="#334155">降噪器</text>
+  <text x="579" y="264" text-anchor="middle" font-size="11" font-weight="700" fill="#b45309">⚠ 卡在 CPU</text>
+  <path d="M662,250 L686,250" fill="none" stroke="#94a3b8" stroke-width="2.4" marker-end="url(#mga)"/>
+  <rect x="694" y="224" width="220" height="52" rx="10" fill="#fee2e2"/>
+  <text x="804" y="247" text-anchor="middle" font-size="13" font-weight="800" fill="#b91c1c">0.1× · 超时</text>
+  <text x="804" y="265" text-anchor="middle" class="note" fill="#b91c1c">IndexTTS-2 / VoxCPM 的下场</text>
+
+  <text x="480" y="332" text-anchor="middle" class="note" fill="#475569">不是你的机器弱——是模型根上就只为一块芯片加速。榜单的"快",搬不到 Apple Silicon。</text>
+</svg>

@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 472" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="qarrow" markerWidth="11" markerHeight="11" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,4 L0,8 Z" fill="#4f46e5"/>
+    </marker>
+    <marker id="axend" markerWidth="9" markerHeight="9" refX="5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L7,3.5 L0,7 Z" fill="#94a3b8"/>
+    </marker>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .dot{font-size:12px;font-weight:700;}
+      .note{font-size:11px;fill:#64748b;}
+      .tick{font-size:10px;fill:#94a3b8;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="472" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">速度 × 质量:Mac 上的真实地形</text>
+  <text x="32" y="66" class="s" font-size="13.5">好音色全挤在"太慢"的左边,跑得动的全在中庸那一档——唯一的例外,是被 MLX 移植拽过实时线的 F5。</text>
+
+  <!-- plot frame -->
+  <rect x="100" y="100" width="810" height="300" rx="8" fill="#fafbff" stroke="#eef2f7"/>
+  <!-- viable zone -->
+  <rect x="430" y="100" width="480" height="300" rx="0" fill="#f0fdf4"/>
+  <text x="900" y="120" text-anchor="end" font-size="12" font-weight="700" fill="#16a34a">实时可用区 ≥ 0.8×</text>
+  <!-- realtime line -->
+  <line x1="430" y1="100" x2="430" y2="400" stroke="#16a34a" stroke-width="1.6" stroke-dasharray="5 4"/>
+  <text x="430" y="416" text-anchor="middle" font-size="10.5" font-weight="700" fill="#15803d">实时 0.8×</text>
+
+  <!-- axes -->
+  <line x1="100" y1="400" x2="910" y2="400" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#axend)"/>
+  <line x1="100" y1="400" x2="100" y2="92" stroke="#94a3b8" stroke-width="1.5" marker-end="url(#axend)"/>
+  <text x="892" y="392" text-anchor="end" class="note" fill="#475569">M4 实时率 RTF →</text>
+  <text x="112" y="108" class="note" fill="#475569">音色质量 ↑</text>
+  <!-- x ticks -->
+  <text x="160" y="416" text-anchor="middle" class="tick mono">0.1×</text>
+  <text x="238" y="416" text-anchor="middle" class="tick mono">0.2×</text>
+  <text x="632" y="416" text-anchor="middle" class="tick mono">2×</text>
+  <text x="860" y="416" text-anchor="middle" class="tick mono">6×</text>
+
+  <!-- ===== too-slow cluster (left) ===== -->
+  <circle cx="160" cy="152" r="6" fill="#ef4444"/>
+  <text x="172" y="148" class="dot" fill="#b91c1c">IndexTTS-2</text>
+  <text x="172" y="163" class="tick">客观第一 · 0.1×</text>
+  <circle cx="124" cy="178" r="6" fill="#ef4444"/>
+  <text x="136" y="182" class="dot" fill="#b91c1c">VoxCPM</text>
+  <text x="136" y="197" class="tick">音色担当 · 超时</text>
+  <circle cx="238" cy="222" r="6" fill="#f59e0b"/>
+  <text x="250" y="218" class="dot" fill="#b45309">Qwen3-TTS</text>
+  <text x="250" y="233" class="tick">0.2×</text>
+  <circle cx="300" cy="248" r="6" fill="#f59e0b"/>
+  <text x="312" y="252" class="dot" fill="#b45309">Fish 1.5</text>
+
+  <!-- ===== F5: MPS (slow, hollow) -> MLX (viable, solid) ===== -->
+  <circle cx="162" cy="206" r="6" fill="#fff" stroke="#94a3b8" stroke-width="2"/>
+  <text x="160" y="228" text-anchor="middle" class="tick" fill="#64748b">F5-TTS · 原生 MPS ≤0.1×</text>
+  <path d="M178,206 C300,206 430,206 562,206" fill="none" stroke="#4f46e5" stroke-width="2.2" stroke-dasharray="6 4" marker-end="url(#qarrow)"/>
+  <text x="370" y="196" text-anchor="middle" font-size="11.5" font-weight="700" fill="#4338ca">f5-tts-mlx 移植 · 迈过实时线</text>
+  <circle cx="580" cy="206" r="7.5" fill="#4f46e5" stroke="#fff" stroke-width="2"/>
+  <text x="594" y="202" class="dot" fill="#3730a3">F5-mlx ★</text>
+  <text x="594" y="217" class="tick" fill="#4338ca">MIT · ~1.6× · 待 M4 实测</text>
+
+  <!-- ===== viable cluster (right) ===== -->
+  <circle cx="500" cy="266" r="6" fill="#0ea5e9"/>
+  <text x="512" y="262" class="dot" fill="#0369a1">ChatterBox</text>
+  <text x="512" y="277" class="tick">1.1×</text>
+  <!-- MOSS default, highlighted -->
+  <circle cx="620" cy="288" r="9" fill="none" stroke="#16a34a" stroke-width="2" stroke-dasharray="3 2"/>
+  <circle cx="620" cy="288" r="6.5" fill="#16a34a"/>
+  <text x="634" y="284" class="dot" fill="#15803d">MOSS-Nano ✓默认</text>
+  <text x="634" y="299" class="tick" fill="#15803d">1.93× · 48 kHz</text>
+  <circle cx="640" cy="340" r="6" fill="#f59e0b"/>
+  <text x="652" y="336" class="dot" fill="#b45309">Coqui XTTS-v2</text>
+  <text x="652" y="351" class="tick" fill="#b45309">2.0× · ⚠ 非商用许可</text>
+
+  <!-- caption strip -->
+  <text x="100" y="452" class="note" fill="#475569"><tspan font-weight="700" fill="#b91c1c">左:</tspan> 音色榜单前排,全在太慢区   <tspan font-weight="700" fill="#15803d">右:</tspan> 跑得动的,音色中庸   <tspan font-weight="700" fill="#4338ca">★ F5-mlx:</tspan> 唯一"更好又跑得动"的窄门(数据来源 tts-bench M4)</text>
+</svg>

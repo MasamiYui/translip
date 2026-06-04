@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <radialGradient id="tglow" cx="58%" cy="38%" r="62%">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="tsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+    <marker id="tbig" markerWidth="11" markerHeight="11" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,4 L0,8 Z" fill="#6366f1"/>
+    </marker>
+    <style>
+      .t1{font-size:15px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11.5px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="600" fill="#fbfcfe"/>
+  <rect x="0" y="0" width="960" height="600" fill="url(#tglow)"/>
+
+  <!-- kicker -->
+  <circle cx="68" cy="64" r="5" fill="#4f46e5"/>
+  <text x="84" y="69" font-size="14.5" font-weight="700" fill="#475569" letter-spacing="0.5">幕后 · 博客 · 决策</text>
+
+  <!-- LEFT: the leaderboard (datacenter) -->
+  <rect x="40" y="150" width="430" height="316" rx="16" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#tsh)"/>
+  <rect x="40" y="150" width="6" height="316" rx="3" fill="#f59e0b"/>
+  <text x="64" y="184" class="t1" font-size="15.5" fill="#b45309">音色排行榜 · 数据中心(H100)</text>
+  <text x="64" y="205" class="t2">客观分越堆越高……</text>
+
+  <!-- row 1 -->
+  <text x="64" y="248" font-size="14" font-weight="800" fill="#94a3b8">1</text>
+  <text x="86" y="248" font-size="13.5" font-weight="700" fill="#334155">IndexTTS-2</text>
+  <rect x="210" y="238" width="130" height="10" rx="5" fill="#eef2f7"/><rect x="210" y="238" width="124" height="10" rx="5" fill="#16a34a"/>
+  <rect x="352" y="234" width="104" height="22" rx="11" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="404" y="249" text-anchor="middle" font-size="11" font-weight="700" fill="#b91c1c" class="mono">M4: 0.1×</text>
+  <!-- row 2 -->
+  <text x="64" y="300" font-size="14" font-weight="800" fill="#94a3b8">2</text>
+  <text x="86" y="300" font-size="13.5" font-weight="700" fill="#334155">VoxCPM</text>
+  <rect x="210" y="290" width="130" height="10" rx="5" fill="#eef2f7"/><rect x="210" y="290" width="116" height="10" rx="5" fill="#16a34a"/>
+  <rect x="352" y="286" width="104" height="22" rx="11" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="404" y="301" text-anchor="middle" font-size="11" font-weight="700" fill="#b91c1c" class="mono">M4: 超时</text>
+  <!-- row 3 -->
+  <text x="64" y="352" font-size="14" font-weight="800" fill="#94a3b8">3</text>
+  <text x="86" y="352" font-size="13.5" font-weight="700" fill="#334155">Qwen3-TTS</text>
+  <rect x="210" y="342" width="130" height="10" rx="5" fill="#eef2f7"/><rect x="210" y="342" width="100" height="10" rx="5" fill="#16a34a"/>
+  <rect x="352" y="338" width="104" height="22" rx="11" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="404" y="353" text-anchor="middle" font-size="11" font-weight="700" fill="#b91c1c" class="mono">M4: 0.2×</text>
+
+  <text x="64" y="404" class="t2" fill="#b91c1c">……搬到 Apple Silicon,集体趴窝。</text>
+  <text x="64" y="436" class="t2" fill="#94a3b8">为 CUDA 调的提速,过不来 MPS。</text>
+
+  <!-- arrow -->
+  <path d="M478,308 L552,308" fill="none" stroke="#6366f1" stroke-width="3.5" marker-end="url(#tbig)"/>
+  <text x="515" y="296" text-anchor="middle" font-size="12" font-weight="700" fill="#4338ca">搬上 M4</text>
+
+  <!-- RIGHT: who survives on your M4 -->
+  <rect x="566" y="150" width="354" height="316" rx="16" fill="#fff" stroke="#bbf7d0" stroke-width="2" filter="url(#tsh)"/>
+  <rect x="566" y="150" width="6" height="316" rx="3" fill="#16a34a"/>
+  <text x="590" y="184" class="t1" font-size="15.5" fill="#15803d">你的 M4 上 · 谁跑得完一句</text>
+
+  <rect x="590" y="204" width="306" height="78" rx="12" fill="#f0fdf4" stroke="#bbf7d0"/>
+  <text x="608" y="232" font-size="15" font-weight="800" fill="#15803d">✓ MOSS-TTS-Nano</text>
+  <text x="608" y="256" class="t2" fill="#15803d">实时 <tspan class="mono" font-weight="700">1.93×</tspan> · 48 kHz · 默认</text>
+  <text x="608" y="274" class="t2" fill="#94a3b8">100M 小模型,正因"不够好"才跑得动</text>
+
+  <text x="590" y="312" class="t2" fill="#94a3b8">榜单前排在这台机器上的下场:</text>
+  <g class="mono">
+    <text x="590" y="340" font-size="12" fill="#cbd5e1">✗ IndexTTS-2</text><text x="896" y="340" text-anchor="end" font-size="11.5" fill="#b91c1c">超时</text>
+    <text x="590" y="366" font-size="12" fill="#cbd5e1">✗ VoxCPM</text><text x="896" y="366" text-anchor="end" font-size="11.5" fill="#b91c1c">超时</text>
+    <text x="590" y="392" font-size="12" fill="#cbd5e1">✗ Qwen3-TTS</text><text x="896" y="392" text-anchor="end" font-size="11.5" fill="#b91c1c">0.2×</text>
+  </g>
+  <line x1="590" y1="412" x2="896" y2="412" stroke="#eef2f7"/>
+  <text x="590" y="438" class="t2" fill="#475569">默认值锚在"能在本机跑通",不锚在榜单</text>
+
+  <!-- tagline -->
+  <text x="480" y="512" text-anchor="middle" font-size="16.5" fill="#334155">榜单测"在 H100 上谁更像" · 你的问题是<tspan font-weight="700" fill="#4338ca">"在你的 M4 上谁跑得完一句"</tspan></text>
+  <text x="480" y="540" text-anchor="middle" class="t2" font-size="12.5">配音后端的一次诚实选型 · Apple Silicon</text>
+</svg>
