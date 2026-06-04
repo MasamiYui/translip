@@ -1,6 +1,6 @@
 import { isValidElement, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Clock } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Clock, Download } from 'lucide-react'
 import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { PageContainer } from '../components/layout/PageContainer'
@@ -77,7 +77,7 @@ export function BlogPostPage() {
     <PageContainer className="max-w-[64rem]">
       <Link
         to="/blog"
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 transition-colors hover:text-[#3b5bdb]"
+        className="inline-flex items-center gap-1.5 text-sm text-slate-500 transition-colors hover:text-[#3b5bdb] print:hidden"
       >
         <ArrowLeft size={15} />
         {t.blog.backToList}
@@ -93,6 +93,14 @@ export function BlogPostPage() {
             <Clock size={12} />
             {t.blog.readingTime(post.readingTime)}
           </span>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-[12px] font-medium text-slate-600 transition-colors hover:border-[#3b5bdb] hover:text-[#3b5bdb] print:hidden"
+          >
+            <Download size={13} />
+            {t.blog.exportPdf}
+          </button>
         </div>
         <h1 className="mt-3 text-[32px] font-bold leading-tight tracking-tight text-slate-900">
           {post.title}
@@ -110,7 +118,7 @@ export function BlogPostPage() {
 
       <hr className="my-6 border-[#e5e7eb]" />
 
-      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_13rem]">
+      <div className="grid gap-10 lg:grid-cols-[minmax(0,1fr)_13rem] print:block">
         <article className="blog-prose">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
             {post.body}
@@ -118,7 +126,7 @@ export function BlogPostPage() {
         </article>
 
         {post.toc.length > 0 && (
-          <nav className="hidden lg:block" aria-label={t.blog.tocTitle}>
+          <nav className="hidden lg:block print:hidden" aria-label={t.blog.tocTitle}>
             <div className="sticky top-[80px]">
               <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
                 {t.blog.tocTitle}
@@ -139,8 +147,8 @@ export function BlogPostPage() {
 
       {(prev || next) && (
         <>
-          <hr className="my-8 border-[#e5e7eb]" />
-          <div className="grid gap-4 sm:grid-cols-2">
+          <hr className="my-8 border-[#e5e7eb] print:hidden" />
+          <div className="grid gap-4 sm:grid-cols-2 print:hidden">
             <AdjacentLink post={prev} label={t.blog.prev} direction="prev" />
             <AdjacentLink post={next} label={t.blog.next} direction="next" />
           </div>

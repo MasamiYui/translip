@@ -116,3 +116,60 @@ body {
     animation: none;
   }
 }
+
+/* Print: export the current blog post as a clean PDF via the browser's native
+   "Save as PDF". App chrome (sidebar / header / on-page nav / the export button
+   itself) is hidden per-element with the `print:hidden` Tailwind variant; here
+   we collapse the layout shell, drop the app background, and keep figures, code
+   blocks and tables from splitting across page boundaries. */
+@media print {
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .no-print {
+    display: none !important;
+  }
+  /* Collapse the app shell so the article uses the full page width. */
+  main {
+    margin: 0 !important;
+    padding-top: 0 !important;
+    min-height: 0 !important;
+  }
+  .blog-prose {
+    font-size: 11.5pt;
+    color: #111827;
+  }
+  .blog-prose figure.blog-fig,
+  .blog-prose pre,
+  .blog-prose table {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .blog-prose h2,
+  .blog-prose h3 {
+    break-after: avoid;
+    page-break-after: avoid;
+  }
+  .blog-prose img {
+    max-width: 100% !important;
+  }
+  .blog-prose a {
+    color: #1d4ed8 !important;
+    border-bottom: none !important;
+  }
+  /* Render code blocks light in print so they stay readable even when the
+     browser's "background graphics" option is off. */
+  .blog-prose pre {
+    background: #f1f5f9 !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: none !important;
+  }
+  .blog-prose pre code {
+    color: #0f172a !important;
+  }
+  @page {
+    margin: 16mm 14mm;
+  }
+}
