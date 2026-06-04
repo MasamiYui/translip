@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 432" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="tsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .lab{font-size:13px;font-weight:700;fill:#fff;}
+      .tick{font-size:11px;fill:#64748b;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="432" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">音色：把被丢掉的"存疑带"摆上台面</text>
+  <text x="32" y="66" class="s" font-size="13.5">同一条余弦相似度轴——旧逻辑只在 &lt;0.25 亮一盏红灯，0.25–0.45 整段沉默；新热条让三态现形。</text>
+
+  <!-- value-axis band legend -->
+  <text x="80" y="98" class="s" font-size="12" font-weight="700" fill="#475569">相似度分档（图例）</text>
+  <rect x="80"  y="104" width="286" height="46" rx="6" fill="#ef4444"/>
+  <rect x="366" y="104" width="228" height="46" fill="#f59e0b"/>
+  <rect x="594" y="104" width="286" height="46" rx="6" fill="#10b981"/>
+  <text x="223" y="132" text-anchor="middle" class="lab">不符 &lt; 0.25</text>
+  <text x="480" y="132" text-anchor="middle" class="lab">存疑 0.25–0.45</text>
+  <text x="737" y="132" text-anchor="middle" class="lab">相符 ≥ 0.45</text>
+  <line x1="366" y1="150" x2="366" y2="160" stroke="#94a3b8"/>
+  <line x1="594" y1="150" x2="594" y2="160" stroke="#94a3b8"/>
+  <text x="80"  y="174" class="tick">0</text>
+  <text x="366" y="174" text-anchor="middle" class="tick">0.25</text>
+  <text x="594" y="174" text-anchor="middle" class="tick">0.45</text>
+  <text x="880" y="174" text-anchor="end" class="tick">0.70</text>
+
+  <!-- OLD row -->
+  <text x="120" y="214" class="s" font-size="12.5" font-weight="700" fill="#b91c1c">旧：只有 &lt;0.25 才上屏 —— 中间整段沉默</text>
+  <g>
+    <rect x="120" y="222" width="40" height="26" rx="3" fill="#ef4444"/>
+    <rect x="165" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+    <rect x="210" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+    <rect x="255" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+    <rect x="300" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+    <rect x="345" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+    <rect x="390" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+    <rect x="435" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+    <rect x="480" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+    <rect x="525" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+    <rect x="570" y="222" width="40" height="26" rx="3" fill="#ef4444"/>
+    <rect x="615" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+    <rect x="660" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+    <rect x="705" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+    <rect x="750" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+    <rect x="795" y="222" width="40" height="26" rx="3" fill="#cbd5e1"/>
+  </g>
+  <rect x="724" y="186" width="160" height="22" rx="11" fill="#fef2f2" stroke="#fecaca"/>
+  <text x="804" y="201" text-anchor="middle" font-size="11" font-weight="700" fill="#b91c1c">界面只显示：音色不符 2</text>
+
+  <!-- NEW row -->
+  <text x="120" y="300" class="s" font-size="12.5" font-weight="700" fill="#047857">新：三态热条 —— 存疑(琥珀)现形，可沿时间轴定位</text>
+  <g>
+    <rect x="120" y="308" width="40" height="26" rx="3" fill="#ef4444"/>
+    <rect x="165" y="308" width="40" height="26" rx="3" fill="#f59e0b"/>
+    <rect x="210" y="308" width="40" height="26" rx="3" fill="#f59e0b"/>
+    <rect x="255" y="308" width="40" height="26" rx="3" fill="#10b981"/>
+    <rect x="300" y="308" width="40" height="26" rx="3" fill="#10b981"/>
+    <rect x="345" y="308" width="40" height="26" rx="3" fill="#f59e0b"/>
+    <rect x="390" y="308" width="40" height="26" rx="3" fill="#10b981"/>
+    <rect x="435" y="308" width="40" height="26" rx="3" fill="#f59e0b"/>
+    <rect x="480" y="308" width="40" height="26" rx="3" fill="#f59e0b"/>
+    <rect x="525" y="308" width="40" height="26" rx="3" fill="#10b981"/>
+    <rect x="570" y="308" width="40" height="26" rx="3" fill="#ef4444"/>
+    <rect x="615" y="308" width="40" height="26" rx="3" fill="#f59e0b"/>
+    <rect x="660" y="308" width="40" height="26" rx="3" fill="#10b981"/>
+    <rect x="705" y="308" width="40" height="26" rx="3" fill="#f59e0b"/>
+    <rect x="750" y="308" width="40" height="26" rx="3" fill="#10b981"/>
+    <rect x="795" y="308" width="40" height="26" rx="3" fill="#f59e0b"/>
+  </g>
+  <text x="120" y="356" class="s" font-size="11" fill="#94a3b8">← 时间轴 · 与上方两条波形共享同一刻度 →</text>
+
+  <text x="32" y="406" class="s" font-size="12.5">真实任务：27 段配音里 <tspan font-weight="700" fill="#b45309">17 段</tspan> 落在 0.25–0.45 存疑带——旧逻辑把它们抹成了沉默；新热条让它们各有各的颜色和位置。</text>
+</svg>

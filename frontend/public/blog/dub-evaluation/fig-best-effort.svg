@@ -1,0 +1,89 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 424" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ba" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="bsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#bsh);}
+      .t1{font-size:13px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="424" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">best-effort：先落盘诚实的账，再尽力把仪器装上去</text>
+  <text x="32" y="66" class="s" font-size="13.5">报告永远会写；富集器在它之后尽力而为，挂了只记一行 status，绝不连累报告。</text>
+
+  <!-- Stage 1: dub_qa writes the report first -->
+  <rect class="box" x="32" y="110" width="220" height="118" rx="12"/>
+  <rect x="32" y="110" width="6" height="118" rx="3" fill="#059669"/>
+  <text x="54" y="136" class="t1" fill="#047857">dub_qa · 拼回逐段</text>
+  <text x="54" y="158" class="t2">按 segment_id JOIN</text>
+  <text x="54" y="176" class="t2">诚实的账——译文全集分母</text>
+  <rect x="54" y="188" width="178" height="26" rx="7" fill="#ecfdf5" stroke="#a7f3d0"/>
+  <text x="143" y="205" text-anchor="middle" class="t2 mono" font-size="10" fill="#047857">dub_qa_report.json ✓ 先落盘</text>
+
+  <path class="ln" d="M252,169 L292,169" marker-end="url(#ba)"/>
+
+  <!-- best-effort enrichers -->
+  <rect x="294" y="104" width="262" height="196" rx="12" fill="#f8fafc" stroke="#e2e8f0" stroke-dasharray="5 4"/>
+  <text x="310" y="126" class="t2" font-weight="700" fill="#475569">best-effort 富集器 · 各包在 try/except</text>
+
+  <rect class="box" x="310" y="136" width="230" height="42" rx="9"/>
+  <rect x="310" y="136" width="6" height="42" rx="3" fill="#4f46e5"/>
+  <text x="328" y="154" class="t2" font-weight="700" font-size="12" fill="#3730a3">dub_embeddings · 192维向量</text>
+  <text x="328" y="170" class="t2 mono" font-size="9.5" fill="#059669">embedding_meta.status = ok ✓</text>
+
+  <rect class="box" x="310" y="184" width="230" height="42" rx="9"/>
+  <rect x="310" y="184" width="6" height="42" rx="3" fill="#0ea5e9"/>
+  <text x="328" y="202" class="t2" font-weight="700" font-size="12" fill="#0369a1">dub_pitch · F0 轮廓</text>
+  <text x="328" y="218" class="t2 mono" font-size="9.5" fill="#059669">pitch_meta.status = ok ✓</text>
+
+  <rect class="box" x="310" y="232" width="230" height="42" rx="9"/>
+  <rect x="310" y="232" width="6" height="42" rx="3" fill="#94a3b8"/>
+  <text x="328" y="250" class="t2" font-weight="700" font-size="12" fill="#64748b">dub_mel · 梅尔频谱</text>
+  <text x="328" y="266" class="t2 mono" font-size="9.5" fill="#b91c1c">mel_meta.status = error ✗（报告照写）</text>
+
+  <text x="310" y="292" class="t2" fill="#94a3b8" font-size="10.5">挂了只写一行 status —— 不回滚、不报错、不连累报告</text>
+
+  <path class="ln" d="M556,169 L596,169" marker-end="url(#ba)"/>
+
+  <!-- UI: conditional render -->
+  <rect class="box" x="598" y="110" width="330" height="190" rx="12"/>
+  <rect x="598" y="110" width="6" height="190" rx="3" fill="#6366f1"/>
+  <text x="620" y="136" class="t1" fill="#3730a3">EvaluationDetailPage</text>
+  <rect x="620" y="148" width="286" height="44" rx="8" fill="#0f172a"/>
+  <text x="634" y="166" class="mono" font-size="9.5" fill="#e2e8f0">{ meta?.status === 'ok'</text>
+  <text x="634" y="182" class="mono" font-size="9.5" fill="#e2e8f0">&#160;&#160;? &lt;Instrument/&gt; : null }</text>
+
+  <g>
+    <rect x="620" y="206" width="18" height="18" rx="5" fill="#ecfdf5" stroke="#a7f3d0"/>
+    <path d="M624,215 l3,3 l6,-7" stroke="#059669" stroke-width="1.8" fill="none"/>
+    <text x="648" y="220" class="t2" font-size="12">embedding 散点 · 渲染</text>
+  </g>
+  <g>
+    <rect x="620" y="234" width="18" height="18" rx="5" fill="#ecfdf5" stroke="#a7f3d0"/>
+    <path d="M624,243 l3,3 l6,-7" stroke="#059669" stroke-width="1.8" fill="none"/>
+    <text x="648" y="248" class="t2" font-size="12">音高轮廓 · 渲染</text>
+  </g>
+  <g>
+    <rect x="620" y="262" width="18" height="18" rx="5" fill="#f1f5f9" stroke="#cbd5e1"/>
+    <text x="648" y="276" class="t2" font-size="12" fill="#94a3b8">梅尔频谱 · status≠ok → 不渲染</text>
+  </g>
+
+  <!-- CLI backfill loop -->
+  <rect class="box" x="310" y="330" width="230" height="46" rx="10"/>
+  <rect x="310" y="330" width="6" height="46" rx="3" fill="#14b8a6"/>
+  <text x="328" y="350" class="t2" font-weight="700" font-size="12" fill="#0f766e">enrich_report_path · CLI 回填</text>
+  <text x="328" y="367" class="t2" font-size="10.5">老报告不用重跑流水线 · 幂等</text>
+  <path d="M425,330 L425,278" stroke="#14b8a6" stroke-width="1.6" stroke-dasharray="5 4" fill="none" marker-end="url(#ba)"/>
+
+  <text x="32" y="404" class="s" font-size="12.5">原则：诊断是加分项，<tspan font-weight="700" fill="#475569">不能变成一个新的失败点</tspan>——给评测加一双眼睛，不该让流水线多一处会崩的地方。</text>
+</svg>

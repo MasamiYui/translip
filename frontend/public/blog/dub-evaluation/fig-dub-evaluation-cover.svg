@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 600" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <radialGradient id="cglow" cx="62%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#6366f1" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="csh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+    <linearGradient id="cmel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fde725"/>
+      <stop offset="38%" stop-color="#35b779"/>
+      <stop offset="70%" stop-color="#31688e"/>
+      <stop offset="100%" stop-color="#440154"/>
+    </linearGradient>
+    <marker id="cbig" markerWidth="11" markerHeight="11" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+      <path d="M0,0 L9,4 L0,8 Z" fill="#6366f1"/>
+    </marker>
+    <style>
+      .t1{font-size:15px;font-weight:700;fill:#0f172a;}
+      .t2{font-size:11.5px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="600" fill="#fbfcfe"/>
+  <rect x="0" y="0" width="960" height="600" fill="url(#cglow)"/>
+
+  <!-- kicker -->
+  <circle cx="68" cy="64" r="5" fill="#4f46e5"/>
+  <text x="84" y="69" font-size="14.5" font-weight="700" fill="#475569" letter-spacing="0.5">幕后 · 博客 · 决策</text>
+
+  <!-- LEFT: a single score gauge, muted = "not enough" -->
+  <g>
+    <path d="M150,392 A120,120 0 0,1 390,392" fill="none" stroke="#e2e8f0" stroke-width="16" stroke-linecap="round"/>
+    <path d="M150,392 A120,120 0 0,1 307,278" fill="none" stroke="#f59e0b" stroke-width="16" stroke-linecap="round"/>
+    <circle cx="307" cy="278" r="9" fill="#f59e0b" stroke="#fff" stroke-width="3"/>
+    <text x="270" y="356" text-anchor="middle" font-size="50" font-weight="800" fill="#334155">59.9</text>
+    <text x="270" y="384" text-anchor="middle" class="t2" font-size="12">满分 100 · review</text>
+    <text x="150" y="414" text-anchor="middle" class="t2">0</text>
+    <text x="390" y="414" text-anchor="middle" class="t2">100</text>
+    <text x="270" y="452" text-anchor="middle" font-size="14.5" font-weight="700" fill="#475569">一个分数 · 分诊信号</text>
+    <text x="270" y="474" text-anchor="middle" class="t2" font-size="12.5">说得出"有问题"，说不清哪几句、为什么</text>
+  </g>
+
+  <!-- arrow to the instrument panel -->
+  <path d="M412,330 L470,330" fill="none" stroke="#6366f1" stroke-width="3.5" marker-end="url(#cbig)"/>
+  <text x="441" y="318" text-anchor="middle" font-size="12.5" font-weight="700" fill="#4338ca">摊开</text>
+
+  <!-- RIGHT: instrument panel -->
+  <rect x="500" y="150" width="404" height="346" rx="18" fill="#fff" stroke="#e2e8f0" stroke-width="1.5" filter="url(#csh)"/>
+  <rect x="500" y="150" width="6" height="346" rx="3" fill="#6366f1"/>
+  <text x="524" y="184" class="t1" font-size="16" fill="#3730a3">看得见的证据</text>
+  <text x="524" y="205" class="t2">每一件仪器，回答一个具体的问题</text>
+
+  <!-- tile A: timbre heat bar -->
+  <rect x="524" y="222" width="172" height="120" rx="12" fill="#f8fafc" stroke="#eef2f7"/>
+  <text x="540" y="246" class="t2" font-size="11" font-weight="700" fill="#475569">音色三态热条</text>
+  <g>
+    <rect x="540" y="262" width="14" height="22" rx="2" fill="#ef4444"/>
+    <rect x="556" y="262" width="14" height="22" rx="2" fill="#f59e0b"/>
+    <rect x="572" y="262" width="14" height="22" rx="2" fill="#f59e0b"/>
+    <rect x="588" y="262" width="14" height="22" rx="2" fill="#10b981"/>
+    <rect x="604" y="262" width="14" height="22" rx="2" fill="#10b981"/>
+    <rect x="620" y="262" width="14" height="22" rx="2" fill="#f59e0b"/>
+    <rect x="636" y="262" width="14" height="22" rx="2" fill="#10b981"/>
+    <rect x="652" y="262" width="14" height="22" rx="2" fill="#ef4444"/>
+    <rect x="668" y="262" width="14" height="22" rx="2" fill="#10b981"/>
+  </g>
+  <text x="540" y="314" class="t2" font-size="10">不符 · 存疑 · 相符</text>
+  <text x="540" y="330" class="t2" font-size="10" fill="#94a3b8">沿时间轴一字排开</text>
+
+  <!-- tile B: embedding scatter -->
+  <rect x="708" y="222" width="172" height="120" rx="12" fill="#f8fafc" stroke="#eef2f7"/>
+  <text x="724" y="246" class="t2" font-size="11" font-weight="700" fill="#475569">embedding 散点</text>
+  <g>
+    <circle cx="744" cy="288" r="3.4" fill="#3b5bdb"/>
+    <circle cx="756" cy="296" r="3.4" fill="#3b5bdb"/>
+    <circle cx="750" cy="306" r="3.4" fill="#3b5bdb"/>
+    <circle cx="766" cy="290" r="3.4" fill="#3b5bdb"/>
+    <rect x="749" y="283" width="9" height="9" rx="1.5" transform="rotate(45 753.5 287.5)" fill="#fff" stroke="#3b5bdb" stroke-width="1.6"/>
+    <circle cx="828" cy="300" r="3.4" fill="#10b981"/>
+    <circle cx="840" cy="308" r="3.4" fill="#10b981"/>
+    <circle cx="834" cy="318" r="3.4" fill="#10b981"/>
+    <rect x="833" y="297" width="9" height="9" rx="1.5" transform="rotate(45 837.5 301.5)" fill="#fff" stroke="#10b981" stroke-width="1.6"/>
+    <circle cx="800" cy="272" r="3.4" fill="#f59e0b"/>
+    <circle cx="790" cy="278" r="3.4" fill="#f59e0b"/>
+  </g>
+  <text x="724" y="334" class="t2" font-size="10" fill="#94a3b8">同色同人 · ◇ 是参考</text>
+
+  <!-- tile C: pitch contour -->
+  <rect x="524" y="354" width="172" height="120" rx="12" fill="#f8fafc" stroke="#eef2f7"/>
+  <text x="540" y="378" class="t2" font-size="11" font-weight="700" fill="#475569">音高轮廓</text>
+  <path d="M540,438 C556,410 572,418 588,400 S620,392 636,410 S664,398 678,404" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+  <path d="M540,444 C558,430 572,408 590,418 S618,408 634,396 S664,406 678,398" fill="none" stroke="#3b5bdb" stroke-width="2.2" stroke-linecap="round"/>
+  <text x="678" y="392" text-anchor="end" class="t2" font-size="9" fill="#94a3b8">原片 · 配音</text>
+
+  <!-- tile D: mel spectrogram -->
+  <rect x="708" y="354" width="172" height="120" rx="12" fill="#f8fafc" stroke="#eef2f7"/>
+  <text x="724" y="378" class="t2" font-size="11" font-weight="700" fill="#475569">梅尔频谱</text>
+  <rect x="724" y="390" width="140" height="32" rx="3" fill="url(#cmel)"/>
+  <rect x="724" y="426" width="140" height="32" rx="3" fill="url(#cmel)" opacity="0.82"/>
+  <text x="868" y="408" text-anchor="end" class="t2" font-size="8.5" fill="#fff">orig</text>
+  <text x="868" y="444" text-anchor="end" class="t2" font-size="8.5" fill="#fff">dub</text>
+
+  <!-- tagline -->
+  <text x="480" y="556" text-anchor="middle" font-size="17" fill="#334155">不要一个更聪明的分数 —— 要<tspan font-weight="700" fill="#4338ca">看得见的证据</tspan></text>
+</svg>

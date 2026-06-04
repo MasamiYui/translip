@@ -1,0 +1,86 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="qsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <linearGradient id="qmel" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fde725"/>
+      <stop offset="40%" stop-color="#35b779"/>
+      <stop offset="72%" stop-color="#31688e"/>
+      <stop offset="100%" stop-color="#440154"/>
+    </linearGradient>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#qsh);}
+      .nm{font-size:13px;font-weight:700;fill:#0f172a;}
+      .note{font-size:11px;fill:#64748b;}
+      .plot{fill:#fafbff;stroke:#eef2f7;stroke-width:1;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="420" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">三把仪器，各回答一个余弦分回答不了的问题</text>
+  <text x="32" y="66" class="s" font-size="13.5">绕开那个被压扁的标量，回到音频本身去测——空间、旋律、纹理，三角定位同一个"像不像"。</text>
+
+  <!-- Card 1: embedding scatter -->
+  <rect class="box" x="32" y="92" width="288" height="296" rx="14"/>
+  <rect x="32" y="92" width="6" height="296" rx="3" fill="#4f46e5"/>
+  <text x="56" y="122" class="nm">① embedding 散点</text>
+  <rect class="plot" x="56" y="136" width="240" height="150" rx="8"/>
+  <text x="290" y="280" text-anchor="end" class="note" font-size="9" fill="#94a3b8">PC1</text>
+  <text x="64" y="148" class="note" font-size="9" fill="#94a3b8">PC2</text>
+  <!-- cluster A indigo -->
+  <circle cx="110" cy="200" r="4" fill="#3b5bdb"/>
+  <circle cx="122" cy="210" r="4" fill="#3b5bdb"/>
+  <circle cx="104" cy="214" r="4" fill="#3b5bdb"/>
+  <circle cx="118" cy="196" r="4" fill="#3b5bdb"/>
+  <rect x="106" y="200" width="11" height="11" rx="2" transform="rotate(45 111.5 205.5)" fill="#fff" stroke="#3b5bdb" stroke-width="1.8"/>
+  <!-- cluster B emerald -->
+  <circle cx="232" cy="248" r="4" fill="#10b981"/>
+  <circle cx="244" cy="256" r="4" fill="#10b981"/>
+  <circle cx="226" cy="258" r="4" fill="#10b981"/>
+  <rect x="230" y="246" width="11" height="11" rx="2" transform="rotate(45 235.5 251.5)" fill="#fff" stroke="#10b981" stroke-width="1.8"/>
+  <!-- cluster C amber -->
+  <circle cx="200" cy="168" r="4" fill="#f59e0b"/>
+  <circle cx="212" cy="176" r="4" fill="#f59e0b"/>
+  <!-- stray dot -->
+  <circle cx="214" cy="240" r="4.6" fill="#3b5bdb"/>
+  <circle cx="214" cy="240" r="9" fill="none" stroke="#ef4444" stroke-width="1.6" stroke-dasharray="3 2"/>
+  <path d="M214,252 L206,272" stroke="#ef4444" stroke-width="1.3" fill="none"/>
+  <text x="204" y="284" text-anchor="middle" class="note" font-size="9.5" fill="#b91c1c">飘到别人那簇了</text>
+  <text x="56" y="334" font-size="12" font-weight="700" fill="#3730a3">这段，聚到对的人身上了吗？</text>
+  <text x="56" y="356" class="note">单个余弦只说"离参考多远"；</text>
+  <text x="56" y="372" class="note">散点说"它落到了谁的地盘"。</text>
+
+  <!-- Card 2: pitch contour -->
+  <rect class="box" x="336" y="92" width="288" height="296" rx="14"/>
+  <rect x="336" y="92" width="6" height="296" rx="3" fill="#0ea5e9"/>
+  <text x="360" y="122" class="nm">② 音高轮廓</text>
+  <rect x="510" y="106" width="100" height="22" rx="11" fill="#fffbeb" stroke="#fde68a"/>
+  <text x="560" y="121" text-anchor="middle" font-size="11" font-weight="700" fill="#b45309">+1.8 半音</text>
+  <rect class="plot" x="360" y="136" width="240" height="150" rx="8"/>
+  <line x1="360" y1="211" x2="600" y2="211" stroke="#e2e8f0" stroke-dasharray="3 3"/>
+  <path d="M372,238 C392,196 412,206 432,176 S470,168 492,196 C512,214 532,200 552,168 S582,178 590,176" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"/>
+  <path d="M372,246 C394,228 412,196 434,210 C456,224 472,200 492,206 C520,214 540,236 560,236 S585,236 590,236" fill="none" stroke="#3b5bdb" stroke-width="2.4" stroke-linecap="round"/>
+  <path d="M560,236 L582,254" stroke="#ef4444" stroke-width="1.3" fill="none"/>
+  <text x="582" y="266" text-anchor="end" class="note" font-size="9.5" fill="#b91c1c">句尾语调读平了</text>
+  <text x="360" y="334" font-size="12" font-weight="700" fill="#0369a1">跟上原片的语调了吗？</text>
+  <text x="360" y="356" class="note">音色可能对，但语调死、</text>
+  <text x="360" y="372" class="note">问句没扬——曲线一画就露馅。</text>
+
+  <!-- Card 3: mel spectrogram -->
+  <rect class="box" x="640" y="92" width="288" height="296" rx="14"/>
+  <rect x="640" y="92" width="6" height="296" rx="3" fill="#059669"/>
+  <text x="664" y="122" class="nm">③ 梅尔频谱</text>
+  <rect x="664" y="140" width="240" height="66" rx="6" fill="url(#qmel)"/>
+  <text x="676" y="156" font-size="10" font-weight="700" fill="#fff">原片</text>
+  <rect x="664" y="214" width="240" height="66" rx="6" fill="url(#qmel)"/>
+  <rect x="664" y="214" width="240" height="22" rx="6" fill="#0f172a" opacity="0.42"/>
+  <text x="676" y="230" font-size="10" font-weight="700" fill="#e2e8f0">配音</text>
+  <path d="M904,224 L924,214" stroke="#ef4444" stroke-width="1.3" fill="none"/>
+  <text x="900" y="206" text-anchor="end" class="note" font-size="9.5" fill="#b91c1c">高频糊了</text>
+  <text x="664" y="334" font-size="12" font-weight="700" fill="#047857">音质纹理像不像？</text>
+  <text x="664" y="356" class="note">共振峰、谐波、TTS 特有的</text>
+  <text x="664" y="372" class="note">"塑料感"——标量都概括不了。</text>
+</svg>
