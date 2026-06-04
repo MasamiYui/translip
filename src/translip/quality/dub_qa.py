@@ -173,6 +173,7 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
     # isolated original vocal sits next to stage1's background output
     # (background.<fmt> -> voice.<fmt>); the dub full track is task-e's output.
     original_voice_rel = _original_voice_rel(mix_report, root)
+    background_rel = _background_rel(mix_report, root)
     dub_voice_path = root / "task-e" / "voice" / f"dub_voice.{target_lang}.wav"
     dub_voice_rel = _rel_to_root(dub_voice_path, root) if dub_voice_path.exists() else None
 
@@ -193,6 +194,9 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
             # (paths relative to the task output root, streamable as artifacts).
             "original_voice": original_voice_rel,
             "dub_voice": dub_voice_rel,
+            # Pure background bed (stage1 accompaniment, no dialogue) so the UI
+            # can A/B the instrumental track against original/dub.
+            "background": background_rel,
         },
     }
     # Turn the per-segment defects into a prioritized remediation/optimization
@@ -708,6 +712,21 @@ def _original_voice_rel(mix_report: dict[str, Any], root: Path) -> str | None:
     if not voice_path.exists():
         return None
     return _rel_to_root(voice_path, root)
+
+
+def _background_rel(mix_report: dict[str, Any], root: Path) -> str | None:
+    """Resolve the stage1 pure-background (accompaniment, no dialogue) track.
+
+    Stage1 writes ``background.<fmt>`` next to the isolated vocal; the mix report
+    records that background path directly.
+    """
+    background = ((mix_report.get("input") or {}).get("background_path"))
+    if not background:
+        return None
+    background_path = Path(str(background))
+    if not background_path.exists():
+        return None
+    return _rel_to_root(background_path, root)
 
 
 def _rel_to_root(path_str: Any, root: Path) -> str | None:

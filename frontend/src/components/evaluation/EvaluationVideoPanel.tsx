@@ -10,7 +10,7 @@ import {
 import { useI18n } from '../../i18n/useI18n'
 import { cn } from '../../lib/utils'
 
-type Track = 'original' | 'dubbed'
+type Track = 'original' | 'dubbed' | 'background'
 
 const STORAGE_KEY = 'evaluation-video-panel:expanded'
 
@@ -32,8 +32,8 @@ function useIsVideoSrc(src: string): { ready: boolean; isVideo: boolean } {
   return { ready: isFetched, isVideo: data ?? true }
 }
 
-function relDubVoicePath(report: DubQaReport): string | null {
-  const value = report.input?.dub_voice
+function relInputPath(report: DubQaReport, key: string): string | null {
+  const value = report.input?.[key]
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
@@ -64,12 +64,13 @@ interface Props {
  * Intentionally NOT a full editor:
  *   - No clip-level editing, mixing, or timeline drag.
  *   - Plays the original video and lets the reviewer A/B between original
- *     audio and the rendered dub mix to triage problem segments.
+ *     audio, the rendered dub mix, and the pure background bed to triage
+ *     problem segments.
  *
- * Sync model: the <video> is the time master; when the dub track is
- * selected, the video is muted and a hidden <audio> plays the dub mix,
- * kept aligned to video.currentTime via the standard play/pause/seek
- * events plus a low-frequency drift correction.
+ * Sync model: the <video> is the time master; when a non-original track is
+ * selected, the video is muted and a hidden <audio> plays that track (dub
+ * mix or background bed), kept aligned to video.currentTime via the standard
+ * play/pause/seek events plus a low-frequency drift correction.
  */
 export function EvaluationVideoPanel({
   taskId,
@@ -83,8 +84,10 @@ export function EvaluationVideoPanel({
   const tx = t.evaluation.videoPanel
 
   const inputSrc = useMemo(() => taskInputFileUrl(taskId), [taskId])
-  const dubRelPath = relDubVoicePath(report)
+  const dubRelPath = relInputPath(report, 'dub_voice')
   const dubSrc = dubRelPath ? taskArtifactUrl(taskId, dubRelPath) : null
+  const bgRelPath = relInputPath(report, 'background')
+  const bgSrc = bgRelPath ? taskArtifactUrl(taskId, bgRelPath) : null
 
   const { ready: kindReady, isVideo } = useIsVideoSrc(inputSrc)
 
@@ -110,7 +113,10 @@ export function EvaluationVideoPanel({
   const [duration, setDuration] = useState(0)
 
   const videoRef = useRef<HTMLVideoElement>(null)
-  const dubAudioRef = useRef<HTMLAudioElement>(null)
+  const extraAudioRef = useRef<HTMLAudioElement>(null)
+
+  // The audio source for the active non-original track (null on 'original').
+  const extraSrc = track === 'dubbed' ? dubSrc : track === 'background' ? bgSrc : null
 
   const problemSegments = useMemo(
     () => segments.filter(s => s.issue_tags.length > 0 && typeof s.start === 'number'),
@@ -132,9 +138,9 @@ export function EvaluationVideoPanel({
   }, [expanded, selected])
 
   useEffect(() => {
-    if (track !== 'dubbed') return
+    if (track === 'original') return
     const v = videoRef.current
-    const a = dubAudioRef.current
+    const a = extraAudioRef.current
     if (!v || !a) return
 
     const syncPlay = () => {
@@ -155,6 +161,14 @@ export function EvaluationVideoPanel({
     v.addEventListener('pause', syncPause)
     v.addEventListener('seeked', syncSeek)
     v.addEventListener('ratechange', syncRate)
+
+    // If switching tracks mid-playback, start the new audio immediately rather
+    // than waiting for the next play event (the video is muted in this mode).
+    a.playbackRate = v.playbackRate
+    if (!v.paused) {
+      a.currentTime = v.currentTime
+      void a.play().catch(() => undefined)
+    }
 
     const driftId = window.setInterval(() => {
       if (v.paused) return
@@ -235,15 +249,15 @@ export function EvaluationVideoPanel({
           controls
           playsInline
           preload="metadata"
-          muted={track === 'dubbed'}
+          muted={track !== 'original'}
           className="aspect-video w-full rounded-lg bg-black"
           onTimeUpdate={onTimeUpdate}
           onLoadedMetadata={onLoadedMetadata}
         />
-        {dubSrc && (
+        {extraSrc && (
           <audio
-            ref={dubAudioRef}
-            src={dubSrc}
+            ref={extraAudioRef}
+            src={extraSrc}
             preload="metadata"
             className="hidden"
           />
@@ -276,6 +290,13 @@ export function EvaluationVideoPanel({
               title={!dubSrc ? tx.noDubbed : undefined}
               onClick={() => dubSrc && setTrack('dubbed')}
               label={tx.trackDubbed}
+            />
+            <TrackTab
+              active={track === 'background'}
+              disabled={!bgSrc}
+              title={!bgSrc ? tx.noBackground : undefined}
+              onClick={() => bgSrc && setTrack('background')}
+              label={tx.trackBackground}
             />
           </div>
         </div>
