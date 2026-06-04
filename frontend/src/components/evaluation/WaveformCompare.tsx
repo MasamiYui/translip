@@ -138,6 +138,126 @@ function Lane({
   )
 }
 
+const TIMBRE_LANE_HEIGHT = 22
+
+type TimbreBucket = 'good' | 'review' | 'bad' | 'unknown'
+
+function timbreBucket(score: number | null | undefined): TimbreBucket {
+  if (typeof score !== 'number' || Number.isNaN(score)) return 'unknown'
+  if (score >= 0.45) return 'good'
+  if (score >= 0.25) return 'review'
+  return 'bad'
+}
+
+/** Maps a [-1, 1] cosine score into a continuous green→amber→red fill. */
+function timbreFill(score: number | null | undefined): string {
+  const bucket = timbreBucket(score)
+  if (bucket === 'unknown') return '#e5e7eb'
+  // Clamp similarity into the visually meaningful range [0, 0.7].
+  const s = Math.max(0, Math.min(0.7, score as number))
+  // Hue: 0 (red) at s=0 → 50 (amber) at 0.25 → 140 (green) at 0.45+.
+  const hue = s < 0.25 ? (s / 0.25) * 50 : 50 + ((Math.min(s, 0.45) - 0.25) / 0.2) * 90
+  const sat = bucket === 'review' ? 75 : 70
+  const light = bucket === 'good' ? 45 : bucket === 'review' ? 55 : 58
+  return `hsl(${hue.toFixed(0)} ${sat}% ${light}%)`
+}
+
+/**
+ * Visualizes per-segment timbre similarity (cosine of ECAPA-TDNN speaker
+ * embeddings) along the same time axis as the waveforms. Green = match,
+ * amber = needs review, red = mismatch, grey = no data.
+ */
+function TimbreLane({
+  label,
+  segments,
+  viewStart,
+  viewEnd,
+  selectedId,
+  emptyLabel,
+}: {
+  label: string
+  segments: DubQaSegment[]
+  viewStart: number
+  viewEnd: number
+  selectedId?: string | null
+  emptyLabel: string
+}) {
+  const visibleDur = viewEnd - viewStart
+  const ranged = segments.filter(
+    s => typeof s.start === 'number' && typeof s.end === 'number' && (s.end as number) > (s.start as number),
+  )
+  const hasAny = ranged.some(s => typeof s.speaker_similarity === 'number')
+  return (
+    <div className="flex items-stretch gap-2">
+      <div className="flex w-16 shrink-0 items-center text-[11px] font-medium text-[#6b7280]">{label}</div>
+      <div
+        className="relative flex-1 overflow-hidden rounded-md bg-[#f8fafc]"
+        style={{ height: TIMBRE_LANE_HEIGHT }}
+      >
+        {!hasAny || visibleDur <= 0 ? (
+          <div className="flex h-full items-center justify-center text-[10px] text-[#cbd5e1]">{emptyLabel}</div>
+        ) : (
+          ranged.map(seg => {
+            const left = (((seg.start as number) - viewStart) / visibleDur) * 100
+            const width = (((seg.end as number) - (seg.start as number)) / visibleDur) * 100
+            if (left + width < 0 || left > 100) return null
+            const active = seg.segment_id === selectedId
+            const score = seg.speaker_similarity
+            const fill = timbreFill(score)
+            const tip =
+              typeof score === 'number'
+                ? `${score.toFixed(2)} · ${timbreBucket(score)}`
+                : timbreBucket(score)
+            return (
+              <div
+                key={seg.segment_id}
+                title={tip}
+                className={cn(
+                  'absolute top-0 h-full',
+                  active ? 'ring-1 ring-[#3b5bdb] ring-inset' : undefined,
+                )}
+                style={{
+                  left: `${left}%`,
+                  width: `${Math.max(width, 0.4)}%`,
+                  background: fill,
+                  opacity: active ? 1 : 0.85,
+                }}
+              />
+            )
+          })
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TimbreLegend({
+  labels,
+}: {
+  labels: { good: string; review: string; bad: string; unknown: string }
+}) {
+  const items: Array<{ key: TimbreBucket; label: string; color: string }> = [
+    { key: 'good', label: labels.good, color: timbreFill(0.6) },
+    { key: 'review', label: labels.review, color: timbreFill(0.35) },
+    { key: 'bad', label: labels.bad, color: timbreFill(0.1) },
+    { key: 'unknown', label: labels.unknown, color: '#e5e7eb' },
+  ]
+  return (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[#6b7280]">
+      {items.map(item => (
+        <span key={item.key} className="inline-flex items-center gap-1">
+          <span
+            className="inline-block h-2.5 w-2.5 rounded-sm"
+            style={{ background: item.color }}
+            aria-hidden="true"
+          />
+          {item.label}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 /** Time-axis ruler aligned with the lanes (shares the same left gutter + plot width). */
 function Ruler({ view }: { view: View }) {
   const dur = view.end - view.start
@@ -368,61 +488,86 @@ export function WaveformCompare({
 
       {state === 'ready' && (
         <div className="relative">
-          <Ruler view={view} />
-          <div className="mt-1 flex flex-col gap-2">
-            <Lane
-              label={tc.originalTrack}
-              track={tracks.original}
-              viewStart={view.start}
-              viewEnd={view.end}
-              color="#94a3b8"
-              emptyLabel={tc.decodeError}
-            />
-            <Lane
-              label={tc.dubTrack}
-              track={tracks.dub}
-              viewStart={view.start}
-              viewEnd={view.end}
-              color="#6366f1"
-              emptyLabel={tc.decodeError}
-            />
+          <div className="relative">
+            <Ruler view={view} />
+            <div className="mt-1 flex flex-col gap-2">
+              <Lane
+                label={tc.originalTrack}
+                track={tracks.original}
+                viewStart={view.start}
+                viewEnd={view.end}
+                color="#94a3b8"
+                emptyLabel={tc.decodeError}
+              />
+              <Lane
+                label={tc.dubTrack}
+                track={tracks.dub}
+                viewStart={view.start}
+                viewEnd={view.end}
+                color="#6366f1"
+                emptyLabel={tc.decodeError}
+              />
+            </div>
+
+            {/* Interaction + clickable per-segment bands over the plot (clears the label gutter). */}
+            <div
+              ref={overlayRef}
+              onPointerDown={onPointerDown}
+              onPointerMove={onPointerMove}
+              onPointerUp={onPointerUp}
+              onPointerCancel={onPointerUp}
+              className={cn(
+                'absolute top-0 bottom-0 right-0 touch-none select-none',
+                isZoomed ? (grabbing ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-pointer',
+              )}
+              style={{ left: GUTTER }}
+            >
+              <div className="pointer-events-none absolute inset-x-0" style={{ top: RULER_HEIGHT, bottom: 0 }}>
+                {markerSegments.map(seg => {
+                  const left = ((seg.start! - view.start) / visibleDur) * 100
+                  const width = ((seg.end! - seg.start!) / visibleDur) * 100
+                  if (left + width < 0 || left > 100) return null
+                  const active = seg.segment_id === selectedId
+                  const undubbed = seg.issue_tags.includes('undubbed')
+                  return (
+                    <div
+                      key={seg.segment_id}
+                      className={cn(
+                        'absolute top-0 h-full border-l',
+                        active
+                          ? 'border-[#3b5bdb] bg-[#3b5bdb]/10'
+                          : undubbed
+                            ? 'border-red-200 bg-red-400/5'
+                            : 'border-transparent',
+                      )}
+                      style={{ left: `${left}%`, width: `${Math.max(width, 0.4)}%` }}
+                    />
+                  )
+                })}
+              </div>
+            </div>
           </div>
 
-          {/* Interaction + clickable per-segment bands over the plot (clears the label gutter). */}
-          <div
-            ref={overlayRef}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={onPointerUp}
-            onPointerCancel={onPointerUp}
-            className={cn(
-              'absolute top-0 bottom-0 right-0 touch-none select-none',
-              isZoomed ? (grabbing ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-pointer',
-            )}
-            style={{ left: GUTTER }}
-          >
-            <div className="pointer-events-none absolute inset-x-0" style={{ top: RULER_HEIGHT, bottom: 0 }}>
-              {markerSegments.map(seg => {
-                const left = ((seg.start! - view.start) / visibleDur) * 100
-                const width = ((seg.end! - seg.start!) / visibleDur) * 100
-                if (left + width < 0 || left > 100) return null
-                const active = seg.segment_id === selectedId
-                const undubbed = seg.issue_tags.includes('undubbed')
-                return (
-                  <div
-                    key={seg.segment_id}
-                    className={cn(
-                      'absolute top-0 h-full border-l',
-                      active
-                        ? 'border-[#3b5bdb] bg-[#3b5bdb]/10'
-                        : undubbed
-                          ? 'border-red-200 bg-red-400/5'
-                          : 'border-transparent',
-                    )}
-                    style={{ left: `${left}%`, width: `${Math.max(width, 0.4)}%` }}
-                  />
-                )
-              })}
+          {/* Per-segment timbre similarity heat-bar (sits below the waveforms,
+              outside the wave overlay so its tooltips remain hoverable). */}
+          <div className="mt-2">
+            <TimbreLane
+              label={tc.timbreTrack}
+              segments={markerSegments}
+              viewStart={view.start}
+              viewEnd={view.end}
+              selectedId={selectedId}
+              emptyLabel={tc.decodeError}
+            />
+            <div className="mt-1.5 flex justify-end pl-18">
+              <TimbreLegend
+                labels={{
+                  good: tc.timbreLegendGood,
+                  review: tc.timbreLegendReview,
+                  bad: tc.timbreLegendBad,
+                  unknown: tc.timbreLegendUnknown,
+                }}
+              />
             </div>
           </div>
         </div>

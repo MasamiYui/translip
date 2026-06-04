@@ -66,6 +66,7 @@ export interface DubQaSegment {
   target_text: string
   backread_text: string
   dub_audio_path?: string | null
+  reference_audio_path?: string | null
   placed: boolean
   mix_status?: string | null
   fit_strategy?: string | null
@@ -93,6 +94,21 @@ export interface DubQaSegment {
   judge_reason?: string | null
   issue_tags: IssueTag[]
   severity: SegmentSeverity
+  /** Optional ECAPA-TDNN speaker embedding (192-dim) for the dub clip; populated by dub_embeddings.enrich_report_with_embeddings. */
+  speaker_embedding?: number[] | null
+  embedding_dim?: number | null
+  /** Optional F0 contour pair (segment-relative seconds, hz with null = unvoiced); populated by dub_pitch.enrich_report_with_pitch. */
+  pitch_contour?: {
+    original: { times: number[]; hz: (number | null)[] }
+    dub: { times: number[]; hz: (number | null)[] }
+  } | null
+  pitch_error?: string | null
+  /** Optional mel-spectrogram pair, uint8 quantized (0..255 maps linearly to mel_meta.db_min..db_max). */
+  mel_spectrogram?: {
+    original: { data: number[][]; n_frames: number; duration_sec: number } | null
+    dub: { data: number[][]; n_frames: number; duration_sec: number } | null
+  } | null
+  mel_error?: string | null
 }
 
 export interface DubQaSummary {
@@ -225,6 +241,47 @@ export interface DubQaReport {
   segments: DubQaSegment[]
   remediation?: RemediationPlan | null
   input: Record<string, string | null>
+  /** Per-speaker reference embedding (centroid of the speaker's reference clip); populated alongside segments. */
+  reference_embeddings?: Record<string, number[]> | null
+  embedding_meta?: {
+    status: string
+    embedding_dim?: number | null
+    enriched_count?: number
+    skipped_count?: number
+    reference_count?: number
+    device?: string
+    model?: string
+    reason?: string
+  } | null
+  /** Backend-computed F0 extraction metadata; status === "ok" means at least one segment carries pitch_contour. */
+  pitch_meta?: {
+    status: string
+    fmin_hz?: number
+    fmax_hz?: number
+    hop_length?: number
+    frame_length?: number
+    max_points_per_segment?: number
+    enriched_count?: number
+    skipped_count?: number
+    elapsed_sec?: number
+    reason?: string
+    original_error?: string
+  } | null
+  /** Backend-computed mel-spectrogram metadata; status === "ok" means at least one segment carries mel_spectrogram. */
+  mel_meta?: {
+    status: string
+    n_mels?: number
+    db_min?: number
+    db_max?: number
+    fmin_hz?: number
+    fmax_hz?: number
+    max_frames_per_segment?: number
+    enriched_count?: number
+    skipped_count?: number
+    elapsed_sec?: number
+    reason?: string
+    original_error?: string
+  } | null
 }
 
 export const ISSUE_TAGS: IssueTag[] = [

@@ -202,6 +202,33 @@ def build_dub_qa(request: DubQaRequest) -> DubQaResult:
     report["remediation"] = remediation
     remediation_path = output_dir / f"remediation_plan.{target_lang}.json"
     _write_json(remediation_path, remediation)
+    # Best-effort: enrich the report with raw ECAPA speaker embeddings so the
+    # UI can render an embedding scatter (PCA projection). Failures are
+    # silently noted via report["embedding_meta"] without breaking dub-qa.
+    try:
+        from .dub_embeddings import enrich_report_with_embeddings
+
+        enrich_report_with_embeddings(report, pipeline_root=root)
+    except Exception as exc:  # pragma: no cover - never fail the report write
+        report["embedding_meta"] = {"status": "error", "reason": str(exc)}
+    # Best-effort: extract per-segment F0 (pitch) contours via librosa.pyin so
+    # the UI can render an original-vs-dub melody comparison. Same defensive
+    # handling as the embedding enrichment above.
+    try:
+        from .dub_pitch import enrich_report_with_pitch
+
+        enrich_report_with_pitch(report, pipeline_root=root)
+    except Exception as exc:  # pragma: no cover - never fail the report write
+        report["pitch_meta"] = {"status": "error", "reason": str(exc)}
+    # Best-effort: extract per-segment mel spectrograms (uint8 quantized) so the UI
+    # can render side-by-side spectrogram heatmaps for an acoustic texture sanity
+    # check. Same defensive handling as the pitch enrichment above.
+    try:
+        from .dub_mel import enrich_report_with_mel
+
+        enrich_report_with_mel(report, pipeline_root=root)
+    except Exception as exc:  # pragma: no cover - never fail the report write
+        report["mel_meta"] = {"status": "error", "reason": str(exc)}
     _write_json(report_path, report)
     markdown_path.write_text(_markdown_report(report), encoding="utf-8")
 
@@ -383,6 +410,7 @@ def _build_row(
         "target_text": target_text,
         "backread_text": backread_text,
         "dub_audio_path": _rel_to_root(item.get("audio_path"), pipeline_root),
+        "reference_audio_path": _rel_to_root(item.get("reference_path"), pipeline_root),
         "placed": placed,
         "mix_status": item.get("mix_status"),
         "fit_strategy": item.get("fit_strategy"),

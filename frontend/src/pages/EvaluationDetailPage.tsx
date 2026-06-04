@@ -19,6 +19,10 @@ import {
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { RemediationPanel } from '../components/evaluation/RemediationPanel'
 import { SegmentTimingBar } from '../components/evaluation/SegmentTimingBar'
+import { SpeakerRadar } from '../components/evaluation/SpeakerRadar'
+import { EmbeddingScatter } from '../components/evaluation/EmbeddingScatter'
+import { PitchContourCompare } from '../components/evaluation/PitchContourCompare'
+import { MelSpectrogramCompare } from '../components/evaluation/MelSpectrogramCompare'
 import { WaveformCompare } from '../components/evaluation/WaveformCompare'
 import { useI18n } from '../i18n/useI18n'
 import { cn } from '../lib/utils'
@@ -213,6 +217,50 @@ export function EvaluationDetailPage() {
               onSelectSegment={setSelected}
             />
           </div>
+
+          {/* Per-speaker 5-axis radar (timbre / intelligibility / pacing / issue-free / coverage) */}
+          <div className="mt-5">
+            <SpeakerRadar segments={report.segments} />
+          </div>
+
+          {/* PCA scatter of per-segment ECAPA-TDNN speaker embeddings; renders only when the
+              report carries `speaker_embedding` data (newer dub-qa runs / backfilled reports). */}
+          {report.embedding_meta?.status === 'ok' &&
+            report.segments.some(s => Array.isArray(s.speaker_embedding) && s.speaker_embedding.length > 0) ? (
+            <div className="mt-5">
+              <EmbeddingScatter
+                report={report}
+                selectedId={selected?.segment_id ?? null}
+                onSelectSegment={setSelected}
+              />
+            </div>
+          ) : null}
+
+          {/* Per-segment F0 contour comparison (original-vs-dub melody). Renders only when the
+              report carries pitch_contour data (newer dub-qa runs / backfilled via dub_pitch CLI). */}
+          {report.pitch_meta?.status === 'ok' &&
+            report.segments.some(s => s.pitch_contour) ? (
+            <div className="mt-5">
+              <PitchContourCompare
+                report={report}
+                selectedId={selected?.segment_id ?? null}
+                onSelectSegment={setSelected}
+              />
+            </div>
+          ) : null}
+
+          {/* Per-segment mel-spectrogram heatmap comparison (original vs dub acoustic texture).
+              Renders only when the report carries mel_spectrogram data. */}
+          {report.mel_meta?.status === 'ok' &&
+            report.segments.some(s => s.mel_spectrogram) ? (
+            <div className="mt-5">
+              <MelSpectrogramCompare
+                report={report}
+                selectedId={selected?.segment_id ?? null}
+                onSelectSegment={setSelected}
+              />
+            </div>
+          ) : null}
 
           {/* Issue filter chips */}
           <div id="eval-segment-table" className="mb-3 mt-5 flex flex-wrap items-center gap-2">
