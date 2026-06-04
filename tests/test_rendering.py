@@ -1376,8 +1376,11 @@ def test_render_dub_compresses_small_overruns_to_preserve_adjacent_segments(tmp_
 
     assert mix_report["stats"]["placed_count"] == 2
     assert mix_report["stats"]["skipped_count"] == 0
+    # seg-0001 still compresses so it does not overrun the adjacent seg-0002.
     assert item_by_id["seg-0001"]["fit_strategy"] == "compress"
-    assert item_by_id["seg-0002"]["fit_strategy"] == "compress"
+    # seg-0002 is the final line: gap-aware fitting lets its small overrun spill
+    # into the trailing room instead of being needlessly time-compressed.
+    assert item_by_id["seg-0002"]["fit_strategy"] == "direct"
     assert item_by_id["seg-0001"]["mix_status"] == "placed"
     assert item_by_id["seg-0002"]["mix_status"] == "placed"
 
@@ -1506,7 +1509,11 @@ def test_render_dub_compresses_short_risky_overrun_instead_of_dropping_next_segm
 
     assert mix_report["stats"]["placed_count"] == 2
     assert mix_report["stats"]["skipped_count"] == 0
+    # seg-0010 still compresses its risky overrun so it does not drop/overrun
+    # the following seg-0011 (the point of this test).
     assert item_by_id["seg-0010"]["fit_strategy"] == "compress"
-    assert item_by_id["seg-0011"]["fit_strategy"] == "compress"
+    # seg-0011 is the final line with trailing room, so it now plays untouched
+    # rather than being compressed against its bare source slot.
+    assert item_by_id["seg-0011"]["fit_strategy"] == "direct"
     assert item_by_id["seg-0010"]["mix_status"] == "placed"
     assert item_by_id["seg-0011"]["mix_status"] == "placed"

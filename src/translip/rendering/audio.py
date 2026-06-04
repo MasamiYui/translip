@@ -23,13 +23,100 @@ def read_audio_mono(audio_path: Path) -> tuple[np.ndarray, int]:
 
 
 def resample_linear(waveform: np.ndarray, original_rate: int, target_rate: int) -> np.ndarray:
+    """Resample a mono waveform.
+
+    Despite the historical name, this prefers a high-quality polyphase/sinc
+    resampler (soxr) and only falls back to linear interpolation if soxr is
+    unavailable. Linear interpolation has poor stopband rejection and audibly
+    aliases every clip and the background bed, so it is a last resort.
+    """
     if waveform.size == 0 or original_rate == target_rate:
         return waveform.astype(np.float32)
-    duration_sec = waveform.size / float(original_rate)
-    target_size = max(1, int(round(duration_sec * target_rate)))
-    source_index = np.linspace(0.0, waveform.size - 1, num=waveform.size, dtype=np.float32)
-    target_index = np.linspace(0.0, waveform.size - 1, num=target_size, dtype=np.float32)
-    return np.interp(target_index, source_index, waveform).astype(np.float32)
+    try:
+        import soxr
+
+        return np.asarray(
+            soxr.resample(waveform.astype(np.float32), original_rate, target_rate, quality="VHQ"),
+            dtype=np.float32,
+        )
+    except Exception:
+        duration_sec = waveform.size / float(original_rate)
+        target_size = max(1, int(round(duration_sec * target_rate)))
+        source_index = np.linspace(0.0, waveform.size - 1, num=waveform.size, dtype=np.float32)
+        target_index = np.linspace(0.0, waveform.size - 1, num=target_size, dtype=np.float32)
+        return np.interp(target_index, source_index, waveform).astype(np.float32)
+
+
+def normalize_clip(
+    waveform: np.ndarray,
+    *,
+    target_rms_dbfs: float = -20.0,
+    min_gain_db: float = -6.0,
+    max_gain_db: float = 12.0,
+    gate_dbfs: float = -45.0,
+    peak_ceiling: float = 0.97,
+) -> np.ndarray:
+    """Even out a single dubbed clip's loudness.
+
+    TTS clips drift several dB segment-to-segment, so the dubbed voice wanders.
+    This brings each clip toward a common RMS target (clamped, with a noise gate
+    so near-silent/failed clips are left alone, and a peak ceiling so we never
+    clip). Per-clip consistency is something a global loudnorm cannot fix.
+    """
+    if waveform.size == 0:
+        return waveform.astype(np.float32)
+    wave = waveform.astype(np.float32)
+    peak = float(np.max(np.abs(wave)))
+    if peak <= 1e-4:  # silent / failed clip — do not amplify noise
+        return wave
+    rms = float(np.sqrt(np.mean(np.square(wave, dtype=np.float64))))
+    if rms <= 1e-6:
+        return wave
+    rms_dbfs = 20.0 * np.log10(rms)
+    if rms_dbfs < gate_dbfs:  # mostly silence
+        return wave
+    gain_db = float(np.clip(target_rms_dbfs - rms_dbfs, min_gain_db, max_gain_db))
+    gain = 10 ** (gain_db / 20.0)
+    if peak * gain > peak_ceiling:
+        gain = peak_ceiling / peak
+    return (wave * gain).astype(np.float32)
+
+
+def loudnorm_file(
+    input_path: Path,
+    output_path: Path,
+    *,
+    output_sample_rate: int,
+    integrated_lufs: float = -16.0,
+    true_peak_db: float = -1.5,
+    loudness_range: float = 11.0,
+) -> Path:
+    """Run a single-pass EBU R128 loudness normalization + true-peak limiter.
+
+    Gives the delivered mix a consistent integrated loudness instead of whatever
+    the raw sum happened to be. Single-pass is approximate but far better than no
+    normalization, and the alimiter guarantees we stay under true peak.
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    chain = (
+        f"loudnorm=I={integrated_lufs}:LRA={loudness_range}:TP={true_peak_db},"
+        "alimiter=limit=0.97"
+    )
+    run_ffmpeg(
+        [
+            "-y",
+            "-i",
+            str(input_path),
+            "-af",
+            chain,
+            "-ar",
+            str(output_sample_rate),
+            "-c:a",
+            "pcm_s16le",
+            str(output_path),
+        ]
+    )
+    return output_path
 
 
 def prepare_audio_for_mix(audio_path: Path, *, target_sample_rate: int) -> np.ndarray:

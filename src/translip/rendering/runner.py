@@ -19,6 +19,8 @@ from .audio import (
     build_sidechain_preview_mix,
     compress_audio,
     db_to_gain,
+    loudnorm_file,
+    normalize_clip,
     peak_limit,
     prepare_audio_for_mix,
     write_wav,
@@ -34,6 +36,12 @@ from .export import (
 logger = logging.getLogger(__name__)
 OVERLAP_TOLERANCE_SEC = 0.05
 OVERFLOW_MAX_SPILL_RATIO = 1.3
+# Gap-aware fitting: a dubbed line may run past its own (short) source slot into
+# the natural pause before the next line instead of being time-compressed. This
+# is the single biggest lever against chipmunk speed-up + tail truncation,
+# because most over-long translations fit comfortably in the following silence.
+PLACEMENT_SAFETY_MARGIN_SEC = 0.08  # leave a small gap before the next line
+LAST_SEGMENT_TRAILING_ROOM_SEC = 1.5  # room the final line may use past its slot
 SHORT_SEGMENT_COMPRESS_MAX_SOURCE_SEC = 1.5
 SHORT_SEGMENT_COMPRESS_MAX_OVERFLOW_SEC = 0.75
 SHORT_SEGMENT_COMPRESS_MAX_RATIO = 1.75
@@ -52,7 +60,17 @@ SOURCE_VOICE_ACTIVITY_HOP_SEC = 0.02
 SOURCE_VOICE_ACTIVITY_PAD_SEC = 1.0
 SOURCE_VOICE_ACTIVITY_MIN_RMS = 0.003
 SOURCE_VOICE_ACTIVITY_THRESHOLD_RATIO = 0.05
-SOURCE_VOICE_RESIDUAL_DUCK_DB = -80.0
+# Residual original-dialogue suppression. A binary -80 dB mute kills the music
+# bed (not just leftover dialogue) under every line and snaps it back -> audible
+# pumping / the score vanishing whenever anyone talks. A moderate duck keeps the
+# bed present while pushing residual dialogue well below the dub.
+SOURCE_VOICE_RESIDUAL_DUCK_DB = -18.0
+# Zero-phase smoothing time-constant (seconds) for the ducking envelope, so the
+# background ramps down/up instead of stepping rectangularly at every boundary
+# (the rectangular steps are what produce audible "breathing"/pumping).
+DUCK_SMOOTH_SEC = 0.08
+# Even out per-clip dubbed-voice loudness before mixing.
+DUB_CLIP_TARGET_RMS_DBFS = -20.0
 
 
 @dataclass(slots=True)
@@ -89,6 +107,9 @@ class TimelineItem:
     subtitle_end: float | None = None
     subtitle_coverage_ratio: float | None = None
     dubbing_window_policy: str | None = None
+    available_duration_sec: float | None = None
+    applied_tempo: float | None = None
+    trimmed_tail_sec: float = 0.0
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -102,6 +123,9 @@ class TimelineItem:
             "source_duration_sec": round(self.source_duration_sec, 3),
             "generated_duration_sec": round(self.generated_duration_sec, 3),
             "fitted_duration_sec": round(self.fitted_duration_sec, 3) if self.fitted_duration_sec is not None else None,
+            "available_duration_sec": round(self.available_duration_sec, 3) if self.available_duration_sec is not None else None,
+            "applied_tempo": round(self.applied_tempo, 4) if self.applied_tempo is not None else None,
+            "trimmed_tail_sec": round(self.trimmed_tail_sec, 3),
             "fit_strategy": self.fit_strategy,
             "placement_start": round(self.placement_start, 3) if self.placement_start is not None else None,
             "placement_end": round(self.placement_end, 3) if self.placement_end is not None else None,
@@ -192,6 +216,7 @@ def render_dub(request: RenderDubRequest) -> RenderDubResult:
             request=normalized_request,
             items=candidates,
             work_dir=work_dir,
+            total_duration_sec=total_duration_sec,
         )
         skipped_items.extend(skipped_fit)
         placed_items, skipped_overlap = _resolve_overlaps(planned_items)
@@ -522,26 +547,50 @@ def _apply_selected_override(*, row: dict[str, Any], selected: dict[str, Any] | 
     }
 
 
+def _assign_available_durations(items: list[TimelineItem], *, total_duration_sec: float) -> None:
+    """Compute each line's available time = its own slot plus the natural pause
+    before the next line (minus a small safety margin). Over-long dubs spill into
+    this pause before any time-compression is considered — the single biggest
+    lever against chipmunk speed-up and tail truncation."""
+    ordered = sorted(items, key=lambda it: (it.anchor_start, it.anchor_end))
+    for idx, item in enumerate(ordered):
+        if idx + 1 < len(ordered):
+            next_start = ordered[idx + 1].anchor_start
+        else:
+            next_start = item.anchor_end + LAST_SEGMENT_TRAILING_ROOM_SEC
+        if total_duration_sec > 0:
+            next_start = min(next_start, total_duration_sec)
+        span = next_start - item.anchor_start - PLACEMENT_SAFETY_MARGIN_SEC
+        item.available_duration_sec = max(item.source_duration_sec, span)
+
+
 def _apply_fit_strategy(
     *,
     request: RenderDubRequest,
     items: list[TimelineItem],
     work_dir: Path,
+    total_duration_sec: float,
 ) -> tuple[list[TimelineItem], list[TimelineItem]]:
     planned: list[TimelineItem] = []
     skipped: list[TimelineItem] = []
     fit_dir = ensure_directory(work_dir / "fit")
 
+    _assign_available_durations(items, total_duration_sec=total_duration_sec)
+
     for item in items:
         strategy = _fit_strategy_for_item(item=item, request=request)
         item.fit_strategy = strategy
+        available = item.available_duration_sec or item.source_duration_sec
         if strategy == "invalid_duration":
             item.mix_status = "skipped_fit"
             item.notes.append("fit_strategy_invalid_duration")
             skipped.append(item)
             continue
         if strategy == "compress":
-            tempo = max(item.generated_duration_sec / max(item.source_duration_sec, 1e-6), 1.0)
+            # Compress only enough to fit the available time (slot + pause), not
+            # the bare source slot — far gentler than the old source-only fit.
+            tempo = max(item.generated_duration_sec / max(available, 1e-6), 1.0)
+            item.applied_tempo = tempo
             fitted_path = compress_audio(
                 input_path=item.audio_path,
                 output_path=fit_dir / f"{item.segment_id}.wav",
@@ -551,6 +600,7 @@ def _apply_fit_strategy(
             )
         elif strategy == "overflow_unfitted":
             tempo = request.max_compress_ratio
+            item.applied_tempo = tempo
             fitted_path = compress_audio(
                 input_path=item.audio_path,
                 output_path=fit_dir / f"{item.segment_id}.wav",
@@ -558,15 +608,17 @@ def _apply_fit_strategy(
                 backend=request.fit_backend,
                 output_sample_rate=request.output_sample_rate,
             )
-            max_dur = item.source_duration_sec * OVERFLOW_MAX_SPILL_RATIO
+            max_dur = available
             actual_dur = audio_duration_sec(fitted_path)
-            if actual_dur > max_dur:
+            if actual_dur > max_dur + 1e-3:
+                item.trimmed_tail_sec = max(0.0, actual_dur - max_dur)
                 _trim_audio_inplace(fitted_path, max_dur, request.output_sample_rate)
                 item.notes.append("overflow_trimmed")
             else:
                 item.notes.append("overflow_compressed")
         elif strategy == "stretch":
             tempo = item.generated_duration_sec / max(item.source_duration_sec, 1e-6)
+            item.applied_tempo = tempo
             fitted_path = compress_audio(
                 input_path=item.audio_path,
                 output_path=fit_dir / f"{item.segment_id}.wav",
@@ -576,6 +628,7 @@ def _apply_fit_strategy(
             )
             item.notes.append("underflow_stretched")
         else:
+            item.applied_tempo = 1.0
             fitted_path = compress_audio(
                 input_path=item.audio_path,
                 output_path=fit_dir / f"{item.segment_id}.wav",
@@ -597,28 +650,35 @@ def _apply_fit_strategy(
 def _fit_strategy_for_item(*, item: TimelineItem, request: RenderDubRequest) -> str:
     if item.source_duration_sec <= 0 or item.generated_duration_sec <= 0:
         return "invalid_duration"
-    ratio = item.generated_duration_sec / item.source_duration_sec
-    overflow_sec = item.generated_duration_sec - item.source_duration_sec
-    direct_upper = 1.0 if request.fit_policy == "conservative" else 1.05
+    source = item.source_duration_sec
+    gen = item.generated_duration_sec
+    available = item.available_duration_sec or source
+    ratio = gen / source  # vs the original speech slot (underflow handling)
     pad_lower = 0.60 if request.fit_policy == "conservative" else 0.55
-    if 0.85 <= ratio <= direct_upper:
+
+    # Underflow: the dub is materially shorter than the original speech.
+    if ratio < pad_lower:
+        if _should_stretch_underflow(item=item, ratio=ratio):
+            return "stretch"
+        return "underflow_unfitted"
+    if ratio < 0.85:
+        return "pad"
+
+    # gen >= 0.85*source: decide compression against the AVAILABLE time (slot +
+    # following pause) so lines that fit in the natural gap play untouched.
+    if gen <= available + 1e-3:
         return "direct"
-    if direct_upper < ratio <= request.max_compress_ratio:
+    tempo_needed = gen / available
+    if tempo_needed <= request.max_compress_ratio:
         return "compress"
     if (
         request.fit_policy == "conservative"
-        and item.source_duration_sec <= SHORT_SEGMENT_COMPRESS_MAX_SOURCE_SEC
-        and 0.0 < overflow_sec <= SHORT_SEGMENT_COMPRESS_MAX_OVERFLOW_SEC
-        and ratio <= SHORT_SEGMENT_COMPRESS_MAX_RATIO
+        and source <= SHORT_SEGMENT_COMPRESS_MAX_SOURCE_SEC
+        and (gen - available) <= SHORT_SEGMENT_COMPRESS_MAX_OVERFLOW_SEC
+        and tempo_needed <= SHORT_SEGMENT_COMPRESS_MAX_RATIO
     ):
         return "compress"
-    if pad_lower <= ratio < 0.85:
-        return "pad"
-    if ratio > request.max_compress_ratio:
-        return "overflow_unfitted"
-    if _should_stretch_underflow(item=item, ratio=ratio):
-        return "stretch"
-    return "underflow_unfitted"
+    return "overflow_unfitted"
 
 
 def _should_stretch_underflow(*, item: TimelineItem, ratio: float) -> bool:
@@ -739,6 +799,7 @@ def _render_dub_voice(
         if item.fitted_audio_path is None or item.placement_start is None:
             continue
         waveform = prepare_audio_for_mix(item.fitted_audio_path, target_sample_rate=output_sample_rate)
+        waveform = normalize_clip(waveform, target_rms_dbfs=DUB_CLIP_TARGET_RMS_DBFS)
         waveform = apply_fade(waveform, sample_rate=output_sample_rate)
         if item.mix_gain_db:
             waveform = waveform * db_to_gain(item.mix_gain_db)
@@ -798,27 +859,59 @@ def _render_static_preview_mix(
     placed_items: list[TimelineItem],
 ) -> np.ndarray:
     background = background_waveform.astype(np.float32).copy()
+    sr = request.output_sample_rate
+    n = background.size
     background *= db_to_gain(request.background_gain_db)
-    if request.ducking_mode == "static":
-        duck_gain = db_to_gain(request.window_ducking_db)
+    if request.ducking_mode == "static" and n > 0:
+        # Build a per-sample target ducking gain (1.0 = undisturbed bed), then
+        # smooth it so the bed ramps instead of stepping. The bed is ducked
+        # under the dub (window_ducking_db) and, more deeply, where the original
+        # dialogue is present (residual duck) so leftover source speech stays
+        # well below the dub without muting the music entirely.
+        target = np.ones(n, dtype=np.float32)
+        window_gain = db_to_gain(request.window_ducking_db)
         for item in placed_items:
             if item.placement_start is None or item.placement_end is None:
                 continue
-            start_idx = max(0, int(round(item.placement_start * request.output_sample_rate)))
-            end_idx = min(background.size, int(round(item.placement_end * request.output_sample_rate)))
+            start_idx = max(0, int(round(item.placement_start * sr)))
+            end_idx = min(n, int(round(item.placement_end * sr)))
             if end_idx > start_idx:
-                background[start_idx:end_idx] *= duck_gain
+                target[start_idx:end_idx] = np.minimum(target[start_idx:end_idx], window_gain)
         source_voice_mask = _source_voice_activity_mask(
-            source_voice_waveform,
-            total_samples=background.size,
-            sample_rate=request.output_sample_rate,
+            source_voice_waveform, total_samples=n, sample_rate=sr
         )
         if np.any(source_voice_mask):
-            background[source_voice_mask] *= db_to_gain(SOURCE_VOICE_RESIDUAL_DUCK_DB)
+            target[source_voice_mask] = np.minimum(
+                target[source_voice_mask], db_to_gain(SOURCE_VOICE_RESIDUAL_DUCK_DB)
+            )
+        background = background * _smooth_envelope(target, sample_rate=sr)
     preview = background + dub_waveform.astype(np.float32)
     if request.mix_profile == "enhanced":
         preview = peak_limit(preview, peak=0.9)
     return peak_limit(preview)
+
+
+def _smooth_envelope(target: np.ndarray, *, sample_rate: int) -> np.ndarray:
+    """Zero-phase one-pole smoothing of a gain envelope.
+
+    Removes the rectangular gain steps (which click/pump) by ramping between
+    levels. Forward+backward passes keep the ramp centered on each transition.
+    """
+    if target.size <= 1:
+        return target.astype(np.float32)
+    try:
+        from scipy.signal import lfilter
+
+        import math
+
+        a = math.exp(-1.0 / max(1.0, DUCK_SMOOTH_SEC * sample_rate))
+        b = [1.0 - a]
+        ar = [1.0, -a]
+        y = lfilter(b, ar, target.astype(np.float64))
+        y = lfilter(b, ar, y[::-1])[::-1]
+        return y.astype(np.float32)
+    except Exception:
+        return target.astype(np.float32)
 
 
 def _load_source_voice_waveform(
