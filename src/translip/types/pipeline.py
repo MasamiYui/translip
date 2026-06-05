@@ -70,7 +70,10 @@ class PipelineRequest:
     registry_path: Path | str | None = None
     api_model: str | None = None
     api_base_url: str | None = None
-    condense_mode: CondenseMode = "off"
+    # On by default (conservative): condense only the over-budget ("risky")
+    # translations so they fit their slot instead of overflowing into the
+    # renderer's destructive tail-trim downstream. "off" disables length-fitting.
+    condense_mode: CondenseMode = "smart"
     fit_policy: FitPolicy = "conservative"
     fit_backend: FitBackendName = "atempo"
     mix_profile: MixProfileName = "preview"

@@ -258,9 +258,11 @@ def _overflow_pipeline(root: Path) -> None:
             # but severe enough to trim → must be flagged pacing.
             placed("severe", anchor_start=3.0, anchor_end=6.0,
                    generated_duration_sec=4.65, fitted_duration_sec=3.0, duration_status="review"),
-            # Couldn't fit at all → 2.0s of dub audio cut off.
+            # Couldn't fit at all → 2.0s of tail cut, but only 1.4s of it was
+            # speech (0.6s was trailing silence), so the honest loss is 1.4s.
             placed("cut", anchor_start=6.0, anchor_end=9.0,
                    generated_duration_sec=5.0, fitted_duration_sec=3.0,
+                   trimmed_tail_sec=2.0, trimmed_speech_sec=1.4,
                    fit_strategy="overflow_unfitted", duration_status="review"),
         ],
         "skipped_segments": [],
@@ -292,6 +294,21 @@ def test_timeline_summary_quantifies_overflow_and_cut_audio(tmp_path: Path):
     # Only the unfitted segment lost audio: 5.0 generated - 3.0 fitted = 2.0s.
     assert timeline["cut_audio_sec"] == 2.0
     assert timeline["max_duration_ratio"] >= 1.66
+
+
+def test_lost_speech_sec_excludes_trailing_silence_trims(tmp_path: Path):
+    root = tmp_path / "pipeline"
+    _overflow_pipeline(root)
+    result = build_dub_qa(DubQaRequest(pipeline_root=root, output_dir=tmp_path / "out", target_lang="en"))
+    timeline = result.report["qa_summary"]["timeline"]
+
+    # cut_audio_sec (2.0) conflates time-stretch shrink + trim, over-reporting
+    # loss. lost_speech_sec is the honest signal: of the 2.0s tail actually cut,
+    # only 1.4s was speech — the 0.6s of trailing silence is not a dropped word.
+    assert timeline["lost_speech_sec"] == 1.4
+    assert timeline["lost_speech_sec"] < timeline["cut_audio_sec"]
+    # The one trim dropped speech, so it is not a harmless silence-only trim.
+    assert timeline["silence_only_trim_count"] == 0
 
 
 def test_translation_judge_missing_key_raises(tmp_path: Path, monkeypatch):

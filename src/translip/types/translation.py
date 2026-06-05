@@ -21,7 +21,10 @@ class TranslationRequest:
     local_model: str = "facebook/m2m100_418M"
     api_model: str | None = None
     api_base_url: str | None = None
-    condense_mode: CondenseMode = "off"
+    # Default on (conservative): shorten only the over-budget ("risky") lines so
+    # they stop overflowing their timeline slot and hitting the renderer's
+    # destructive tail-trim. "off" disables length-fitting entirely.
+    condense_mode: CondenseMode = "smart"
 
     def normalized(self) -> "TranslationRequest":
         return TranslationRequest(
