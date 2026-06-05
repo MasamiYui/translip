@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Gauge, ChevronRight, Search } from 'lucide-react'
+import { Gauge, Search, Trash2 } from 'lucide-react'
 import { tasksApi } from '../api/tasks'
 import { evaluationApi, type Analysis } from '../api/evaluation'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
@@ -15,6 +15,7 @@ const DEFAULT_PAGE_SIZE = 20
 export function EvaluationPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [page, setPage] = useState(1)
@@ -29,6 +30,11 @@ export function EvaluationPage() {
         page,
         size: pageSize,
       }),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => tasksApi.delete(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['evaluation-tasks'] }),
   })
 
   const items: Task[] = data?.items ?? []
@@ -113,12 +119,21 @@ export function EvaluationPage() {
                 <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">
                   {t.evaluation.createdAt}
                 </th>
-                <th className="px-4 py-3" />
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#9ca3af] w-20">
+                  {t.evaluation.actions}
+                </th>
               </tr>
             </thead>
             <tbody>
               {items.map(task => (
-                <EvaluationRow key={task.id} task={task} onClick={() => navigate(`/evaluation/${task.id}`)} />
+                <EvaluationRow
+                  key={task.id}
+                  task={task}
+                  onClick={() => navigate(`/evaluation/${task.id}`)}
+                  onDelete={() => {
+                    if (confirm(t.evaluation.deleteTaskConfirm)) deleteMutation.mutate(task.id)
+                  }}
+                />
               ))}
             </tbody>
           </table>
@@ -140,8 +155,8 @@ export function EvaluationPage() {
   )
 }
 
-function EvaluationRow({ task, onClick }: { task: Task; onClick: () => void }) {
-  const { formatRelativeTime } = useI18n()
+function EvaluationRow({ task, onClick, onDelete }: { task: Task; onClick: () => void; onDelete: () => void }) {
+  const { formatRelativeTime, t } = useI18n()
 
   return (
     <tr
@@ -166,8 +181,15 @@ function EvaluationRow({ task, onClick }: { task: Task; onClick: () => void }) {
       >
         {formatRelativeTime(task.created_at)}
       </td>
-      <td className="px-4 py-3.5 text-right text-[#cbd5e1]">
-        <ChevronRight size={16} className="inline" />
+      <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
+        <button
+          onClick={onDelete}
+          className="inline-flex items-center justify-center rounded-lg p-1.5 text-[#9ca3af] transition-colors hover:bg-red-50 hover:text-red-600"
+          title={t.evaluation.deleteAction}
+          aria-label={t.evaluation.deleteAction}
+        >
+          <Trash2 size={14} />
+        </button>
       </td>
     </tr>
   )

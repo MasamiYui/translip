@@ -224,6 +224,9 @@ const zhMessages = {
     gates: '质量门',
     deleteAnalysis: '删除此次评测',
     createdAt: '创建于',
+    actions: '操作',
+    deleteAction: '删除',
+    deleteTaskConfirm: '确定删除此任务及其产物？',
     elapsed: '耗时',
     diagnostics: {
       title: '诊断台',
@@ -1845,6 +1848,9 @@ const enMessages: LocaleMessages = {
     gates: 'Quality gates',
     deleteAnalysis: 'Delete this analysis',
     createdAt: 'Created',
+    actions: 'Actions',
+    deleteAction: 'Delete',
+    deleteTaskConfirm: 'Delete this task and its artifacts?',
     elapsed: 'Elapsed',
     diagnostics: {
       title: 'Diagnostics',
