@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 472" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="sh3" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .pt{font-size:13px;font-weight:800;fill:#334155;}
+      .vn{font-size:12px;font-weight:700;fill:#334155;}
+      .vl{font-size:11.5px;font-weight:800;}
+      .note{font-size:10.5px;fill:#94a3b8;}
+    </style>
+  </defs>
+  <rect x="0" y="0" width="960" height="472" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="42" class="h" font-size="21">两种量级的账单:决定金额的不是合成,是克隆怎么计价</text>
+  <text x="32" y="66" class="s" font-size="13.5">上:合成单价(元/万汉字)。下:一季剧集(16 万字 / 25 个角色音色)的总账单——彩色"合成"被压成细线,灰色"克隆"撑起柱子。</text>
+
+  <!-- Panel A: synthesis unit price -->
+  <text x="32" y="100" class="pt">① 合成单价 · 元/万汉字(纯中文,已统一折算)</text>
+  <!-- baseline x=210, scale 22px per 元, max ~16 -->
+  <!-- SiliconFlow 1.56 -->
+  <text x="200" y="125" class="vn" text-anchor="end">SiliconFlow CosyVoice2</text>
+  <rect x="210" y="114" width="34" height="15" rx="3" fill="#16a34a"/>
+  <text x="252" y="126" class="vl" fill="#15803d">¥1.56</text>
+  <!-- Fish 3.3 -->
+  <text x="200" y="148" class="vn" text-anchor="end">Fish Audio s2-pro</text>
+  <rect x="210" y="137" width="73" height="15" rx="3" fill="#22c55e"/>
+  <text x="291" y="149" class="vl" fill="#15803d">¥3.3</text>
+  <!-- CosyVoice 4 -->
+  <text x="200" y="171" class="vn" text-anchor="end">阿里 CosyVoice</text>
+  <rect x="210" y="160" width="88" height="15" rx="3" fill="#4f46e5"/>
+  <text x="306" y="172" class="vl" fill="#4338ca">¥4</text>
+  <!-- 火山 8 -->
+  <text x="200" y="194" class="vn" text-anchor="end">火山豆包(复刻音色)</text>
+  <rect x="210" y="183" width="176" height="15" rx="3" fill="#f59e0b"/>
+  <text x="394" y="195" class="vl" fill="#b45309">¥8</text>
+  <!-- MiniMax 10 -->
+  <text x="200" y="217" class="vn" text-anchor="end">MiniMax 中国区</text>
+  <rect x="210" y="206" width="220" height="15" rx="3" fill="#f59e0b"/>
+  <text x="438" y="218" class="vl" fill="#b45309">¥10</text>
+  <!-- ElevenLabs ~16 -->
+  <text x="200" y="240" class="vn" text-anchor="end">ElevenLabs</text>
+  <rect x="210" y="229" width="352" height="15" rx="3" fill="#ef4444"/>
+  <text x="570" y="241" class="vl" fill="#b91c1c">¥11–22</text>
+  <text x="640" y="241" class="note">需海外支付 · 国内访问受限</text>
+
+  <line x1="32" y1="262" x2="928" y2="262" stroke="#eef2f7"/>
+
+  <!-- Panel B: total bill for 剧集 -->
+  <text x="32" y="290" class="pt">② 一季剧集总账单 · 合成(彩) + 克隆(灰)</text>
+  <!-- baseline x=140, scale: max ~2400 -> 0.165px/元, width budget ~440 -->
+  <!-- SiliconFlow: synth 25, clone 0 -->
+  <text x="130" y="315" class="vn" text-anchor="end">SiliconFlow</text>
+  <rect x="140" y="304" width="6" height="15" rx="2" fill="#16a34a"/>
+  <text x="156" y="316" class="vl" fill="#15803d">¥25 · 克隆免费</text>
+  <!-- 阿里 CosyVoice: synth 64, clone 0 -->
+  <text x="130" y="338" class="vn" text-anchor="end">阿里 CosyVoice</text>
+  <rect x="140" y="327" width="11" height="15" rx="2" fill="#4f46e5"/>
+  <text x="161" y="339" class="vl" fill="#4338ca">¥64 · 克隆免费</text>
+  <!-- MiniMax: synth 160 (26px), clone 248 (41px) -->
+  <text x="130" y="361" class="vn" text-anchor="end">MiniMax 海螺</text>
+  <rect x="140" y="350" width="26" height="15" rx="2" fill="#f59e0b"/>
+  <rect x="166" y="350" width="41" height="15" fill="#cbd5e1"/>
+  <text x="215" y="362" class="vl" fill="#334155">¥408　(合成 160 · 克隆 248)</text>
+  <!-- 火山: synth 128 (21px), clone 2200 (363px) -->
+  <text x="130" y="384" class="vn" text-anchor="end">火山豆包</text>
+  <rect x="140" y="373" width="21" height="15" rx="2" fill="#f59e0b"/>
+  <rect x="161" y="373" width="363" height="15" fill="#cbd5e1"/>
+  <text x="532" y="385" class="vl" fill="#334155">¥2,330　(克隆槽位 25×88 撑起整根)</text>
+  <!-- 腾讯 callout -->
+  <text x="130" y="412" class="vn" text-anchor="end" fill="#b91c1c">腾讯(基础版克隆)</text>
+  <rect x="140" y="401" width="520" height="16" rx="3" fill="#fee2e2" stroke="#fecaca"/>
+  <rect x="140" y="401" width="6" height="16" rx="2" fill="#b91c1c"/>
+  <text x="156" y="413" class="vl" fill="#b91c1c">克隆 25 × 3800 = ¥95,000 —— 破表,多角色慎入</text>
+
+  <!-- punchline -->
+  <rect x="32" y="432" width="896" height="28" rx="8" fill="#0f172a"/>
+  <text x="480" y="451" text-anchor="middle" font-size="12.5" font-weight="800" fill="#fff">合成费在所有方案里都是细线;选型选的不是"哪家合成便宜",是"哪家克隆计价扛得住二十几号人"。</text>
+</svg>

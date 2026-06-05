@@ -1,0 +1,76 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 376" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="sh4" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .road{font-size:12px;font-weight:700;}
+      .nm{font-size:15px;font-weight:800;}
+      .li{font-size:11px;fill:#475569;}
+      .note{font-size:10px;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+  <rect x="0" y="0" width="960" height="376" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="44" class="h" font-size="21">给 task-d 接哪朵云:按场景分的四条路</text>
+  <text x="32" y="68" class="s" font-size="13.5">没有银弹。加一个云后端就是一个文件 + 一行注册,标 requires_network=True,要更像、要跨语种了你显式扳过去。</text>
+
+  <!-- ① MiniMax -->
+  <rect x="25" y="96" width="214" height="252" rx="14" fill="#fff" stroke="#c7d2fe" stroke-width="2" filter="url(#sh4)"/>
+  <rect x="25" y="96" width="6" height="252" rx="3" fill="#4f46e5"/>
+  <text x="45" y="124" class="road" fill="#4338ca">① 省事首选</text>
+  <text x="45" y="156" class="nm" fill="#3730a3">MiniMax 海螺</text>
+  <line x1="45" y1="168" x2="223" y2="168" stroke="#eef2f7"/>
+  <text x="45" y="192" class="li"><tspan font-weight="800" fill="#4338ca">唯一同步 REST</tspan> · 接进最快</text>
+  <text x="45" y="214" class="li">克隆 ¥9.9 · 样本 ~10 秒</text>
+  <text x="45" y="236" class="li">情感枚举 · 40 语种</text>
+  <text x="45" y="258" class="li" fill="#15803d">Speech 2.8 当天修口音渗漏</text>
+  <rect x="45" y="276" width="178" height="56" rx="9" fill="#eef2ff"/>
+  <text x="57" y="298" class="note" fill="#4338ca">贵一档(~¥10/万汉字),</text>
+  <text x="57" y="314" class="note" fill="#4338ca">精确分档要登录确认。</text>
+
+  <!-- ② SiliconFlow -->
+  <rect x="257" y="96" width="214" height="252" rx="14" fill="#fff" stroke="#bbf7d0" stroke-width="2" filter="url(#sh4)"/>
+  <rect x="257" y="96" width="6" height="252" rx="3" fill="#16a34a"/>
+  <text x="277" y="124" class="road" fill="#15803d">② 批量压成本</text>
+  <text x="277" y="156" class="nm" fill="#15803d">SiliconFlow</text>
+  <text x="277" y="176" class="li mono" font-size="10.5">CosyVoice2 · IndexTTS-2</text>
+  <line x1="277" y1="186" x2="455" y2="186" stroke="#eef2f7"/>
+  <text x="277" y="208" class="li"><tspan font-weight="800" fill="#15803d">~¥1.56/万汉字</tspan> · 最低</text>
+  <text x="277" y="230" class="li">人民币 · OpenAI 兼容 REST</text>
+  <text x="277" y="252" class="li">上传参考音克隆 <tspan font-weight="800" fill="#15803d">免费</tspan></text>
+  <rect x="277" y="270" width="178" height="62" rx="9" fill="#f0fdf4"/>
+  <text x="289" y="292" class="note" fill="#15803d">IndexTTS-2 自带时长控制——</text>
+  <text x="289" y="308" class="note" fill="#15803d">上一篇"本地够不着的皇冠",</text>
+  <text x="289" y="324" class="note" fill="#15803d">如今最便宜的摸法。</text>
+
+  <!-- ③ 阿里 CosyVoice -->
+  <rect x="489" y="96" width="214" height="252" rx="14" fill="#fff" stroke="#bae6fd" stroke-width="2" filter="url(#sh4)"/>
+  <rect x="489" y="96" width="6" height="252" rx="3" fill="#0284c7"/>
+  <text x="509" y="124" class="road" fill="#0369a1">③ 已在阿里生态</text>
+  <text x="509" y="156" class="nm" fill="#0369a1">百炼 CosyVoice</text>
+  <line x1="509" y1="168" x2="687" y2="168" stroke="#eef2f7"/>
+  <text x="509" y="192" class="li"><tspan font-weight="800" fill="#0369a1">创建复刻音色免费</tspan></text>
+  <text x="509" y="214" class="li">¥4/万汉字 · 开源 SOTA 档</text>
+  <text x="509" y="236" class="li">每账号攒 1000 个音色</text>
+  <text x="509" y="258" class="li">合成走 WebSocket</text>
+  <rect x="509" y="276" width="178" height="56" rx="9" fill="#f0f9ff"/>
+  <text x="521" y="298" class="note" fill="#0369a1">没有逐句时长锁定,</text>
+  <text x="521" y="314" class="note" fill="#0369a1">继续靠 Task E 兜底。</text>
+
+  <!-- ④ ElevenLabs -->
+  <rect x="721" y="96" width="214" height="252" rx="14" fill="#fff" stroke="#fde68a" stroke-width="2" filter="url(#sh4)"/>
+  <rect x="721" y="96" width="6" height="252" rx="3" fill="#f59e0b"/>
+  <text x="741" y="124" class="road" fill="#b45309">④ 只为出海英文</text>
+  <text x="741" y="156" class="nm" fill="#b45309">ElevenLabs</text>
+  <line x1="741" y1="168" x2="919" y2="168" stroke="#eef2f7"/>
+  <text x="741" y="192" class="li">英文 · 情感的<tspan font-weight="800" fill="#b45309">天花板</tspan></text>
+  <text x="741" y="214" class="li" fill="#b91c1c">中文明显弱于 Fish Audio</text>
+  <text x="741" y="236" class="li">境外支付 · 国内访问受限</text>
+  <text x="741" y="258" class="li">~¥11–22/万汉字</text>
+  <rect x="741" y="276" width="178" height="56" rx="9" fill="#fffbeb"/>
+  <text x="753" y="298" class="note" fill="#b45309">纯国内影视场景,</text>
+  <text x="753" y="314" class="note" fill="#b45309">性价比最差。</text>
+</svg>

@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 384" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="sh2" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .nm{font-size:15px;font-weight:800;}
+      .li{font-size:10.5px;fill:#475569;}
+      .badge{font-size:11px;font-weight:800;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+  <rect x="0" y="0" width="960" height="384" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="44" class="h" font-size="21">五家国内厂商,只有一家是即插即用的 REST</text>
+  <text x="32" y="68" class="s" font-size="13.5">要把"文本+音色→语音"接进 task-d:MiniMax 甩个 HTTP 就完事,其余四家都得自己实现 WebSocket 客户端。</text>
+
+  <!-- MiniMax card (green / REST) -->
+  <rect x="24" y="96" width="160" height="150" rx="13" fill="#fff" stroke="#bbf7d0" stroke-width="2" filter="url(#sh2)"/>
+  <rect x="24" y="96" width="6" height="150" rx="3" fill="#16a34a"/>
+  <text x="44" y="126" class="nm" fill="#15803d">MiniMax 海螺</text>
+  <rect x="44" y="138" width="92" height="22" rx="11" fill="#16a34a"/>
+  <text x="90" y="153" text-anchor="middle" class="badge" fill="#fff">✓ 同步 REST</text>
+  <text x="44" y="182" class="li mono" font-size="10">POST /v1/t2a_v2</text>
+  <text x="44" y="202" class="li">非流式 / SSE 二选一</text>
+  <text x="44" y="220" class="li">≤1 万字符 · 到 32 kHz</text>
+  <text x="44" y="238" class="li" fill="#15803d">即插即用</text>
+
+  <!-- 4 WebSocket cards -->
+  <!-- 火山 -->
+  <rect x="212" y="96" width="160" height="150" rx="13" fill="#fff" stroke="#fde68a" stroke-width="2" filter="url(#sh2)"/>
+  <rect x="212" y="96" width="6" height="150" rx="3" fill="#f59e0b"/>
+  <text x="232" y="126" class="nm" fill="#b45309">火山豆包</text>
+  <rect x="232" y="138" width="100" height="22" rx="11" fill="#fffbeb" stroke="#fde68a"/>
+  <text x="282" y="153" text-anchor="middle" class="badge" fill="#b45309">WebSocket</text>
+  <text x="232" y="182" class="li">V3 双向流式</text>
+  <text x="232" y="202" class="li">端到端 ~750 ms</text>
+  <text x="232" y="220" class="li">需自写 WS 客户端</text>
+
+  <!-- 阿里 -->
+  <rect x="400" y="96" width="160" height="150" rx="13" fill="#fff" stroke="#fde68a" stroke-width="2" filter="url(#sh2)"/>
+  <rect x="400" y="96" width="6" height="150" rx="3" fill="#f59e0b"/>
+  <text x="420" y="126" class="nm" fill="#b45309">阿里 CosyVoice</text>
+  <rect x="420" y="138" width="100" height="22" rx="11" fill="#fffbeb" stroke="#fde68a"/>
+  <text x="470" y="153" text-anchor="middle" class="badge" fill="#b45309">WebSocket</text>
+  <text x="420" y="182" class="li">合成走 WS</text>
+  <text x="420" y="202" class="li">音色管理走 REST</text>
+  <text x="420" y="220" class="li">不支持时间戳</text>
+
+  <!-- 腾讯 -->
+  <rect x="588" y="96" width="160" height="150" rx="13" fill="#fff" stroke="#fde68a" stroke-width="2" filter="url(#sh2)"/>
+  <rect x="588" y="96" width="6" height="150" rx="3" fill="#f59e0b"/>
+  <text x="608" y="126" class="nm" fill="#b45309">腾讯云</text>
+  <rect x="608" y="138" width="100" height="22" rx="11" fill="#fffbeb" stroke="#fde68a"/>
+  <text x="658" y="153" text-anchor="middle" class="badge" fill="#b45309">WebSocket</text>
+  <text x="608" y="182" class="li">stream_wsv2</text>
+  <text x="608" y="202" class="li">逐字流式输入</text>
+  <text x="608" y="220" class="li">Speed [-2,6]</text>
+
+  <!-- 讯飞 -->
+  <rect x="776" y="96" width="160" height="150" rx="13" fill="#fff" stroke="#fde68a" stroke-width="2" filter="url(#sh2)"/>
+  <rect x="776" y="96" width="6" height="150" rx="3" fill="#f59e0b"/>
+  <text x="796" y="126" class="nm" fill="#b45309">科大讯飞</text>
+  <rect x="796" y="138" width="100" height="22" rx="11" fill="#fffbeb" stroke="#fde68a"/>
+  <text x="846" y="153" text-anchor="middle" class="badge" fill="#b45309">WebSocket</text>
+  <text x="796" y="182" class="li">voice_clone 端点</text>
+  <text x="796" y="202" class="li">分段流式</text>
+  <text x="796" y="220" class="li">每语种单独训练</text>
+
+  <!-- bottom banner: no duration lock -->
+  <rect x="24" y="266" width="912" height="92" rx="13" fill="#0f172a" filter="url(#sh2)"/>
+  <text x="48" y="300" font-size="14.5" font-weight="800" fill="#fff">五家无一例外:只给"倍速缩放"(0.5–2.5×),没有一家给"逐句目标时长锁定"</text>
+  <text x="48" y="326" font-size="12.5" fill="#cbd5e1">CosyVoice 官方对口型变通法 = 按 目标时长 / 实际时长 反复缩放 rate,凑近为止。</text>
+  <rect x="636" y="288" width="280" height="52" rx="10" fill="#16a34a"/>
+  <text x="776" y="310" text-anchor="middle" font-size="12.5" font-weight="800" fill="#fff">→ 所以 Task E 的时间轴贴合</text>
+  <text x="776" y="328" text-anchor="middle" font-size="12.5" font-weight="800" fill="#fff">不是可选项,留着</text>
+</svg>

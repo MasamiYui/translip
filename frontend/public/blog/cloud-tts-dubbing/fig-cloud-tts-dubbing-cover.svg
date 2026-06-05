@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 360" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <filter id="sh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:800;}
+      .s{fill:#64748b;}
+      .k{fill:#4338ca;font-weight:700;letter-spacing:1px;}
+      .lab{font-size:12px;font-weight:700;}
+    </style>
+  </defs>
+  <rect x="0" y="0" width="960" height="360" rx="16" fill="#fbfcfe"/>
+
+  <!-- cloud + crown motif top-right -->
+  <g transform="translate(788,34)">
+    <ellipse cx="60" cy="46" rx="48" ry="26" fill="#eef2ff"/>
+    <ellipse cx="32" cy="50" rx="24" ry="18" fill="#eef2ff"/>
+    <ellipse cx="88" cy="52" rx="26" ry="17" fill="#eef2ff"/>
+    <path d="M38 34 l9 -18 l13 13 l13 -13 l9 18 z" fill="#f59e0b"/>
+    <rect x="38" y="33" width="44" height="6" rx="2" fill="#d97706"/>
+  </g>
+
+  <!-- kicker -->
+  <text x="56" y="64" class="k" font-size="13">幕后 · 博客　第十篇　·　决策记录 ④</text>
+
+  <!-- title -->
+  <text x="56" y="126" class="h" font-size="40">上云配音,最贵的从来不是合成</text>
+  <text x="56" y="162" class="s" font-size="14.5">把国产云端 TTS 后端的能力与真实报价,一家家挖出来、交叉核验——为 translip 的 task-d 选一朵云。</text>
+
+  <!-- bill bar visual -->
+  <text x="56" y="216" class="lab" fill="#475569">一部剧的账单,谁撑起了柱子</text>
+  <rect x="56" y="228" width="848" height="44" rx="8" fill="#eef2f7"/>
+  <rect x="56" y="228" width="52" height="44" rx="8" fill="#16a34a"/>
+  <rect x="100" y="228" width="8" height="44" fill="#16a34a"/>
+  <rect x="112" y="228" width="600" height="44" fill="#cbd5e1"/>
+  <rect x="716" y="228" width="188" height="44" rx="8" fill="#fde68a"/>
+  <rect x="716" y="228" width="8" height="44" fill="#fde68a"/>
+  <text x="82" y="255" text-anchor="middle" font-size="11" font-weight="800" fill="#fff">合成</text>
+  <text x="412" y="254" text-anchor="middle" font-size="13" font-weight="800" fill="#334155">克隆音色怎么计价 —— 0 元到六位数</text>
+  <text x="810" y="254" text-anchor="middle" font-size="12" font-weight="800" fill="#92400e">实名 / 授权闸门</text>
+
+  <text x="82" y="294" text-anchor="middle" class="s" font-size="11">¥3–几百</text>
+  <text x="412" y="294" text-anchor="middle" class="s" font-size="11">这才是大头</text>
+  <text x="810" y="294" text-anchor="middle" class="s" font-size="11">影视剧绕不过</text>
+
+  <text x="56" y="332" class="s" font-size="11.5" fill="#94a3b8">MiniMax · 阿里 CosyVoice · 火山豆包 · 腾讯云 · 讯飞 · 百度 · Fish Audio · SiliconFlow　|　对照天花板 ElevenLabs</text>
+</svg>
