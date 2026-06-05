@@ -141,7 +141,7 @@ describe('SettingsPage global and advanced settings', () => {
     expect(await screen.findByRole('button', { name: '常规' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '任务默认参数' }))
 
-    expect(screen.getByText('语音转写')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '语音转写' })).toBeInTheDocument()
     expect(screen.getByLabelText('ASR 后端')).toHaveValue('faster-whisper')
     expect(screen.getByLabelText('ASR 模型')).toHaveValue('medium')
     expect(within(screen.getByLabelText('ASR 后端')).getByRole('option', { name: 'FunASR' })).toBeInTheDocument()
@@ -159,12 +159,12 @@ describe('SettingsPage global and advanced settings', () => {
     render(<SettingsPage />, { wrapper: createWrapper() })
     fireEvent.click(await screen.findByRole('button', { name: '任务默认参数' }))
 
-    expect(screen.getByText('音频分离')).toBeInTheDocument()
-    expect(screen.getByText('说话人匹配')).toBeInTheDocument()
-    expect(screen.getByText('翻译')).toBeInTheDocument()
-    expect(screen.getByText('配音')).toBeInTheDocument()
-    expect(screen.getByText('混音与时间轴')).toBeInTheDocument()
-    expect(screen.getByText('导出与字幕')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '音频分离' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '说话人匹配' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '翻译' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '配音' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '混音与时间轴' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '导出与字幕' })).toBeInTheDocument()
 
     expect(screen.getByLabelText('分离模式')).toHaveValue('dialogue')
     expect(screen.getByLabelText('分离质量')).toHaveValue('high')
