@@ -303,7 +303,7 @@ export function SettingsPage() {
 
   const generalSections = [
     { id: 'system', title: t.settings.systemInfo },
-    { id: 'keys', title: '服务密钥' },
+    { id: 'keys', title: t.settings.keysGroup },
     { id: 'models', title: t.settings.modelStatus },
     { id: 'about', title: t.settings.about },
   ]
@@ -336,7 +336,7 @@ export function SettingsPage() {
         {activeSection === 'global' ? (
           <div className="flex flex-col gap-2 md:flex-row md:gap-0">
             <nav
-              aria-label="设置分组"
+              aria-label={t.settings.navGroups}
               className="flex gap-1 overflow-x-auto px-5 pt-5 md:w-48 md:shrink-0 md:flex-col md:gap-0.5 md:overflow-visible md:border-r md:border-slate-100 md:px-3 md:py-5"
             >
               {generalSections.map(section => {
@@ -383,12 +383,12 @@ export function SettingsPage() {
             {tmdbConfig?.ok && (tmdbConfig.api_key_v3_set || tmdbConfig.api_key_v4_set) ? (
               <div className="flex items-center gap-1.5 text-sm text-emerald-600">
                 <CheckCircle size={14} />
-                <span>已配置</span>
+                <span>{t.settings.tmdb.configured}</span>
               </div>
             ) : (
               <div className="flex items-center gap-1.5 text-sm text-amber-600">
                 <XCircle size={14} />
-                <span>未配置</span>
+                <span>{t.settings.tmdb.notConfigured}</span>
               </div>
             )}
           </div>
@@ -396,7 +396,7 @@ export function SettingsPage() {
           <div className="space-y-4">
             <div className="flex items-center gap-3 text-sm">
               <Lock size={14} className="text-slate-400" />
-              <span className="text-slate-500">API 密钥会保存在本地配置文件中，不会上传到服务器。</span>
+              <span className="text-slate-500">{t.settings.tmdb.keyHint}</span>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -412,7 +412,7 @@ export function SettingsPage() {
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
                 {tmdbConfig?.api_key_v3_set && !apiKeyV3 && (
-                  <p className="mt-1 text-xs text-slate-500">已保存（点击输入框可修改）</p>
+                  <p className="mt-1 text-xs text-slate-500">{t.settings.tmdb.savedHint}</p>
                 )}
               </div>
 
@@ -428,25 +428,25 @@ export function SettingsPage() {
                   className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
                 />
                 {tmdbConfig?.api_key_v4_set && !apiKeyV4 && (
-                  <p className="mt-1 text-xs text-slate-500">已保存（点击输入框可修改）</p>
+                  <p className="mt-1 text-xs text-slate-500">{t.settings.tmdb.savedHint}</p>
                 )}
               </div>
             </div>
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                默认语言
+                {t.settings.tmdb.defaultLanguage}
               </label>
               <select
                 value={defaultLanguage}
                 onChange={(e) => setDefaultLanguage(e.target.value)}
                 className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
               >
-                <option value="zh-CN">中文 (简体)</option>
-                <option value="zh-TW">中文 (繁體)</option>
-                <option value="en-US">English</option>
-                <option value="ja-JP">日本語</option>
-                <option value="ko-KR">한국어</option>
+                <option value="zh-CN">{t.settings.tmdb.langZhCN}</option>
+                <option value="zh-TW">{t.settings.tmdb.langZhTW}</option>
+                <option value="en-US">{t.settings.tmdb.langEn}</option>
+                <option value="ja-JP">{t.settings.tmdb.langJa}</option>
+                <option value="ko-KR">{t.settings.tmdb.langKo}</option>
               </select>
             </div>
 
@@ -457,7 +457,7 @@ export function SettingsPage() {
                 className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Save size={16} />
-                {saveMutation.isPending ? '保存中…' : '保存'}
+                {saveMutation.isPending ? t.settings.tmdb.saving : t.settings.tmdb.save}
               </button>
               <button
                 onClick={() => testTmdbMutation.mutate()}
@@ -472,7 +472,7 @@ export function SettingsPage() {
                 ) : (
                   <Plug size={16} />
                 )}
-                {testTmdbMutation.isPending ? '测试中…' : '测试连接'}
+                {testTmdbMutation.isPending ? t.settings.tmdb.testing : t.settings.tmdb.test}
               </button>
               {tmdbTestResult && (
                 <div
@@ -481,7 +481,7 @@ export function SettingsPage() {
                   }`}
                 >
                   {tmdbTestResult.ok ? <CheckCircle size={14} /> : <XCircle size={14} />}
-                  <span>{tmdbTestResult.ok ? '连接成功' : '连接失败'}</span>
+                  <span>{tmdbTestResult.ok ? t.settings.tmdb.testOk : t.settings.tmdb.testFailed}</span>
                 </div>
               )}
             </div>
@@ -783,7 +783,7 @@ export function SettingsPage() {
       {activeSection === 'advanced' && changedCount > 0 && (
         <div className="fixed bottom-6 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-slate-200 bg-white/95 px-4 py-2 shadow-lg shadow-slate-900/10 backdrop-blur">
           <span className="text-sm text-slate-600">
-            <span className="font-semibold text-slate-900">{changedCount}</span> 项未保存改动
+            <span className="font-semibold text-slate-900">{changedCount}</span> {t.settings.advanced.unsavedSuffix}
           </span>
           <button
             type="button"
@@ -792,7 +792,7 @@ export function SettingsPage() {
             className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Undo2 size={15} />
-            撤销
+            {t.settings.advanced.revert}
           </button>
           <button
             type="button"
@@ -801,7 +801,7 @@ export function SettingsPage() {
             className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3.5 py-1.5 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Save size={15} />
-            {saveGlobalMutation.isPending ? '保存中…' : t.settings.saveDefaults}
+            {saveGlobalMutation.isPending ? t.settings.advanced.saving : t.settings.saveDefaults}
           </button>
         </div>
       )}
