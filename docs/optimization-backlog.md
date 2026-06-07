@@ -195,7 +195,8 @@
 - **验收**：列表查询不随表增长线性变慢。
 - **测试**：单测分页 SQL；造数据计时。
 
-### SEC-1 — 路径穿越改 `is_relative_to` ｜ TODO ｜ D/安全 ｜ S ｜ ✅已核实
+### SEC-1 — 路径穿越改 `is_relative_to` ｜ DONE ｜ D/安全 ｜ S ｜ ✅已核实
+> 已修：`artifacts.py:55`、`analysis.py:186` 的 `str(p).startswith(str(root))` 改 `full_path.is_relative_to(root)`；`job_manager._owns_job` 去掉 `startswith` 兜底（改为 `except → return False`，不再接受 `jobs-evil/` 同前缀兄弟目录）。加 handler 直调的 403 穿越测试（`task-1` vs `task-1-evil`）。后端 509 passed。
 - **现状**：`artifacts.py:55`、`analysis.py:186` 用 `str(full_path).startswith(str(output_root))`——`../task-1-evil/secret` 可通过（已验证）；`job_manager.py:560` 旧式 fallback 同病（`:558` 已是正确的 `is_relative_to`）。
 - **方案**：三处统一改 `full_path.resolve().is_relative_to(output_root)`（`dubbing_editor.py` 已是正确写法可参照）。
 - **验收**：`..` 逃逸被拒。

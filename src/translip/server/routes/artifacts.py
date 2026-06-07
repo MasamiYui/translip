@@ -52,7 +52,7 @@ def get_artifact(
     output_root = Path(task.output_root).resolve()
     full_path = (output_root / artifact_path).resolve()
 
-    if not str(full_path).startswith(str(output_root)):
+    if not full_path.is_relative_to(output_root):
         raise HTTPException(status_code=403, detail="Access denied")
 
     if not full_path.exists() or not full_path.is_file():

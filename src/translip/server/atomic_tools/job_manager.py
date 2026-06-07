@@ -556,8 +556,10 @@ class JobManager:
     def _owns_job(self, job: AtomicToolJob) -> bool:
         try:
             return Path(job.job_root).resolve().is_relative_to(self.jobs_root)
-        except Exception:
-            return str(job.job_root).startswith(str(self.jobs_root))
+        except (TypeError, ValueError, OSError):
+            # Ownership is undeterminable -> treat as not owned (never fall back to
+            # a prefix match, which would accept sibling dirs like jobs-evil/).
+            return False
 
     def _get_stored_file(self, file_id: str) -> StoredFile | None:
         with self._session() as session:

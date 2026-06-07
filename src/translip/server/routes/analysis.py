@@ -183,7 +183,7 @@ def get_analysis_report(
 
     output_root = Path(task.output_root).resolve()
     report_path = (output_root / analysis.report_path).resolve()
-    if not str(report_path).startswith(str(output_root)):
+    if not report_path.is_relative_to(output_root):
         raise HTTPException(status_code=403, detail="Access denied")
     if not report_path.exists() or not report_path.is_file():
         raise HTTPException(status_code=404, detail="Report file not found")

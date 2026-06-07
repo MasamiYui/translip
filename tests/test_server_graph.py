@@ -112,6 +112,43 @@ def test_mark_interrupted_tasks_flips_orphaned_running_and_pending(tmp_path: Pat
         assert session.get(Task, "t-done").status == "succeeded"
 
 
+def test_get_artifact_rejects_sibling_directory_traversal(tmp_path: Path) -> None:
+    import pytest
+    from fastapi import HTTPException
+
+    from translip.server.routes.artifacts import get_artifact
+
+    root = tmp_path / "task-1"
+    root.mkdir()
+    # Sibling dir sharing the "task-1" prefix: the classic startswith() bypass.
+    evil = tmp_path / "task-1-evil"
+    evil.mkdir()
+    (evil / "secret.txt").write_text("top secret", encoding="utf-8")
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add(
+            Task(
+                id="task-1",
+                name="t",
+                status="succeeded",
+                input_path=str(tmp_path / "in.mp4"),
+                output_root=str(root),
+                source_lang="zh",
+                target_lang="en",
+                config={},
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+            )
+        )
+        session.commit()
+
+        with pytest.raises(HTTPException) as excinfo:
+            get_artifact("task-1", "../task-1-evil/secret.txt", preview=False, session=session)
+        assert excinfo.value.status_code == 403
+
+
 def test_build_workflow_graph_payload_returns_nodes_and_edges() -> None:
     from translip.orchestration.graph_export import build_workflow_graph_payload
 
