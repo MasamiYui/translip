@@ -409,7 +409,8 @@
 - **验收**：对白可懂度/混音感改善。
 - **测试**：可懂度往返（QA-1）度量。
 
-### REN-7 — dub 导出缺背景乐床 ｜ TODO ｜ D/产品 ｜ S ｜ ✅已核实
+### REN-7 — dub 导出缺背景乐床 ｜ DONE ｜ D/产品 ｜ S ｜ ✅已核实
+> 2026-06 用户决定：**改标签对齐现实**（保持音频产物不变：preview=含背景全混 / dub=纯人声轨）。前端 i18n `audioSource` 两处（zh/en）改为 dub→"纯人声轨（无背景音乐）"/"Voice-only stem (no music)"、preview→"配音成片（含背景音乐）"/"Dubbed film (with music)"、both→"两者都导出（成片 + 人声轨）"。键 dub/preview 不变，后端映射不变。TaskDetailPage 结果区的 profile 描述属 UI-3（i18n 泄漏）范畴、描述基本准确，未纳入本工单。前端 build/类型检查通过。
 - **现状**：`export_dub` 走 `_resolve_dub_audio_path`→`dub_voice.<lang>.wav`（裸求和人声、仅 peak 限幅、**无 bg/ducking/R128**，`delivery/runner.py:493`）；带床的只有 `preview_mix`。
 - **方案**：先定义"dub"语义——若是交付物应为全混 + 响度归一（dub+床）；若有意是 voice-only stem 则改名并把带床混音设为默认交付。
 - **验收**：选 dub 导出得到符合定义的音频（很可能应带床）。

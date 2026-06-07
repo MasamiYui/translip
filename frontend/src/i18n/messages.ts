@@ -559,9 +559,9 @@ const zhMessages = {
         clean_if_available: '优先擦字幕视频',
       },
       audioSource: {
-        dub: '仅配音成片',
-        preview: '仅预览混音',
-        both: '两者都导出',
+        dub: '纯人声轨（无背景音乐）',
+        preview: '配音成片（含背景音乐）',
+        both: '两者都导出（成片 + 人声轨）',
       },
       separationMode: {
         auto: '自动',
@@ -2325,9 +2325,9 @@ const enMessages: LocaleMessages = {
         clean_if_available: 'Prefer clean video',
       },
       audioSource: {
-        dub: 'Dub only',
-        preview: 'Preview only',
-        both: 'Export both',
+        dub: 'Voice-only stem (no music)',
+        preview: 'Dubbed film (with music)',
+        both: 'Export both (film + stem)',
       },
       separationMode: {
         auto: 'Auto',
