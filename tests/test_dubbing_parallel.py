@@ -116,7 +116,7 @@ def _build_translation_payload(num_segments: int) -> dict:
                 "start": float(idx),
                 "duration": 1.0,
                 "target_text": f"Hello number {idx}.",
-                "duration_budget": {"estimated_target_sec": 1.0},
+                "duration_budget": {"estimated_tts_duration_sec": 1.0},
                 "qa_flags": [],
             }
             for idx in range(num_segments)

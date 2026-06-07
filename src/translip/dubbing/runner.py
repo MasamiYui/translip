@@ -548,8 +548,7 @@ def _segment_input_from_row(
         target_text=str(segment_row.get("dubbing_text") or segment_row["target_text"]).strip(),
         source_duration_sec=float(segment_row["duration"]),
         duration_budget_sec=float(
-            segment_row.get("duration_budget", {}).get("estimated_target_sec")
-            or segment_row.get("duration_budget", {}).get("estimated_tts_duration_sec")
+            segment_row.get("duration_budget", {}).get("estimated_tts_duration_sec")
             or 0.0
         ),
         qa_flags=[str(flag) for flag in segment_row.get("qa_flags", [])],
@@ -573,8 +572,7 @@ def _unit_input_from_rows(
     )
     duration_budget_sec = sum(
         float(
-            row.get("duration_budget", {}).get("estimated_target_sec")
-            or row.get("duration_budget", {}).get("estimated_tts_duration_sec")
+            row.get("duration_budget", {}).get("estimated_tts_duration_sec")
             or 0.0
         )
         for row in segment_rows

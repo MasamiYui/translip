@@ -362,7 +362,8 @@
 - **验收**：进 task-e 前 duration_ratio 收敛，atempo 拉伸减少。
 - **测试**：真实合成对比 duration_ratio 分布。
 
-### TTS-2 — 修复死键 `estimated_target_sec` ｜ TODO ｜ D/算法 ｜ S ｜ ✅已核实
+### TTS-2 — 修复死键 `estimated_target_sec` ｜ DONE ｜ D/算法 ｜ S ｜ ✅已核实
+> 已修：生产代码（`translation/duration.py`）只写 `estimated_tts_duration_sec`、从不写 `estimated_target_sec`；但 `dubbing/runner.py` 两处消费端先读 `estimated_target_sec` 再回退——而 17 处测试 fixture 又只给 `estimated_target_sec`，使两边各走一支、掩盖了不一致。改为消费端只读真实键 `estimated_tts_duration_sec`，并把测试 fixtures 的键对齐（生产行为不变）。后端 509 passed。选了"删死键"而非"校准产出"（后者属 length-control，归 TTS-1/Wave-1）。
 - **现状**：`dubbing/runner.py:551,575` 先读 `duration_budget["estimated_target_sec"]` 再 fallback，但全树**无 producer**（只 `estimated_tts_duration_sec`），故 Qwen 长度上限/预算永远用粗估。
 - **方案**：要么删死键查找；要么真产出——用该说话人自身参考/历史 take 的实测语速（task-d report 已收 `generated_duration_sec`、`voice_bank` 聚合 `avg_duration_ratio`）校准 `estimated_target_sec`。
 - **验收**：Qwen 长度上限匹配实际语速。
