@@ -390,6 +390,7 @@ def _export_video_variant(
             audio_codec=request.audio_codec,
             audio_bitrate=request.audio_bitrate,
             end_policy=request.end_policy,
+            loudnorm=True,
         )
         return
 
@@ -475,6 +476,7 @@ def _export_video_variant(
         audio_codec=request.audio_codec,
         audio_bitrate=request.audio_bitrate,
         end_policy=request.end_policy,
+        loudnorm=True,
     )
 
 

@@ -140,6 +140,7 @@ def test_export_video_infers_inputs_from_pipeline_root_and_writes_delivery_artif
         audio_codec: str,
         audio_bitrate: str | None,
         end_policy: str,
+        loudnorm: bool = False,
     ) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(b"video")
@@ -152,6 +153,7 @@ def test_export_video_infers_inputs_from_pipeline_root_and_writes_delivery_artif
                 "audio_codec": audio_codec,
                 "audio_bitrate": audio_bitrate,
                 "end_policy": end_policy,
+                "loudnorm": loudnorm,
             }
         )
         return output_path
@@ -179,6 +181,9 @@ def test_export_video_infers_inputs_from_pipeline_root_and_writes_delivery_artif
     assert len(mux_calls) == 2
     assert mux_calls[0]["input_audio_path"] == preview_mix_path.resolve()
     assert mux_calls[1]["input_audio_path"] == dub_voice_path.resolve()
+    # REN-4: delivered audio is loudness-normalized (R128) unconditionally.
+    assert mux_calls[0]["loudnorm"] is True
+    assert mux_calls[1]["loudnorm"] is True
     assert mux_calls[0]["video_codec"] == "copy"
     assert mux_calls[0]["audio_codec"] == "aac"
     assert mux_calls[0]["end_policy"] == "trim_audio_to_video"
@@ -210,6 +215,7 @@ def test_export_video_can_export_preview_only(tmp_path: Path, monkeypatch) -> No
         audio_codec: str,
         audio_bitrate: str | None,
         end_policy: str,
+        loudnorm: bool = False,
     ) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(b"preview-only")
@@ -260,6 +266,7 @@ def test_export_video_preview_only_removes_stale_final_dub_and_omits_dub_audio(
         audio_codec: str,
         audio_bitrate: str | None,
         end_policy: str,
+        loudnorm: bool = False,
     ) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(b"preview-only")
@@ -356,6 +363,7 @@ def test_bilingual_export_can_preserve_hard_subtitles_and_only_burn_english(
         audio_codec: str,
         audio_bitrate: str | None,
         end_policy: str,
+        loudnorm: bool = False,
     ) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(b"video")

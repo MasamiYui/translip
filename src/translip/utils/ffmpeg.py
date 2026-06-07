@@ -217,6 +217,13 @@ def export_audio(
     return output_path
 
 
+# EBU R128 integrated-loudness target + true-peak limiter for delivered audio.
+# Applied at mux time so every exported variant lands at a consistent loudness
+# regardless of mix_profile (mix_profile controls processing quality, not whether
+# loudness normalization happens).
+_DELIVERY_LOUDNORM_FILTER = "loudnorm=I=-16:LRA=11:TP=-1.5,alimiter=limit=0.97"
+
+
 def mux_video_with_audio(
     *,
     input_video_path: Path,
@@ -226,6 +233,7 @@ def mux_video_with_audio(
     audio_codec: str = "aac",
     audio_bitrate: str | None = None,
     end_policy: str = "trim_audio_to_video",
+    loudnorm: bool = False,
 ) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     args = [
@@ -245,12 +253,20 @@ def mux_video_with_audio(
     ]
     if audio_bitrate:
         args.extend(["-b:a", audio_bitrate])
+    audio_filters: list[str] = []
+    if loudnorm:
+        audio_filters.append(_DELIVERY_LOUDNORM_FILTER)
     if end_policy == "trim_audio_to_video":
-        args.extend(["-af", "apad", "-shortest"])
+        audio_filters.append("apad")
+        trailing = ["-shortest"]
     elif end_policy == "keep_longest":
-        args.extend(["-af", "apad"])
+        audio_filters.append("apad")
+        trailing = []
     else:
         raise FFmpegError(f"Unsupported end policy: {end_policy}")
+    if audio_filters:
+        args.extend(["-af", ",".join(audio_filters)])
+    args.extend(trailing)
     args.extend(["-movflags", "+faststart", str(output_path)])
     run_ffmpeg(args)
     return output_path
@@ -279,6 +295,7 @@ def burn_subtitle_and_mux(
     end_policy: str = "trim_audio_to_video",
     crf: int = 18,
     preset: str = "medium",
+    loudnorm: bool = False,
 ) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     vf = f"ass={subtitle_path}"
@@ -302,6 +319,8 @@ def burn_subtitle_and_mux(
     args.extend(["-c:a", audio_codec])
     if audio_bitrate:
         args.extend(["-b:a", audio_bitrate])
+    if loudnorm:
+        args.extend(["-af", _DELIVERY_LOUDNORM_FILTER])
     if end_policy == "trim_audio_to_video":
         args.extend(["-shortest"])
     args.extend(["-movflags", "+faststart", str(output_path)])

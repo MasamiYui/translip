@@ -82,43 +82,6 @@ def normalize_clip(
     return (wave * gain).astype(np.float32)
 
 
-def loudnorm_file(
-    input_path: Path,
-    output_path: Path,
-    *,
-    output_sample_rate: int,
-    integrated_lufs: float = -16.0,
-    true_peak_db: float = -1.5,
-    loudness_range: float = 11.0,
-) -> Path:
-    """Run a single-pass EBU R128 loudness normalization + true-peak limiter.
-
-    Gives the delivered mix a consistent integrated loudness instead of whatever
-    the raw sum happened to be. Single-pass is approximate but far better than no
-    normalization, and the alimiter guarantees we stay under true peak.
-    """
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    chain = (
-        f"loudnorm=I={integrated_lufs}:LRA={loudness_range}:TP={true_peak_db},"
-        "alimiter=limit=0.97"
-    )
-    run_ffmpeg(
-        [
-            "-y",
-            "-i",
-            str(input_path),
-            "-af",
-            chain,
-            "-ar",
-            str(output_sample_rate),
-            "-c:a",
-            "pcm_s16le",
-            str(output_path),
-        ]
-    )
-    return output_path
-
-
 def prepare_audio_for_mix(audio_path: Path, *, target_sample_rate: int) -> np.ndarray:
     waveform, sample_rate = read_audio_mono(audio_path)
     if sample_rate != target_sample_rate:

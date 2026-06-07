@@ -202,7 +202,8 @@
 - **验收**：`..` 逃逸被拒。
 - **测试**：单测穿越路径返回 403。
 
-### SEC-2 — 鉴权 + 127.0.0.1 + 收窄 CORS ｜ TODO ｜ 安全 ｜ S–M ｜ ◻待确认
+### SEC-2 — 鉴权 + 127.0.0.1 + 收窄 CORS ｜ HOLD ｜ 安全 ｜ S–M ｜ ◻待确认
+> 2026-06 用户决定暂缓（local-first 单用户，dev 走 Vite 代理同源、prod 后端同源托管 SPA，CORS 极少被命中）。需要时再议鉴权强度。
 - **现状**：`app.py:47` `allow_origins=["*"]`+`allow_credentials=True`（自相矛盾）；全路由无鉴权，含写 API key（`system.py:463`）、读任意产物、删任务。
 - **方案**：默认 127.0.0.1 绑定（`run_server` 已是默认，明确/强制）；可选共享 token 中间件（env 开关）；CORS 收窄到 `http://127.0.0.1:5173` 并去 `allow_credentials`（除非需要）。
 - **验收**：跨域被拒；开启 token 后未授权 401。
@@ -389,7 +390,8 @@
 - **验收**：切尾总秒数下降；触发上游重译。
 - **测试**：端到端验证切尾减少 + 信号产生。
 
-### REN-4 — 最终混音无条件 R128 + 接线 `loudnorm_file` ｜ TODO ｜ D/产品 ｜ S ｜ ✅已核实
+### REN-4 — 最终混音无条件 R128 + 接线 `loudnorm_file` ｜ DONE ｜ D/产品 ｜ S ｜ ✅已核实
+> 已修：交付混音无条件 R128（-16 LUFS / TP -1.5 + alimiter）。实现选了 **mux 内联 chain**（ticket 允许的 "or inline chain"）：`mux_video_with_audio`/`burn_subtitle_and_mux` 加 `loudnorm` 参数，仅 `delivery/_export_video_variant` 传 True（scoped 到交付，不波及 atomic mux / 字幕烧录；`loudnorm=False` 路径与原命令字节级一致）。**未走 `loudnorm_file` 前置 pass**（会改 `input_audio_path` 破坏 `test_delivery` 音源契约 + 采样率探测在测试中被 mock 不可靠），该函数遂成冗余死代码、已删除。加 delivery 断言 loudnorm=True。后端 509 passed。
 - **现状**：R128 仅 `mix_profile=="enhanced"` 跑（`runner.py:834,889`），默认 `preview`（`types/rendering.py:29`）→ 只 peak 归一；`loudnorm_file`（`audio.py:85`）被 import（`runner.py:22`）但**从不调用**。
 - **方案**：交付混音无条件 R128（≈-16 LUFS/TP -1.5），接线 `loudnorm_file`（或内联链）到 delivery；`mix_profile` 只控处理质量、不控"有无响度"。
 - **验收**：preview 与 dub 变体都达一致响度。
