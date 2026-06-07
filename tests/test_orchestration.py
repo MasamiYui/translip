@@ -353,6 +353,18 @@ def test_task_d_cache_key_tracks_upstream_translation_and_profiles(tmp_path: Pat
     assert key_after_profiles != key_after_translation
 
 
+def test_cache_key_changes_with_cache_epoch(monkeypatch) -> None:
+    """ARCH-5: bumping CACHE_EPOCH invalidates every cache key (release-level recompute)."""
+    from translip.orchestration import cache
+
+    payload = {"stage": "task-a", "x": 1}
+    monkeypatch.setattr(cache, "CACHE_EPOCH", 1)
+    key_v1 = cache.compute_cache_key(payload)
+    monkeypatch.setattr(cache, "CACHE_EPOCH", 2)
+    key_v2 = cache.compute_cache_key(payload)
+    assert key_v1 != key_v2
+
+
 def test_execute_task_e_writes_character_ledger_and_dub_benchmark(tmp_path: Path, monkeypatch) -> None:
     from translip.orchestration.commands import task_d_stage_manifest_path
     from translip.orchestration.monitor import PipelineMonitor

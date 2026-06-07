@@ -120,7 +120,8 @@
 - **验收**：替换上游产物后对应阶段必重算。
 - **测试**：`tests/` 缓存命中/失效单测覆盖新指纹。
 
-### ARCH-5 — 缓存键混入 code/model 版本 ｜ TODO ｜ D/正确性 ｜ S ｜ ◻待确认
+### ARCH-5 — 缓存键混入 code/model 版本 ｜ DONE ｜ D/正确性 ｜ S ｜ ◻待确认
+> 已修：`cache.py` 加 `CACHE_EPOCH=1` 常量并在 `compute_cache_key` 内把 payload 包成 `{"cache_epoch": CACHE_EPOCH, "payload": ...}` 再哈希——所有缓存键都含版本，行为变更（换模型 checkpoint / 修阶段 bug / 改默认）时 bump 即强制全量重算。加测试（bump epoch → 键变）。后端 512 passed。可选的 per-stage code_version / 模型权重 sha 暂未做（更细粒度，按需再加）。
 - **现状**：`compute_cache_key`（`cache.py:19`）只 hash 参数；换模型 checkpoint 或修阶段 bug 后旧 manifest 仍命中。
 - **方案**：每个 payload 混入粗粒度 `cache_epoch` 常量（行为变更时手动 bump），可选含所选 backend 的模型权重 mtime/sha。
 - **验收**：bump epoch 后强制全量重算。

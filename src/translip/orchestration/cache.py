@@ -16,8 +16,16 @@ class StageCacheSpec:
     previous_cache_key: str | None = None
 
 
+# Coarse cache-invalidation version. Bump this to force selective recompute of
+# every cached stage on a release where a stage's behavior changed (model
+# checkpoint swap, stage bug fix, default change) without touching each stage's
+# individual params. It is mixed into every cache key below.
+CACHE_EPOCH = 1
+
+
 def compute_cache_key(payload: dict[str, Any]) -> str:
-    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    keyed = {"cache_epoch": CACHE_EPOCH, "payload": payload}
+    serialized = json.dumps(keyed, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
 
 
@@ -34,4 +42,4 @@ def is_stage_cache_hit(spec: StageCacheSpec) -> bool:
     return spec.previous_cache_key == spec.cache_key
 
 
-__all__ = ["StageCacheSpec", "compute_cache_key", "is_stage_cache_hit"]
+__all__ = ["CACHE_EPOCH", "StageCacheSpec", "compute_cache_key", "is_stage_cache_hit"]
