@@ -11,7 +11,11 @@ from typing import Any, AsyncGenerator, Dict, Optional
 
 from sqlmodel import Session, select
 
-from ..config import CACHE_ROOT, DEFAULT_PIPELINE_OUTPUT_ROOT
+from ..config import (
+    CACHE_ROOT,
+    DEFAULT_PIPELINE_OUTPUT_ROOT,
+    DEFAULT_RENDER_OUTPUT_SAMPLE_RATE,
+)
 from ..orchestration.graph import resolve_template_plan
 from ..orchestration.nodes import NODE_REGISTRY
 from ..types import PipelineRequest, SubtitleStyle
@@ -64,7 +68,7 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
         run_from_stage=cfg.get("run_from_stage", "stage1"),
         run_to_stage=cfg.get("run_to_stage", "task-g"),
         reuse_existing=cfg.get("use_cache", True),
-        separation_mode=cfg.get("separation_mode", "auto"),
+        separation_mode=cfg.get("separation_mode", "dialogue"),
         separation_quality=cfg.get("separation_quality", "balanced"),
         stage1_output_format=cfg.get("stage1_output_format", "mp3"),
         audio_stream_index=int(cfg.get("audio_stream_index", 0)),
@@ -88,7 +92,7 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
         background_gain_db=cfg.get("background_gain_db", -8.0),
         window_ducking_db=float(cfg.get("window_ducking_db", -3.0)),
         max_compress_ratio=float(cfg.get("max_compress_ratio", 1.45)),
-        output_sample_rate=int(cfg.get("output_sample_rate", 24000)),
+        output_sample_rate=int(cfg.get("output_sample_rate", DEFAULT_RENDER_OUTPUT_SAMPLE_RATE)),
         preview_format=cfg.get("preview_format", "wav"),
         dubbing_workers=cfg.get("dubbing_workers"),
         dubbing_quality_check=cfg.get("dubbing_quality_check", "standard"),

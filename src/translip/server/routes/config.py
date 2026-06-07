@@ -14,6 +14,8 @@ from typing import Annotated, Any, Optional
 from fastapi import APIRouter, HTTPException, Path as PathParam
 from pydantic import BaseModel, Field
 
+from ...config import DEFAULT_RENDER_OUTPUT_SAMPLE_RATE
+
 router = APIRouter(prefix="/api/config", tags=["config"])
 
 CONFIG_DIR = Path.home() / ".translip"
@@ -25,7 +27,7 @@ _DEFAULT_CONFIG = {
     "run_to_stage": "task-g",
     "use_cache": True,
     "keep_intermediate": False,
-    "separation_mode": "auto",
+    "separation_mode": "dialogue",
     "separation_quality": "balanced",
     "music_backend": "demucs",
     "dialogue_backend": "cdx23",
@@ -67,7 +69,7 @@ _DEFAULT_CONFIG = {
     "background_gain_db": -8.0,
     "window_ducking_db": -3.0,
     "max_compress_ratio": 1.45,
-    "output_sample_rate": 24000,
+    "output_sample_rate": DEFAULT_RENDER_OUTPUT_SAMPLE_RATE,
     "preview_format": "wav",
     "export_preview": True,
     "export_dub": True,

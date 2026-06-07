@@ -161,7 +161,8 @@
 - **验收**：迁移可重放、可检测失败。
 - **测试**：迁移单测（空库→当前）。
 
-### ARCH-12 — 统一默认值单一来源（24k/48k 等）｜ TODO ｜ D/正确性 ｜ S ｜ ✅已核实
+### ARCH-12 — 统一默认值单一来源（24k/48k 等）｜ DONE ｜ D/正确性 ｜ S ｜ ✅已核实
+> 已修：4 处 `output_sample_rate` 24000→48000（`routes/config.py` 与 `task_manager.py` 用 `DEFAULT_RENDER_OUTPUT_SAMPLE_RATE` 常量，前端 NewTaskPage/SettingsPage 改 48000）；4 处 `separation_mode` "auto"→"dialogue"（对齐 dataclass/CLAUDE.md，UI 任务由自动路由改为强制 dialogue 分离）。加回归测试断言三处后端默认源一致；顺手把 `test_config_defaults_*` 改为 hermetic（原先读开发机 `~/.translip/config.json` 致环境性失败）。后端 505 passed。
 - **现状**：同一默认值分散且冲突：`output_sample_rate` 在 `config.py:52`/`pipeline.py:79`=48000，但 `task_manager.py:91`=`cfg.get(..., 24000)` → **UI 建的任务以 24kHz 配音**（可听音质降级）；`separation_mode` 在 `pipeline.py:92`="dialogue" vs `task_manager.py`/`config.py`="auto"。
 - **方案**：`_build_pipeline_request` 改为 `cfg.get(k, <config.py 常量>)`；`PipelineRequest` 字段默认引用同一常量。
 - **验收**：CLI 与 server 构造的 request 默认值一致；新建任务输出 48kHz。

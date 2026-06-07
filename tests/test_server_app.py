@@ -25,7 +25,14 @@ def test_frontend_spa_fallback_serves_index_html_for_task_routes() -> None:
     assert "<!doctype html>" in response.text.lower()
 
 
-def test_config_defaults_run_full_pipeline_to_task_g() -> None:
+def test_config_defaults_run_full_pipeline_to_task_g(tmp_path, monkeypatch) -> None:
+    # Read the built-in defaults, not whatever global overrides happen to be saved
+    # on the developer's machine (~/.translip/config.json), so the test is hermetic.
+    from translip.server.routes import config as config_routes
+
+    monkeypatch.setattr(config_routes, "CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(config_routes, "CONFIG_PATH", tmp_path / "config.json")
+
     client = TestClient(app_module.app)
 
     response = client.get("/api/config/defaults")
@@ -45,6 +52,8 @@ def test_config_defaults_run_full_pipeline_to_task_g() -> None:
     assert payload["background_gain_db"] == -8.0
     assert payload["window_ducking_db"] == -3.0
     assert payload["max_compress_ratio"] == 1.45
+    assert payload["output_sample_rate"] == 48000
+    assert payload["separation_mode"] == "dialogue"
 
 
 def test_global_config_round_trips_transcription_advanced_defaults(tmp_path, monkeypatch) -> None:

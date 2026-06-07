@@ -175,6 +175,45 @@ def test_build_pipeline_request_upgrades_legacy_erase_defaults(tmp_path: Path) -
     assert request.subtitle_style.position == "top"
 
 
+def test_default_sample_rate_and_separation_mode_consistent(tmp_path: Path) -> None:
+    """ARCH-12: the backend default sources (PipelineRequest dataclass, the
+    /api/config defaults dict, and _build_pipeline_request) must agree, so a
+    UI-created task renders at the same 48 kHz / dialogue defaults as the CLI.
+    """
+    from translip.config import DEFAULT_RENDER_OUTPUT_SAMPLE_RATE
+    from translip.server.routes.config import _DEFAULT_CONFIG
+    from translip.server.task_manager import _build_pipeline_request
+    from translip.types import PipelineRequest
+
+    assert DEFAULT_RENDER_OUTPUT_SAMPLE_RATE == 48_000
+
+    # CLI path: dataclass field defaults.
+    dataclass_default = PipelineRequest(input_path="input.mp4")
+    assert dataclass_default.output_sample_rate == DEFAULT_RENDER_OUTPUT_SAMPLE_RATE
+    assert dataclass_default.separation_mode == "dialogue"
+
+    # Server global-config defaults (served by /api/config/defaults).
+    assert _DEFAULT_CONFIG["output_sample_rate"] == DEFAULT_RENDER_OUTPUT_SAMPLE_RATE
+    assert _DEFAULT_CONFIG["separation_mode"] == "dialogue"
+
+    # Server build path with an empty per-task config falls back to the same.
+    task = Task(
+        id="task-defaults",
+        name="Defaults",
+        status="pending",
+        input_path=str(tmp_path / "input.mp4"),
+        output_root=str(tmp_path / "output"),
+        source_lang="zh",
+        target_lang="en",
+        config={},
+        created_at=datetime.now(),
+        updated_at=datetime.now(),
+    )
+    request = _build_pipeline_request(task)
+    assert request.output_sample_rate == DEFAULT_RENDER_OUTPUT_SAMPLE_RATE
+    assert request.separation_mode == "dialogue"
+
+
 def test_transcription_correction_defaults_to_standard_for_pipeline_config() -> None:
     from translip.server.task_config import normalize_task_config
 
