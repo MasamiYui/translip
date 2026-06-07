@@ -313,6 +313,46 @@ def test_task_a_cache_payload_includes_transcription_backend_controls(tmp_path: 
     assert payload["generate_srt"] is False
 
 
+def test_task_a_cache_key_tracks_stage1_voice(tmp_path: Path) -> None:
+    """ARCH-4: task-a must recompute when the upstream stage1 voice stem changes."""
+    from translip.orchestration.cache import compute_cache_key
+    from translip.orchestration.commands import stage1_voice_path
+    from translip.orchestration.runner import _stage_cache_payload
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(input_path=tmp_path / "in.mp4", output_root=tmp_path / "out")
+    voice = stage1_voice_path(request)
+    voice.parent.mkdir(parents=True, exist_ok=True)
+    voice.write_bytes(b"AAAA")
+    key_before = compute_cache_key(_stage_cache_payload(request, "task-a"))
+    voice.write_bytes(b"BBBB")
+    key_after = compute_cache_key(_stage_cache_payload(request, "task-a"))
+    assert key_before != key_after
+
+
+def test_task_d_cache_key_tracks_upstream_translation_and_profiles(tmp_path: Path) -> None:
+    """ARCH-4: task-d must recompute when task-c translation or task-b profiles change."""
+    from translip.orchestration.cache import compute_cache_key
+    from translip.orchestration.commands import task_b_profiles_path, task_c_translation_path
+    from translip.orchestration.runner import _stage_cache_payload
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(input_path=tmp_path / "in.mp4", output_root=tmp_path / "out")
+    translation = task_c_translation_path(request)
+    profiles = task_b_profiles_path(request)
+    translation.parent.mkdir(parents=True, exist_ok=True)
+    profiles.parent.mkdir(parents=True, exist_ok=True)
+    translation.write_bytes(b"{}")
+    profiles.write_bytes(b"{}")
+    key_before = compute_cache_key(_stage_cache_payload(request, "task-d"))
+    translation.write_bytes(b'{"changed": 1}')
+    key_after_translation = compute_cache_key(_stage_cache_payload(request, "task-d"))
+    assert key_after_translation != key_before
+    profiles.write_bytes(b'{"changed": 2}')
+    key_after_profiles = compute_cache_key(_stage_cache_payload(request, "task-d"))
+    assert key_after_profiles != key_after_translation
+
+
 def test_execute_task_e_writes_character_ledger_and_dub_benchmark(tmp_path: Path, monkeypatch) -> None:
     from translip.orchestration.commands import task_d_stage_manifest_path
     from translip.orchestration.monitor import PipelineMonitor

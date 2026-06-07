@@ -144,6 +144,7 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
     elif stage_name == "task-a":
         common.update(
             {
+                "voice": _file_fingerprint(stage1_voice_path(request)),
                 "language": request.transcription_language,
                 "asr_model": request.asr_model,
                 "asr_backend": request.asr_backend,
@@ -183,6 +184,9 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
     elif stage_name == "task-d":
         common.update(
             {
+                "translation": _file_fingerprint(task_c_translation_path(request)),
+                "profiles": _file_fingerprint(task_b_profiles_path(request)),
+                "voice_bank": _file_fingerprint(task_b_voice_bank_path(request)),
                 "speaker_limit": request.speaker_limit,
                 "segments_per_speaker": request.segments_per_speaker,
                 "dubbing_workers": request.dubbing_workers,

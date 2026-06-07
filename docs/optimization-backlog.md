@@ -113,7 +113,8 @@
 - **验收**：连提多任务时按并发上限排队执行，不 OOM。
 - **测试**：单测队列闸；手动连提验证。
 
-### ARCH-4 — 缓存键补上游产物指纹 ｜ TODO ｜ D/正确性 ｜ S ｜ ◻待确认
+### ARCH-4 — 缓存键补上游产物指纹 ｜ DONE ｜ D/正确性 ｜ S ｜ ◻待确认
+> 已修：task-a 缓存 payload 加 `voice` = `_file_fingerprint(stage1_voice_path)`；task-d 加 `translation`/`profiles`/`voice_bank` 三个上游指纹。原先这两段只含标量参数，上游产物变了但参数 hash 不变会 false hit。缓存键在节点循环里、上游已完成后计算，故指纹有效。加 2 回归测试（改 stage1 voice → task-a 键变；改 task-c/task-b → task-d 键变）。后端 511 passed。
 - **现状**：`_stage_cache_payload`（`runner.py:120`）对 task-b/c/e、subtitle-erase 有上游指纹，但 **task-a 键不含 stage1 `voice.*` 指纹**，task-d 键不含 task-c/task-b 指纹（只有标量）。上游文件变了但参数 hash 不变 → false hit on stale。
 - **方案**：用已存在的 `_file_fingerprint` 给 task-a（←stage1 voice）、task-d（←translation+profiles+voice_bank）补指纹。
 - **验收**：替换上游产物后对应阶段必重算。
