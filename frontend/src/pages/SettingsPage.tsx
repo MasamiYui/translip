@@ -52,7 +52,7 @@ const defaultGlobalConfig: GlobalConfigDraft = {
   ocr_extraction_mode: 'conservative',
   translation_backend: 'local-m2m100',
   translation_batch_size: 4,
-  condense_mode: 'off',
+  condense_mode: 'smart',
   transcription_correction: { enabled: true, preset: 'standard', ocr_only_policy: 'report_only', llm_arbitration: 'off' },
   tts_backend: 'moss-tts-nano-onnx',
   dubbing_quality_check: 'standard',

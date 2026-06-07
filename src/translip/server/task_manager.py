@@ -13,6 +13,7 @@ from sqlmodel import Session, select
 
 from ..config import (
     CACHE_ROOT,
+    DEFAULT_CONDENSE_MODE,
     DEFAULT_PIPELINE_OUTPUT_ROOT,
     DEFAULT_RENDER_OUTPUT_SAMPLE_RATE,
 )
@@ -110,7 +111,7 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
         dub_repair_include_risk=bool(cfg.get("dub_repair_include_risk", False)),
         api_base_url=cfg.get("deepseek_base_url"),
         api_model=cfg.get("deepseek_model"),
-        condense_mode=cfg.get("condense_mode", "off"),
+        condense_mode=cfg.get("condense_mode", DEFAULT_CONDENSE_MODE),
         glossary_path=cfg.get("translation_glossary"),
         registry_path=cfg.get("existing_registry"),
         subtitle_mode=delivery_cfg.get("subtitle_mode", "none"),

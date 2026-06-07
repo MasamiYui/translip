@@ -354,6 +354,56 @@ def _write_fixtures(tmp_path: Path, *, segment_text: str = "这是一个非常�
     return segments_path, profiles_path
 
 
+def test_target_char_budget_scales_with_duration_and_language() -> None:
+    from translip.translation.duration import target_char_budget
+
+    assert target_char_budget(1.0, target_lang="en") > target_char_budget(0.5, target_lang="en")
+    # CJK is spoken denser per second, so a same-length slot allows fewer chars.
+    assert target_char_budget(1.0, target_lang="en") > target_char_budget(1.0, target_lang="zh")
+    assert target_char_budget(0.0, target_lang="en") >= 10  # floor
+
+
+def test_deepseek_translate_prompt_includes_char_budget(monkeypatch) -> None:
+    """TRA-1 part B: the per-segment length budget reaches the LLM translate prompt."""
+    from translip.translation.backend import BackendSegmentInput
+    from translip.translation.deepseek_backend import DeepSeekBackend
+
+    backend = DeepSeekBackend(api_key="test-key", max_retries=0)
+    captured: dict[str, object] = {}
+
+    def fake_post(url, payload):
+        captured["payload"] = payload
+        return {
+            "choices": [
+                {
+                    "message": {
+                        "content": json.dumps(
+                            {"segments": [{"segment_id": "seg-1", "target_text": "Hi."}]}
+                        )
+                    }
+                }
+            ]
+        }
+
+    monkeypatch.setattr(backend, "_post_json", fake_post)
+    items = [
+        BackendSegmentInput(
+            segment_id="seg-1",
+            source_text="你好",
+            context_text="",
+            metadata={"max_chars": 12, "target_duration_sec": 0.7},
+        )
+    ]
+    out = backend.translate_batch(items=items, source_lang="zh", target_lang="en")
+
+    assert out[0].target_text == "Hi."
+    payload = captured["payload"]
+    assert "max_chars" in payload["messages"][0]["content"]
+    sent = json.loads(payload["messages"][1]["content"])
+    assert sent["segments"][0]["max_chars"] == 12
+    assert sent["segments"][0]["target_duration_sec"] == 0.7
+
+
 def test_condense_mode_off_skips_condensation(tmp_path: Path) -> None:
     segments_path, profiles_path = _write_fixtures(tmp_path)
     result = translate_script(

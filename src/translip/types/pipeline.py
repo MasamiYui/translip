@@ -70,7 +70,7 @@ class PipelineRequest:
     registry_path: Path | str | None = None
     api_model: str | None = None
     api_base_url: str | None = None
-    condense_mode: CondenseMode = "off"
+    condense_mode: CondenseMode = "smart"
     fit_policy: FitPolicy = "conservative"
     fit_backend: FitBackendName = "atempo"
     mix_profile: MixProfileName = "preview"

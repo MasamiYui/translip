@@ -54,6 +54,7 @@ def test_config_defaults_run_full_pipeline_to_task_g(tmp_path, monkeypatch) -> N
     assert payload["max_compress_ratio"] == 1.45
     assert payload["output_sample_rate"] == 48000
     assert payload["separation_mode"] == "dialogue"
+    assert payload["condense_mode"] == "smart"
 
 
 def test_global_config_round_trips_transcription_advanced_defaults(tmp_path, monkeypatch) -> None:

@@ -21,7 +21,7 @@ class TranslationRequest:
     local_model: str = "facebook/m2m100_418M"
     api_model: str | None = None
     api_base_url: str | None = None
-    condense_mode: CondenseMode = "off"
+    condense_mode: CondenseMode = "smart"
 
     def normalized(self) -> "TranslationRequest":
         return TranslationRequest(

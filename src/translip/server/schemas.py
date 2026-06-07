@@ -135,7 +135,7 @@ class TaskConfigInput(BaseModel):
     translation_batch_size: int = Field(default=4, gt=0, description="翻译批处理大小")
     deepseek_base_url: Optional[str] = Field(default=None, description="deepseek 后端的 API 基础地址")
     deepseek_model: Optional[str] = Field(default=None, description="deepseek 后端使用的模型名")
-    condense_mode: str = Field(default="off", description="译文精简模式，off 为不精简")
+    condense_mode: str = Field(default="smart", description="译文精简模式，off 为不精简，smart 仅精简超时段落")
     # Task D
     tts_backend: str = Field(default="moss-tts-nano-onnx", description="语音合成（TTS）后端")
     max_segments: Optional[int] = Field(default=None, gt=0, description="最多合成的片段数，留空为不限制")

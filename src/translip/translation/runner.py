@@ -10,7 +10,12 @@ from ..exceptions import TranslipError
 from ..types import TranslationArtifacts, TranslationRequest, TranslationResult
 from ..utils.files import ensure_directory
 from .backend import BackendSegmentInput, CondenseInput, canonical_language_code, output_tag_for_language
-from .duration import build_duration_budget, estimate_tts_duration, summarize_duration_budgets
+from .duration import (
+    build_duration_budget,
+    estimate_tts_duration,
+    summarize_duration_budgets,
+    target_char_budget,
+)
 from .dubbing_script import polish_dubbing_script
 from .export import (
     build_editable_payload,
@@ -266,7 +271,15 @@ def _translate_units(
                     segment_id=segment.segment_id,
                     source_text=prepared_text,
                     context_text=unit.source_text,
-                    metadata={"speaker_label": segment.speaker_label},
+                    metadata={
+                        "speaker_label": segment.speaker_label,
+                        # Soft length budget so LLM backends translate-to-fit the
+                        # spoken time slot (non-LLM backends ignore metadata).
+                        "target_duration_sec": round(segment.duration, 3),
+                        "max_chars": target_char_budget(
+                            segment.duration, target_lang=request.target_lang
+                        ),
+                    },
                 )
             )
             prepared_meta[segment.segment_id] = (prepared_text, glossary_matches)

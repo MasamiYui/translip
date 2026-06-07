@@ -52,7 +52,7 @@ _DEFAULT_CONFIG = {
     "translation_batch_size": 4,
     "deepseek_base_url": None,
     "deepseek_model": None,
-    "condense_mode": "off",
+    "condense_mode": "smart",
     "transcription_correction": {"enabled": True, "preset": "standard", "ocr_only_policy": "report_only", "llm_arbitration": "off"},
     "tts_backend": "moss-tts-nano-onnx",
     "dubbing_quality_check": "standard",

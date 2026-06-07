@@ -324,7 +324,12 @@
 
 ## task-c — 翻译（TRA）
 
-### TRA-1 — 时长预算注入翻译 + 默认重译/condense ｜ TODO ｜ A/产品/算法 ｜ S–M ｜ ✅已核实
+### TRA-1 — 时长预算注入翻译 + 默认重译/condense ｜ DONE ｜ A/产品/算法 ｜ S–M ｜ ✅已核实
+> 已修，两部分：
+> - **Part B（generate-to-fit）**：`duration.py` 加 `target_char_budget(source_dur, lang)`（en≈17 / zh≈4.5 / ja≈6.25 c/s 反推）；`_translate_units` 把 `target_duration_sec`+`max_chars` 塞进 `BackendSegmentInput.metadata`；`deepseek._translate_once` 把预算写进 per-segment JSON + system prompt 约束（非 LLM 后端忽略 metadata，无影响）。即首译就向时长收敛。
+> - **Part A（总阀门）**：默认 `condense_mode` "off"→"smart"，启用既有的 duration-aware 修正回路（deepseek `_condense_once` 用 max_chars 重写 risky 段 / m2m100 走 rule-based）。跨 9 处默认源统一（config/types×2/schemas/task_manager/routes-config/前端×2），task_manager 用常量。
+> 加 3 测试（target_char_budget / deepseek prompt 含预算 / 默认 smart）。后端 514 passed，前端 build+页面单测通过。
+> ⚠️ **行为变更**：① condense 默认开——deepseek 会对 risky 段增加 condense API 调用，m2m100 走 rule-based(仅英文、无成本)；② deepseek 翻译 prompt 现带长度预算。**默认 backend 是 m2m100（无法 prompt、condense 弱），所以 "默认配置 overflow 下降" 的收益主要在 deepseek 路径**；真实收益需带 DEEPSEEK_API_KEY 在真实跑批上 A/B（本地无 key 未实跑）。
 - **现状**：deepseek prompt 仅软指令"简洁"（`deepseek_backend.py:88`），预算翻译**后**才算；默认 backend `local-m2m100`（`supports_condensation=False`）+ `DEFAULT_CONDENSE_MODE="off"`（`config.py:31,36`）= **默认完全不控文长**。overflow/切尾的根因。
 - **方案**：(1) 用 `duration.py:estimate_tts_duration` 系数算 `max_chars=source_dur×chars_per_sec` 注入 prompt；(2) `fit_level=="risky"` 默认重译 1 次再降级 condense；(3) LLM 系默认 `condense_mode="smart"`。
 - **验收**：默认配置下 overflow/severe/切尾段数下降。

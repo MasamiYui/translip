@@ -28,6 +28,21 @@ def estimate_tts_duration(text: str, *, target_lang: str) -> float:
     return round(max(0.35, estimate), 3)
 
 
+# Inverse of estimate_tts_duration: roughly how many target characters can be
+# spoken per second of the source slot. en is word-based upstream (~0.34 s/word,
+# ~5.7 chars/word incl. space → ~17 c/s); zh ~1/0.22, ja ~1/0.16. Used only as a
+# soft prompt ceiling so the first translation aims to fit the timing.
+_TARGET_CHARS_PER_SEC = {"en": 17.0, "zh": 4.5, "ja": 6.25}
+_DEFAULT_TARGET_CHARS_PER_SEC = 15.0
+
+
+def target_char_budget(source_duration_sec: float, *, target_lang: str) -> int:
+    """A soft character ceiling for a translation to fit the source time slot."""
+    canonical = canonical_language_code(target_lang)
+    rate = _TARGET_CHARS_PER_SEC.get(canonical, _DEFAULT_TARGET_CHARS_PER_SEC)
+    return max(10, int(round(max(0.0, source_duration_sec) * rate)))
+
+
 def build_duration_budget(
     *,
     source_duration_sec: float,

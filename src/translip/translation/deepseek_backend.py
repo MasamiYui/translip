@@ -93,6 +93,9 @@ class DeepSeekBackend:
                         "contractions and natural spoken rhythm, not literal or written phrasing. "
                         "Because the line is spoken over fixed timing, prefer the most concise "
                         "faithful phrasing (avoid padding) so it fits comfortably. "
+                        "When a segment carries a `max_chars` budget (and `target_duration_sec`), "
+                        "keep the translation within max_chars so it can be spoken naturally in that "
+                        "time — tighten wording rather than exceed it. "
                         "Preserve meaning, named entities, numbers and the emotional tone; do not "
                         "add or omit information. "
                         "Use each segment's `context` (the surrounding lines) ONLY to resolve "
@@ -118,6 +121,16 @@ class DeepSeekBackend:
                                     # Surrounding same-speaker lines for coherence; the model is
                                     # told to translate `text` only, not the context.
                                     "context": item.context_text or "",
+                                    **(
+                                        {"max_chars": item.metadata["max_chars"]}
+                                        if item.metadata.get("max_chars")
+                                        else {}
+                                    ),
+                                    **(
+                                        {"target_duration_sec": item.metadata["target_duration_sec"]}
+                                        if item.metadata.get("target_duration_sec")
+                                        else {}
+                                    ),
                                 }
                                 for item in items
                             ],
