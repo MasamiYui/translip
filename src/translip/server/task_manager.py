@@ -393,6 +393,31 @@ def _sync_status_to_db(task_id: str, status_path: Path) -> None:
             break
 
 
+def mark_interrupted_tasks() -> int:
+    """Reconcile orphaned pipeline tasks left ``running``/``pending`` by a previous
+    process. No pipeline thread survives a restart, so any such row is stale and is
+    flipped to ``interrupted``. Mirrors atomic_tools.job_manager.mark_interrupted_jobs.
+    """
+    count = 0
+    now = datetime.now()
+    with Session(engine) as session:
+        tasks = list(
+            session.exec(select(Task).where(Task.status.in_(["pending", "running"]))).all()
+        )
+        for task in tasks:
+            task.status = "interrupted"
+            task.error_message = "Interrupted by service restart"
+            task.finished_at = now
+            task.updated_at = now
+            if task.started_at is not None:
+                task.elapsed_sec = round((now - task.started_at).total_seconds(), 3)
+            session.add(task)
+            session.add(TaskLog(task_id=task.id, action="interrupted"))
+            count += 1
+        session.commit()
+    return count
+
+
 class TaskManager:
     """Manages task lifecycle: creation, execution, progress tracking."""
 

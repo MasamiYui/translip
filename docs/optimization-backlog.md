@@ -144,7 +144,9 @@
 - **验收**：点 Stop 后正在运行的子进程在秒级内被杀，状态置为 cancelled/failed。
 - **测试**：单测取消传播；手动起长任务点停验证进程退出。
 
-### ARCH-9 — 启动时回收悬空流水线任务 ｜ TODO ｜ D/健壮性 ｜ S ｜ ◻待确认
+### ARCH-9 — 启动时回收悬空流水线任务 ｜ DONE ｜ D/健壮性 ｜ S ｜ ◻待确认
+> 已修：`task_manager.mark_interrupted_tasks()`（重启时把 running/pending Task 置 interrupted，前端 StatusBadge/i18n 已支持该态），在 `app.py` 启动钩子调用（紧随 `mark_interrupted_jobs`）。加测试。后端 508 passed。
+> 顺带发现并记录 `TEST-1`（atomic 测试非 hermetic，污染真实库）——本工单期间清理了真实库 931 条测试垃圾 job 以解除其引发的假失败。
 - **现状**：`job_manager.mark_interrupted_jobs()` 在 `app.py:59` 回收孤儿原子任务，但**无流水线 Task 版**；server 崩溃后 Task 永远卡 `running`/`pending`。
 - **方案**：加 `mark_interrupted_tasks()`，启动时把 `pipeline-status.json` 非 running 或缺失的 `running`/`pending` Task 置 `interrupted`/`failed`。
 - **验收**：重启后无幽灵 running 任务。
@@ -606,6 +608,14 @@
 - **测试**：手测拖放。
 
 ---
+
+## 测试卫生（TEST）
+
+### TEST-1 — atomic 测试非 hermetic，污染真实库 ｜ TODO ｜ D/测试 ｜ S ｜ ✅已核实
+- **现状**：`test_atomic_tools_job_manager.py` / `test_atomic_tools_api.py` 多处 `JobManager(...)` 与 TestClient(app) 走真实全局 `default_engine`（`~/.cache/translip/data.db`），创建的 job 留在 pending 不清理，跨次运行累积（本次盘点时真实库已积 931 条 `/pytest-of-*` 垃圾 job），按运行顺序偶发触发 `_active_job_count` 假阳性导致 "Too many" 假失败。
+- **方案**：这些测试改为传入隔离的 `db_engine=`（JobManager 已支持该参数）与隔离 `root`，或加 fixture 用 in-memory engine；避免触碰 `CACHE_ROOT` 真实库。
+- **验收**：atomic 测试在脏真实库下也稳定通过；不再写真实库。
+- **测试**：连续多次 `uv run pytest tests/test_atomic_tools_*.py` 全绿。
 
 ## 附录：本次已核实事实清单
 

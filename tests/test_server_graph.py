@@ -79,6 +79,39 @@ def test_stop_task_signals_registered_cancel_event(tmp_path: Path) -> None:
         assert task.error_message == "Stopped by user"
 
 
+def test_mark_interrupted_tasks_flips_orphaned_running_and_pending(tmp_path: Path, monkeypatch) -> None:
+    from translip.server import task_manager as tm
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    monkeypatch.setattr(tm, "engine", engine)
+    with Session(engine) as session:
+        for tid, status in (("t-run", "running"), ("t-pend", "pending"), ("t-done", "succeeded")):
+            session.add(
+                Task(
+                    id=tid,
+                    name=tid,
+                    status=status,
+                    input_path=str(tmp_path / "in.mp4"),
+                    output_root=str(tmp_path / tid),
+                    source_lang="zh",
+                    target_lang="en",
+                    config={},
+                    created_at=datetime.now(),
+                    updated_at=datetime.now(),
+                )
+            )
+        session.commit()
+
+    count = tm.mark_interrupted_tasks()
+
+    assert count == 2
+    with Session(engine) as session:
+        assert session.get(Task, "t-run").status == "interrupted"
+        assert session.get(Task, "t-pend").status == "interrupted"
+        assert session.get(Task, "t-done").status == "succeeded"
+
+
 def test_build_workflow_graph_payload_returns_nodes_and_edges() -> None:
     from translip.orchestration.graph_export import build_workflow_graph_payload
 

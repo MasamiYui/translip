@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from . import cache_manager
 from .database import init_db
 from .atomic_tools.job_manager import job_manager
+from .task_manager import mark_interrupted_tasks
 from .routes.analysis import router as analysis_router
 from .routes.autofix import router as autofix_router
 from .routes.api_docs import router as api_docs_router
@@ -57,6 +58,7 @@ app.add_middleware(
 def startup_event():
     init_db()
     job_manager.mark_interrupted_jobs()
+    mark_interrupted_tasks()
     cache_manager.apply_hf_token_to_env()
     cache_manager.apply_llm_keys_to_env()
     logger.info("Database initialized")
