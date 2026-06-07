@@ -106,11 +106,13 @@ def run_ocr_detect(
     *,
     log_path: Path,
     monitor: "PipelineMonitor | None" = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> dict[str, object]:
     run_stage_command(
         build_ocr_detect_command(request),
         log_path=log_path,
         on_stdout_line=_build_progress_handler(monitor),
+        should_cancel=should_cancel,
     )
     return {
         "manifest_path": str(ocr_detect_manifest_path(request)),

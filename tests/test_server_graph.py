@@ -39,6 +39,46 @@ def test_task_manager_build_pipeline_request_reads_erase_params(tmp_path: Path) 
     assert request.erase_max_load == 24
 
 
+def test_stop_task_signals_registered_cancel_event(tmp_path: Path) -> None:
+    import threading
+
+    from translip.server import task_manager as tm
+    from translip.server.task_manager import TaskManager
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        task = Task(
+            id="task-cancel",
+            name="Cancel Task",
+            status="running",
+            input_path=str(tmp_path / "in.mp4"),
+            output_root=str(tmp_path / "out"),
+            source_lang="zh",
+            target_lang="en",
+            config={},
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        session.add(task)
+        session.commit()
+
+        event = threading.Event()
+        with tm._cancel_events_lock:
+            tm._cancel_events["task-cancel"] = event
+        try:
+            stopped = TaskManager().stop_task(session, "task-cancel")
+        finally:
+            with tm._cancel_events_lock:
+                tm._cancel_events.pop("task-cancel", None)
+
+        assert stopped is True
+        assert event.is_set() is True
+        session.refresh(task)
+        assert task.status == "failed"
+        assert task.error_message == "Stopped by user"
+
+
 def test_build_workflow_graph_payload_returns_nodes_and_edges() -> None:
     from translip.orchestration.graph_export import build_workflow_graph_payload
 

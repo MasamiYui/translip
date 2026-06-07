@@ -30,6 +30,13 @@ from .schemas import CreateTaskRequest, TaskConfigInput
 
 logger = logging.getLogger(__name__)
 
+# Cooperative cancellation: task_id -> Event. stop_task() sets the event and the
+# pipeline thread (run_pipeline) polls it via should_cancel to SIGTERM the active
+# stage subprocess. Mirrors atomic_tools.job_manager._cancel_events.
+_cancel_events: Dict[str, threading.Event] = {}
+_cancel_events_lock = threading.Lock()
+
+
 def _now_task_id() -> str:
     return "task-" + datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
 
@@ -168,6 +175,10 @@ def _run_pipeline_in_thread(task_id: str) -> None:
         session.add(TaskLog(task_id=task_id, action="started"))
         session.commit()
 
+    cancel_event = threading.Event()
+    with _cancel_events_lock:
+        _cancel_events[task_id] = cancel_event
+
     try:
         with Session(engine) as session:
             task = session.get(Task, task_id)
@@ -175,7 +186,7 @@ def _run_pipeline_in_thread(task_id: str) -> None:
                 return
             pipeline_req = _build_pipeline_request(task)
 
-        result = run_pipeline(pipeline_req.normalized())
+        result = run_pipeline(pipeline_req.normalized(), should_cancel=cancel_event.is_set)
 
         pipeline_status = result.report.get("status", "failed")
 
@@ -205,19 +216,32 @@ def _run_pipeline_in_thread(task_id: str) -> None:
         _sync_stages_from_manifest(task_id)
 
     except Exception as exc:
-        logger.exception("Pipeline execution failed for task %s", task_id)
+        cancelled = cancel_event.is_set()
+        if cancelled:
+            logger.info("Pipeline cancelled by user for task %s", task_id)
+        else:
+            logger.exception("Pipeline execution failed for task %s", task_id)
         with Session(engine) as session:
             task = session.get(Task, task_id)
             if task:
                 task.status = "failed"
-                task.error_message = str(exc)
+                task.error_message = "Stopped by user" if cancelled else str(exc)
                 now = datetime.now()
                 task.finished_at = now
                 if task.started_at is not None:
                     task.elapsed_sec = round((now - task.started_at).total_seconds(), 3)
                 task.updated_at = now
-                session.add(TaskLog(task_id=task_id, action="failed", detail=str(exc)[:500]))
+                session.add(
+                    TaskLog(
+                        task_id=task_id,
+                        action="stopped" if cancelled else "failed",
+                        detail=str(exc)[:500],
+                    )
+                )
                 session.commit()
+    finally:
+        with _cancel_events_lock:
+            _cancel_events.pop(task_id, None)
 
 
 def _run_delivery_step(task_id: str, pipeline_req: "PipelineRequest") -> None:
@@ -420,6 +444,12 @@ class TaskManager:
         task = session.get(Task, task_id)
         if not task or task.status not in ("pending", "running"):
             return False
+        # Signal the running pipeline thread to cancel; this SIGTERMs the active
+        # stage subprocess via run_pipeline's should_cancel hook.
+        with _cancel_events_lock:
+            cancel_event = _cancel_events.get(task_id)
+        if cancel_event is not None:
+            cancel_event.set()
         task.status = "failed"
         task.error_message = "Stopped by user"
         now = datetime.now()

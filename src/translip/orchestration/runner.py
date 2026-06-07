@@ -2,6 +2,7 @@ from __future__ import annotations
 import logging
 
 import hashlib
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -63,7 +64,11 @@ from .commands import (
 from .export import build_pipeline_manifest, build_pipeline_report, build_request_payload, write_json
 from .monitor import PipelineMonitor
 from .stages import resolve_stage_sequence
-from .subprocess_runner import StageSubprocessError, run_stage_command
+from .subprocess_runner import (
+    StageSubprocessCancelled,
+    StageSubprocessError,
+    run_stage_command,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -387,11 +392,12 @@ def execute_stage(
     request: PipelineRequest,
     *,
     monitor: PipelineMonitor,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     stage = stage_name  # string for monkeypatch compatibility
     if stage == "stage1":
         monitor.update_stage_progress(stage, 5.0, "separating source audio")
-        run_stage_command(build_stage1_command(request), log_path=_stage_log_path(request, "stage1"))
+        run_stage_command(build_stage1_command(request), log_path=_stage_log_path(request, "stage1"), should_cancel=should_cancel)
         return {
             "manifest_path": str(stage1_manifest_path(request)),
             "artifact_paths": [str(stage1_voice_path(request)), str(stage1_background_path(request))],
@@ -400,7 +406,7 @@ def execute_stage(
 
     if stage == "task-a":
         monitor.update_stage_progress(stage, 5.0, "transcribing voice track")
-        run_stage_command(build_task_a_command(request), log_path=_stage_log_path(request, "task-a"))
+        run_stage_command(build_task_a_command(request), log_path=_stage_log_path(request, "task-a"), should_cancel=should_cancel)
         return {
             "manifest_path": str(task_a_manifest_path(request)),
             "artifact_paths": [str(task_a_segments_path(request))],
@@ -409,7 +415,7 @@ def execute_stage(
 
     if stage == "task-b":
         monitor.update_stage_progress(stage, 5.0, "building speaker profiles")
-        run_stage_command(build_task_b_command(request), log_path=_stage_log_path(request, "task-b"))
+        run_stage_command(build_task_b_command(request), log_path=_stage_log_path(request, "task-b"), should_cancel=should_cancel)
         return {
             "manifest_path": str(task_b_manifest_path(request)),
             "artifact_paths": [
@@ -422,7 +428,7 @@ def execute_stage(
 
     if stage == "task-c":
         monitor.update_stage_progress(stage, 5.0, "translating script")
-        run_stage_command(build_task_c_command(request), log_path=_stage_log_path(request, "task-c"))
+        run_stage_command(build_task_c_command(request), log_path=_stage_log_path(request, "task-c"), should_cancel=should_cancel)
         return {
             "manifest_path": str(task_c_manifest_path(request)),
             "artifact_paths": [str(task_c_translation_path(request))],
@@ -470,6 +476,7 @@ def execute_stage(
             run_stage_command(
                 build_task_d_command(request, speaker_id=speaker_id, segment_ids=selected_segment_ids),
                 log_path=_stage_log_path(request, "task-d"),
+                should_cancel=should_cancel,
             )
             report_path = task_d_report_path(request, speaker_id)
             if report_path.exists():
@@ -521,6 +528,7 @@ def execute_stage(
                 selected_segments_path=selected_segments_path,
             ),
             log_path=_stage_log_path(request, "task-e"),
+            should_cancel=should_cancel,
         )
         artifact_paths = [
             str(task_e_dub_voice_path(request)),
@@ -720,15 +728,16 @@ def execute_node(
     request: PipelineRequest,
     *,
     monitor: PipelineMonitor,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     if node_name in {"stage1", "task-a", "task-b", "task-c", "task-d", "task-e"}:
-        return execute_stage(node_name, request, monitor=monitor)
+        return execute_stage(node_name, request, monitor=monitor, should_cancel=should_cancel)
     if node_name == "ocr-detect":
         monitor.update_stage_progress(node_name, 5.0, "extracting hard subtitles")
-        return run_ocr_detect(request, log_path=_node_log_path(request, node_name), monitor=monitor)
+        return run_ocr_detect(request, log_path=_node_log_path(request, node_name), monitor=monitor, should_cancel=should_cancel)
     if node_name == "asr-ocr-correct":
         monitor.update_stage_progress(node_name, 5.0, "correcting ASR transcript with OCR")
-        run_stage_command(build_asr_ocr_correction_command(request), log_path=_node_log_path(request, node_name))
+        run_stage_command(build_asr_ocr_correction_command(request), log_path=_node_log_path(request, node_name), should_cancel=should_cancel)
         return {
             "manifest_path": str(task_a_correction_manifest_path(request)),
             "artifact_paths": [
@@ -772,7 +781,7 @@ def execute_node(
         }
     if node_name == "subtitle-erase":
         monitor.update_stage_progress(node_name, 5.0, "erasing hard subtitles")
-        return run_subtitle_erase(request, log_path=_node_log_path(request, node_name), monitor=monitor)
+        return run_subtitle_erase(request, log_path=_node_log_path(request, node_name), monitor=monitor, should_cancel=should_cancel)
     if node_name == "task-g":
         return execute_delivery_node(request, monitor=monitor)
     raise TranslipError(f"Unsupported workflow node: {node_name}")
@@ -782,6 +791,7 @@ def run_pipeline(
     request: PipelineRequest,
     *,
     stage_executor=None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> PipelineResult:
     request = request.normalized()
     if not request.input_path.exists():
@@ -834,10 +844,21 @@ def run_pipeline(
             monitor.start_stage(node_name, current_step="starting")
             print(f"[workflow] status=running node={node_name}")
             try:
+                if should_cancel is not None and should_cancel():
+                    raise StageSubprocessCancelled(
+                        command=[f"node:{node_name}"],
+                        log_path=Path(stage_row["log_path"]),
+                    )
                 if stage_executor is not None and node_name in {"stage1", "task-a", "task-b", "task-c", "task-d", "task-e"}:
                     result = stage_executor(node_name, request, monitor=monitor)
                 else:
-                    result = execute_node(node_name, request, monitor=monitor)
+                    result = execute_node(node_name, request, monitor=monitor, should_cancel=should_cancel)
+            except StageSubprocessCancelled:
+                stage_row["status"] = "failed"
+                stage_row["error"] = "Stopped by user"
+                stage_row["error_message"] = "Stopped by user"
+                monitor.fail_stage(node_name, error="Stopped by user")
+                raise
             except Exception as exc:
                 stage_row["status"] = "failed"
                 stage_row["error"] = str(exc)

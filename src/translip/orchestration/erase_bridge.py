@@ -99,6 +99,7 @@ def run_subtitle_erase(
     *,
     log_path: Path,
     monitor: "PipelineMonitor | None" = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> dict[str, object]:
     # Expand the OCR detection (lead/trail padding + visual-fallback events) and
     # hand the expanded detection.json to the in-tree extractor.
@@ -113,6 +114,7 @@ def run_subtitle_erase(
         build_subtitle_erase_command(request, detection_path=prepared_detection_path),
         log_path=log_path,
         on_stdout_line=_build_progress_handler(monitor),
+        should_cancel=should_cancel,
     )
     # The extractor writes subtitle-erase-manifest.json itself (like ocr-detect).
     return {

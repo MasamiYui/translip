@@ -345,7 +345,7 @@ def test_execute_task_e_writes_character_ledger_and_dub_benchmark(tmp_path: Path
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps({"reports": [str(report_path)]}), encoding="utf-8")
 
-    def fake_run_stage_command(_command, *, log_path):
+    def fake_run_stage_command(_command, *, log_path, on_stdout_line=None, env_overrides=None, should_cancel=None):
         mix_report_path = request.output_root / "task-e" / "voice" / "mix_report.en.json"
         mix_report_path.parent.mkdir(parents=True, exist_ok=True)
         mix_report_path.write_text(
@@ -489,6 +489,37 @@ def test_run_subtitle_erase_expands_ocr_detection_before_reuse(tmp_path: Path, m
     assert expanded["events"][0]["end_frame"] == 31
     assert expanded["events"][0]["start_time"] == 6 / 20.0
     assert expanded["events"][0]["end_time"] == 31 / 20.0
+
+
+def test_run_pipeline_aborts_when_should_cancel_returns_true(tmp_path: Path) -> None:
+    """ARCH-8: a set cancel flag stops the pipeline before running any stage and
+    propagates StageSubprocessCancelled instead of silently continuing."""
+    import pytest
+
+    from translip.orchestration.runner import run_pipeline
+    from translip.orchestration.subprocess_runner import StageSubprocessCancelled
+    from translip.types import PipelineRequest
+
+    input_path = tmp_path / "in.mp4"
+    input_path.write_bytes(b"fake")
+    request = PipelineRequest(
+        input_path=input_path,
+        output_root=tmp_path / "out",
+        run_from_stage="stage1",
+        run_to_stage="task-e",
+        reuse_existing=False,
+    )
+
+    executed: list[str] = []
+
+    def stage_executor(node_name, request, *, monitor):
+        executed.append(node_name)
+        return {"manifest_path": "", "artifact_paths": [], "log_path": ""}
+
+    with pytest.raises(StageSubprocessCancelled):
+        run_pipeline(request, stage_executor=stage_executor, should_cancel=lambda: True)
+
+    assert executed == []
 
 
 def test_effective_task_a_segments_prefers_speaker_corrected_segments(tmp_path: Path) -> None:

@@ -137,7 +137,8 @@
 - **验收**：超限时按 LRU 清理未被引用产物。
 - **测试**：单测 GC 选择逻辑。
 
-### ARCH-8 — Stop 真正传递到子进程 ｜ TODO ｜ D/健壮性 ｜ S–M ｜ ✅已核实
+### ARCH-8 — Stop 真正传递到子进程 ｜ DONE ｜ D/健壮性 ｜ S–M ｜ ✅已核实
+> 已修：`run_pipeline`/`execute_node`/`execute_stage` + ocr/erase bridge 全程下传 `should_cancel`，每个 `run_stage_command` 接 SIGTERM 机制；循环内每节点前加取消检查，`StageSubprocessCancelled` 独立于 required 性传播（取消可选节点也会停整条）。`task_manager` 加 `{task_id: Event}` 注册表，`stop_task` 置位事件、`_run_pipeline_in_thread` 注入 `cancel_event.is_set` 并在 finally 清理、保留 "Stopped by user" 文案。加 2 测试（run_pipeline 取消中止 + stop_task 置位事件）。后端 507 passed。
 - **现状**：`subprocess_runner.run_stage_command` 完整支持 `should_cancel`（看门狗 + SIGTERM→SIGKILL，`subprocess_runner.py:111`），但 `run_pipeline` 的全部 7 处调用（`runner.py:394,403,412,425,470,517,731`）**都没传**；`task_manager.stop_task` 只改 DB 状态，子进程跑到底再覆盖。路由文案声称"发送终止信号"——实际没有。
 - **方案**：从 `task_manager` 传 `threading.Event` 进 `run_pipeline(..., should_cancel=event.is_set)`，转发给每个 `run_stage_command`；用 `{task_id: event}` 映射（照搬 `job_manager._cancel_events` 模式，`job_manager.py:413`）。
 - **验收**：点 Stop 后正在运行的子进程在秒级内被杀，状态置为 cancelled/failed。
