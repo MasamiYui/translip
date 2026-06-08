@@ -117,6 +117,52 @@ def _display_subtitle_text(text: str) -> str:
     return "\n".join(line.strip() for line in cleaned.splitlines()).strip()
 
 
+_CJK_RE = re.compile(r"[　-鿿豈-﫿＀-￯]")
+
+
+def _wrap_words(text: str, limit: int, max_lines: int) -> list[str]:
+    lines: list[str] = []
+    current = ""
+    for word in text.split():
+        candidate = f"{current} {word}".strip()
+        if current and len(candidate) > limit and len(lines) < max_lines - 1:
+            lines.append(current)
+            current = word
+        else:
+            current = candidate
+    if current:
+        lines.append(current)
+    return lines
+
+
+def _wrap_chars(text: str, limit: int, max_lines: int) -> list[str]:
+    lines: list[str] = []
+    index = 0
+    while index < len(text) and len(lines) < max_lines - 1:
+        lines.append(text[index : index + limit])
+        index += limit
+    if index < len(text):
+        lines.append(text[index:])  # remainder on the last line (may exceed limit)
+    return lines
+
+
+def wrap_subtitle_text(text: str, *, max_chars_per_line: int = 0, max_lines: int = 2) -> str:
+    """Wrap a subtitle line for readability: collapse it to a single logical line,
+    then break into at most ``max_lines`` balanced-ish lines no wider than the
+    per-line limit (auto ~42 Latin / ~16 CJK when ``max_chars_per_line`` is 0).
+    Long translations no longer render as one overflowing line."""
+    flat = " ".join(text.split())
+    if not flat:
+        return text
+    is_cjk = bool(_CJK_RE.search(flat)) and " " not in flat
+    limit = max_chars_per_line if max_chars_per_line > 0 else (16 if is_cjk else 42)
+    max_lines = max(1, max_lines)
+    if len(flat) <= limit or max_lines == 1:
+        return flat
+    lines = _wrap_chars(flat, limit, max_lines) if is_cjk else _wrap_words(flat, limit, max_lines)
+    return "\n".join(lines)
+
+
 def srt_to_ass(
     srt_path: Path,
     style: SubtitleStyle,
@@ -130,7 +176,11 @@ def srt_to_ass(
     for event in events:
         start = _format_ass_time(event["start"])
         end = _format_ass_time(event["end"])
-        text = _display_subtitle_text(event["text"]).replace("\n", "\\N")
+        text = wrap_subtitle_text(
+            _display_subtitle_text(event["text"]),
+            max_chars_per_line=style.max_chars_per_line,
+            max_lines=style.max_lines,
+        ).replace("\n", "\\N")
         if not text:
             continue
         dialogue_lines.append(f"Dialogue: 0,{start},{end},{style_name},,0,0,0,,{text}")
@@ -156,14 +206,22 @@ def merge_bilingual_ass(
     for event in cn_events:
         start = _format_ass_time(event["start"])
         end = _format_ass_time(event["end"])
-        text = _display_subtitle_text(event["text"]).replace("\n", "\\N")
+        text = wrap_subtitle_text(
+            _display_subtitle_text(event["text"]),
+            max_chars_per_line=chinese_style.max_chars_per_line,
+            max_lines=chinese_style.max_lines,
+        ).replace("\n", "\\N")
         if not text:
             continue
         dialogue_lines.append(f"Dialogue: 0,{start},{end},Chinese,,0,0,0,,{text}")
     for event in en_events:
         start = _format_ass_time(event["start"])
         end = _format_ass_time(event["end"])
-        text = _display_subtitle_text(event["text"]).replace("\n", "\\N")
+        text = wrap_subtitle_text(
+            _display_subtitle_text(event["text"]),
+            max_chars_per_line=english_style.max_chars_per_line,
+            max_lines=english_style.max_lines,
+        ).replace("\n", "\\N")
         if not text:
             continue
         dialogue_lines.append(f"Dialogue: 0,{start},{end},English,,0,0,0,,{text}")

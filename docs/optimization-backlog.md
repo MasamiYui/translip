@@ -492,7 +492,8 @@
 
 ## 字幕子系统 — OCR / Erase / 字幕输出（SUB）
 
-### SUB-1 — 翻译字幕 CPS/折行/可读性引擎 ｜ TODO ｜ 产品 ｜ M ｜ ◻待确认
+### SUB-1 — 翻译字幕 CPS/折行/可读性引擎 ｜ DONE(折行) ｜ 产品 ｜ M ｜ ◻待确认
+> 已做：`SubtitleStyle` 加 `max_chars_per_line`(0=auto)/`max_lines`(2)；`subtitles/burn.wrap_subtitle_text` 纯函数把字幕压成单逻辑行再折成 ≤max_lines 行、每行 ≤限宽(auto ~42 Latin / ~16 CJK，按脚本判断)，词/字不丢；srt_to_ass + merge_bilingual_ass(中/英各用各自 style) 全部接入。长译文不再单行溢出。加单测；既有 srt_to_ass 测试不受影响(短行不动)。后端 522 passed。⏳ CPS 强制(改 cue 时长/最短尺/合并) + 平衡到中点 留作后续。
 - **现状**：`write_ocr_translation_bundle`（`subtitles/export.py:24`）逐 cue 原样输出译文；`srt_to_ass`（`burn.py:120`）仅 `\n→\\N`；`SubtitleStyle`（`types/common.py:82`）无 CPS/每行字数/最大行；dub 的 `max_chars` 预算到不了字幕。
 - **方案**：烧录前对译文 SRT 做可读性 pass：CPS 上限(拉丁17/CJK9)、≤2 行平衡折行、违反最短时长/最小间隔则延长/合并；`SubtitleStyle` 加 `max_cps/max_chars_per_line/max_lines`。
 - **验收**：长译文不再单行溢出。

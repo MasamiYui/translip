@@ -90,6 +90,25 @@ def _subtitle_style() -> SubtitleStyle:
     )
 
 
+def test_wrap_subtitle_text_balances_lines() -> None:
+    from translip.subtitles.burn import wrap_subtitle_text
+
+    assert wrap_subtitle_text("Hello there", max_chars_per_line=42) == "Hello there"
+
+    long_en = "this is a fairly long english subtitle line that should wrap onto two lines"
+    wrapped = wrap_subtitle_text(long_en, max_chars_per_line=30, max_lines=2)
+    lines = wrapped.split("\n")
+    assert len(lines) == 2
+    assert wrapped.replace("\n", " ") == long_en  # no words lost, single-spaced
+
+    cjk = "这是一句很长的中文字幕需要换行显示以免溢出屏幕"
+    cjk_wrapped = wrap_subtitle_text(cjk, max_chars_per_line=8, max_lines=2)
+    assert "\n" in cjk_wrapped
+    assert cjk_wrapped.replace("\n", "") == cjk  # no chars lost
+
+    assert "\n" not in wrap_subtitle_text(long_en, max_chars_per_line=10, max_lines=1)
+
+
 def test_srt_to_ass_strips_internal_speaker_labels_for_delivery(tmp_path: Path) -> None:
     from translip.subtitles.burn import srt_to_ass
 

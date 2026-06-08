@@ -91,6 +91,8 @@ class SubtitleStyle:
     margin_v: int = 0
     margin_h: int = 20
     alignment: int = 2
+    max_chars_per_line: int = 0  # 0 = auto (per-script: ~42 Latin / ~16 CJK)
+    max_lines: int = 2
 
 
 def normalize_dubbing_quality_check_mode(value: object | None) -> DubbingQualityCheckMode:
