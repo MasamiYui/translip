@@ -489,8 +489,23 @@ class TaskManager:
         session.commit()
         return True
 
-    async def stream_progress(self, task_id: str) -> AsyncGenerator[str, None]:
-        """Yield SSE-formatted strings from pipeline-status.json."""
+    async def stream_progress(
+        self,
+        task_id: str,
+        *,
+        interval: float = 1.5,
+        heartbeat_sec: float = 15.0,
+    ) -> AsyncGenerator[str, None]:
+        """Yield SSE strings until the task reaches a terminal state (ARCH-10).
+
+        There is no fixed wall-clock cap — a long pipeline used to hit a 300s
+        ``timeout`` event while still running. Instead this streams until the task
+        is terminal (authoritatively via the DB row, which `_sync_status_to_db`
+        keeps current, so the stream also ends if the status JSON stalls/missing)
+        and emits a keepalive comment after `heartbeat_sec` of no change so idle
+        proxies don't drop the connection. Starlette cancels the generator when
+        the client disconnects, so the loop is safe to run unbounded.
+        """
         with Session(engine) as session:
             task = session.get(Task, task_id)
             if not task:
@@ -498,50 +513,57 @@ class TaskManager:
                 return
             status_path = Path(task.output_root) / "pipeline-status.json"
 
+        terminal = ("succeeded", "partial_success", "failed", "interrupted", "cancelled")
         last_payload: Optional[Dict[str, Any]] = None
-        max_wait = 300  # seconds
-        elapsed = 0
-        interval = 1.5
+        since_change = 0.0
 
-        while elapsed < max_wait:
+        while True:
             await asyncio.sleep(interval)
-            elapsed += interval
 
+            emitted = False
             if status_path.exists():
                 try:
                     payload = json.loads(status_path.read_text(encoding="utf-8"))
                 except Exception:
-                    continue
-
-                if payload != last_payload:
+                    payload = None
+                if payload is not None and payload != last_payload:
                     last_payload = payload
-                    stage = payload.get("current_stage", "")
-                    pct = payload.get("overall_progress_percent", 0)
+                    since_change = 0.0
+                    emitted = True
                     status = payload.get("status", "running")
                     yield _sse_event(
                         "progress",
                         {
-                            "stage": stage,
-                            "overall_percent": pct,
+                            "stage": payload.get("current_stage", ""),
+                            "overall_percent": payload.get("overall_progress_percent", 0),
                             "status": status,
                             "stages": payload.get("stages", []),
                         },
                     )
-                    if status in ("succeeded", "partial_success", "failed"):
-                        yield _sse_event("done", {"status": status, "overall_percent": pct})
-                        return
-            else:
-                # Check DB for final status
-                with Session(engine) as session:
-                    task = session.get(Task, task_id)
-                    if task and task.status in ("succeeded", "partial_success", "failed"):
+                    if status in terminal:
                         yield _sse_event(
                             "done",
-                            {"status": task.status, "overall_percent": task.overall_progress},
+                            {"status": status, "overall_percent": payload.get("overall_progress_percent", 0)},
                         )
                         return
 
-        yield _sse_event("timeout", {"message": "Progress stream timed out"})
+            if emitted:
+                continue
+
+            # No fresh JSON this tick — the DB row is authoritative for completion.
+            with Session(engine) as session:
+                task = session.get(Task, task_id)
+            if task is None:
+                yield _sse_event("error", {"message": "Task not found"})
+                return
+            if task.status in terminal:
+                yield _sse_event("done", {"status": task.status, "overall_percent": task.overall_progress})
+                return
+
+            since_change += interval
+            if since_change >= heartbeat_sec:
+                since_change = 0.0
+                yield ": keepalive\n\n"  # SSE comment — keeps the connection warm
 
 
 def _sse_event(event: str, data: Dict[str, Any]) -> str:
