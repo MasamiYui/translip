@@ -1,0 +1,47 @@
+{
+  "description": "Sample zh->en dubbing glossary. Pass via `translip translate-script --glossary examples/glossary.zh-en.sample.json`, or set TRANSLIP_DEFAULT_GLOSSARY to apply it to every job. These terms used to be hardcoded as a built-in glossary (TRA-2) — they are film-specific and are now opt-in.",
+  "entries": [
+    {
+      "entry_id": "ne-zha",
+      "source_variants": ["哪吒", "吒儿"],
+      "targets": { "en": "Ne Zha" },
+      "normalized_source": "哪吒"
+    },
+    {
+      "entry_id": "ao-bing",
+      "source_variants": ["敖丙"],
+      "targets": { "en": "Ao Bing" },
+      "normalized_source": "敖丙"
+    },
+    {
+      "entry_id": "chentang-pass",
+      "source_variants": ["陈塘关"],
+      "targets": { "en": "Chentang Pass" },
+      "normalized_source": "陈塘关"
+    },
+    {
+      "entry_id": "shen-gongbao",
+      "source_variants": ["申公豹"],
+      "targets": { "en": "Shen Gongbao" },
+      "normalized_source": "申公豹"
+    },
+    {
+      "entry_id": "east-sea-dragon-clan",
+      "source_variants": ["东海龙族", "龙族"],
+      "targets": { "en": "East Sea Dragon Clan" },
+      "normalized_source": "东海龙族"
+    },
+    {
+      "entry_id": "heavenly-tribulation",
+      "source_variants": ["天劫"],
+      "targets": { "en": "Heavenly Tribulation" },
+      "normalized_source": "天劫"
+    },
+    {
+      "entry_id": "dubai",
+      "source_variants": ["迪拜"],
+      "targets": { "en": "Dubai" },
+      "normalized_source": "迪拜"
+    }
+  ]
+}

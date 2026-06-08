@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from .backend import canonical_language_code, output_tag_for_language
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -17,50 +21,16 @@ class GlossaryEntry:
     normalized_source: str | None = None
 
 
-BUILTIN_DUBBING_GLOSSARY: tuple[GlossaryEntry, ...] = (
-    GlossaryEntry(
-        entry_id="builtin-ne-zha",
-        source_variants=("哪吒", "吒儿"),
-        targets={"en": "Ne Zha"},
-        normalized_source="哪吒",
-    ),
-    GlossaryEntry(
-        entry_id="builtin-ao-bing",
-        source_variants=("敖丙",),
-        targets={"en": "Ao Bing"},
-        normalized_source="敖丙",
-    ),
-    GlossaryEntry(
-        entry_id="builtin-chentang-pass",
-        source_variants=("陈塘关",),
-        targets={"en": "Chentang Pass"},
-        normalized_source="陈塘关",
-    ),
-    GlossaryEntry(
-        entry_id="builtin-shen-gongbao",
-        source_variants=("申公豹",),
-        targets={"en": "Shen Gongbao"},
-        normalized_source="申公豹",
-    ),
-    GlossaryEntry(
-        entry_id="builtin-east-sea-dragon-clan",
-        source_variants=("东海龙族", "龙族"),
-        targets={"en": "East Sea Dragon Clan"},
-        normalized_source="东海龙族",
-    ),
-    GlossaryEntry(
-        entry_id="builtin-heavenly-tribulation",
-        source_variants=("天劫",),
-        targets={"en": "Heavenly Tribulation"},
-        normalized_source="天劫",
-    ),
-    GlossaryEntry(
-        entry_id="builtin-dubai",
-        source_variants=("迪拜",),
-        targets={"en": "Dubai"},
-        normalized_source="迪拜",
-    ),
-)
+# The built-in glossary is intentionally EMPTY (TRA-2). Film-specific proper
+# nouns (e.g. 《哪吒》 character names) used to be hardcoded here and force-applied
+# to every zh->en job, which corrupted unrelated content. Ship such terms as a
+# loadable asset instead — see `examples/glossary.zh-en.sample.json` — and pass
+# them via `--glossary`, or set TRANSLIP_DEFAULT_GLOSSARY to a glossary JSON to
+# apply a default to every job.
+BUILTIN_DUBBING_GLOSSARY: tuple[GlossaryEntry, ...] = ()
+
+# Env var pointing at a glossary JSON applied as the default for every job.
+DEFAULT_GLOSSARY_ENV = "TRANSLIP_DEFAULT_GLOSSARY"
 
 
 def load_glossary(glossary_path: Path | None) -> list[GlossaryEntry]:
@@ -87,9 +57,28 @@ def load_glossary(glossary_path: Path | None) -> list[GlossaryEntry]:
 
 
 def built_in_dubbing_glossary(*, source_lang: str, target_lang: str) -> list[GlossaryEntry]:
-    if canonical_language_code(source_lang) != "zh" or canonical_language_code(target_lang) != "en":
-        return []
-    return list(BUILTIN_DUBBING_GLOSSARY)
+    """Default glossary applied to every job.
+
+    The hardcoded tuple is empty (TRA-2); the only default terms come from a
+    glossary JSON pointed to by ``TRANSLIP_DEFAULT_GLOSSARY`` (if set), so no
+    film-specific names are forced onto unrelated content by default.
+    """
+    entries: list[GlossaryEntry] = []
+    if canonical_language_code(source_lang) == "zh" and canonical_language_code(target_lang) == "en":
+        entries.extend(BUILTIN_DUBBING_GLOSSARY)
+
+    default_path = os.environ.get(DEFAULT_GLOSSARY_ENV, "").strip()
+    if default_path:
+        try:
+            entries.extend(load_glossary(Path(default_path).expanduser()))
+        except Exception:
+            logger.warning(
+                "Failed to load default glossary from %s=%s; ignoring.",
+                DEFAULT_GLOSSARY_ENV,
+                default_path,
+                exc_info=True,
+            )
+    return entries
 
 
 def merge_glossaries(

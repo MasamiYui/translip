@@ -147,7 +147,10 @@ def test_normalize_target_with_glossary_forces_single_term_segments() -> None:
     assert normalized == "Dubai"
 
 
-def test_translate_script_uses_builtin_dubbing_glossary_and_phrase_overrides(tmp_path: Path) -> None:
+def test_translate_script_applies_user_glossary_terms(tmp_path: Path) -> None:
+    # TRA-2: film-specific proper nouns are no longer hardcoded as a built-in
+    # glossary; they must be supplied via --glossary. This verifies the glossary
+    # mechanism still forces the term.
     segments_path = tmp_path / "segments.zh.json"
     segments_path.write_text(
         json.dumps(
@@ -164,6 +167,14 @@ def test_translate_script_uses_builtin_dubbing_glossary_and_phrase_overrides(tmp
         json.dumps(_make_profiles_payload([("SPEAKER_00", "spk_0000")]), ensure_ascii=False),
         encoding="utf-8",
     )
+    glossary_path = tmp_path / "glossary.json"
+    glossary_path.write_text(
+        json.dumps(
+            {"entries": [{"entry_id": "ne-zha", "source_variants": ["哪吒"], "targets": {"en": "Ne Zha"}}]},
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
 
     result = translate_script(
         TranslationRequest(
@@ -172,6 +183,7 @@ def test_translate_script_uses_builtin_dubbing_glossary_and_phrase_overrides(tmp
             output_dir=tmp_path / "output",
             target_lang="en",
             batch_size=1,
+            glossary_path=glossary_path,
         ),
         backend_override=FakeBackend(),
     )
@@ -179,9 +191,35 @@ def test_translate_script_uses_builtin_dubbing_glossary_and_phrase_overrides(tmp
     payload = json.loads(result.artifacts.translation_json_path.read_text(encoding="utf-8"))
     by_id = {row["segment_id"]: row for row in payload["segments"]}
     assert by_id["seg-0001"]["target_text"] == "Ne Zha."
-    assert by_id["seg-0001"]["glossary_matches"][0]["entry_id"] == "builtin-ne-zha"
+    assert by_id["seg-0001"]["glossary_matches"][0]["entry_id"] == "ne-zha"
     assert by_id["seg-0002"]["target_text"] == "Report."
     assert "needs_dubbing_unit" in by_id["seg-0002"]["script_risk_flags"]
+
+
+def test_builtin_glossary_is_empty_by_default(tmp_path: Path) -> None:
+    # TRA-2: no film-specific terms by default; the shipped sample asset is valid.
+    from translip.translation.glossary import built_in_dubbing_glossary, load_glossary
+
+    assert built_in_dubbing_glossary(source_lang="zh", target_lang="en") == []
+
+    sample = Path("examples/glossary.zh-en.sample.json")
+    entries = load_glossary(sample)
+    ids = {entry.entry_id for entry in entries}
+    assert "ne-zha" in ids and "dubai" in ids
+
+
+def test_default_glossary_env_is_applied(tmp_path: Path, monkeypatch) -> None:
+    from translip.translation.glossary import DEFAULT_GLOSSARY_ENV, built_in_dubbing_glossary
+
+    glossary_path = tmp_path / "default-glossary.json"
+    glossary_path.write_text(
+        json.dumps({"entries": [{"entry_id": "city", "source_variants": ["迪拜"], "targets": {"en": "Dubai"}}]}),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(DEFAULT_GLOSSARY_ENV, str(glossary_path))
+
+    entries = built_in_dubbing_glossary(source_lang="zh", target_lang="en")
+    assert [entry.entry_id for entry in entries] == ["city"]
 
 
 def test_duration_budget_marks_risky_when_target_is_much_longer() -> None:

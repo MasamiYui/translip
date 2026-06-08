@@ -354,8 +354,10 @@
 - **验收**：默认配置下 overflow/severe/切尾段数下降。
 - **测试**：在 `output-pipeline/voxcpm-dubai-*` 上跑 task-c→task-e，对比 `qa_summary.timeline`（overflow/`cut_audio_sec`）。
 
-### TRA-2 — glossary 自动抽取 + 去硬编码哪吒 ｜ TODO ｜ 产品/算法 ｜ M ｜ ◻待确认
-- **现状**：`BUILTIN_DUBBING_GLOSSARY` 硬编码《哪吒》专名（`glossary.py:20`），`dubbing_script.py` 硬编码整行译文；batch 独立 → 同名多译。
+### TRA-2 — glossary 自动抽取 + 去硬编码哪吒 ｜ DONE（去硬编码+可配默认；抽取器留子项）｜ 产品/算法 ｜ M ｜ ✅已核实
+> 已修去硬编码核心：`BUILTIN_DUBBING_GLOSSARY` 清空为 `()`（默认不再把《哪吒》专名强加到每个 zh→en 任务上——之前会把无关内容里的"哪吒"等错改）。7 条电影专名挪到**样例资产** `examples/glossary.zh-en.sample.json`（`--glossary` 加载格式）。`built_in_dubbing_glossary` 改为：空 builtin + 可选 `TRANSLIP_DEFAULT_GLOSSARY` env 指向的默认 glossary（去硬编码后给用户**可配置默认**而非纯删除；加载失败 WARN 跳过）。测试：原 builtin 测试改为显式 `--glossary` 验证机制 + 新增"默认 builtin 为空 + 样例资产可加载" + "env 默认生效"。全量 615 passed。
+> ⏸ **余项**（算法部分）：专名**自动抽取器**（全局扫复现实体、各译一次、合成 glossary 注入解决"同名多译"）+ `dubbing_script.py` 硬编码整行译文清理 + 持久化到 registry 供系列复用——较大，留 TODO。
+- **现状（原）**：`BUILTIN_DUBBING_GLOSSARY` 硬编码《哪吒》专名（`glossary.py:20`），`dubbing_script.py` 硬编码整行译文；batch 独立 → 同名多译。
 - **方案**：把电影专名挪到样例资产；加专名抽取器（全局扫复现实体，各译一次，合成 glossary 注入）；可选持久化到 registry 供系列复用。
 - **验收**：跨段同名一致；默认不含特定影片词。
 - **测试**：多段含复现专名样本验证一致性。
