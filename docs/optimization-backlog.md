@@ -212,11 +212,10 @@
 - **验收**：跨域被拒；开启 token 后未授权 401。
 - **测试**：单测 CORS/鉴权中间件。
 
-### SEC-3 — argv 输入轻量校验 ｜ TODO ｜ 安全 ｜ S ｜ ◻待确认
-- **现状**：argv 列表传参（shell=False）**不可注入**，但 `speaker_id`/`api_base_url`/`target_lang` 等无校验流入 argv。
+### SEC-3 — argv 输入轻量校验 ｜ DONE ｜ 安全 ｜ S ｜ ✅已核实
+> 已修：新增 `orchestration/argv_safety.py`（白名单校验器 `validate_lang/url/model/path_identifier`），在 argv 构造**前**拦截两类真实风险——① **参数注入**（`-` 前缀值被子进程 argparse 当 flag）；② **路径穿越**（`speaker_id` 直接作目录组件 `task_d_voice_dir/speaker_id`，拒 `..`/分隔符）。接入 `commands.py`：task-a 校验 `transcription_language`，task-c 校验 `target_lang`/`api_model`/`api_base_url`，task-d 校验 `speaker_id`+每个 `segment_id`，task-e 校验 `target_lang`。校验器接受 Unicode 词字符（CJK persona 名不误伤），`asr_model` 故意不校验（可为含 `/` 的 HF 路径）。加 `tests/test_argv_safety.py`（50 例）。全量 576 passed。
+- **现状（原）**：argv 列表传参（shell=False）**不可注入**，但 `speaker_id`/`api_base_url`/`target_lang` 等无校验流入 argv。
 - **方案**：加 charset/enum 校验（白名单字符、枚举值）。
-- **验收**：非法值被拒于构造前。
-- **测试**：单测非法输入。
 
 ---
 

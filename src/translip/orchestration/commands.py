@@ -5,6 +5,12 @@ from pathlib import Path
 
 from ..types import PipelineRequest
 from ..utils.files import slugify_filename
+from .argv_safety import (
+    validate_lang,
+    validate_model,
+    validate_path_identifier,
+    validate_url,
+)
 
 
 def _cli_prefix() -> list[str]:
@@ -175,6 +181,7 @@ def build_stage1_command(request: PipelineRequest) -> list[str]:
 
 
 def build_task_a_command(request: PipelineRequest) -> list[str]:
+    validate_lang(request.transcription_language, field="transcription_language")
     command = [
         *_cli_prefix(),
         "transcribe",
@@ -245,6 +252,11 @@ def build_task_b_command(request: PipelineRequest) -> list[str]:
 
 
 def build_task_c_command(request: PipelineRequest) -> list[str]:
+    validate_lang(request.target_lang, field="target_lang")
+    if request.api_model:
+        validate_model(request.api_model, field="api_model")
+    if request.api_base_url:
+        validate_url(request.api_base_url, field="api_base_url")
     command = [
         *_cli_prefix(),
         "translate-script",
@@ -275,6 +287,9 @@ def build_task_c_command(request: PipelineRequest) -> list[str]:
 
 
 def build_task_d_command(request: PipelineRequest, *, speaker_id: str, segment_ids: list[str] | None) -> list[str]:
+    validate_path_identifier(speaker_id, field="speaker_id")
+    for segment_id in segment_ids or []:
+        validate_path_identifier(segment_id, field="segment_id")
     command = [
         *_cli_prefix(),
         "synthesize-speaker",
@@ -310,6 +325,7 @@ def build_task_e_command(
     task_d_reports: list[Path],
     selected_segments_path: Path | None = None,
 ) -> list[str]:
+    validate_lang(request.target_lang, field="target_lang")
     command = [
         *_cli_prefix(),
         "render-dub",
