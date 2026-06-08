@@ -570,8 +570,10 @@
 - **验收**：新增 adapter 文件即被发现，无需改 `__init__`。
 - **测试**：单测自动发现注册全部工具。
 
-### ATOM-2 — 真队列 + 重启 re-enqueue ｜ TODO ｜ 产品/健壮性 ｜ M ｜ ◻待确认
-- **现状**：`create_job` 满载直接 429（`job_manager.py:114`），非队列；重启丢未启动任务（停 `pending` 仅标 interrupted）。
+### ATOM-2 — 真队列 + 重启 re-enqueue ｜ DONE ｜ 产品/健壮性 ｜ M ｜ ✅已核实
+> 已修（信号量排队 + 重启恢复，最小扰动）：① `create_job` **去掉 429**——满载也只写 `pending` 行；② `JobManager` 加 `BoundedSemaphore(max_concurrent_jobs)`，`_execute_job_sync` 在实际工作前 `acquire`/`finally release`——超额的 execute 在各自线程阻塞排队（路由仍 `create_task(execute_job)` 触发，故 api 测试"立即 completed"时序不变、单作业即获槽）；③ `mark_interrupted_jobs` 改为**只标 running**（崩溃中途的不自动续），新增 `recover_pending_jobs`（启动时对残留 `pending` 各起守护线程跑、同样受信号量约束）；④ app 启动 `mark_interrupted_jobs()`→`recover_pending_jobs()`。重写过时的"429"测试为"排队不拒"；加信号量限并发（ConcurrencyProbeAdapter 测 max_active==1）+ "mark_interrupted 保留 pending 且 recover 跑完"测试。全量 617 passed。
+> 注：未引入 asyncio.Queue/独立 worker 池（信号量 + 线程已满足"排队不拒 + 重启续跑"），本地低并发场景足够。
+- **现状（原）**：`create_job` 满载直接 429（`job_manager.py:114`），非队列；重启丢未启动任务（停 `pending` 仅标 interrupted）。
 - **方案**：bounded `asyncio.Queue`+worker，提交入队不 429；启动时 re-enqueue `pending`。
 - **验收**：超载排队而非报错；重启续跑。
 - **测试**：单测队列 + 重启恢复。

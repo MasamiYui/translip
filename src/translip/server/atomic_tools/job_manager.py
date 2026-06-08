@@ -76,6 +76,10 @@ class JobManager:
         self._adapter_overrides: dict[str, Any] = {}
         self._cancel_events: dict[str, threading.Event] = {}
         self._cancel_events_lock = threading.Lock()
+        # Bound how many jobs actually run at once. Submissions never 429 anymore
+        # (ATOM-2): excess execute_job calls block here, forming a queue, until a
+        # running job releases a slot.
+        self._run_semaphore = threading.BoundedSemaphore(max(1, int(max_concurrent_jobs)))
 
     def register_adapter(self, tool_id: str, adapter: Any) -> None:
         self._adapter_overrides[tool_id] = adapter
@@ -125,9 +129,9 @@ class JobManager:
         )
 
     def create_job(self, tool_id: str, params: dict) -> JobResponse:
+        # No longer rejects when busy (ATOM-2): the row is created as "pending"
+        # and execution queues on the run semaphore, so submissions never 429.
         spec = get_tool_spec(tool_id)
-        if self._active_job_count() >= self.max_concurrent_jobs:
-            raise RuntimeError("Too many atomic tool jobs are already running")
         adapter = self._get_adapter(tool_id)
         normalized = adapter.validate_params(params)
         self._validate_file_references(spec.accept_formats, spec.max_file_size_mb, normalized)
@@ -167,6 +171,8 @@ class JobManager:
                 return
             params = dict(job.normalized_params)
             tool_id = job.tool_id
+        # Queue here when all run slots are busy (ATOM-2) — released in finally.
+        self._run_semaphore.acquire()
         try:
             adapter = self._get_adapter(tool_id)
             job_dir = self.jobs_root / job_id
@@ -235,6 +241,7 @@ class JobManager:
             )
             self._register_artifacts(job_id, tool_id)
         finally:
+            self._run_semaphore.release()
             self._drop_cancel_event(job_id)
 
     def get_job(self, job_id: str) -> JobResponse:
@@ -404,12 +411,15 @@ class JobManager:
         return True
 
     def mark_interrupted_jobs(self) -> int:
+        # Only jobs that were actually mid-run when the service died are marked
+        # interrupted (partial state — don't auto-resume). "pending" jobs never
+        # started, so they survive and are resumed by recover_pending_jobs (ATOM-2).
         count = 0
         now = datetime.now()
         with self._session() as session:
             jobs = list(
                 session.exec(
-                    select(AtomicToolJob).where(AtomicToolJob.status.in_(["pending", "running"]))
+                    select(AtomicToolJob).where(AtomicToolJob.status == "running")
                 ).all()
             )
             jobs = [job for job in jobs if self._owns_job(job)]
@@ -424,6 +434,26 @@ class JobManager:
                 count += 1
             session.commit()
         return count
+
+    def recover_pending_jobs(self) -> int:
+        """Re-enqueue jobs left "pending" by a previous run (ATOM-2).
+
+        Called once at startup (after mark_interrupted_jobs). Each pending job is
+        run on a daemon thread that queues on the run semaphore, so recovery
+        respects the concurrency limit just like fresh submissions.
+        """
+        with self._session() as session:
+            jobs = list(
+                session.exec(
+                    select(AtomicToolJob).where(AtomicToolJob.status == "pending")
+                ).all()
+            )
+            pending_ids = [job.id for job in jobs if self._owns_job(job)]
+        for job_id in pending_ids:
+            threading.Thread(
+                target=self._execute_job_sync, args=(job_id,), daemon=True
+            ).start()
+        return len(pending_ids)
 
     def cleanup_expired(self, max_age_hours: int = 24) -> int:
         threshold = datetime.now() - timedelta(hours=max_age_hours)

@@ -132,15 +132,32 @@ def test_job_manager_rejects_unknown_file_references(tmp_path: Path) -> None:
         raise AssertionError("expected create_job() to reject an unknown file reference")
 
 
-def test_job_manager_counts_pending_jobs_against_concurrency_limit(tmp_path: Path) -> None:
-    from translip.server.atomic_tools.job_manager import JobManager
+class ConcurrencyProbeAdapter:
+    """Tracks the peak number of concurrent run() calls (to assert the semaphore)."""
 
-    manager = JobManager(
-        root=tmp_path / "atomic-tools", max_concurrent_jobs=1, db_engine=_isolated_engine(tmp_path)
-    )
-    manager.register_adapter("probe", FakeAdapter())
+    def __init__(self) -> None:
+        self.active = 0
+        self.max_active = 0
+        self._lock = threading.Lock()
+        self.gate = threading.Event()
 
-    upload = asyncio.run(
+    def validate_params(self, params: dict) -> dict:
+        return dict(params)
+
+    def run(self, params: dict, input_dir: Path, output_dir: Path, on_progress) -> dict:
+        with self._lock:
+            self.active += 1
+            self.max_active = max(self.max_active, self.active)
+        self.gate.wait(timeout=3)
+        with self._lock:
+            self.active -= 1
+        out = output_dir / "result.txt"
+        out.write_text("ok", encoding="utf-8")
+        return {"echo_file": out.name}
+
+
+def _upload(manager) -> str:
+    return asyncio.run(
         manager.save_upload(
             UploadFile(
                 filename="sample.wav",
@@ -148,16 +165,81 @@ def test_job_manager_counts_pending_jobs_against_concurrency_limit(tmp_path: Pat
                 headers={"content-type": "audio/wav"},
             )
         )
+    ).file_id
+
+
+def test_create_job_queues_instead_of_rejecting_when_busy(tmp_path: Path) -> None:
+    from translip.server.atomic_tools.job_manager import JobManager
+
+    manager = JobManager(
+        root=tmp_path / "atomic-tools", max_concurrent_jobs=1, db_engine=_isolated_engine(tmp_path)
     )
+    manager.register_adapter("probe", FakeAdapter())
+    file_id = _upload(manager)
 
-    manager.create_job("probe", {"file_id": upload.file_id})
+    # ATOM-2: a second submission no longer 429s — it queues as pending.
+    job1 = manager.create_job("probe", {"file_id": file_id})
+    job2 = manager.create_job("probe", {"file_id": file_id})
+    assert job1.status == "pending"
+    assert job2.status == "pending"
+    assert manager.list_jobs().total == 2
 
-    try:
-        manager.create_job("probe", {"file_id": upload.file_id})
-    except RuntimeError as exc:
-        assert "Too many atomic tool jobs" in str(exc)
-    else:
-        raise AssertionError("expected create_job() to enforce the pending/running concurrency limit")
+
+def test_run_semaphore_bounds_concurrent_execution(tmp_path: Path) -> None:
+    from translip.server.atomic_tools.job_manager import JobManager
+
+    manager = JobManager(
+        root=tmp_path / "atomic-tools", max_concurrent_jobs=1, db_engine=_isolated_engine(tmp_path)
+    )
+    adapter = ConcurrencyProbeAdapter()
+    manager.register_adapter("probe", adapter)
+    file_id = _upload(manager)
+
+    job1 = manager.create_job("probe", {"file_id": file_id})
+    job2 = manager.create_job("probe", {"file_id": file_id})
+
+    threads = [
+        threading.Thread(target=lambda jid=jid: asyncio.run(manager.execute_job(jid)))
+        for jid in (job1.job_id, job2.job_id)
+    ]
+    for thread in threads:
+        thread.start()
+    # Give both threads time to contend for the single slot, then release.
+    import time as _time
+
+    _time.sleep(0.3)
+    adapter.gate.set()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    # max_concurrent_jobs=1 -> never more than one adapter.run() at a time.
+    assert adapter.max_active == 1
+    assert manager.get_job(job1.job_id).status == "completed"
+    assert manager.get_job(job2.job_id).status == "completed"
+
+
+def test_mark_interrupted_leaves_pending_and_recover_runs_them(tmp_path: Path) -> None:
+    import time as _time
+
+    from translip.server.atomic_tools.job_manager import JobManager
+
+    manager = JobManager(root=tmp_path / "atomic-tools", db_engine=_isolated_engine(tmp_path))
+    manager.register_adapter("probe", FakeAdapter())
+    file_id = _upload(manager)
+    job = manager.create_job("probe", {"file_id": file_id})
+
+    # A restart marks only mid-run jobs interrupted; pending survive.
+    manager.mark_interrupted_jobs()
+    assert manager.get_job(job.job_id).status == "pending"
+
+    # Recovery re-enqueues the pending job and it runs to completion.
+    assert manager.recover_pending_jobs() == 1
+    deadline = _time.monotonic() + 5
+    while _time.monotonic() < deadline:
+        if manager.get_job(job.job_id).status == "completed":
+            break
+        _time.sleep(0.05)
+    assert manager.get_job(job.job_id).status == "completed"
 
 
 def test_job_manager_cancels_running_job_before_it_completes(tmp_path: Path) -> None:

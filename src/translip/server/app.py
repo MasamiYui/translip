@@ -58,6 +58,7 @@ app.add_middleware(
 def startup_event():
     init_db()
     job_manager.mark_interrupted_jobs()
+    job_manager.recover_pending_jobs()
     mark_interrupted_tasks()
     from .routes.config import migrate_deepseek_base_url_to_user_settings
 
