@@ -567,8 +567,9 @@
 - **验收**：两条路径都可取消。
 - **测试**：随 ARCH-8 验证。
 
-### ATOM-4 — list_jobs SQL 分页 ｜ TODO ｜ 性能 ｜ S–M ｜ ◻待确认
-- **现状**：`job_manager.py:276` 全行加载→Python 过滤→逐行 `list_artifacts`（N+1）。
+### ATOM-4 — list_jobs SQL 分页 ｜ DONE ｜ 性能 ｜ S–M ｜ ✅已核实
+> 已修（仿 ARCH-16 `routes/tasks.py` 范式）：`list_jobs` 从"全行加载→Python 过滤→Python 切片→逐 job `list_artifacts`(N+1)"改为全 SQL——`status`/`tool_id`/`search` 下推 WHERE（命中 status/tool_id/created_at 索引），`func.count()`+subquery 算 total，`order_by(created_at desc).offset().limit()` 取页，artifact 数用**一条** `GROUP BY job_id` 批量查询（替代 N+1）。**ownership** 用 SQL `job_root LIKE '<jobs_root>/%'`（带分隔符边界，等价 `_owns_job` 的 is_relative_to——sibling `jobs-evil/` 因无 `/jobs/` 边界被正确排除），LIKE 通配符 `_`/`%`/`\` 转义；`input_files`(JSON) 经 `cast→lower→LIKE` 支持文件名子串搜索（语义为旧 per-filename 检查的超集）。`_job_to_read` 加可选 `artifact_count` 参数复用批量计数。加 3 测试（分页+批量计数、status/tool/search 过滤、foreign job_root 排除）。全量 582 passed。
+- **现状（原）**：`job_manager.py:276` 全行加载→Python 过滤→逐行 `list_artifacts`（N+1）。
 - **方案**：SQL prefix 过滤 + 分页 + 分组算 artifact 数。
 - **验收**：作业列表不随增长变慢。
 - **测试**：造数据计时。

@@ -191,3 +191,88 @@ def test_job_manager_cancels_running_job_before_it_completes(tmp_path: Path) -> 
     assert stored_job.error_message == "Cancelled by user"
     assert stored_job.progress_percent == 40.0
     assert manager.list_artifacts(job.job_id) == []
+
+
+def _run_probe_job(manager, *, tool_id: str = "probe", content: bytes = b"hello") -> str:
+    upload = asyncio.run(
+        manager.save_upload(
+            UploadFile(
+                filename="sample.wav",
+                file=io.BytesIO(content),
+                headers={"content-type": "audio/wav"},
+            )
+        )
+    )
+    job = manager.create_job(tool_id, {"file_id": upload.file_id})
+    asyncio.run(manager.execute_job(job.job_id))
+    return job.job_id
+
+
+def test_list_jobs_paginates_and_counts_artifacts_in_sql(tmp_path: Path) -> None:
+    from translip.server.atomic_tools.job_manager import JobManager
+
+    manager = JobManager(root=tmp_path / "atomic-tools", db_engine=_isolated_engine(tmp_path))
+    manager.register_adapter("probe", FakeAdapter())
+
+    ids = {_run_probe_job(manager) for _ in range(5)}
+
+    p1 = manager.list_jobs(page=1, size=2)
+    p2 = manager.list_jobs(page=2, size=2)
+    p3 = manager.list_jobs(page=3, size=2)
+
+    assert p1.total == p2.total == p3.total == 5
+    assert (len(p1.items), len(p2.items), len(p3.items)) == (2, 2, 1)
+    assert {item.job_id for item in p1.items + p2.items + p3.items} == ids
+    # artifact_count comes from the batched grouped query (FakeAdapter writes one).
+    assert all(item.artifact_count == 1 for item in p1.items)
+
+
+def test_list_jobs_filters_status_tool_and_search(tmp_path: Path) -> None:
+    from translip.server.atomic_tools.job_manager import JobManager
+
+    manager = JobManager(root=tmp_path / "atomic-tools", db_engine=_isolated_engine(tmp_path))
+    manager.register_adapter("probe", FakeAdapter())
+    manager.register_adapter("transcription", FakeAdapter(should_fail=True))
+
+    ok = _run_probe_job(manager)
+    bad = _run_probe_job(manager, tool_id="transcription")
+
+    assert {i.job_id for i in manager.list_jobs(status="completed").items} == {ok}
+    assert {i.job_id for i in manager.list_jobs(status="failed").items} == {bad}
+    assert {i.job_id for i in manager.list_jobs(tool_id="transcription").items} == {bad}
+    assert {i.job_id for i in manager.list_jobs(search="transcription").items} == {bad}
+    assert manager.list_jobs(search="zzz-no-such-job").total == 0
+    assert manager.list_jobs(status="all", tool_id="all").total == 2
+
+
+def test_list_jobs_excludes_foreign_job_roots(tmp_path: Path) -> None:
+    from sqlmodel import Session
+
+    from translip.server.atomic_tools.job_manager import JobManager
+    from translip.server.models import AtomicToolJob
+
+    engine = _isolated_engine(tmp_path)
+    manager = JobManager(root=tmp_path / "atomic-tools", db_engine=engine)
+    manager.register_adapter("probe", FakeAdapter())
+    owned = _run_probe_job(manager)
+
+    # A sibling dir shares the textual prefix "…/jobs" but not the "/" boundary,
+    # so the ownership LIKE (…/jobs/%) must exclude it — same boundary as
+    # _owns_job's is_relative_to.
+    with Session(engine) as session:
+        session.add(
+            AtomicToolJob(
+                id="evil-1",
+                tool_id="probe",
+                tool_name="Probe",
+                status="completed",
+                job_root=str(tmp_path / "atomic-tools" / "jobs-evil" / "evil-1"),
+            )
+        )
+        session.commit()
+
+    resp = manager.list_jobs(page=1, size=50)
+    ids = {item.job_id for item in resp.items}
+    assert owned in ids
+    assert "evil-1" not in ids
+    assert resp.total == 1

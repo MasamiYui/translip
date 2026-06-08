@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import mimetypes
+import os
 import shutil
 import threading
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import UploadFile
+from sqlalchemy import String, func, or_
 from sqlalchemy.engine import Engine
 from sqlmodel import SQLModel, Session, select
 
@@ -38,6 +40,18 @@ class StoredFile:
     size_bytes: int
     content_type: str
     created_at: datetime
+
+
+_LIKE_ESCAPE = "\\"
+
+
+def _like_escape(value: str) -> str:
+    """Escape SQL LIKE wildcards so the value is matched literally."""
+    return (
+        value.replace(_LIKE_ESCAPE, _LIKE_ESCAPE * 2)
+        .replace("%", _LIKE_ESCAPE + "%")
+        .replace("_", _LIKE_ESCAPE + "_")
+    )
 
 
 class AtomicJobCancelled(RuntimeError):
@@ -263,6 +277,24 @@ class JobManager:
                     return path
         return None
 
+    def _ownership_clause(self):
+        # Every job this manager creates has job_root == str(jobs_root / id), so
+        # ownership is the jobs_root prefix *with* the path separator — the same
+        # boundary as _owns_job's is_relative_to (a sibling like jobs-evil/ does
+        # not start with "jobs/"), expressed in SQL so it can be paginated.
+        prefix = _like_escape(f"{self.jobs_root}{os.sep}")
+        return AtomicToolJob.job_root.like(f"{prefix}%", escape=_LIKE_ESCAPE)
+
+    def _artifact_counts(self, session: Session, job_ids: list[str]) -> dict[str, int]:
+        if not job_ids:
+            return {}
+        rows = session.exec(
+            select(AtomicToolArtifact.job_id, func.count())
+            .where(AtomicToolArtifact.job_id.in_(job_ids))
+            .group_by(AtomicToolArtifact.job_id)
+        ).all()
+        return {job_id: int(count) for job_id, count in rows}
+
     def list_jobs(
         self,
         *,
@@ -272,31 +304,45 @@ class JobManager:
         page: int = 1,
         size: int = 20,
     ) -> AtomicJobListResponse:
-        with self._session() as session:
-            jobs = list(session.exec(select(AtomicToolJob)).all())
-        jobs = [job for job in jobs if self._owns_job(job)]
-
+        # Filter / order / paginate in SQL instead of loading every row, filtering
+        # in Python and slicing — and count artifacts for the page in one grouped
+        # query instead of an N+1 list_artifacts() per job (ATOM-4).
+        stmt = select(AtomicToolJob).where(self._ownership_clause())
         if status and status != "all":
-            jobs = [job for job in jobs if job.status == status]
+            stmt = stmt.where(AtomicToolJob.status == status)
         if tool_id and tool_id != "all":
-            jobs = [job for job in jobs if job.tool_id == tool_id]
+            stmt = stmt.where(AtomicToolJob.tool_id == tool_id)
         if search:
-            needle = search.lower()
-            jobs = [
-                job
-                for job in jobs
-                if needle in job.id.lower()
-                or needle in job.tool_id.lower()
-                or needle in job.tool_name.lower()
-                or any(needle in str(item.get("filename", "")).lower() for item in job.input_files)
-            ]
+            like = f"%{_like_escape(search.lower())}%"
+            # input_files is a JSON column; on SQLite it is stored as text, so a
+            # cast + LIKE matches the filename substring (a superset of the old
+            # per-filename check — also matches other JSON fields, fine for search).
+            stmt = stmt.where(
+                or_(
+                    func.lower(AtomicToolJob.id).like(like, escape=_LIKE_ESCAPE),
+                    func.lower(AtomicToolJob.tool_id).like(like, escape=_LIKE_ESCAPE),
+                    func.lower(AtomicToolJob.tool_name).like(like, escape=_LIKE_ESCAPE),
+                    func.lower(func.cast(AtomicToolJob.input_files, String)).like(
+                        like, escape=_LIKE_ESCAPE
+                    ),
+                )
+            )
 
-        jobs.sort(key=lambda item: item.created_at, reverse=True)
-        total = len(jobs)
-        offset = (page - 1) * size
-        page_items = jobs[offset : offset + size]
+        with self._session() as session:
+            total = int(session.exec(select(func.count()).select_from(stmt.subquery())).one())
+            offset = (page - 1) * size
+            page_items = list(
+                session.exec(
+                    stmt.order_by(AtomicToolJob.created_at.desc()).offset(offset).limit(size)
+                ).all()
+            )
+            counts = self._artifact_counts(session, [job.id for job in page_items])
+
         return AtomicJobListResponse(
-            items=[self._job_to_read(job) for job in page_items],
+            items=[
+                self._job_to_read(job, artifact_count=counts.get(job.id, 0))
+                for job in page_items
+            ],
             total=total,
             page=page,
             size=size,
@@ -631,12 +677,18 @@ class JobManager:
             result=job.result,
         )
 
-    def _job_to_read(self, job: AtomicToolJob) -> AtomicJobRead:
+    def _job_to_read(
+        self, job: AtomicToolJob, *, artifact_count: int | None = None
+    ) -> AtomicJobRead:
         return AtomicJobRead(
             **self._job_to_response(job).model_dump(),
             tool_name=job.tool_name,
             input_files=[AtomicStoredFileInfo(**item) for item in job.input_files],
-            artifact_count=len(self.list_artifacts(job.id)),
+            artifact_count=(
+                artifact_count
+                if artifact_count is not None
+                else len(self.list_artifacts(job.id))
+            ),
             updated_at=job.updated_at,
         )
 
