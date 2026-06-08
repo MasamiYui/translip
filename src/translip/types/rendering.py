@@ -32,6 +32,10 @@ class RenderDubRequest:
     background_gain_db: float = -8.0
     window_ducking_db: float = -3.0
     max_compress_ratio: float = 1.45
+    # Higher "last resort" cap: an over-long line is sped up to this (>=
+    # max_compress_ratio) to play whole rather than have its tail cut; only what
+    # even this can't absorb is trimmed. Set == max_compress_ratio to disable.
+    overflow_max_compress_ratio: float = 1.6
     preview_format: PreviewFormat = "wav"
 
     def normalized(self) -> "RenderDubRequest":
@@ -59,6 +63,7 @@ class RenderDubRequest:
             background_gain_db=self.background_gain_db,
             window_ducking_db=self.window_ducking_db,
             max_compress_ratio=self.max_compress_ratio,
+            overflow_max_compress_ratio=self.overflow_max_compress_ratio,
             preview_format=self.preview_format,
         )
 

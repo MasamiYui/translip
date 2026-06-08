@@ -335,6 +335,8 @@ def build_task_e_command(
         str(request.window_ducking_db),
         "--max-compress-ratio",
         str(request.max_compress_ratio),
+        "--overflow-max-compress-ratio",
+        str(request.overflow_max_compress_ratio),
         "--preview-format",
         request.preview_format,
     ]

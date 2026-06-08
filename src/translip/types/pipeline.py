@@ -83,6 +83,9 @@ class PipelineRequest:
     background_gain_db: float = -8.0
     window_ducking_db: float = -3.0
     max_compress_ratio: float = 1.45
+    # Higher last-resort cap: over-long lines are sped up to this (>= the
+    # comfortable cap) to play whole instead of being tail-trimmed downstream.
+    overflow_max_compress_ratio: float = 1.6
     dubbing_workers: int | None = None
     dubbing_quality_check: DubbingQualityCheckMode = "standard"
     dub_repair_enabled: bool = False
@@ -188,6 +191,7 @@ class PipelineRequest:
             background_gain_db=self.background_gain_db,
             window_ducking_db=self.window_ducking_db,
             max_compress_ratio=self.max_compress_ratio,
+            overflow_max_compress_ratio=self.overflow_max_compress_ratio,
             dubbing_workers=self.dubbing_workers,
             dubbing_quality_check=normalize_dubbing_quality_check_mode(self.dubbing_quality_check),
             dub_repair_enabled=bool(self.dub_repair_enabled),

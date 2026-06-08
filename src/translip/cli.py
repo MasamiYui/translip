@@ -401,6 +401,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_RENDER_WINDOW_DUCKING_DB,
     )
     render_parser.add_argument("--max-compress-ratio", type=float, default=1.45)
+    render_parser.add_argument("--overflow-max-compress-ratio", type=float, default=1.6)
     render_parser.add_argument(
         "--preview-format",
         default=DEFAULT_RENDER_PREVIEW_FORMAT,
@@ -611,6 +612,7 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument("--background-gain-db", type=float, default=None)
     pipeline_parser.add_argument("--window-ducking-db", type=float, default=None)
     pipeline_parser.add_argument("--max-compress-ratio", type=float, default=None)
+    pipeline_parser.add_argument("--overflow-max-compress-ratio", type=float, default=None)
     pipeline_parser.add_argument("--dub-repair-enabled", dest="dub_repair_enabled", action=argparse.BooleanOptionalAction, default=None)
     pipeline_parser.add_argument(
         "--dub-repair-backend",
@@ -1040,6 +1042,7 @@ def main(argv: list[str] | None = None) -> int:
             background_gain_db=args.background_gain_db,
             window_ducking_db=args.window_ducking_db,
             max_compress_ratio=args.max_compress_ratio,
+            overflow_max_compress_ratio=args.overflow_max_compress_ratio,
             preview_format=args.preview_format,
         )
         result = render_dub(request)

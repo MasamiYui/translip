@@ -336,6 +336,8 @@ def _validate_request(request: RenderDubRequest) -> RenderDubRequest:
         raise TranslipError("output_sample_rate must be greater than 0")
     if normalized.max_compress_ratio < 1.0:
         raise TranslipError("max_compress_ratio must be >= 1.0")
+    if normalized.overflow_max_compress_ratio < 1.0:
+        raise TranslipError("overflow_max_compress_ratio must be >= 1.0")
     return normalized
 
 
@@ -603,7 +605,12 @@ def _apply_fit_strategy(
                 output_sample_rate=request.output_sample_rate,
             )
         elif strategy == "overflow_unfitted":
-            tempo = request.max_compress_ratio
+            # Last resort before destroying audio: compress harder than the
+            # comfortable cap (up to overflow_max_compress_ratio) so the line
+            # plays whole. Slightly faster speech beats a chopped word; only the
+            # residual that even the higher cap can't absorb is trimmed below.
+            over_cap = max(request.overflow_max_compress_ratio, request.max_compress_ratio)
+            tempo = min(item.generated_duration_sec / max(available, 1e-6), over_cap)
             item.applied_tempo = tempo
             fitted_path = compress_audio(
                 input_path=item.audio_path,
@@ -632,7 +639,13 @@ def _apply_fit_strategy(
                 )
                 item.notes.append("overflow_trimmed")
             else:
-                item.notes.append("overflow_compressed")
+                # Fit achieved by over-compression — no word dropped (faster but
+                # complete), so lost_speech_sec stays 0 for these.
+                item.notes.append(
+                    "overflow_overcompressed"
+                    if tempo > request.max_compress_ratio + 1e-3
+                    else "overflow_compressed"
+                )
         elif strategy == "stretch":
             tempo = item.generated_duration_sec / max(item.source_duration_sec, 1e-6)
             item.applied_tempo = tempo

@@ -291,6 +291,98 @@ def test_render_dub_writes_outputs_and_places_failed_segments_when_audio_exists(
     assert len(dub_waveform) == int(round(4.0 * 24_000))
 
 
+def test_overflow_overcompresses_up_to_cap_before_trimming(tmp_path: Path) -> None:
+    """An over-long line is sped up to overflow_max_compress_ratio (1.6) to play
+    whole; only what even that higher cap can't absorb is trimmed.
+
+    seg-oc: tempo_needed 1.5 (<= cap) -> over-compressed, no tail cut.
+    seg-tr: tempo_needed 2.0 (>  cap) -> compressed at 1.6, residual trimmed.
+    source > 1.5s on both dodges the short-segment compress exception so they
+    reach the overflow_unfitted branch. applied_tempo is asserted (it is computed,
+    not ffmpeg-measured) so the check is deterministic; old behaviour pinned every
+    overflow segment at max_compress_ratio (1.45) and trimmed the rest.
+    """
+    background_path = tmp_path / "background.wav"
+    _write_tone(background_path, duration_sec=5.5, frequency=110.0)
+
+    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.json"
+    _write_json(segments_path, {"segments": [
+        {"id": "seg-oc", "start": 0.0, "end": 2.0, "duration": 2.0,
+         "speaker_label": "SPEAKER_00", "text": "甲", "language": "zh"},
+        {"id": "seg-tr", "start": 2.0, "end": 4.0, "duration": 2.0,
+         "speaker_label": "SPEAKER_00", "text": "乙", "language": "zh"},
+        {"id": "seg-z", "start": 4.0, "end": 5.0, "duration": 1.0,
+         "speaker_label": "SPEAKER_00", "text": "丙", "language": "zh"},
+    ]})
+
+    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
+    _write_json(translation_path, {
+        "backend": {"target_lang": "en", "output_tag": "en"},
+        "segments": [
+            {"segment_id": "seg-oc", "speaker_id": "spk_0000", "speaker_label": "SPEAKER_00",
+             "start": 0.0, "end": 2.0, "duration": 2.0, "target_text": "over compress me", "qa_flags": []},
+            {"segment_id": "seg-tr", "speaker_id": "spk_0000", "speaker_label": "SPEAKER_00",
+             "start": 2.0, "end": 4.0, "duration": 2.0, "target_text": "trim my residual", "qa_flags": []},
+            {"segment_id": "seg-z", "speaker_id": "spk_0000", "speaker_label": "SPEAKER_00",
+             "start": 4.0, "end": 5.0, "duration": 1.0, "target_text": "anchor", "qa_flags": []},
+        ],
+    })
+
+    oc_audio = tmp_path / "task-d" / "spk_0000" / "segments" / "seg-oc.wav"
+    tr_audio = tmp_path / "task-d" / "spk_0000" / "segments" / "seg-tr.wav"
+    z_audio = tmp_path / "task-d" / "spk_0000" / "segments" / "seg-z.wav"
+    _write_tone(oc_audio, duration_sec=3.0, frequency=220.0)   # 3.0 / available 2.0 = 1.5x
+    _write_tone(tr_audio, duration_sec=4.0, frequency=240.0)   # 4.0 / available 2.0 = 2.0x
+    _write_tone(z_audio, duration_sec=0.9, frequency=260.0)
+
+    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
+
+    def seg(seg_id, source, generated, audio, status="review"):
+        return {
+            "segment_id": seg_id, "speaker_id": "spk_0000", "target_text": seg_id,
+            "source_duration_sec": source, "generated_duration_sec": generated,
+            "speaker_similarity": 0.7, "duration_status": status, "speaker_status": "passed",
+            "text_similarity": 0.95, "intelligibility_status": "passed",
+            "overall_status": status, "audio_path": str(audio),
+        }
+
+    _write_json(report_path, {"backend": {"target_lang": "en"}, "segments": [
+        seg("seg-oc", 2.0, 3.0, oc_audio),
+        seg("seg-tr", 2.0, 4.0, tr_audio, status="failed"),
+        seg("seg-z", 1.0, 0.9, z_audio, status="passed"),
+    ]})
+
+    result = render_dub(RenderDubRequest(
+        background_path=background_path,
+        segments_path=segments_path,
+        translation_path=translation_path,
+        task_d_report_paths=[report_path],
+        output_dir=tmp_path / "output-task-e",
+        target_lang="en",
+        fit_policy="conservative",
+        fit_backend="atempo",
+        output_sample_rate=24_000,
+        preview_format="wav",
+        # overflow_max_compress_ratio defaults to 1.6
+    ))
+
+    timeline = json.loads(result.artifacts.timeline_path.read_text(encoding="utf-8"))
+    item = {it["segment_id"]: it for it in timeline["items"]}
+
+    # Both reach the overflow branch (source > 1.5s bypasses the short-seg path).
+    assert item["seg-oc"]["fit_strategy"] == "overflow_unfitted"
+    assert item["seg-tr"]["fit_strategy"] == "overflow_unfitted"
+
+    # seg-oc: needed 1.5x <= cap -> over-compressed to fit, tail intact.
+    assert abs(item["seg-oc"]["applied_tempo"] - 1.5) < 0.02
+    assert item["seg-oc"]["trimmed_speech_sec"] < 0.05
+
+    # seg-tr: needed 2.0x > cap -> clamped at the 1.6 cap, residual still trimmed
+    # (but less than the old fixed-1.45 path would have cut).
+    assert abs(item["seg-tr"]["applied_tempo"] - 1.6) < 0.02
+    assert item["seg-tr"]["trimmed_tail_sec"] > 0.0
+
+
 def test_render_dub_ducks_background_where_source_voice_stem_is_active(tmp_path: Path) -> None:
     sample_rate = 24_000
     duration_sec = 4.0
