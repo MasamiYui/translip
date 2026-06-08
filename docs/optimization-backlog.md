@@ -177,7 +177,9 @@
 - **验收**：CLI 与 server 构造的 request 默认值一致；新建任务输出 48kHz。
 - **测试**：单测两条构造路径默认值一致。
 
-### ARCH-13 — env 配置提升到 UI + 有效配置内省 ｜ TODO ｜ 产品 ｜ M ｜ ◻待确认
+### ARCH-13 — env 配置提升到 UI + 有效配置内省 ｜ DONE（内省端点；UI 编辑留前端子项）｜ 产品 ｜ M ｜ ✅已核实
+> 已修内省核心：新增 `server/config_introspect.py`——curated `CONFIG_KNOBS` 注册表（20 个运营关键 knob：cache/db/user-config 路径、ffmpeg、default-glossary、deepseek key/base_url/model、moss/qwen/voxcpm TTS、paddleocr/erase 模型目录、HF/pyannote/tmdb token）+ `introspect_config(environ=)` 解析每项**有效值与来源**（env 覆盖 vs 内置默认；因 resolver 都直接读 `os.environ`、settings 启动时已应用到 env，故读 environ 即 resolver 所见，准确）。**密钥类只报 `value:"set"/null`，绝不回传明文**。加 `GET /api/system/config/effective` 端点。加 5 测试（全默认、env 覆盖、secret 掩码、未设 secret 报 null、端点不泄漏明文）。全量 626 passed。
+> ⏸ **余项**：把 TTS/OCR/erase 路径与 device **写入** settings store 并接前端可编辑面板（无需改 env 重启）——后端内省已就绪、写入需前端 session。
 - **现状**：~30 个 env 变量，UI 只能改 HF/LLM/TMDB key；TTS CLI/模型目录、OCR/erase 模型目录、device 只能 export 后重启。
 - **方案**：把运营关键路径提升进现有 settings store（`cache_manager` 用户设置已能桥接 env）；加"有效配置"内省端点（每个 knob 的值 + 来源 env/default/setting）。
 - **验收**：UI 可配置 TTS/OCR/erase 路径与 device，无需改 env 重启。

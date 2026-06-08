@@ -88,6 +88,14 @@ class LlmKeyTestRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+@router.get("/config/effective", summary="有效配置内省")
+def get_effective_config():
+    """返回各运营关键配置项的有效值与来源（env 覆盖或内置默认）；密钥类只报告是否已设置，不回传明文。"""
+    from ..config_introspect import introspect_config
+
+    return {"knobs": introspect_config()}
+
+
 @router.get("/info", summary="系统信息")
 def get_system_info():
     """返回 Python 版本、运行平台、推理设备（CUDA/MPS/CPU）、当前缓存目录及其占用大小、各模型的本地状态。"""
