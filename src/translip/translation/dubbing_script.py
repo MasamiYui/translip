@@ -91,15 +91,41 @@ def _looks_like_fragment(text: str) -> bool:
     return False
 
 
+# Contrastive/causal conjunctions that reliably take a preceding comma when they
+# join clauses (excludes "and"/"or"/"so" which are often non-clausal and would
+# produce spurious commas).
+_EN_PAUSE_CONJUNCTIONS = frozenset({"but", "because", "though", "however", "while"})
+
+
+def _insert_breath_pause_en(text: str) -> str:
+    """Insert a single breath comma before a clause-joining conjunction in a long
+    English line that has no internal punctuation, so the TTS phrases it instead
+    of running it together. Conservative: long lines only, never near the ends."""
+    if "," in text:
+        return text
+    words = text.split()
+    if len(words) < 12:
+        return text
+    for index in range(2, len(words) - 2):
+        bare = words[index].lower().strip(".,!?;:")
+        if bare in _EN_PAUSE_CONJUNCTIONS:
+            words[index - 1] = words[index - 1] + ","
+            return " ".join(words)
+    return text
+
+
 def _punctuate_for_tts(text: str, *, target_lang: str) -> str:
     stripped = text.strip()
     if not stripped:
         return stripped
     if re.search(r"[.!?。！？]$", stripped):
         return stripped
-    if canonical_language_code(target_lang) == "en":
-        return f"{stripped}."
-    return stripped
+    lang = canonical_language_code(target_lang)
+    if lang == "en":
+        stripped = _insert_breath_pause_en(stripped)
+    # Terminal punctuation for every language (was English-only) so the TTS applies
+    # final intonation instead of trailing off.
+    return f"{stripped}。" if lang in ("zh", "ja") else f"{stripped}."
 
 
 def _normalize_spaces(text: str) -> str:

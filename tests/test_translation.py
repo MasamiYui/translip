@@ -354,6 +354,23 @@ def _write_fixtures(tmp_path: Path, *, segment_text: str = "这是一个非常�
     return segments_path, profiles_path
 
 
+def test_punctuate_for_tts_adds_terminal_and_breath() -> None:
+    from translip.translation.dubbing_script import _punctuate_for_tts
+
+    # Terminal punctuation now added for CJK too (was English-only).
+    assert _punctuate_for_tts("你好世界", target_lang="zh") == "你好世界。"
+    assert _punctuate_for_tts("こんにちは", target_lang="ja") == "こんにちは。"
+    assert _punctuate_for_tts("Hello world", target_lang="en") == "Hello world."
+    # Already-terminated lines are left as-is.
+    assert _punctuate_for_tts("Hello!", target_lang="en") == "Hello!"
+    # A long English clause gets one breath comma before a clause conjunction.
+    long_line = "I tried to reach you many times last night but you never answered me"
+    out = _punctuate_for_tts(long_line, target_lang="en")
+    assert ", but" in out and out.endswith(".")
+    # Short clauses are left untouched (no spurious comma).
+    assert _punctuate_for_tts("I left but I came back", target_lang="en") == "I left but I came back."
+
+
 def test_target_char_budget_scales_with_duration_and_language() -> None:
     from translip.translation.duration import target_char_budget
 
