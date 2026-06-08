@@ -155,6 +155,52 @@ def test_pipeline_request_normalized_preserves_transcription_backend_controls(tm
     assert request.enable_diarization is False
 
 
+def test_pipeline_request_normalized_preserves_all_passthrough_fields(tmp_path: Path) -> None:
+    from translip.types import PipelineRequest
+
+    # Non-default values across the pass-through field spectrum. Under the old
+    # hand-listed normalized() a field forgotten there would be silently reset to
+    # its dataclass default; dataclasses.replace must carry every one verbatim.
+    request = PipelineRequest(
+        input_path=tmp_path / "sample.mp4",
+        output_root=tmp_path / "out",
+        config_path="~/cfg.json",
+        target_lang="ja",
+        translation_backend="deepseek",
+        tts_backend="voxcpm2",
+        api_model="deepseek-v4-pro",
+        api_base_url="https://api.deepseek.com",
+        output_sample_rate=44100,
+        background_gain_db=-3.0,
+        top_k=7,
+        audio_stream_index=2,
+        update_registry=True,
+        erase_backend="lama",
+        temperature=0,  # int -> coerced to float
+    )
+    normalized = request.normalized()
+
+    for name, expected in {
+        "target_lang": "ja",
+        "translation_backend": "deepseek",
+        "tts_backend": "voxcpm2",
+        "api_model": "deepseek-v4-pro",
+        "api_base_url": "https://api.deepseek.com",
+        "output_sample_rate": 44100,
+        "background_gain_db": -3.0,
+        "top_k": 7,
+        "audio_stream_index": 2,
+        "update_registry": True,
+        "erase_backend": "lama",
+    }.items():
+        assert getattr(normalized, name) == expected, name
+
+    # path fields resolved to absolute, scalar coercion applied
+    assert normalized.input_path.is_absolute()
+    assert normalized.config_path is not None and normalized.config_path.is_absolute()
+    assert isinstance(normalized.temperature, float)
+
+
 def test_build_pipeline_request_rejects_invalid_dubbing_speed_controls() -> None:
     import pytest
 

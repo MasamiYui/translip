@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -139,101 +139,51 @@ class PipelineRequest:
     erase_regions: list[tuple[float, float, float, float]] | None = None
 
     def normalized(self) -> "PipelineRequest":
-        return PipelineRequest(
-            input_path=Path(self.input_path).expanduser().resolve(),
-            output_root=Path(self.output_root).expanduser().resolve(),
-            config_path=(
-                Path(self.config_path).expanduser().resolve()
-                if self.config_path is not None
-                else None
+        # Only fields needing transformation are listed; every other field is
+        # carried over verbatim by dataclasses.replace, so a newly added field
+        # can never be silently dropped here (ARCH-14).
+        def _resolve(value: Path | str | None) -> Path | None:
+            return Path(value).expanduser().resolve() if value is not None else None
+
+        overrides: dict[str, Any] = {
+            "input_path": Path(self.input_path).expanduser().resolve(),
+            "output_root": Path(self.output_root).expanduser().resolve(),
+            "config_path": _resolve(self.config_path),
+            "delivery_policy": cast(DeliveryPolicy, dict(self.delivery_policy)),
+            "ocr_sample_interval": float(self.ocr_sample_interval),
+            "translation_batch_size": int(self.translation_batch_size),
+            "force_stages": list(self.force_stages) if self.force_stages else None,
+            "glossary_path": _resolve(self.glossary_path),
+            "registry_path": _resolve(self.registry_path),
+            "dubbing_quality_check": normalize_dubbing_quality_check_mode(self.dubbing_quality_check),
+            "dub_repair_enabled": bool(self.dub_repair_enabled),
+            "dub_repair_backends": list(self.dub_repair_backends) if self.dub_repair_backends else None,
+            "dub_repair_max_items": int(self.dub_repair_max_items),
+            "dub_repair_attempts_per_item": int(self.dub_repair_attempts_per_item),
+            "dub_repair_include_risk": bool(self.dub_repair_include_risk),
+            "enable_diarization": bool(self.enable_diarization),
+            "generate_srt": bool(self.generate_srt),
+            "vad_filter": bool(self.vad_filter),
+            "vad_min_silence_duration_ms": int(self.vad_min_silence_duration_ms),
+            "vad_max_segment_sec": float(self.vad_max_segment_sec),
+            "expected_speakers": int(self.expected_speakers),
+            "beam_size": int(self.beam_size),
+            "best_of": int(self.best_of),
+            "temperature": float(self.temperature),
+            "condition_on_previous_text": bool(self.condition_on_previous_text),
+            "transcription_correction": cast(
+                TranscriptionCorrectionConfig, dict(self.transcription_correction)
             ),
-            template_id=self.template_id,
-            delivery_policy=cast(DeliveryPolicy, dict(self.delivery_policy)),
-            ocr_sample_interval=float(self.ocr_sample_interval),
-            ocr_position_mode=self.ocr_position_mode,
-            ocr_extraction_mode=self.ocr_extraction_mode,
-            target_lang=self.target_lang,
-            translation_backend=self.translation_backend,
-            translation_batch_size=int(self.translation_batch_size),
-            tts_backend=self.tts_backend,
-            device=self.device,
-            run_from_stage=self.run_from_stage,
-            run_to_stage=self.run_to_stage,
-            resume=self.resume,
-            force_stages=list(self.force_stages) if self.force_stages else None,
-            reuse_existing=self.reuse_existing,
-            keep_logs=self.keep_logs,
-            write_status=self.write_status,
-            status_update_interval_sec=self.status_update_interval_sec,
-            glossary_path=(
-                Path(self.glossary_path).expanduser().resolve()
-                if self.glossary_path is not None
-                else None
-            ),
-            registry_path=(
-                Path(self.registry_path).expanduser().resolve()
-                if self.registry_path is not None
-                else None
-            ),
-            api_model=self.api_model,
-            api_base_url=self.api_base_url,
-            condense_mode=self.condense_mode,
-            fit_policy=self.fit_policy,
-            fit_backend=self.fit_backend,
-            mix_profile=self.mix_profile,
-            ducking_mode=self.ducking_mode,
-            preview_format=self.preview_format,
-            output_sample_rate=self.output_sample_rate,
-            background_gain_db=self.background_gain_db,
-            window_ducking_db=self.window_ducking_db,
-            max_compress_ratio=self.max_compress_ratio,
-            dubbing_workers=self.dubbing_workers,
-            dubbing_quality_check=normalize_dubbing_quality_check_mode(self.dubbing_quality_check),
-            dub_repair_enabled=bool(self.dub_repair_enabled),
-            dub_repair_backends=list(self.dub_repair_backends) if self.dub_repair_backends else None,
-            dub_repair_max_items=int(self.dub_repair_max_items),
-            dub_repair_attempts_per_item=int(self.dub_repair_attempts_per_item),
-            dub_repair_include_risk=bool(self.dub_repair_include_risk),
-            speaker_limit=self.speaker_limit,
-            segments_per_speaker=self.segments_per_speaker,
-            separation_mode=self.separation_mode,
-            separation_quality=self.separation_quality,
-            stage1_output_format=self.stage1_output_format,
-            transcription_language=self.transcription_language,
-            asr_model=self.asr_model,
-            asr_backend=self.asr_backend,
-            diarizer_backend=self.diarizer_backend,
-            enable_diarization=bool(self.enable_diarization),
-            generate_srt=bool(self.generate_srt),
-            vad_filter=bool(self.vad_filter),
-            vad_min_silence_duration_ms=int(self.vad_min_silence_duration_ms),
-            vad_max_segment_sec=float(self.vad_max_segment_sec),
-            expected_speakers=int(self.expected_speakers),
-            beam_size=int(self.beam_size),
-            best_of=int(self.best_of),
-            temperature=float(self.temperature),
-            condition_on_previous_text=bool(self.condition_on_previous_text),
-            audio_stream_index=self.audio_stream_index,
-            top_k=self.top_k,
-            update_registry=self.update_registry,
-            subtitle_mode=self.subtitle_mode,
-            subtitle_source=self.subtitle_source,
-            subtitle_style=self.subtitle_style,
-            bilingual_chinese_position=self.bilingual_chinese_position,
-            bilingual_english_position=self.bilingual_english_position,
-            bilingual_export_strategy=self.bilingual_export_strategy,
-            transcription_correction=cast(TranscriptionCorrectionConfig, dict(self.transcription_correction)),
-            erase_backend=self.erase_backend,
-            erase_device=self.erase_device,
-            erase_mask_dilate_x=int(self.erase_mask_dilate_x),
-            erase_mask_dilate_y=int(self.erase_mask_dilate_y),
-            erase_event_lead_frames=int(self.erase_event_lead_frames),
-            erase_event_trail_frames=int(self.erase_event_trail_frames),
-            erase_neighbor_stride=int(self.erase_neighbor_stride),
-            erase_reference_length=int(self.erase_reference_length),
-            erase_max_load=int(self.erase_max_load),
-            erase_regions=list(self.erase_regions) if self.erase_regions else None,
-        )
+            "erase_mask_dilate_x": int(self.erase_mask_dilate_x),
+            "erase_mask_dilate_y": int(self.erase_mask_dilate_y),
+            "erase_event_lead_frames": int(self.erase_event_lead_frames),
+            "erase_event_trail_frames": int(self.erase_event_trail_frames),
+            "erase_neighbor_stride": int(self.erase_neighbor_stride),
+            "erase_reference_length": int(self.erase_reference_length),
+            "erase_max_load": int(self.erase_max_load),
+            "erase_regions": list(self.erase_regions) if self.erase_regions else None,
+        }
+        return replace(self, **overrides)
 
 
 @dataclass(slots=True)
