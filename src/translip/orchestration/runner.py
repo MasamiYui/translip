@@ -37,6 +37,7 @@ from .commands import (
     build_task_d_command,
     build_task_e_command,
     effective_task_a_segments_path,
+    glossary_hotwords,
     stage1_background_path,
     stage1_manifest_path,
     stage1_voice_path,
@@ -173,6 +174,9 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "best_of": request.best_of,
                 "temperature": request.temperature,
                 "condition_on_previous_text": request.condition_on_previous_text,
+                # task-a now feeds glossary terms as --hotwords, so the cache key
+                # must track them or a glossary change would reuse stale ASR (ASR-7).
+                "hotwords": glossary_hotwords(request),
             }
         )
     elif stage_name == "asr-ocr-correct":

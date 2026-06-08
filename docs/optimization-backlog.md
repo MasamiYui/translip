@@ -294,7 +294,8 @@
 
 ### ASR-7 — glossary → ASR 偏置 ｜ DONE（机制；glossary 自动喂+质量验证留子项）｜ A/算法/产品 ｜ S–M ｜ ✅机制已核实
 > 已修 hotword 机制（标准加性特征，只帮专名识别、不回退其他）：`AsrOptions` 加 `hotwords: tuple[str,...]`（+ metadata 序列化为 list）+ 纯 helper `hotword_string`（join/strip/去空）；**faster-whisper** 把 `hotwords=` 加进 transcribe_kwargs，**funasr** Paraformer(`hotword=`,默认路径)+SenseVoice(`_run_asr_on_chunk` kwargs) 两路都接（非 contextual 模型忽略，无害）；`TranscriptionRequest.hotwords` + `transcribe` runner 透传；CLI `--hotwords`(逗号分隔)+`_parse_hotwords`。加 5 测试（hotword_string/_parse_hotwords/AsrOptions.metadata/faster-whisper 经 fake model 验证 hotwords 真传入/空时不传）。全量 638 passed。
-> ⏸ **余项**：① **glossary 自动喂**——把 task-c glossary 的 source_variants 自动作 task-a hotwords（需 glossary→task-a 管道：CLI/command/request plumbing）；② **质量收益**（专名识别率↑）需真实音频 + 真实 SeACo/whisper 模型验证（本机不可验，机制本身是 ASR 既有标准能力）。
+> ✅ **glossary 自动喂已补齐**（ASR-7b）：`build_task_a_command` 用 `glossary_hotwords(request)` 从 pipeline glossary 提取 source_variants（去重、跳含逗号项、cap 64）自动作 `--hotwords` 喂 task-a；并把派生 hotwords 加进 **task-a 缓存键**（`_stage_cache_payload`），改 glossary→重算 task-a（防 stale ASR，ARCH-4 同理）。加 6 测试（提取/去重/跳逗号/缺文件容错/build_task_a 含 --hotwords/缓存键随 glossary 变）。全量 654 passed。
+> ⏸ **唯一余项**：**质量收益**（专名识别率↑）需真实音频 + 真实 SeACo/whisper 模型验证（本机不可验，机制本身是 ASR 既有标准能力）。
 - **现状**：`glossary_path` 仅 task-c 用；SeACo Paraformer 是 contextual 模型却没传 `hotword`（`funasr_backend.py:360`）。
 - **方案**：把人名/术语作 faster-whisper `initial_prompt/hotwords`、SeACo `hotword=` 传入 task-a。
 - **验收**：专名识别率提升。

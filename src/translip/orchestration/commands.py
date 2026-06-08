@@ -180,6 +180,36 @@ def build_stage1_command(request: PipelineRequest) -> list[str]:
     ]
 
 
+def glossary_hotwords(request: PipelineRequest, *, limit: int = 64) -> list[str]:
+    """Source-side glossary terms to bias ASR toward (ASR-7).
+
+    The proper nouns / terminology the user supplied for translation are exactly
+    what ASR should be biased to recognize, so the pipeline feeds them to task-a
+    as --hotwords. Best-effort: a missing/unreadable glossary yields no hotwords.
+    Comma-containing terms are skipped because --hotwords is comma-separated.
+    """
+    if not request.glossary_path:
+        return []
+    try:
+        from ..translation.glossary import load_glossary
+
+        entries = load_glossary(Path(request.glossary_path))
+    except Exception:
+        return []
+    terms: list[str] = []
+    seen: set[str] = set()
+    for entry in entries:
+        for variant in entry.source_variants:
+            term = variant.strip()
+            if not term or "," in term or term in seen:
+                continue
+            seen.add(term)
+            terms.append(term)
+            if len(terms) >= limit:
+                return terms
+    return terms
+
+
 def build_task_a_command(request: PipelineRequest) -> list[str]:
     validate_lang(request.transcription_language, field="transcription_language")
     command = [
@@ -226,6 +256,9 @@ def build_task_a_command(request: PipelineRequest) -> list[str]:
         if request.condition_on_previous_text
         else "--no-condition-on-previous-text"
     )
+    hotwords = glossary_hotwords(request)
+    if hotwords:
+        command.extend(["--hotwords", ",".join(hotwords)])
     return command
 
 
