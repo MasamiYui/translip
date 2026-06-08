@@ -462,11 +462,11 @@
 - **验收**：可选软字幕（不重编码）、多音轨、带语言标签。
 - **测试**：导出后用 ffprobe 验证轨道/字幕流/元数据。
 
-### DEL-2 — 重活移出请求线程 ｜ TODO ｜ 健壮性/产品 ｜ M ｜ ◻待确认
-- **现状**：`delivery.py:133 compose_delivery` 在 FastAPI handler 内同步跑 `export_video`（整段 ffmpeg 编码阻塞 worker）；analysis/dubbing_editor 同样同步跑合成/probe。
+### DEL-2 — 重活移出请求线程 ｜ HOLD（严重度已纠偏；正解前端耦合）｜ 健壮性/产品 ｜ M ｜ ◻待确认
+> 🔎 **调研纠偏**：核查所有路由后，"阻塞 **worker**" 的严重解读（阻塞事件循环）**不成立**——`compose_delivery`/`synthesize_unit`/`render-range` 等重 handler 全是**同步 `def`**，FastAPI/Starlette 自动在 anyio 线程池（默认 ~40 线程）跑，**事件循环不阻塞**、服务对其他请求仍响应；唯二 `async def`（atomic upload/run_tool 委托 job_manager 线程、SSE 异步生成器）也无阻塞。且 **analysis dub-qa 已正确后台线程化**（返回 pending 记录 + `threading.Thread(_run_dub_qa_in_thread)` + 轮询，`analysis.py:91`）——`asyncio.to_thread` 对同步 `def` handler **无意义**（已在线程池）。
+> ⏸ **残留 + 暂缓理由**：真正剩下的只是 `compose_delivery` 长编码会让**该客户端请求**久等（可能超时），其正解＝像 atomic-tools 那样返回 job 句柄 + UI 轮询，属**破坏性契约变更 + 前端改造**（compose 现同步返回结果），需前端协同 + 目检。本地单机场景下"线程池占一线程、客户端等待"可接受，故暂缓到能改前端的 session。
+- **现状（原）**：`delivery.py:133 compose_delivery` 在 FastAPI handler 内同步跑 `export_video`（整段 ffmpeg 编码阻塞 worker）；analysis/dubbing_editor 同样同步跑合成/probe。
 - **方案**：走后台任务机制（或至少 `asyncio.to_thread`），返回 job 句柄给 UI 轮询，与 atomic-tools/流水线一致。
-- **验收**：长编码不阻塞、不超时。
-- **测试**：手动大文件导出验证服务不卡。
 
 ---
 
