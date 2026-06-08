@@ -206,6 +206,34 @@ def test_rewrite_for_dubbing_uses_llm_backend_for_short_variant() -> None:
     assert sent.max_chars > 0
 
 
+def test_select_attempt_requires_improvement_over_baseline() -> None:
+    """REP-2: an accepted repair that does not beat the incumbent is not swapped in."""
+    from translip.repair.executor import _baseline_score, _select_attempt
+
+    item = {
+        "metrics": {
+            "overall_status": "review",
+            "duration_ratio": 1.0,
+            "speaker_similarity": 0.8,
+            "text_similarity": 0.95,
+        }
+    }
+    base = _baseline_score(item)
+
+    weak = [
+        {"strict_accepted": True, "status": "candidate", "score": base - 0.01, "metrics": {"overall_status": "review"}}
+    ]
+    assert _select_attempt(weak, baseline_score=base) is None
+
+    strong = [
+        {"strict_accepted": True, "status": "candidate", "score": base + 1.0, "metrics": {"overall_status": "passed"}}
+    ]
+    assert _select_attempt(strong, baseline_score=base) is not None
+
+    # Back-compat: with no baseline any accepted attempt is selected.
+    assert _select_attempt(weak) is not None
+
+
 def test_plan_dub_repair_writes_queue_rewrite_and_reference_plan(tmp_path: Path) -> None:
     translation_path = tmp_path / "translation.en.json"
     profiles_path = tmp_path / "speaker_profiles.json"

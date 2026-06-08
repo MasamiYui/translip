@@ -454,7 +454,8 @@
 - **验收**：任意视频的 overflow/pacing 修复能产出真正更短译文。
 - **测试**：非迪拜样本验证重译变短且达标。
 
-### REP-2 — 修复 vs 原段改进闸 ｜ TODO ｜ 算法 ｜ S ｜ ◻待确认
+### REP-2 — 修复 vs 原段改进闸 ｜ DONE ｜ 算法 ｜ S ｜ ◻待确认
+> 已修：`executor._select_attempt` 加 `baseline_score`+`min_gain`(0.05) 闸——只在最佳 attempt 分数超过原段（`item['metrics']` 用同公式算的 `_baseline_score`）一个 margin 时才替换，否则保留原段（转人工）。防止修得不比原来好的回退。加单测（弱于原段不选 / 明显更好选 / 无 baseline 向后兼容）。后端 519 passed。
 - **现状**：`_select_attempt`（`executor.py:532`）只在绝对阈值内选最高分，**不与修复前比较**；可能"修"得比原来差仍被接受。
 - **方案**：选择门改为"超过原段分数(或失败维度) margin 才替换"，否则保留原段。
 - **验收**：修复不引入回退。

@@ -240,7 +240,7 @@ def _repair_item(
         )
         attempts.append(attempt)
 
-    selected = _select_attempt(attempts)
+    selected = _select_attempt(attempts, baseline_score=_baseline_score(item))
     for attempt in attempts:
         if selected is not None and attempt.get("attempt_id") == selected.get("attempt_id"):
             attempt["status"] = "selected"
@@ -529,7 +529,30 @@ def _selected_repair_items(
     return items
 
 
-def _select_attempt(attempts: list[dict[str, Any]]) -> dict[str, Any] | None:
+_MIN_REPAIR_GAIN = 0.05
+
+
+def _baseline_score(item: dict[str, Any]) -> float:
+    """The incumbent (pre-repair) segment's score from the report metrics carried
+    on the repair item, using the same weighting as ``_attempt_score`` so the two
+    are directly comparable."""
+    metrics = item.get("metrics") if isinstance(item, dict) else {}
+    metrics = metrics if isinstance(metrics, dict) else {}
+    status_weight = {"passed": 2.5, "review": 1.2, "failed": 0.0}.get(
+        str(metrics.get("overall_status") or ""), 0.0
+    )
+    duration_score = max(0.0, 1.0 - abs(1.0 - float(metrics.get("duration_ratio") or 0.0)))
+    speaker_score = max(0.0, float(metrics.get("speaker_similarity") or 0.0))
+    text_score = max(0.0, float(metrics.get("text_similarity") or 0.0))
+    return round(status_weight + duration_score * 0.3 + speaker_score * 0.25 + text_score * 0.35, 4)
+
+
+def _select_attempt(
+    attempts: list[dict[str, Any]],
+    *,
+    baseline_score: float = 0.0,
+    min_gain: float = _MIN_REPAIR_GAIN,
+) -> dict[str, Any] | None:
     accepted = [
         attempt
         for attempt in attempts
@@ -537,7 +560,13 @@ def _select_attempt(attempts: list[dict[str, Any]]) -> dict[str, Any] | None:
     ]
     if not accepted:
         return None
-    return max(accepted, key=lambda attempt: (float(attempt.get("score") or 0.0), -_status_rank(attempt)))
+    best = max(accepted, key=lambda attempt: (float(attempt.get("score") or 0.0), -_status_rank(attempt)))
+    # Only swap in the repair when it measurably beats the incumbent; a "fix" that
+    # is no better than the original is a regression risk, so keep the original
+    # (the segment then falls through to manual review).
+    if float(best.get("score") or 0.0) < baseline_score + min_gain:
+        return None
+    return best
 
 
 def _status_rank(attempt: dict[str, Any]) -> int:
