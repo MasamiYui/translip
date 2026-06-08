@@ -191,7 +191,8 @@
 - **验收**：契约漂移在 CI 被捕获。
 - **测试**：CI 校验脚本。
 
-### ARCH-16 — 列表分页下推 SQL ｜ TODO ｜ 性能 ｜ S–M ｜ ◻待确认
+### ARCH-16 — 列表分页下推 SQL ｜ DONE(tasks) ｜ 性能 ｜ S–M ｜ ◻待确认
+> 已修 `routes/tasks.py::list_tasks`：COUNT 走 `select(func.count()).select_from(stmt.subquery())`、LIMIT/OFFSET 下推、stages 用单条 `IN(...)` 批量分组——不再全表加载+Python 切片+per-task N+1。加测试(total/分页/stages 分组)。后端 520 passed。`job_manager.list_jobs`/`works.py` 的同类 all-then-slice 留作 ATOM-4/后续。
 - **现状**：`tasks.py:152` 全表加载后 Python 切片，且逐任务查 `TaskStage`（N+1）；`job_manager.list_jobs`、`works.py:751` 同样 all-then-slice。
 - **方案**：`LIMIT/OFFSET`+`COUNT` 下推 SQL；stages 用单条 `IN(...)` 或 join 批量加载。
 - **验收**：列表查询不随表增长线性变慢。

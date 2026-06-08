@@ -191,6 +191,42 @@ def test_get_node_log_returns_tail_and_blocks_traversal(tmp_path: Path) -> None:
         assert excinfo.value.status_code == 403
 
 
+def test_list_tasks_paginates_in_sql_and_groups_stages(tmp_path: Path) -> None:
+    from translip.server.routes.tasks import list_tasks
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        for i in range(5):
+            session.add(
+                Task(
+                    id=f"t{i}",
+                    name=f"T{i}",
+                    status="succeeded",
+                    input_path=str(tmp_path / "in.mp4"),
+                    output_root=str(tmp_path / f"out{i}"),
+                    source_lang="zh",
+                    target_lang="en",
+                    config={},
+                    created_at=datetime(2026, 1, 1, 0, i),
+                    updated_at=datetime(2026, 1, 1, 0, i),
+                )
+            )
+        session.add(TaskStage(task_id="t4", stage_name="stage1", status="succeeded"))
+        session.add(TaskStage(task_id="t4", stage_name="task-a", status="succeeded"))
+        session.commit()
+
+        page1 = list_tasks(status=None, target_lang=None, search=None, page=1, size=2, session=session)
+        assert page1.total == 5
+        assert len(page1.items) == 2
+        assert page1.items[0].id == "t4"  # newest first
+        assert len(page1.items[0].stages) == 2  # stages grouped, not lost
+
+        page3 = list_tasks(status=None, target_lang=None, search=None, page=3, size=2, session=session)
+        assert page3.total == 5
+        assert len(page3.items) == 1
+
+
 def test_build_workflow_graph_payload_returns_nodes_and_edges() -> None:
     from translip.orchestration.graph_export import build_workflow_graph_payload
 

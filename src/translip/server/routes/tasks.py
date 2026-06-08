@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Path as PathParam, Query
+from sqlalchemy import func
 from sqlmodel import Session, select
 
 from ...orchestration.graph_export import build_workflow_graph_payload
@@ -147,18 +148,24 @@ def list_tasks(
         stmt = stmt.where(Task.target_lang == target_lang)
     if search:
         stmt = stmt.where(Task.name.contains(search))
-    stmt = stmt.order_by(Task.created_at.desc())
 
-    all_tasks = list(session.exec(stmt).all())
-    total = len(all_tasks)
+    # Count + page in SQL instead of loading the whole table and slicing in
+    # Python (which got slower every day as the task table grew).
+    total = int(session.exec(select(func.count()).select_from(stmt.subquery())).one())
     offset = (page - 1) * size
-    tasks_page = all_tasks[offset : offset + size]
+    tasks_page = list(
+        session.exec(stmt.order_by(Task.created_at.desc()).offset(offset).limit(size)).all()
+    )
 
-    items = []
-    for task in tasks_page:
-        stages = list(session.exec(select(TaskStage).where(TaskStage.task_id == task.id)).all())
-        items.append(_task_to_read(task, stages))
+    # Batch-load this page's stages in one IN(...) query, then group — avoids the
+    # per-task N+1.
+    task_ids = [task.id for task in tasks_page]
+    stages_by_task: dict[str, list[TaskStage]] = {tid: [] for tid in task_ids}
+    if task_ids:
+        for stage in session.exec(select(TaskStage).where(TaskStage.task_id.in_(task_ids))).all():
+            stages_by_task.setdefault(stage.task_id, []).append(stage)
 
+    items = [_task_to_read(task, stages_by_task.get(task.id, [])) for task in tasks_page]
     return TaskListResponse(items=items, total=total, page=page, size=size)
 
 
