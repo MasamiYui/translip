@@ -85,6 +85,20 @@ def _count_renderable_task_d_segments(payload: dict[str, Any]) -> int:
     return sum(1 for row in payload.get("segments", []) if isinstance(row, dict))
 
 
+def _task_d_speaker_already_rendered(report_path: Path, *, resume_ok: bool) -> bool:
+    """ARCH-6: whether this speaker can be skipped on a resume.
+
+    True only when resume is allowed (same cache key — a crash, not a param
+    change) and a prior run already wrote a renderable report for the speaker.
+    """
+    if not resume_ok or not report_path.exists():
+        return False
+    try:
+        return _count_renderable_task_d_segments(_load_json(report_path)) > 0
+    except Exception:
+        return False
+
+
 def _file_fingerprint(path: Path) -> dict[str, Any]:
     if not path.exists() or not path.is_file():
         return {"path": str(path), "exists": False, "sha256": None}
@@ -400,6 +414,7 @@ def execute_stage(
     *,
     monitor: PipelineMonitor,
     should_cancel: Callable[[], bool] | None = None,
+    resume_ok: bool = False,
 ) -> dict[str, Any]:
     stage = stage_name  # string for monkeypatch compatibility
     if stage == "stage1":
@@ -480,12 +495,23 @@ def execute_stage(
                 limit=segment_limit,
             )
             selected_segment_map[speaker_id] = selected_segment_ids
+            report_path = task_d_report_path(request, speaker_id)
+            # ARCH-6: reuse a renderable report from a prior crash (same cache key)
+            # and skip the heavy re-synthesis; a param change clears resume_ok so
+            # everyone is re-synthesized.
+            if _task_d_speaker_already_rendered(report_path, resume_ok=resume_ok):
+                monitor.update_stage_progress(
+                    stage, progress, f"speaker {speaker_id} resumed {index - 1}/{total}"
+                )
+                reports.append(str(report_path))
+                if request.speaker_limit > 0 and len(reports) >= request.speaker_limit:
+                    break
+                continue
             run_stage_command(
                 build_task_d_command(request, speaker_id=speaker_id, segment_ids=selected_segment_ids),
                 log_path=_stage_log_path(request, "task-d"),
                 should_cancel=should_cancel,
             )
-            report_path = task_d_report_path(request, speaker_id)
             if report_path.exists():
                 report_payload = _load_json(report_path)
                 if _count_renderable_task_d_segments(report_payload) > 0:
@@ -738,9 +764,12 @@ def execute_node(
     *,
     monitor: PipelineMonitor,
     should_cancel: Callable[[], bool] | None = None,
+    resume_ok: bool = False,
 ) -> dict[str, Any]:
     if node_name in {"stage1", "task-a", "task-b", "task-c", "task-d", "task-e"}:
-        return execute_stage(node_name, request, monitor=monitor, should_cancel=should_cancel)
+        return execute_stage(
+            node_name, request, monitor=monitor, should_cancel=should_cancel, resume_ok=resume_ok
+        )
     if node_name == "ocr-detect":
         monitor.update_stage_progress(node_name, 5.0, "extracting hard subtitles")
         return run_ocr_detect(request, log_path=_node_log_path(request, node_name), monitor=monitor, should_cancel=should_cancel)
@@ -861,7 +890,19 @@ def run_pipeline(
                 if stage_executor is not None and node_name in {"stage1", "task-a", "task-b", "task-c", "task-d", "task-e"}:
                     result = stage_executor(node_name, request, monitor=monitor)
                 else:
-                    result = execute_node(node_name, request, monitor=monitor, should_cancel=should_cancel)
+                    # ARCH-6: allow per-speaker resume only when re-running with an
+                    # unchanged cache key (a crash, not a param change).
+                    resume_ok = (
+                        cache_spec.previous_cache_key is not None
+                        and cache_spec.cache_key == cache_spec.previous_cache_key
+                    )
+                    result = execute_node(
+                        node_name,
+                        request,
+                        monitor=monitor,
+                        should_cancel=should_cancel,
+                        resume_ok=resume_ok,
+                    )
             except StageSubprocessCancelled:
                 stage_row["status"] = "failed"
                 stage_row["error"] = "Stopped by user"

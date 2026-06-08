@@ -127,8 +127,9 @@
 - **验收**：bump epoch 后强制全量重算。
 - **测试**：单测 epoch 改变导致 miss。
 
-### ARCH-6 — 阶段内续跑（per-speaker 缓存）｜ TODO ｜ 健壮性/性能 ｜ M ｜ ◻待确认
-- **现状**：缓存粒度是整节点；task-d 跑到 5/6 崩了全部重来。
+### ARCH-6 — 阶段内续跑（per-speaker 缓存）｜ DONE ｜ 健壮性/性能 ｜ M ｜ ✅已核实
+> 已修：task-d 循环对每个说话人先查 `speaker_segments.<lang>.json`——若已有**可渲染**(≥1 dict segment)report 则复用、跳过重合成（`_task_d_speaker_already_rendered` helper）。**安全闸**：仅当 `resume_ok` 为真才跳过——`resume_ok = cache_spec.cache_key == previous_cache_key`（即同参数的崩溃续跑；tts/翻译/profiles 等参数一变 cache key 变→`resume_ok=False`→全员重合成，绝不复用 stale 报告）。signal 经 `run_pipeline → execute_node → execute_stage` 三级透传（均加 `resume_ok` 参数，默认 False）。加 `_task_d_speaker_already_rendered` 单测（4 case 决策矩阵：resume 关→不跳、缺报告→不跳、空报告→不跳、可渲染+resume→跳）。全量 627 passed。
+- **现状（原）**：缓存粒度是整节点；task-d 跑到 5/6 崩了全部重来。
 - **方案**：task-d 按说话人缓存（`speaker_segments.<lang>.json` 已是离散产物，`commands.py:128`），跳过已有非空 report 的说话人。与 ARCH-2 配套。
 - **验收**：崩溃重跑只补未完成说话人。
 - **测试**：单测 per-speaker 跳过逻辑。

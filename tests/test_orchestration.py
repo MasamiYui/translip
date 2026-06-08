@@ -455,6 +455,29 @@ def test_cache_key_changes_with_cache_epoch(monkeypatch) -> None:
     assert key_v1 != key_v2
 
 
+def test_task_d_speaker_resume_decision(tmp_path: Path) -> None:
+    """ARCH-6: per-speaker resume only when allowed AND a renderable report exists."""
+    import json
+
+    from translip.orchestration.runner import _task_d_speaker_already_rendered
+
+    missing = tmp_path / "missing.json"
+    empty = tmp_path / "empty.json"
+    empty.write_text(json.dumps({"speaker_id": "spk", "segments": []}), encoding="utf-8")
+    rendered = tmp_path / "rendered.json"
+    rendered.write_text(
+        json.dumps({"speaker_id": "spk", "segments": [{"segment_id": "s1"}]}), encoding="utf-8"
+    )
+
+    # resume disabled -> never skip, even with a renderable report.
+    assert _task_d_speaker_already_rendered(rendered, resume_ok=False) is False
+    # resume enabled but nothing usable -> don't skip.
+    assert _task_d_speaker_already_rendered(missing, resume_ok=True) is False
+    assert _task_d_speaker_already_rendered(empty, resume_ok=True) is False
+    # resume enabled + a renderable report -> skip (reuse).
+    assert _task_d_speaker_already_rendered(rendered, resume_ok=True) is True
+
+
 def test_execute_task_e_writes_character_ledger_and_dub_benchmark(tmp_path: Path, monkeypatch) -> None:
     from translip.orchestration.commands import task_d_stage_manifest_path
     from translip.orchestration.monitor import PipelineMonitor
