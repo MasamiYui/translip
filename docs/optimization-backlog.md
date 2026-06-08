@@ -446,7 +446,8 @@
 
 ## repair（REP）
 
-### REP-1 — LLM 长度目标重译替换硬编码 ｜ TODO ｜ A/算法/产品 ｜ M ｜ ◻待确认
+### REP-1 — LLM 长度目标重译替换硬编码 ｜ DONE ｜ A/算法/产品 ｜ M ｜ ◻待确认
+> 已修：`rewrite_for_dubbing` 加可选 `llm_backend`，short 变体优先走 **deepseek `condense_batch`**（duration-aware，复用 TRA-1 的 `target_char_budget` + glossary 保护）；失败/无 backend 回退既有规则法（保留，旧测试不破）。`RepairPlanRequest` 加 `api_model`/`api_base_url`，`plan_dub_repair` 从 env+config 建 deepseek（无 `DEEPSEEK_API_KEY`→None→规则法），orchestration 传入 request 的 api 配置。加 mock-LLM 测试。后端 516 passed。未删硬编码字典（删会破坏 `test_rewrite_for_dubbing_fixes_common_bad_phrase`；LLM 可用时取代之、仅作离线 fallback）。闭环完整效果需带 API key + 真 TTS 验证。
 - **现状**：`repair/rewrite.py:139` 是《迪拜/哪吒》中→英硬编码字典；通用 `_shorten_english`（`:273`）仅 ~8 个缩写正则；换视频即近 no-op。
 - **方案**：改用现有 deepseek 做带硬字符/时长预算（`estimate_tts_duration`）的多变体重译，glossary 保护，保留规则法作离线 fallback；tournament（`executor._attempt_specs`）已能吃多文本候选。
 - **验收**：任意视频的 overflow/pacing 修复能产出真正更短译文。

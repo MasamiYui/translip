@@ -36,6 +36,7 @@ def rewrite_for_dubbing(
     source_duration_sec: float,
     target_lang: str,
     glossary: list[GlossaryEntry],
+    llm_backend: object | None = None,
 ) -> list[RewriteCandidate]:
     natural_text, natural_reason = _natural_rewrite(
         source_text=source_text,
@@ -50,6 +51,8 @@ def rewrite_for_dubbing(
         source_duration_sec=source_duration_sec,
         glossary=glossary,
         target_lang=target_lang,
+        segment_id=segment_id,
+        llm_backend=llm_backend,
     )
     candidates = [
         RewriteCandidate(
@@ -113,7 +116,24 @@ def _short_rewrite(
     source_duration_sec: float,
     glossary: list[GlossaryEntry],
     target_lang: str,
+    segment_id: str = "",
+    llm_backend: object | None = None,
 ) -> tuple[str, str]:
+    # Prefer a real length-targeted LLM rewrite when a backend is available; the
+    # rule-based paths below are the offline fallback (and were tuned to one clip).
+    if llm_backend is not None and getattr(llm_backend, "supports_condensation", False):
+        llm = _llm_short_rewrite(
+            llm_backend,
+            segment_id=segment_id,
+            source_text=source_text,
+            natural_text=natural_text,
+            source_duration_sec=source_duration_sec,
+            target_lang=target_lang,
+            glossary=glossary,
+        )
+        if llm is not None:
+            return llm
+
     phrase = _short_phrase_rewrite(source_text)
     if phrase is not None:
         return phrase, "rule_based_short_phrase_rewrite"
@@ -134,6 +154,55 @@ def _short_rewrite(
     if source_duration_sec <= 1.2:
         return _trim_to_core_words(natural_text), "trimmed_for_short_source_window"
     return shortened, "normalized_short_variant"
+
+
+def _llm_short_rewrite(
+    llm_backend: object,
+    *,
+    segment_id: str,
+    source_text: str,
+    natural_text: str,
+    source_duration_sec: float,
+    target_lang: str,
+    glossary: list[GlossaryEntry],
+) -> tuple[str, str] | None:
+    """Length-targeted rewrite via the LLM backend's duration-aware condenser.
+
+    Returns ``None`` on any failure so the caller falls back to the rule-based
+    path (this is what generalizes repair beyond the hand-tuned phrase table).
+    """
+    try:
+        from ..translation.backend import CondenseInput
+        from ..translation.duration import target_char_budget
+
+        protected = [
+            match.target
+            for match in _matching_glossary_terms(
+                source_text=source_text, glossary=glossary, target_lang=target_lang
+            )
+        ]
+        outputs = llm_backend.condense_batch(  # type: ignore[attr-defined]
+            items=[
+                CondenseInput(
+                    segment_id=segment_id or "rewrite",
+                    source_text=source_text,
+                    current_target_text=natural_text,
+                    target_duration_sec=source_duration_sec,
+                    current_estimated_sec=estimate_tts_duration(
+                        natural_text, target_lang=target_lang
+                    ),
+                    max_chars=target_char_budget(source_duration_sec, target_lang=target_lang),
+                    protected_terms=protected,
+                )
+            ],
+            target_lang=target_lang,
+        )
+        text = _normalize_sentence(outputs[0].target_text) if outputs else ""
+        if text:
+            return text, "llm_length_targeted_rewrite"
+    except Exception:
+        return None
+    return None
 
 
 def _phrase_rewrite(source_text: str) -> str | None:

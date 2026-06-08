@@ -22,6 +22,8 @@ class RepairPlanRequest:
     glossary_path: Path | str | None = None
     max_items: int | None = None
     include_segment_ids: list[str] | None = None
+    api_model: str | None = None
+    api_base_url: str | None = None
 
     def normalized(self) -> "RepairPlanRequest":
         return RepairPlanRequest(
@@ -40,7 +42,23 @@ class RepairPlanRequest:
             ),
             max_items=self.max_items,
             include_segment_ids=list(self.include_segment_ids) if self.include_segment_ids else None,
+            api_model=self.api_model,
+            api_base_url=self.api_base_url,
         )
+
+
+def _resolve_rewrite_backend(request: RepairPlanRequest) -> object | None:
+    """Build the LLM rewrite backend (DeepSeek) when an API key is configured.
+
+    Returns ``None`` (so repair falls back to rule-based rewriting) whenever the
+    backend can't be constructed — e.g. no ``DEEPSEEK_API_KEY`` in the env.
+    """
+    try:
+        from ..translation.deepseek_backend import DeepSeekBackend
+
+        return DeepSeekBackend(model_name=request.api_model, base_url=request.api_base_url)
+    except Exception:
+        return None
 
 
 @dataclass(slots=True)
@@ -81,6 +99,7 @@ def plan_dub_repair(request: RepairPlanRequest) -> RepairPlanResult:
         glossary=glossary,
         max_items=normalized.max_items,
         include_segment_ids=set(normalized.include_segment_ids) if normalized.include_segment_ids else None,
+        llm_backend=_resolve_rewrite_backend(normalized),
     )
 
     repair_queue = {

@@ -634,6 +634,8 @@ def _run_dub_repair_for_task_e(
                 target_lang=request.target_lang,
                 glossary_path=request.glossary_path,
                 max_items=request.dub_repair_max_items,
+                api_model=request.api_model,
+                api_base_url=request.api_base_url,
             )
         )
         repair_count = int(plan_result.manifest.get("stats", {}).get("repair_count") or 0)

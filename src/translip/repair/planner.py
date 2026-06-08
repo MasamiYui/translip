@@ -17,6 +17,7 @@ def build_repair_plan(
     glossary: list[GlossaryEntry],
     max_items: int | None = None,
     include_segment_ids: set[str] | None = None,
+    llm_backend: object | None = None,
 ) -> dict[str, Any]:
     # ``include_segment_ids`` force-queues segments the dub-QA flagged on the final
     # mix even when task-d's own metrics passed them, so the evaluation's defects
@@ -49,7 +50,9 @@ def build_repair_plan(
     if max_items is not None:
         items = items[:max(0, max_items)]
 
-    rewrite_plan = _build_rewrite_plan(items=items, target_lang=target_lang, glossary=glossary)
+    rewrite_plan = _build_rewrite_plan(
+        items=items, target_lang=target_lang, glossary=glossary, llm_backend=llm_backend
+    )
     reference_plan = _build_reference_plans(
         items=items,
         profiles_payload=profiles_payload,
@@ -209,6 +212,7 @@ def _build_rewrite_plan(
     items: list[dict[str, Any]],
     target_lang: str,
     glossary: list[GlossaryEntry],
+    llm_backend: object | None = None,
 ) -> dict[str, Any]:
     rows = []
     for item in items:
@@ -222,6 +226,7 @@ def _build_rewrite_plan(
             source_duration_sec=float(item.get("source_duration_sec") or 0.0),
             target_lang=target_lang,
             glossary=glossary,
+            llm_backend=llm_backend,
         )
         rows.append(
             {

@@ -171,6 +171,41 @@ def test_rewrite_for_dubbing_preserves_mid_sentence_contraction_case() -> None:
     assert by_variant["short"].target_text == "What is the logic you're searching for?"
 
 
+def test_rewrite_for_dubbing_uses_llm_backend_for_short_variant() -> None:
+    """REP-1: when an LLM backend is supplied, the short variant is a real
+    length-targeted rewrite (not the hand-tuned phrase table)."""
+    from translip.translation.backend import CondenseOutput
+
+    class FakeLLM:
+        supports_condensation = True
+
+        def __init__(self) -> None:
+            self.calls: list = []
+
+        def condense_batch(self, *, items, target_lang):
+            self.calls.append((items, target_lang))
+            return [CondenseOutput(segment_id=items[0].segment_id, target_text="Short LLM line.")]
+
+    backend = FakeLLM()
+    candidates = rewrite_for_dubbing(
+        segment_id="seg-1",
+        source_text="一段很长的中文台词需要压缩到很短",
+        current_target_text="A very long English translation that clearly overflows the slot.",
+        source_duration_sec=1.0,
+        target_lang="en",
+        glossary=[],
+        llm_backend=backend,
+    )
+
+    by_variant = {c.variant: c for c in candidates}
+    assert by_variant["short"].target_text == "Short LLM line."
+    assert by_variant["short"].reason == "llm_length_targeted_rewrite"
+    assert backend.calls, "LLM backend should have been called for the short variant"
+    sent = backend.calls[0][0][0]
+    assert sent.target_duration_sec == 1.0
+    assert sent.max_chars > 0
+
+
 def test_plan_dub_repair_writes_queue_rewrite_and_reference_plan(tmp_path: Path) -> None:
     translation_path = tmp_path / "translation.en.json"
     profiles_path = tmp_path / "speaker_profiles.json"
