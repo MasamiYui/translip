@@ -6,6 +6,18 @@ import threading
 from pathlib import Path
 
 from fastapi import UploadFile
+from sqlmodel import SQLModel, create_engine
+
+
+def _isolated_engine(tmp_path: Path):
+    """Per-test SQLite DB so atomic-tools tests never touch the real CACHE_ROOT DB
+    (which otherwise accumulates stale jobs and makes the concurrency count flaky)."""
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'atomic-test.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    SQLModel.metadata.create_all(engine)
+    return engine
 
 
 class FakeAdapter:
@@ -49,7 +61,7 @@ class WaitingAdapter:
 def test_job_manager_executes_job_and_registers_artifacts(tmp_path: Path) -> None:
     from translip.server.atomic_tools.job_manager import JobManager
 
-    manager = JobManager(root=tmp_path / "atomic-tools")
+    manager = JobManager(root=tmp_path / "atomic-tools", db_engine=_isolated_engine(tmp_path))
     manager.register_adapter("probe", FakeAdapter())
 
     upload = asyncio.run(
@@ -85,7 +97,7 @@ def test_job_manager_executes_job_and_registers_artifacts(tmp_path: Path) -> Non
 def test_job_manager_marks_job_failed_when_adapter_raises(tmp_path: Path) -> None:
     from translip.server.atomic_tools.job_manager import JobManager
 
-    manager = JobManager(root=tmp_path / "atomic-tools")
+    manager = JobManager(root=tmp_path / "atomic-tools", db_engine=_isolated_engine(tmp_path))
     manager.register_adapter("probe", FakeAdapter(should_fail=True))
 
     upload = asyncio.run(
@@ -109,7 +121,7 @@ def test_job_manager_marks_job_failed_when_adapter_raises(tmp_path: Path) -> Non
 def test_job_manager_rejects_unknown_file_references(tmp_path: Path) -> None:
     from translip.server.atomic_tools.job_manager import JobManager
 
-    manager = JobManager(root=tmp_path / "atomic-tools")
+    manager = JobManager(root=tmp_path / "atomic-tools", db_engine=_isolated_engine(tmp_path))
     manager.register_adapter("probe", FakeAdapter())
 
     try:
@@ -123,7 +135,9 @@ def test_job_manager_rejects_unknown_file_references(tmp_path: Path) -> None:
 def test_job_manager_counts_pending_jobs_against_concurrency_limit(tmp_path: Path) -> None:
     from translip.server.atomic_tools.job_manager import JobManager
 
-    manager = JobManager(root=tmp_path / "atomic-tools", max_concurrent_jobs=1)
+    manager = JobManager(
+        root=tmp_path / "atomic-tools", max_concurrent_jobs=1, db_engine=_isolated_engine(tmp_path)
+    )
     manager.register_adapter("probe", FakeAdapter())
 
     upload = asyncio.run(
@@ -149,7 +163,7 @@ def test_job_manager_counts_pending_jobs_against_concurrency_limit(tmp_path: Pat
 def test_job_manager_cancels_running_job_before_it_completes(tmp_path: Path) -> None:
     from translip.server.atomic_tools.job_manager import JobManager
 
-    manager = JobManager(root=tmp_path / "atomic-tools")
+    manager = JobManager(root=tmp_path / "atomic-tools", db_engine=_isolated_engine(tmp_path))
     adapter = WaitingAdapter()
     manager.register_adapter("probe", adapter)
 

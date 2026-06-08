@@ -634,7 +634,8 @@
 
 ## 测试卫生（TEST）
 
-### TEST-1 — atomic 测试非 hermetic，污染真实库 ｜ TODO ｜ D/测试 ｜ S ｜ ✅已核实
+### TEST-1 — atomic 测试非 hermetic，污染真实库 ｜ DONE ｜ D/测试 ｜ S ｜ ✅已核实
+> 已修：`test_atomic_tools_job_manager.py`(5处)/`test_atomic_tools_api.py`(3处) 的 `JobManager` 改传隔离 `db_engine`(per-test tmp sqlite，镜像 persistence 测试的 `_engine`)，不再写真实 `CACHE_ROOT` 库。验证：连跑两次都绿、真实库 `/pytest` job 数 8→8 不增。后端 518 passed。
 - **现状**：`test_atomic_tools_job_manager.py` / `test_atomic_tools_api.py` 多处 `JobManager(...)` 与 TestClient(app) 走真实全局 `default_engine`（`~/.cache/translip/data.db`），创建的 job 留在 pending 不清理，跨次运行累积（本次盘点时真实库已积 931 条 `/pytest-of-*` 垃圾 job），按运行顺序偶发触发 `_active_job_count` 假阳性导致 "Too many" 假失败。
 - **方案**：这些测试改为传入隔离的 `db_engine=`（JobManager 已支持该参数）与隔离 `root`，或加 fixture 用 in-memory engine；避免触碰 `CACHE_ROOT` 真实库。
 - **验收**：atomic 测试在脏真实库下也稳定通过；不再写真实库。

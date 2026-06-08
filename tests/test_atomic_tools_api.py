@@ -4,6 +4,17 @@ from io import BytesIO
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from sqlmodel import SQLModel, create_engine
+
+
+def _isolated_engine(tmp_path: Path):
+    """Per-test SQLite DB so the API tests don't write the real CACHE_ROOT DB."""
+    engine = create_engine(
+        f"sqlite:///{tmp_path / 'atomic-test.db'}",
+        connect_args={"check_same_thread": False},
+    )
+    SQLModel.metadata.create_all(engine)
+    return engine
 
 
 class FakeProbeAdapter:
@@ -34,7 +45,7 @@ def test_atomic_tools_api_supports_upload_run_status_and_artifacts(tmp_path: Pat
     from translip.server.atomic_tools.job_manager import JobManager
     from translip.server.routes import atomic_tools as atomic_tools_route
 
-    manager = JobManager(root=tmp_path / "atomic-tools")
+    manager = JobManager(root=tmp_path / "atomic-tools", db_engine=_isolated_engine(tmp_path))
     manager.register_adapter("probe", FakeProbeAdapter())
     monkeypatch.setattr(atomic_tools_route, "job_manager", manager)
 
@@ -117,7 +128,7 @@ def test_atomic_tools_api_stops_pending_job(tmp_path: Path, monkeypatch) -> None
     from translip.server.atomic_tools.job_manager import JobManager
     from translip.server.routes import atomic_tools as atomic_tools_route
 
-    manager = JobManager(root=tmp_path / "atomic-tools")
+    manager = JobManager(root=tmp_path / "atomic-tools", db_engine=_isolated_engine(tmp_path))
     manager.register_adapter("probe", FakeProbeAdapter())
     monkeypatch.setattr(atomic_tools_route, "job_manager", manager)
 
@@ -151,7 +162,7 @@ def test_atomic_tools_api_returns_404_for_missing_or_mismatched_jobs(
     from translip.server.atomic_tools.job_manager import JobManager
     from translip.server.routes import atomic_tools as atomic_tools_route
 
-    manager = JobManager(root=tmp_path / "atomic-tools")
+    manager = JobManager(root=tmp_path / "atomic-tools", db_engine=_isolated_engine(tmp_path))
     manager.register_adapter("probe", FakeProbeAdapter())
     monkeypatch.setattr(atomic_tools_route, "job_manager", manager)
 
