@@ -160,8 +160,10 @@
 - **验收**：长任务不再断流；磁盘读减少。
 - **测试**：手动长任务观察 SSE 不 timeout。
 
-### ARCH-11 — DB 迁移版本化 ｜ TODO ｜ 健壮性 ｜ M ｜ ◻待确认
-- **现状**：`database.py:36` 手写 `ALTER ADD COLUMN` 列表，加列幂等但无版本、无降级、不支持改名/改类型/回填，部分失败不可检测。
+### ARCH-11 — DB 迁移版本化 ｜ DONE（schema_version 框架）｜ 健壮性 ｜ M ｜ ✅已核实
+> 已修（选轻量 `schema_version` 表方案，不引 Alembic）：`database.py` 加版本化迁移框架——`schema_version(version,name,applied_at)` 表 + 有序 `_MIGRATIONS=[(version,name,fn)]` 列表 + `run_migrations(engine)`。每个迁移在**独立事务** `engine.begin()` 中跑，仅成功后写 schema_version 行；**失败回滚且抛出**（半应用 schema 可检测，不静默），已应用版本跳过（每次启动可安全重放）。原手写 `ALTER ADD COLUMN` 收编为幂等的 migration v1（`_add_missing_columns` 仍 PRAGMA 守卫——故已有列的旧库只记版本不报错）。`init_db` 改调 `run_migrations()`；加 `applied_versions()` 内省。加 3 测试（空库→记 v1+幂等重放、旧库补列、注入失败迁移验证回滚+不记版本）。全量 602 passed。
+> ⏸ 降级/改名/改类型/回填等高级迁移：框架已就位，按需在 `_MIGRATIONS` 追加 v2+ 即可（勿重编号已发布版本）。
+- **现状（原）**：`database.py:36` 手写 `ALTER ADD COLUMN` 列表，加列幂等但无版本、无降级、不支持改名/改类型/回填，部分失败不可检测。
 - **方案**：上 Alembic 或 `schema_version` 表 + 有序迁移函数；至少包裹迁移使部分失败可检测并记录已应用版本。
 - **验收**：迁移可重放、可检测失败。
 - **测试**：迁移单测（空库→当前）。
