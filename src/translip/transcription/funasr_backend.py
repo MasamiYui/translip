@@ -6,13 +6,14 @@ import re
 import tempfile
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import librosa
 import numpy as np
 import soundfile as sf
 import torch
 
-from .asr import AsrOptions, AsrSegment
+from .asr import AsrOptions, AsrSegment, hotword_string
 from ..utils.torch_device import resolve_torch_device
 
 logger = logging.getLogger(__name__)
@@ -220,9 +221,11 @@ def _merge_intervals(
     return merged
 
 
-def _run_asr_on_chunk(asr_model, chunk: np.ndarray, *, language: str) -> list:
+def _run_asr_on_chunk(asr_model, chunk: np.ndarray, *, language: str, hotword: str = "") -> list:
     """Transcribe one audio chunk. Prefers the in-memory array, falling back to a temp WAV."""
     kwargs = {"cache": {}, "language": language, "use_itn": True, "batch_size_s": 60}
+    if hotword:
+        kwargs["hotword"] = hotword
     try:
         return asr_model.generate(input=chunk, **kwargs)
     except Exception as exc:  # pragma: no cover - depends on FunASR version's input handling
@@ -295,7 +298,12 @@ def _transcribe_sensevoice(
         if end_sample <= start_sample:
             continue
         chunk = waveform[start_sample:end_sample]
-        asr_results = _run_asr_on_chunk(asr_model, chunk, language=normalized_language)
+        asr_results = _run_asr_on_chunk(
+            asr_model,
+            chunk,
+            language=normalized_language,
+            hotword=hotword_string(resolved_options.hotwords),
+        )
         if not asr_results:
             continue
         item = asr_results[0]
@@ -357,12 +365,18 @@ def _transcribe_paraformer(
     audio_duration = round(info.frames / float(info.samplerate), 3) if info.samplerate else 0.0
 
     model = _load_paraformer_model(model_id, device, options.vad_max_segment_sec)
-    results = model.generate(
-        input=str(audio_path),
-        batch_size_s=300,
-        use_itn=True,
-        sentence_timestamp=True,
-    )
+    generate_kwargs: dict[str, Any] = {
+        "input": str(audio_path),
+        "batch_size_s": 300,
+        "use_itn": True,
+        "sentence_timestamp": True,
+    }
+    hotword = hotword_string(options.hotwords)
+    if hotword:
+        # SeACo-Paraformer biases decoding toward these terms; non-contextual
+        # FunASR models ignore it (ASR-7).
+        generate_kwargs["hotword"] = hotword
+    results = model.generate(**generate_kwargs)
     item = results[0] if results and isinstance(results[0], dict) else {}
     sentences = item.get("sentence_info") or []
 

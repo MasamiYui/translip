@@ -121,6 +121,7 @@ def transcribe_file(
                 best_of=normalized_request.best_of,
                 temperature=normalized_request.temperature,
                 condition_on_previous_text=normalized_request.condition_on_previous_text,
+                hotwords=tuple(normalized_request.hotwords),
             ),
         )
         if normalized_request.enable_diarization:

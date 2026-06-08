@@ -63,6 +63,13 @@ from .types import (
 from .utils.logging import configure_logging
 
 
+def _parse_hotwords(raw: str | None) -> list[str]:
+    """Split a comma-separated --hotwords value into individual terms (ASR-7)."""
+    if not raw:
+        return []
+    return [term.strip() for term in raw.split(",") if term.strip()]
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="translip")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
@@ -154,6 +161,12 @@ def build_parser() -> argparse.ArgumentParser:
         dest="condition_on_previous_text",
         action=argparse.BooleanOptionalAction,
         default=False,
+    )
+    transcribe_parser.add_argument(
+        "--hotwords",
+        default=None,
+        help="Comma-separated proper nouns / terms to bias ASR toward "
+        "(faster-whisper hotwords / SeACo-Paraformer hotword); e.g. 'Ne Zha,Ao Bing'",
     )
 
     correction_parser = subparsers.add_parser(
@@ -852,6 +865,7 @@ def main(argv: list[str] | None = None) -> int:
             best_of=args.best_of,
             temperature=args.temperature,
             condition_on_previous_text=args.condition_on_previous_text,
+            hotwords=tuple(_parse_hotwords(args.hotwords)),
         )
         result = transcribe_file(request)
         print(f"segments={result.artifacts.segments_json_path}")

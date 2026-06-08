@@ -33,6 +33,8 @@ class TranscriptionRequest:
     best_of: int = 5
     temperature: float = 0.0
     condition_on_previous_text: bool = False
+    # Proper-noun / terminology bias terms for the ASR backend (ASR-7).
+    hotwords: tuple[str, ...] = field(default_factory=tuple)
 
     def normalized(self) -> "TranscriptionRequest":
         return TranscriptionRequest(
@@ -55,6 +57,7 @@ class TranscriptionRequest:
             best_of=int(self.best_of),
             temperature=float(self.temperature),
             condition_on_previous_text=self.condition_on_previous_text,
+            hotwords=tuple(self.hotwords),
         )
 
 

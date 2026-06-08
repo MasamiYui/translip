@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import torch
 from faster_whisper import WhisperModel
@@ -49,9 +50,19 @@ class AsrOptions:
     best_of: int = 5
     temperature: float = 0.0
     condition_on_previous_text: bool = False
+    # Proper-noun / terminology bias terms passed to the ASR backend (ASR-7):
+    # faster-whisper `hotwords=`, SeACo-Paraformer `hotword=`. Empty = no biasing.
+    hotwords: tuple[str, ...] = field(default_factory=tuple)
 
-    def metadata(self) -> dict[str, bool | int | float]:
-        return asdict(self)
+    def metadata(self) -> dict[str, Any]:
+        data = asdict(self)
+        data["hotwords"] = list(self.hotwords)
+        return data
+
+
+def hotword_string(hotwords: tuple[str, ...] | list[str]) -> str:
+    """Join hotword terms into the space-separated string the ASR backends expect."""
+    return " ".join(term.strip() for term in hotwords if term and term.strip())
 
 
 def resolve_asr_device(requested_device: str) -> str:
@@ -134,6 +145,9 @@ def transcribe_audio(
             "min_silence_duration_ms": resolved_options.vad_min_silence_duration_ms,
             "max_speech_duration_s": resolved_options.vad_max_segment_sec,
         }
+    hotwords = hotword_string(resolved_options.hotwords)
+    if hotwords:
+        transcribe_kwargs["hotwords"] = hotwords
 
     segments_iter, info = model.transcribe(
         str(audio_path),
