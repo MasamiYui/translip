@@ -43,13 +43,13 @@ class ToolAdapter(ABC):
         return _write_json_impl(payload, output_path, atomic=False, trailing_newline=True)
 
 
-from .separation import SeparationAdapter  # noqa: E402,F401
-from .mixing import MixingAdapter  # noqa: E402,F401
-from .transcription import TranscriptionAdapter  # noqa: E402,F401
-from .transcript_correction import TranscriptCorrectionAdapter  # noqa: E402,F401
-from .translation import TranslationAdapter  # noqa: E402,F401
-from .tts import TtsAdapter  # noqa: E402,F401
-from .probe import ProbeAdapter  # noqa: E402,F401
-from .muxing import MuxingAdapter  # noqa: E402,F401
-from .subtitle_detect import SubtitleDetectAdapter  # noqa: E402,F401
-from .subtitle_erase import SubtitleEraseAdapter  # noqa: E402,F401
+# Auto-discover adapter modules: importing each triggers its register_tool()
+# side-effect, so dropping a new adapter file in this package registers it with
+# no manual list to keep in sync.
+import importlib as _importlib  # noqa: E402
+import pkgutil as _pkgutil  # noqa: E402
+
+for _module in sorted(_pkgutil.iter_modules(__path__), key=lambda m: m.name):
+    if _module.name.startswith("_"):
+        continue
+    _importlib.import_module(f"{__name__}.{_module.name}")

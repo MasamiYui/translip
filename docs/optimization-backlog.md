@@ -535,7 +535,8 @@
 
 ## 原子功能（ATOM）
 
-### ATOM-1 — adapter 自动发现 ｜ TODO ｜ 架构 ｜ S ｜ ◻待确认
+### ATOM-1 — adapter 自动发现 ｜ DONE ｜ 架构 ｜ S ｜ ◻待确认
+> 已修：`adapters/__init__.py` 手写 10 行 import 改为 `pkgutil.iter_modules(__path__)`(排序确定性)自动 import 每个子模块触发 `register_tool`。掉一个新 adapter 文件即注册，无需改 `__init__`。registry 测试改为集合断言(顺序无意义)。后端 518 passed。
 - **现状**：adapter 靠 import 副作用 `register_tool`，`adapters/__init__.py:46` 手写列举 10 个；漏一行静默丢工具。
 - **方案**：启动时 `pkgutil.iter_modules` 遍历 `adapters` 包自动 import；装饰器契约不变。
 - **验收**：新增 adapter 文件即被发现，无需改 `__init__`。

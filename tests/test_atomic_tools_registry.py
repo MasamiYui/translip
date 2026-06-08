@@ -7,7 +7,8 @@ def test_atomic_tools_registry_exposes_all_tools() -> None:
 
     tools = get_all_tools()
 
-    assert [tool.tool_id for tool in tools] == [
+    # Auto-discovered (pkgutil) so order is not meaningful — assert the full set.
+    assert {tool.tool_id for tool in tools} == {
         "separation",
         "mixing",
         "transcription",
@@ -18,7 +19,7 @@ def test_atomic_tools_registry_exposes_all_tools() -> None:
         "muxing",
         "subtitle-detect",
         "subtitle-erase",
-    ]
+    }
     assert {tool.category for tool in tools} == {"audio", "speech", "video"}
     correction = next(tool for tool in tools if tool.tool_id == "transcript-correction")
     assert correction.name_zh == "台词校正"
