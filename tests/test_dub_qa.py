@@ -308,3 +308,33 @@ def test_translation_judge_missing_key_raises(tmp_path: Path, monkeypatch):
             output_dir=tmp_path / "judge",
             target_lang="en",
         )
+
+
+def test_perceptual_score_penalizes_tail_cut_and_overflow() -> None:
+    from translip.quality.dub_qa import _perceptual_score
+
+    clean = _perceptual_score(
+        timeline={"cut_audio_sec": 0.0, "severe_overflow_count": 0},
+        undubbed_count=0,
+        segment_count=180,
+    )
+    assert clean == 100.0
+
+    # The documented 90.3-hygiene / 62.5s-cut run should look far worse perceptually.
+    cut = _perceptual_score(
+        timeline={"cut_audio_sec": 62.5, "severe_overflow_count": 45},
+        undubbed_count=2,
+        segment_count=180,
+    )
+    assert cut < clean
+    assert cut <= 60.0
+
+    # Monotonic: more audio cut never improves the score.
+    more_cut = _perceptual_score(
+        timeline={"cut_audio_sec": 90.0, "severe_overflow_count": 45},
+        undubbed_count=2,
+        segment_count=180,
+    )
+    assert more_cut <= cut
+
+    assert _perceptual_score(timeline={}, undubbed_count=0, segment_count=0) == 100.0

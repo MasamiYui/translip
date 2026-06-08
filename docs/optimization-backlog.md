@@ -469,13 +469,16 @@
 
 ## quality / 评测（QA）
 
-### QA-1 — `perceptual_score`（切尾 + ASR 往返）｜ TODO ｜ A/产品/算法 ｜ M ｜ ◻待确认
+### QA-1 — `perceptual_score`（切尾 + ASR 往返）｜ DONE(部分) ｜ A/产品/算法 ｜ M ｜ ◻待确认
+> 已做：`dub_qa._perceptual_score` 纯函数 → 写入 `qa_summary.perceptual_score`（与 timeline 同处）。惩罚切尾 `cut_audio_sec`(≤40)、严重溢出比(≤35)、未配音比(≤25)；**不动 `_score`**（保历史可比，正合 [[dubbing-evaluation-loop]] 的「做成额外惩罚项别动权重」）。加单测（clean=100、62.5s 切尾≤60、切尾单调、空=100）。后端 517 passed。
+> ⏳ 留作后续：对最终混音做 **ASR 往返**可懂度（需 ASR infra/较重，未做）；前端 EvaluationPage 展示 perceptual_score（UI 后续）。
 - **现状**：`_score`（`dub_benchmark.py:215`）全是流水线状态计数/比例，无任何客观音频指标（grep PESQ/STOI/DNSMOS 0 命中），`cut_audio_sec` 不进式；故 90.3 分却丢 62.5s 切尾。
 - **方案**：保留 `_score`（历史可比）；另建 `perceptual_score`：(a) 切尾/severe_overflow 惩罚；(b) 对**最终混音**做 ASR 往返(再转写 dub/preview diff 目标文本)捕捉 ducking/叠加/变速损失；(c) 可选 DNSMOS/UTMOS。
 - **验收**：切尾严重的产物 perceptual_score 明显低于 `_score`。
 - **测试**：在 `voxcpm-dubai-rerun-*`（已知 62.5s 切尾）上验证新分诚实反映。
 
-### QA-2 — autofix 升级阶梯 ｜ TODO ｜ 算法/产品 ｜ M ｜ ◻待确认
+### QA-2 — autofix 升级阶梯 ｜ HOLD ｜ 算法/产品 ｜ M ｜ ◻待确认
+> 2026-06 推迟：memory [[dubbing-evaluation-loop]] 记载此项是**有意未做**——「升级换 backend 需真合成验证(离线指标会骗人)」。换轨/换 backend 是否真改善、会不会换到 VoxCPM 零样本不稳后端反而更糟，本机无 TTS 无法验证（同 TTS-1 红线）。待有真合成环境再做；届时 escalation 决策可写纯函数单测，但效果须真跑批验证。
 - **现状**：`_choose_backends`（`autofix.py:241`）循环前算一次全程复用；每段最多试一次就退役；remediation 推荐的 escalation backend 被忽略。
 - **方案**：rounds 做阶梯：R1 重合成(多 attempts)→R2 换参考 + LLM 改写(REP-1)→R3 换 backend(尊重 directive escalation list)；仍失败段可换策略再试；保留 accept-if-better 单调闸。
 - **验收**：每次自动修复实际修好的段更多。

@@ -613,9 +613,34 @@ def _summarize(
             "average_ratio": round(sum(dropout_ratios) / len(dropout_ratios), 4) if dropout_ratios else None,
         },
         "timeline": timeline,
+        # Perceptual companion to dub_benchmark._score (which is pipeline hygiene):
+        # this one is driven by what a viewer actually hears — tail-trim loss and
+        # severe overflow — so a clean-but-cut run no longer looks deliverable.
+        "perceptual_score": _perceptual_score(
+            timeline=timeline,
+            undubbed_count=max(0, total - dubbed_count),
+            segment_count=total,
+        ),
         "translation_judge": translation_judge,
         "judge_status": judge_status,
     }
+
+
+def _perceptual_score(*, timeline: dict[str, Any], undubbed_count: int, segment_count: int) -> float:
+    """A 0–100 perceptual score that, unlike the hygiene score, penalizes the
+    audible defects: dub audio lost to tail-trimming, severe overflow (sped-up or
+    unfitted lines), and lines that were translated but never dubbed. Deliberately
+    separate from ``dub_benchmark._score`` so historical scores stay comparable;
+    each term is capped so one dimension can't single-handedly zero the score.
+    """
+    if segment_count <= 0:
+        return 100.0
+    cut_sec = float(timeline.get("cut_audio_sec") or 0.0)
+    severe = int(timeline.get("severe_overflow_count") or 0)
+    cut_penalty = min(40.0, cut_sec)  # ~1 pt per second of dub audio thrown away
+    severe_penalty = min(35.0, (severe / segment_count) * 60.0)
+    undubbed_penalty = min(25.0, (undubbed_count / segment_count) * 60.0)
+    return round(max(0.0, 100.0 - cut_penalty - severe_penalty - undubbed_penalty), 1)
 
 
 # --------------------------------------------------------------------------- #
