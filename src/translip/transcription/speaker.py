@@ -304,4 +304,8 @@ def assign_speaker_labels(
         "speaker_count": speaker_count,
         "valid_embeddings": len(valid_indices),
         "group_count": len(groups),
+        # Surface the clustering knobs so the task-a diarization_report can show
+        # the adopted threshold instead of leaving it implicit (ASR-9).
+        "same_speaker_similarity": DEFAULT_SAME_SPEAKER_SIMILARITY,
+        "expected_speakers": int(expected_speakers),
     }

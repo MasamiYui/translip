@@ -4,7 +4,46 @@ import json
 from pathlib import Path
 
 from translip.speaker_review.decisions import apply_speaker_decisions, write_speaker_corrected_artifacts
-from translip.speaker_review.diagnostics import build_speaker_diagnostics, build_speaker_review_plan
+from translip.speaker_review.diagnostics import (
+    build_diarization_report,
+    build_speaker_diagnostics,
+    build_speaker_review_plan,
+)
+
+
+def test_build_diarization_report_folds_in_diarizer_metadata() -> None:
+    report = build_diarization_report(
+        _segments_payload(),
+        diarization_metadata={
+            "speaker_backend": "speechbrain-ecapa",
+            "speaker_device": "cpu",
+            "speaker_count": 3,
+            "expected_speakers": 3,
+            "same_speaker_similarity": 0.62,
+            "group_count": 4,
+            "valid_embeddings": 4,
+        },
+        source_path="task-a/voice/segments.zh.json",
+    )
+
+    assert report["version"] == 1
+    dia = report["diarization"]
+    assert dia["speaker_backend"] == "speechbrain-ecapa"
+    assert dia["same_speaker_similarity"] == 0.62
+    assert dia["expected_speakers"] == 3
+    # diagnostics summary is carried + enriched with the merge-threshold evidence
+    assert report["summary"]["speaker_count"] == len(report["speakers"])
+    assert "similarity_threshold_suggest_merge" in report["summary"]
+    assert "suggested_merge_pair_count" in report["summary"]
+    assert isinstance(report["suggested_merges"], list)
+    assert "matrix" in report["similarity"]
+
+
+def test_build_diarization_report_tolerates_missing_metadata() -> None:
+    report = build_diarization_report(_segments_payload())
+    # speaker_count falls back to the diagnostics count when no metadata is given
+    assert report["diarization"]["speaker_count"] == report["summary"]["speaker_count"]
+    assert report["diarization"]["speaker_backend"] is None
 
 
 def test_speaker_diagnostics_flags_short_island_and_low_sample_speaker() -> None:

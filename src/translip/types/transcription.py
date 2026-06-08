@@ -75,6 +75,7 @@ class TranscriptionArtifacts:
     segments_json_path: Path
     manifest_path: Path
     srt_path: Path | None = None
+    diarization_report_path: Path | None = None
     intermediate_paths: dict[str, Path] = field(default_factory=dict)
 
 

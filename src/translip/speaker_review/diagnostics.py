@@ -105,6 +105,60 @@ def build_speaker_diagnostics(
     }
 
 
+def build_diarization_report(
+    segments_payload: dict[str, Any],
+    *,
+    diarization_metadata: dict[str, Any] | None = None,
+    source_path: str | None = None,
+) -> dict[str, Any]:
+    """Diarization evidence report produced at task-a time (ASR-9).
+
+    Reuses :func:`build_speaker_diagnostics` (similarity matrix, per-speaker risk,
+    suggested merges) and folds in the diarizer run metadata (backend, adopted
+    same-speaker threshold, expected/observed speaker counts) so the diarization
+    decision is inspectable right after transcription instead of only via the
+    post-hoc speaker-review tool.
+    """
+    diagnostics = build_speaker_diagnostics(segments_payload, source_path=source_path)
+    meta = dict(diarization_metadata or {})
+    similarity = diagnostics.get("similarity", {})
+    threshold = float(similarity.get("threshold_suggest_merge", 0.0) or 0.0)
+    suggested_merges = sorted(
+        {
+            tuple(sorted((speaker["speaker_label"], peer["speaker_label"])))
+            for speaker in diagnostics.get("speakers", [])
+            for peer in speaker.get("similar_peers", [])
+            if peer.get("suggest_merge")
+        }
+    )
+    return {
+        "version": 1,
+        "algorithm_version": "diarization-report-v1",
+        "generated_at": now_iso(),
+        "source_path": source_path,
+        "diarization": {
+            "speaker_backend": meta.get("speaker_backend"),
+            "speaker_device": meta.get("speaker_device"),
+            "speaker_count": meta.get("speaker_count", diagnostics["summary"]["speaker_count"]),
+            "expected_speakers": meta.get("expected_speakers"),
+            "same_speaker_similarity": meta.get("same_speaker_similarity"),
+            "diarization_turns": meta.get("diarization_turns"),
+            "group_count": meta.get("group_count"),
+            "valid_embeddings": meta.get("valid_embeddings"),
+        },
+        "summary": {
+            **diagnostics["summary"],
+            "similarity_threshold_suggest_merge": threshold,
+            "suggested_merge_pair_count": len(suggested_merges),
+        },
+        "suggested_merges": [list(pair) for pair in suggested_merges],
+        "similarity": similarity,
+        "speakers": diagnostics.get("speakers", []),
+        "speaker_runs": diagnostics.get("speaker_runs", []),
+        "segments": diagnostics.get("segments", []),
+    }
+
+
 def build_speaker_review_plan(diagnostics: dict[str, Any]) -> dict[str, Any]:
     items: list[dict[str, Any]] = []
     for speaker in diagnostics.get("speakers", []):

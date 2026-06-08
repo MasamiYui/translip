@@ -293,8 +293,10 @@
 - **验收**：长段被合理切分。
 - **测试**：长独白样本验证切分。
 
-### ASR-9 — `diarization_report` 输出 ｜ TODO ｜ A/产品 ｜ S ｜ ◻待确认
-- **现状**：task-a 输出无相似度矩阵/阈值/强制贴标数/ASR 置信度；`speaker_review/diagnostics.py` 有计算但是事后独立工具。
+### ASR-9 — `diarization_report` 输出 ｜ DONE（部分，余项见下）｜ A/产品 ｜ S ｜ ✅已核实
+> 已修：`speaker_review/diagnostics.py` 加薄封装 `build_diarization_report(payload, diarization_metadata, source_path)`——复用既有 `build_speaker_diagnostics`（相似度矩阵、per-speaker 风险、similar_peers），再折入 diarizer 运行 metadata（backend/device、采用的 same-speaker 阈值、expected/observed speaker 数、group_count/valid_embeddings）+ 增强 summary（建议合并对数）。`transcription/runner.py` 在写完 segments 后即产 `task-a/voice/diarization_report.json`（try/except 包裹——辅助产物绝不拖垮 task-a），加入 `TranscriptionArtifacts.diarization_report_path`。ECAPA `speaker.py` metadata 廉价补上 `same_speaker_similarity`(0.62)+`expected_speakers` 以便报告显示采用阈值。加 2 测试（折入 metadata / 缺 metadata 回退）。全量 584 passed。
+> ⏸ **余项**（需更深内部，留 TODO）：强制贴标/低 margin 段数需改聚类内部暴露每段 margin；ASR 置信度依赖 **ASR-6**（未做）。
+- **现状（原）**：task-a 输出无相似度矩阵/阈值/强制贴标数/ASR 置信度；`speaker_review/diagnostics.py` 有计算但是事后独立工具。
 - **方案**：task-a 时即产 `diarization_report`（相似度矩阵、簇内凝聚、采用阈值、强制贴标/低 margin 段数、+ASR-6 置信度），让 `speaker_review` 诊断默认在 task-a 输出上跑。
 - **验收**：用户能在 task-a 后看到 diarization 证据。
 - **测试**：单测报告生成。

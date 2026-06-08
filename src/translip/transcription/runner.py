@@ -16,6 +16,8 @@ from ..transcription.export import (
     write_segments_srt,
 )
 from ..transcription.registry import DIARIZER_BACKENDS
+from ..speaker_review.diagnostics import build_diarization_report
+from ..utils.io import write_json
 from ..types import (
     MediaInfo,
     TranscriptionArtifacts,
@@ -159,6 +161,21 @@ def transcribe_file(
         )
         write_segments_json(payload, segments_json_path)
 
+        # Emit diarization evidence (similarity matrix, adopted threshold,
+        # suggested merges) right after transcription (ASR-9). Auxiliary — never
+        # fail task-a because the report could not be built.
+        diarization_report_path: Path | None = bundle_dir / "diarization_report.json"
+        try:
+            report = build_diarization_report(
+                payload,
+                diarization_metadata=metadata,
+                source_path=str(segments_json_path),
+            )
+            write_json(report, diarization_report_path, atomic=True, trailing_newline=True)
+        except Exception:
+            logger.warning("Failed to build diarization_report; continuing.", exc_info=True)
+            diarization_report_path = None
+
         srt_path: Path | None = None
         if normalized_request.write_srt:
             srt_path = bundle_dir / "segments.zh.srt"
@@ -195,6 +212,7 @@ def transcribe_file(
                 segments_json_path=segments_json_path,
                 manifest_path=manifest_path,
                 srt_path=srt_path,
+                diarization_report_path=diarization_report_path,
                 intermediate_paths=copied_intermediates,
             ),
             segments=segments,
