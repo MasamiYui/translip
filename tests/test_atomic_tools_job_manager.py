@@ -245,6 +245,49 @@ def test_list_jobs_filters_status_tool_and_search(tmp_path: Path) -> None:
     assert manager.list_jobs(status="all", tool_id="all").total == 2
 
 
+class CancelProbeAdapter:
+    """Records whether the unified cancel checker reached the adapter (ATOM-3)."""
+
+    def __init__(self) -> None:
+        self.checker_callable = False
+
+    def validate_params(self, params: dict) -> dict:
+        return dict(params)
+
+    def run(self, params: dict, input_dir: Path, output_dir: Path, on_progress) -> dict:
+        from translip.server.atomic_tools.cancellation import cancel_checker
+
+        checker = cancel_checker(on_progress)
+        self.checker_callable = callable(checker) and checker() is False
+        output_path = output_dir / "ok.txt"
+        output_path.write_text("ok", encoding="utf-8")
+        return {"echo_file": output_path.name}
+
+
+def test_job_manager_wires_unified_cancel_checker_to_adapters(tmp_path: Path) -> None:
+    from translip.server.atomic_tools.job_manager import JobManager
+
+    manager = JobManager(root=tmp_path / "atomic-tools", db_engine=_isolated_engine(tmp_path))
+    adapter = CancelProbeAdapter()
+    manager.register_adapter("probe", adapter)
+
+    upload = asyncio.run(
+        manager.save_upload(
+            UploadFile(
+                filename="s.wav",
+                file=io.BytesIO(b"x"),
+                headers={"content-type": "audio/wav"},
+            )
+        )
+    )
+    job = manager.create_job("probe", {"file_id": upload.file_id})
+    asyncio.run(manager.execute_job(job.job_id))
+
+    assert manager.get_job(job.job_id).status == "completed"
+    # The adapter received a callable cancel predicate via the unified contract.
+    assert adapter.checker_callable is True
+
+
 def test_list_jobs_excludes_foreign_job_roots(tmp_path: Path) -> None:
     from sqlmodel import Session
 

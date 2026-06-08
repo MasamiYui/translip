@@ -20,6 +20,7 @@ from ...config import CACHE_ROOT
 from ...orchestration.subprocess_runner import StageSubprocessCancelled
 from ..database import engine as default_engine
 from ..models import AtomicToolArtifact, AtomicToolFile, AtomicToolJob
+from .cancellation import attach_cancel_checker
 from .registry import create_adapter, get_tool_spec
 from .schemas import (
     ArtifactInfo,
@@ -196,7 +197,7 @@ class JobManager:
                 if cancel_event.is_set():
                     raise AtomicJobCancelled()
 
-            setattr(on_progress, "is_cancelled", cancel_event.is_set)
+            attach_cancel_checker(on_progress, cancel_event.is_set)
 
             try:
                 result = adapter.run(params, input_dir, output_dir, on_progress)

@@ -568,11 +568,11 @@
 - **验收**：超载排队而非报错；重启续跑。
 - **测试**：单测队列 + 重启恢复。
 
-### ATOM-3 — cancel 契约统一 ｜ TODO ｜ 架构 ｜ S ｜ ◻待确认
-- **现状**：subtitle adapter 接 `should_cancel`（`subtitle_erase.py:156`），但同一 erase/ocr bridge 在流水线路径不可取消（同 ARCH-8 根因）。
+### ATOM-3 — cancel 契约统一 ｜ DONE ｜ 架构 ｜ S ｜ ✅已核实
+> 功能面**已由 ARCH-8 闭合**：核查确认 `execute_node` 已把 `should_cancel` 传给 `run_ocr_detect`/`run_subtitle_erase`（runner.py:745/792），流水线侧 erase/ocr 子进程可取消；atomic 侧 shell-out 的 `subtitle_detect`/`subtitle_erase` 也已接取消，in-process 的 `tts` 在 `on_progress` 检查点协作取消（其"worker subprocess"是注释、实为 in-process 推理）。
+> 本工单剩余价值＝消除**易漏的隐式 hack**：两条 shell-out adapter 此前各自写死 `getattr(on_progress,"is_cancelled",None)`（魔法属性名重复、新 adapter 易忘）。新增 `atomic_tools/cancellation.py` 统一契约——`attach_cancel_checker(on_progress, predicate)`（job_manager 用，规范属性名 `should_cancel`）+ `cancel_checker(on_progress)`（adapter 用，返回 `Callable[[],bool]|None` 直喂 `run_stage_command`，等同流水线契约）。两 adapter 改用 helper，job_manager 改用 `attach_cancel_checker`。加 helper 单测 + job_manager 经统一契约把可用 checker 传到 adapter 的集成测试 + 迁移 3 处旧测试 stub（反向验证契约）。全量 599 passed。
+- **现状（原）**：subtitle adapter 接 `should_cancel`（`subtitle_erase.py:156`），但同一 erase/ocr bridge 在流水线路径不可取消（同 ARCH-8 根因）。
 - **方案**：统一单一 cancel 契约（随 ARCH-8 一起做）。
-- **验收**：两条路径都可取消。
-- **测试**：随 ARCH-8 验证。
 
 ### ATOM-4 — list_jobs SQL 分页 ｜ DONE ｜ 性能 ｜ S–M ｜ ✅已核实
 > 已修（仿 ARCH-16 `routes/tasks.py` 范式）：`list_jobs` 从"全行加载→Python 过滤→Python 切片→逐 job `list_artifacts`(N+1)"改为全 SQL——`status`/`tool_id`/`search` 下推 WHERE（命中 status/tool_id/created_at 索引），`func.count()`+subquery 算 total，`order_by(created_at desc).offset().limit()` 取页，artifact 数用**一条** `GROUP BY job_id` 批量查询（替代 N+1）。**ownership** 用 SQL `job_root LIKE '<jobs_root>/%'`（带分隔符边界，等价 `_owns_job` 的 is_relative_to——sibling `jobs-evil/` 因无 `/jobs/` 边界被正确排除），LIKE 通配符 `_`/`%`/`\` 转义；`input_files`(JSON) 经 `cast→lower→LIKE` 支持文件名子串搜索（语义为旧 per-filename 检查的超集）。`_job_to_read` 加可选 `artifact_count` 参数复用批量计数。加 3 测试（分页+批量计数、status/tool/search 过滤、foreign job_root 排除）。全量 582 passed。

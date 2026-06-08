@@ -6,6 +6,7 @@ from pathlib import Path
 
 from ....orchestration.ocr_bridge import parse_ocr_progress_line
 from ....orchestration.subprocess_runner import run_stage_command
+from ..cancellation import cancel_checker
 from ..registry import ToolSpec, register_tool
 from ..schemas import SubtitleDetectToolRequest
 from . import ToolAdapter
@@ -57,7 +58,7 @@ class SubtitleDetectAdapter(ToolAdapter):
             cmd,
             log_path=log_path,
             on_stdout_line=_forward_progress,
-            should_cancel=getattr(on_progress, "is_cancelled", None),
+            should_cancel=cancel_checker(on_progress),
         )
 
         detection_path = stage_dir / "detection.json"

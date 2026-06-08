@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest  # noqa: F401
 
 import translip.server.atomic_tools as _atomic_tools  # noqa: F401  (triggers adapter registration)
+from translip.server.atomic_tools.cancellation import attach_cancel_checker
 from translip.server.atomic_tools.adapters.subtitle_erase import (
     PRESETS,
     SubtitleEraseAdapter,
@@ -182,7 +183,7 @@ def test_subtitle_erase_adapter_expands_reused_detection_before_command(tmp_path
     adapter = SubtitleEraseAdapter()
     params = adapter.validate_params({"file_id": "x", "detection_file_id": "y", "preset": "balanced"})
     progress = _StubProgress()
-    progress.is_cancelled = lambda: False  # type: ignore[attr-defined]
+    attach_cancel_checker(progress, lambda: False)
 
     with patch(
         "translip.server.atomic_tools.adapters.subtitle_erase.run_stage_command",
@@ -463,7 +464,7 @@ def test_subtitle_erase_adapter_run_auto_detects_when_detection_missing(
     assert params["detection_file_id"] is None
 
     progress = _StubProgress()
-    progress.is_cancelled = lambda: False  # type: ignore[attr-defined]
+    attach_cancel_checker(progress, lambda: False)
 
     with patch(
         "translip.server.atomic_tools.adapters.subtitle_erase.run_stage_command",
@@ -534,7 +535,7 @@ def test_subtitle_erase_adapter_run_invokes_command_and_writes_report(tmp_path: 
     })
 
     progress = _StubProgress()
-    progress.is_cancelled = lambda: False  # type: ignore[attr-defined]
+    attach_cancel_checker(progress, lambda: False)
 
     with patch(
         "translip.server.atomic_tools.adapters.subtitle_erase.run_stage_command",

@@ -10,6 +10,7 @@ from typing import Any
 from ....orchestration.erase_bridge import parse_erase_progress_line
 from ....orchestration.subprocess_runner import run_stage_command
 from ....orchestration.subtitle_erase_detection import prepare_subtitle_erase_detection
+from ..cancellation import cancel_checker
 from ..registry import ToolSpec, register_tool
 from ..schemas import SubtitleErasePreset, SubtitleEraseToolRequest
 from . import ProgressCallback, ToolAdapter
@@ -153,7 +154,7 @@ class SubtitleEraseAdapter(ToolAdapter):
             cmd,
             log_path=log_path,
             on_stdout_line=_build_progress_handler(on_progress=on_progress, start_percent=22.0, end_percent=96.0),
-            should_cancel=getattr(on_progress, "is_cancelled", None),
+            should_cancel=cancel_checker(on_progress),
         )
 
         if not erased_path.exists():
