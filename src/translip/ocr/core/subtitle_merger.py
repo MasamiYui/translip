@@ -13,6 +13,46 @@ from translip.ocr.utils.geometry import box_to_polygon, merge_polygons, polygon_
 
 logger = logging.getLogger(__name__)
 
+
+def _padded_box(x1: float, y1: float, x2: float, y2: float) -> Tuple[int, int, int, int]:
+    """Apply the same padding policy used for the stable box to raw coordinates."""
+    width = max(1.0, x2 - x1)
+    height = max(1.0, y2 - y1)
+    pad_x = max(5.0, width * 0.08)
+    pad_y = max(4.0, height * 0.3)
+    px1 = int(round(x1 - pad_x))
+    py1 = int(round(y1 - pad_y))
+    px2 = int(round(x2 + pad_x))
+    py2 = int(round(y2 + pad_y))
+    if px2 <= px1:
+        px2 = px1 + 1
+    if py2 <= py1:
+        py2 = py1 + 1
+    return (px1, py1, px2, py2)
+
+
+def _full_extent_box(
+    boxes: np.ndarray, stable_box: Tuple[int, int, int, int]
+) -> Tuple[int, int, int, int]:
+    """Padded union of every detection box, never smaller than the stable box.
+
+    The median-based ``stable_box`` underestimates long lines that only reach full
+    width in some frames; this captures the true maximal span (SUB-3).
+    """
+    union = _padded_box(
+        float(boxes[:, 0].min()),
+        float(boxes[:, 1].min()),
+        float(boxes[:, 2].max()),
+        float(boxes[:, 3].max()),
+    )
+    return (
+        min(union[0], stable_box[0]),
+        min(union[1], stable_box[1]),
+        max(union[2], stable_box[2]),
+        max(union[3], stable_box[3]),
+    )
+
+
 _COMMON_VARIANT_TRANSLATION = str.maketrans({
     "萬": "万",
     "專": "专",
@@ -448,7 +488,7 @@ class SubtitleMerger:
             if self._clean_output_text(det.text) == best_text
         ]
         box_source_detections = best_text_detections if best_text_detections else group
-        stable_box, stable_polygon, stable_rotated_box, debug_info = self._compute_stable_geometry(box_source_detections)
+        stable_box, stable_polygon, stable_rotated_box, full_extent, debug_info = self._compute_stable_geometry(box_source_detections)
 
         # Calculate average confidence
         avg_confidence = np.mean([d.confidence for d in group])
@@ -465,6 +505,7 @@ class SubtitleMerger:
             text=best_text,
             confidence=avg_confidence,
             box=stable_box,
+            box_full_extent=full_extent,
             polygon=stable_polygon,
             rotated_box=stable_rotated_box,
             debug_info=debug_info
@@ -512,7 +553,7 @@ class SubtitleMerger:
 
         return best_text
 
-    def _compute_stable_geometry(self, detections: List[DetectedText]) -> Tuple[Tuple[int, int, int, int], List[Tuple[float, float]] | None, dict | None, dict]:
+    def _compute_stable_geometry(self, detections: List[DetectedText]) -> Tuple[Tuple[int, int, int, int], List[Tuple[float, float]] | None, dict | None, Tuple[int, int, int, int], dict]:
         # Collect raw data for debugging
         raw_data = []
         for det in detections:
@@ -548,7 +589,7 @@ class SubtitleMerger:
             polygon = detections[0].polygon or box_to_polygon(box)
             rotated_box = detections[0].rotated_box or polygon_to_rotated_box(polygon)
 
-            return stable_box, polygon, rotated_box, {
+            return stable_box, polygon, rotated_box, stable_box, {
                 "raw_detections": raw_data,
                 "method": "single",
                 "padding": {"x": pad_x, "y": pad_y},
@@ -587,12 +628,17 @@ class SubtitleMerger:
         stable_polygon = merge_polygons(polygon_candidates, target_box=stable_box) or box_to_polygon(stable_box)
         stable_rotated_box = polygon_to_rotated_box(stable_polygon)
 
-        return stable_box, stable_polygon, stable_rotated_box, {
+        # Union across *all* detections (not just the confidence-selected subset)
+        # so long lines get their true span (SUB-3).
+        full_extent = _full_extent_box(boxes, stable_box)
+
+        return stable_box, stable_polygon, stable_rotated_box, full_extent, {
             "raw_detections": raw_data,
             "method": "median_stable",
             "median_box": med.tolist(),
             "padding": {"x": pad_x, "y": pad_y},
             "selected_count": len(selected),
+            "full_extent": list(full_extent),
         }
 
     def _adjust_time_boundaries(self, subtitles: List[Subtitle]) -> List[Subtitle]:

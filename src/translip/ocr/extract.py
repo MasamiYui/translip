@@ -217,6 +217,11 @@ def extract_to_dir(
         end_frame = max(start_frame, _time_to_frame(end_time, fps))
         polygon = subtitle.polygon or []
         box = list(subtitle.box) if subtitle.box else [0, 0, 0, 0]
+        # Full-extent union (SUB-3): the true span for long lines; falls back to the
+        # median box when unavailable so consumers can always read this field.
+        box_full_extent = (
+            list(subtitle.box_full_extent) if subtitle.box_full_extent else box
+        )
         events.append(
             {
                 "event_id": f"evt-{index:04d}",
@@ -229,6 +234,7 @@ def extract_to_dir(
                 "language": canonical_language,
                 "confidence": float(subtitle.confidence),
                 "box": box,
+                "box_full_extent": box_full_extent,
                 "polygon": polygon,
             }
         )
@@ -242,6 +248,7 @@ def extract_to_dir(
                 "text": subtitle.text,
                 "confidence": float(subtitle.confidence),
                 "box": box,
+                "box_full_extent": box_full_extent,
                 "polygon": polygon,
             }
         )

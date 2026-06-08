@@ -516,8 +516,9 @@
 - **验收**：cue 时间误差下降；erase 不再漏擦尾部、字幕不早消。
 - **测试**：已知边界样本对比吸附前后误差。
 
-### SUB-3 — cue 几何存 union ｜ TODO ｜ 算法 ｜ S ｜ ◻待确认
-- **现状**：`_compute_stable_geometry`（`merger.py:557`）存中位框（低估长行）；erase 侧才 union 补偿（`planning._event_box:104` 注释自认）。
+### SUB-3 — cue 几何存 union ｜ DONE ｜ 算法 ｜ S ｜ ✅已核实
+> 已修：`ocr/core/subtitle_merger.py` 的 `_compute_stable_geometry` 在中位 `stable_box` 之外，用 `_full_extent_box` 计算**全组检测框并集**（含全部检测，非仅高置信子集；同 padding 策略；并 fold 进 stable_box 保证不小于它）作 `box_full_extent` 返回；`Subtitle` dataclass 加 `box_full_extent` 字段，`_create_subtitle_from_group` 透传；`ocr/extract.py` 把 `box_full_extent` 写进 `ocr_events.json`/`detection.json` 两处 cue（缺失回退 box）。长行即便只在少数/低置信帧出现全宽，overlay/编辑 UI 与 erase 也能拿到真实范围。加 `tests/test_subtitle_merger_geometry.py`（低置信长帧并集覆盖、单检测=stable、端到端 Subtitle 带 full_extent）。全量 587 passed。erase 侧改用此字段属 SUB-4 范畴。
+- **现状（原）**：`_compute_stable_geometry`（`merger.py:557`）存中位框（低估长行）；erase 侧才 union 补偿（`planning._event_box:104` 注释自认）。
 - **方案**：cue 几何存 union/高分位宽度，或附 `box_full_extent`，让 overlay/编辑 UI 拿到真实范围。
 - **验收**：长行 cue 框覆盖完整。
 - **测试**：长行样本目检框范围。

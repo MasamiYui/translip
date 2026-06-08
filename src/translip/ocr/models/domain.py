@@ -59,6 +59,10 @@ class Subtitle:
     text: str
     confidence: float = 1.0
     box: Optional[Tuple[int, int, int, int]] = None
+    # Union (full extent) of every detection in the merged group; the median `box`
+    # underestimates long lines that only reach full width in some frames, so erase
+    # masks / overlay / edit UI should prefer this when they need the true span (SUB-3).
+    box_full_extent: Optional[Tuple[int, int, int, int]] = None
     polygon: Optional[List[Tuple[float, float]]] = None
     rotated_box: Optional[dict] = None
     debug_info: Optional[dict] = None
