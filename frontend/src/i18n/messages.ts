@@ -1021,6 +1021,10 @@ const zhMessages = {
       logsTruncated: '（仅显示末尾片段）',
     },
   },
+  notifications: {
+    done: '任务完成',
+    failed: '任务结束',
+  },
   atomicTools: {
     title: '原子工具集',
     sectionEyebrow: 'Atomic Tools',
@@ -2797,6 +2801,10 @@ const enMessages: LocaleMessages = {
       logsLoadFailed: 'Failed to load the log',
       logsTruncated: '(showing the tail only)',
     },
+  },
+  notifications: {
+    done: 'Task complete',
+    failed: 'Task ended',
   },
   atomicTools: {
     title: 'Atomic Tools',

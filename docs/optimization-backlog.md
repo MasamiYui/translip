@@ -579,7 +579,9 @@
 - **验收**：英文 locale 下核心页全英文。
 - **测试**：切 en-US 目检 + lint。
 
-### UI-4 — 完成通知 + 全局 toast ｜ TODO ｜ 产品 ｜ M ｜ ◻待确认
+### UI-4 — 完成通知 + 全局 toast ｜ DONE(部分) ｜ 产品 ｜ M ｜ ◻待确认
+> 已做核心：`hooks/useTaskNotifications`（MainLayout 全局挂载）轮询任务列表，检测 running/pending→终态(succeeded/partial/failed/interrupted)，触发浏览器 Notification（懒申请权限）+ 后台时闪烁 `document.title`、聚焦时还原。纯函数 `diffFinishedTasks` 抽出可单测（2 测试通过）。MainLayout 布局测试加 hook mock 避免需要 QueryClientProvider。前端 build/类型检查通过，无新增测试失败。
+> ⏳ **留作后续**：header "N running" 徽标、全局 toast provider 接所有 mutation（较广、需逐个改 onError）——本次未做以保持可控。
 - **现状**：无 `document.title`/Notification/favicon badge；只有 `CacheSection.tsx:68` 一个局部 toast，其余 mutation 内联 banner 或静默。
 - **方案**：app 级 toast provider 接所有 mutation；任务转 succeeded/failed 时 Notification + `document.title`；header "N running" 徽标。
 - **验收**：长任务完成有可感知通知。

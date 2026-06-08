@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { TopNav } from './TopNav'
+import { useTaskNotifications } from '../../hooks/useTaskNotifications'
 
 const SIDEBAR_STORAGE_KEY = 'translip:sidebar-collapsed'
 const LAYOUT_MODE_STORAGE_KEY = 'translip:layout-mode'
@@ -33,6 +34,8 @@ function readInitialLayoutMode(): LayoutMode {
 
 export function MainLayout() {
   const { pathname } = useLocation()
+  // App-wide watcher: notify when a long pipeline run finishes while tabbed away.
+  useTaskNotifications()
   const isWorkbench =
     /\/tasks\/[^/]+\/dubbing-editor\/?$/.test(pathname) ||
     /\/harness\/speaker-review\//.test(pathname) ||

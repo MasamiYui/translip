@@ -12,6 +12,12 @@ vi.mock('../Header', () => ({
   Header: () => <header>Header</header>,
 }))
 
+// Layout-only test: stub the app-wide task watcher so MainLayout doesn't need a
+// QueryClientProvider here (its behaviour is covered in useTaskNotifications.test).
+vi.mock('../../../hooks/useTaskNotifications', () => ({
+  useTaskNotifications: () => undefined,
+}))
+
 describe('MainLayout', () => {
   it('uses a pure white application canvas behind the routed content', () => {
     const { container } = render(
