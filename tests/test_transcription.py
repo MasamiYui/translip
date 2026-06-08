@@ -13,6 +13,24 @@ from translip.types import MediaInfo, TranscriptionRequest, TranscriptionSegment
 from translip.transcription.asr import AsrSegment, resolve_faster_whisper_model_path
 
 
+def test_cluster_embeddings_honors_expected_speakers() -> None:
+    # Three distinct embedding directions (each a near-identical pair).
+    base = np.array(
+        [
+            [1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.02],
+            [0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.02],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.02],
+        ],
+        dtype=np.float64,
+    )
+    assert len(set(_cluster_embeddings(base, expected_speakers=3).tolist())) == 3
+    assert len(set(_cluster_embeddings(base, expected_speakers=2).tolist())) == 2
+    assert len(set(_cluster_embeddings(base, expected_speakers=1).tolist())) == 1
+
+
 def test_stable_relabel_preserves_first_seen_order() -> None:
     assert _stable_relabel([5, 5, 7, 5, 3]) == [
         "SPEAKER_00",

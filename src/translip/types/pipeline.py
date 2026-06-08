@@ -101,6 +101,7 @@ class PipelineRequest:
     vad_filter: bool = True
     vad_min_silence_duration_ms: int = 400
     vad_max_segment_sec: float = 30.0
+    expected_speakers: int = 0
     beam_size: int = 5
     best_of: int = 5
     temperature: float = 0.0
@@ -207,6 +208,7 @@ class PipelineRequest:
             vad_filter=bool(self.vad_filter),
             vad_min_silence_duration_ms=int(self.vad_min_silence_duration_ms),
             vad_max_segment_sec=float(self.vad_max_segment_sec),
+            expected_speakers=int(self.expected_speakers),
             beam_size=int(self.beam_size),
             best_of=int(self.best_of),
             temperature=float(self.temperature),

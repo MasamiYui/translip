@@ -170,9 +170,18 @@ def _speaker_cap(num_embeddings: int) -> int:
     return max(2, min(8, num_embeddings // 6 + 1))
 
 
-def _cluster_embeddings(embeddings: np.ndarray) -> np.ndarray:
+def _cluster_embeddings(embeddings: np.ndarray, *, expected_speakers: int = 0) -> np.ndarray:
     if len(embeddings) <= 1:
         return np.zeros(len(embeddings), dtype=np.int32)
+    # When the caller knows the speaker count, force exactly k clusters: skip the
+    # auto single-speaker collapse and the heuristic cap, which mis-fire on
+    # degraded separated audio where everyone looks similar.
+    if expected_speakers and expected_speakers > 0:
+        k = min(int(expected_speakers), len(embeddings))
+        if k <= 1:
+            return np.zeros(len(embeddings), dtype=np.int32)
+        fixed = AgglomerativeClustering(n_clusters=k, metric="cosine", linkage="average")
+        return fixed.fit_predict(embeddings).astype(np.int32)
     if _is_single_speaker(embeddings):
         return np.zeros(len(embeddings), dtype=np.int32)
 
@@ -232,6 +241,7 @@ def assign_speaker_labels(
     segments: list[AsrSegment],
     *,
     requested_device: str,
+    expected_speakers: int = 0,
 ) -> tuple[list[str], dict[str, int | float | str]]:
     if not segments:
         return [], {"speaker_backend": "speechbrain-ecapa", "speaker_count": 0}
@@ -259,7 +269,7 @@ def assign_speaker_labels(
         }
 
     matrix = np.stack([embeddings[index] for index in valid_indices]).astype(np.float32)
-    valid_cluster_ids = _cluster_embeddings(matrix)
+    valid_cluster_ids = _cluster_embeddings(matrix, expected_speakers=expected_speakers)
 
     group_cluster_ids: list[int | None] = [None] * len(groups)
     for group_index, cluster_id in zip(valid_indices, valid_cluster_ids, strict=True):

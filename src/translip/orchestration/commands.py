@@ -204,6 +204,8 @@ def build_task_a_command(request: PipelineRequest) -> list[str]:
             str(request.vad_min_silence_duration_ms),
             "--vad-max-segment-sec",
             str(request.vad_max_segment_sec),
+            "--expected-speakers",
+            str(request.expected_speakers),
             "--beam-size",
             str(request.beam_size),
             "--best-of",

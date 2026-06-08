@@ -256,7 +256,8 @@
 - **验收**：同一说话人情绪波动不再过度拆分。
 - **测试**：用已知双峰 F0 的同一角色片段验证不拆。
 
-### ASR-3 — 聚类阈值/`expected_speakers` 可调入缓存 ｜ TODO ｜ 算法/产品 ｜ M ｜ ◻待确认
+### ASR-3 — 聚类阈值/`expected_speakers` 可调入缓存 ｜ DONE(expected_speakers) ｜ 算法/产品 ｜ M ｜ ◻待确认
+> 已做 `expected_speakers`(0=auto) 端到端：`_cluster_embeddings` 在 >0 时强制 `n_clusters=k`(跳过单说话人塌缩+启发式 cap，治降质音频上的过度合并/塌缩)；ecapa+pyannote 两个 `assign_speaker_labels` 都接受该 kwarg(pyannote 用原生 `num_speakers`)；`_run_diarization`/`transcribe_file` 传递；plumbing 镜像 ASR-8(PipelineRequest/TranscriptionRequest 字段+normalized、transcribe/pipeline CLI、build_task_a_command、task-a 缓存、request.py/task_manager)。加 2 测试(聚类按 k 出簇 + 命令含 flag+缓存键随其变)。后端 524 passed。⏳ `same_speaker_similarity` 阈值暴露 + 自适应切点(silhouette/eigengap) 留作后续。
 - **现状**：`DEFAULT_SAME_SPEAKER_SIMILARITY=0.62`/`SINGLE_SPEAKER_FLOOR=0.52` 是模块常量（`speaker.py:21`），无 `min/max/expected_speakers`，不在 Request/CLI/task-a 缓存键。
 - **方案**：暴露 `same_speaker_similarity`/`expected_speakers`/`min/max` 到 Request+CLI+缓存；已知 k 用 `n_clusters=k`；考虑 silhouette/eigengap 自适应切点。
 - **验收**：用户能指定说话人数；改阈值触发重算。

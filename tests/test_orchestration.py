@@ -375,6 +375,28 @@ def test_vad_max_segment_sec_is_plumbed_and_cached(tmp_path: Path) -> None:
     )
 
 
+def test_expected_speakers_is_plumbed_and_cached(tmp_path: Path) -> None:
+    """ASR-3: the expected-speakers hint reaches task-a's argv and busts the cache."""
+    from translip.orchestration.cache import compute_cache_key
+    from translip.orchestration.commands import build_task_a_command
+    from translip.orchestration.runner import _stage_cache_payload
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(
+        input_path=tmp_path / "in.mp4", output_root=tmp_path / "out", expected_speakers=2
+    )
+    cmd = build_task_a_command(request)
+    assert "--expected-speakers" in cmd
+    assert cmd[cmd.index("--expected-speakers") + 1] == "2"
+
+    other = PipelineRequest(
+        input_path=tmp_path / "in.mp4", output_root=tmp_path / "out", expected_speakers=0
+    )
+    assert compute_cache_key(_stage_cache_payload(request, "task-a")) != compute_cache_key(
+        _stage_cache_payload(other, "task-a")
+    )
+
+
 def test_cache_key_changes_with_cache_epoch(monkeypatch) -> None:
     """ARCH-5: bumping CACHE_EPOCH invalidates every cache key (release-level recompute)."""
     from translip.orchestration import cache

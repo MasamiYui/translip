@@ -105,6 +105,7 @@ def assign_speaker_labels(
     *,
     requested_device: str,
     pipeline_id: str = _DEFAULT_PIPELINE,
+    expected_speakers: int = 0,
 ) -> tuple[list[str], dict[str, int | float | str]]:
     if not segments:
         return [], {"speaker_backend": "pyannote-3.1", "speaker_count": 0}
@@ -112,7 +113,10 @@ def assign_speaker_labels(
     device = _resolve_pyannote_device(requested_device)
     pipeline = _load_pipeline(pipeline_id, device)
 
-    diarization = pipeline(str(audio_path))
+    if expected_speakers and expected_speakers > 0:
+        diarization = pipeline(str(audio_path), num_speakers=int(expected_speakers))
+    else:
+        diarization = pipeline(str(audio_path))
 
     raw_turns: list[tuple[float, float, str]] = []
     for turn, _, raw_label in diarization.itertracks(yield_label=True):

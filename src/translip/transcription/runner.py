@@ -65,6 +65,7 @@ def _run_diarization(
     *,
     backend: str,
     requested_device: str,
+    expected_speakers: int = 0,
 ) -> tuple[list[str], dict[str, int | float | str]]:
     if backend in DIARIZER_BACKENDS:
         assign = DIARIZER_BACKENDS.create(backend)
@@ -72,6 +73,7 @@ def _run_diarization(
             audio_path,
             asr_segments,
             requested_device=requested_device,
+            expected_speakers=expected_speakers,
         )
     if backend not in {"ecapa", ""}:
         logger.warning("Unknown diarizer_backend=%s, falling back to ECAPA clustering.", backend)
@@ -125,6 +127,7 @@ def transcribe_file(
                 asr_segments,
                 backend=normalized_request.diarizer_backend,
                 requested_device=normalized_request.device,
+                expected_speakers=normalized_request.expected_speakers,
             )
         else:
             speaker_labels = ["SPEAKER_00"] * len(asr_segments)
