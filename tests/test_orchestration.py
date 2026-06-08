@@ -353,6 +353,28 @@ def test_task_d_cache_key_tracks_upstream_translation_and_profiles(tmp_path: Pat
     assert key_after_profiles != key_after_translation
 
 
+def test_vad_max_segment_sec_is_plumbed_and_cached(tmp_path: Path) -> None:
+    """ASR-8: the tunable reaches task-a's argv and changing it busts the cache."""
+    from translip.orchestration.cache import compute_cache_key
+    from translip.orchestration.commands import build_task_a_command
+    from translip.orchestration.runner import _stage_cache_payload
+    from translip.types import PipelineRequest
+
+    request = PipelineRequest(
+        input_path=tmp_path / "in.mp4", output_root=tmp_path / "out", vad_max_segment_sec=12.0
+    )
+    cmd = build_task_a_command(request)
+    assert "--vad-max-segment-sec" in cmd
+    assert "12.0" in cmd
+
+    other = PipelineRequest(
+        input_path=tmp_path / "in.mp4", output_root=tmp_path / "out", vad_max_segment_sec=30.0
+    )
+    assert compute_cache_key(_stage_cache_payload(request, "task-a")) != compute_cache_key(
+        _stage_cache_payload(other, "task-a")
+    )
+
+
 def test_cache_key_changes_with_cache_epoch(monkeypatch) -> None:
     """ARCH-5: bumping CACHE_EPOCH invalidates every cache key (release-level recompute)."""
     from translip.orchestration import cache

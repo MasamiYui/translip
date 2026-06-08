@@ -144,6 +144,7 @@ def build_parser() -> argparse.ArgumentParser:
     transcribe_parser.add_argument("--no-srt", action="store_true")
     transcribe_parser.add_argument("--vad-filter", dest="vad_filter", action=argparse.BooleanOptionalAction, default=True)
     transcribe_parser.add_argument("--vad-min-silence-duration-ms", type=int, default=400)
+    transcribe_parser.add_argument("--vad-max-segment-sec", type=float, default=30.0)
     transcribe_parser.add_argument("--beam-size", type=int, default=5)
     transcribe_parser.add_argument("--best-of", type=int, default=5)
     transcribe_parser.add_argument("--temperature", type=float, default=0.0)
@@ -660,6 +661,7 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument("--generate-srt", dest="generate_srt", action=argparse.BooleanOptionalAction, default=None)
     pipeline_parser.add_argument("--vad-filter", dest="vad_filter", action=argparse.BooleanOptionalAction, default=None)
     pipeline_parser.add_argument("--vad-min-silence-duration-ms", type=int, default=None)
+    pipeline_parser.add_argument("--vad-max-segment-sec", type=float, default=None)
     pipeline_parser.add_argument("--beam-size", type=int, default=None)
     pipeline_parser.add_argument("--best-of", type=int, default=None)
     pipeline_parser.add_argument("--temperature", type=float, default=None)
@@ -826,6 +828,7 @@ def main(argv: list[str] | None = None) -> int:
             write_srt=not args.no_srt,
             vad_filter=args.vad_filter,
             vad_min_silence_duration_ms=args.vad_min_silence_duration_ms,
+            vad_max_segment_sec=args.vad_max_segment_sec,
             beam_size=args.beam_size,
             best_of=args.best_of,
             temperature=args.temperature,

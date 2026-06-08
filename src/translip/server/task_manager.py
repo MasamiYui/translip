@@ -87,6 +87,7 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
         generate_srt=bool(cfg.get("generate_srt", True)),
         vad_filter=bool(cfg.get("vad_filter", True)),
         vad_min_silence_duration_ms=int(cfg.get("vad_min_silence_duration_ms", 400)),
+        vad_max_segment_sec=float(cfg.get("vad_max_segment_sec", 30.0)),
         beam_size=int(cfg.get("beam_size", 5)),
         best_of=int(cfg.get("best_of", 5)),
         temperature=float(cfg.get("temperature", 0.0)),

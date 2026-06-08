@@ -146,6 +146,7 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
         generate_srt=bool(merged.get("generate_srt", True)),
         vad_filter=bool(merged.get("vad_filter", True)),
         vad_min_silence_duration_ms=int(merged.get("vad_min_silence_duration_ms", 400)),
+        vad_max_segment_sec=float(merged.get("vad_max_segment_sec", 30.0)),
         beam_size=int(merged.get("beam_size", 5)),
         best_of=int(merged.get("best_of", 5)),
         temperature=float(merged.get("temperature", 0.0)),

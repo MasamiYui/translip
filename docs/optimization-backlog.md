@@ -285,7 +285,8 @@
 - **验收**：专名识别率提升。
 - **测试**：含专名样本对比识别正确率。
 
-### ASR-8 — `vad_max_segment_sec` 接线 ｜ TODO ｜ 算法 ｜ S ｜ ◻待确认
+### ASR-8 — `vad_max_segment_sec` 接线 ｜ DONE ｜ 算法 ｜ S ｜ ◻待确认
+> 已修：镜像 `vad_min_silence_duration_ms` 的端到端 wiring 把 `vad_max_segment_sec`(default 30.0 保持现状、可调) 接通——`PipelineRequest` 字段+normalized、transcribe/pipeline CLI flag、`build_task_a_command` argv、task-a 缓存键、`request.py`/`task_manager` 两个构造器。原先固定 30s 够不着。加测试(命令含 flag + 缓存键随其变)。后端 518 passed。默认仍 30(不改行为)；配音降到 12–15 属需真验证的默认变更，未改。
 - **现状**：`AsrOptions.vad_max_segment_sec` 两 backend 都支持，但 `PipelineRequest` 无此字段、CLI 无此 flag、不在缓存键 → 固定 30s（对 TTS 拟合/diarization 都太长）。
 - **方案**：加进 `PipelineRequest`+CLI+`build_task_a_command`+缓存键；配音默认降到 12–15s；长独白按词间停顿切（接 ASR-5）。
 - **验收**：长段被合理切分。
