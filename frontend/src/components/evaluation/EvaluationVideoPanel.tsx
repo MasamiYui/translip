@@ -133,8 +133,9 @@ export function EvaluationVideoPanel({
     if (!selected || typeof selected.start !== 'number') return
     const v = videoRef.current
     if (!v) return
+    // Seeking fires `timeupdate`, so onTimeUpdate mirrors this into currentTime —
+    // no need to setState here (which would be a set-state-in-effect).
     v.currentTime = selected.start
-    setCurrentTime(selected.start)
   }, [expanded, selected])
 
   useEffect(() => {

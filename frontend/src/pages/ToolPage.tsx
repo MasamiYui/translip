@@ -71,10 +71,14 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
   const [params, setParams] = useState<ToolParams>(getDefaultParams(toolId))
   const [originalVideoUrl, setOriginalVideoUrl] = useState<string | null>(null)
 
-  useEffect(() => {
-    if (toolId !== 'transcription' || !globalDefaults) return
+  // Fold saved transcription defaults into the params when they load. Tracked by
+  // reference (react-query keeps it stable across identical refetches) and applied
+  // during render instead of in an effect, which would be a set-state-in-effect.
+  const [appliedDefaults, setAppliedDefaults] = useState<Partial<TaskConfig> | undefined>(undefined)
+  if (toolId === 'transcription' && globalDefaults && globalDefaults !== appliedDefaults) {
+    setAppliedDefaults(globalDefaults)
     setParams(prev => applyTranscriptionGlobalDefaults(prev, globalDefaults))
-  }, [globalDefaults, toolId])
+  }
 
   useEffect(() => {
     return () => {

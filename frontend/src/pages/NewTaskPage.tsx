@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Cpu, FolderOpen, Loader2 } from 'lucide-react'
@@ -522,11 +522,13 @@ export function NewTaskPage() {
     queryFn: configApi.getDefaults,
   })
 
-  useEffect(() => {
-    if (globalDefaultsApplied || !globalDefaults) return
-    setConfig(prev => applyGlobalDefaults(prev, globalDefaults))
+  // Seed the form with saved global defaults once they load, exactly once.
+  // Adjusted during render (guarded by the applied flag so it converges) rather
+  // than in an effect, which would be a set-state-in-effect.
+  if (globalDefaults && !globalDefaultsApplied) {
     setGlobalDefaultsApplied(true)
-  }, [globalDefaults, globalDefaultsApplied])
+    setConfig(prev => applyGlobalDefaults(prev, globalDefaults))
+  }
 
   const probeMutation = useMutation({
     mutationFn: (path: string) => systemApi.probe(path),

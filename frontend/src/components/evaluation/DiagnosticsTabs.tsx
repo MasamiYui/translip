@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Activity, AudioWaveform, Music2, Radar, ScatterChart, Video } from 'lucide-react'
 import type { DubQaReport, DubQaSegment } from '../../api/evaluation'
 import { useI18n } from '../../i18n/useI18n'
@@ -137,11 +137,12 @@ export function DiagnosticsTabs({
     return 'video'
   })
 
-  useEffect(() => {
-    if (!visibleTabs.find(t => t.key === active) && visibleTabs.length > 0) {
-      setActive(visibleTabs[0].key)
-    }
-  }, [active, visibleTabs])
+  // If the active tab stops being available (data changed), fall back to the
+  // first visible one. Adjusted during render rather than in an effect so it
+  // resolves before paint; the guard makes it converge in one extra render.
+  if (visibleTabs.length > 0 && !visibleTabs.find(t => t.key === active)) {
+    setActive(visibleTabs[0].key)
+  }
 
   const onSelectTab = (key: TabKey) => {
     setActive(key)
