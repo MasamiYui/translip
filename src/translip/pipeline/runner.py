@@ -99,7 +99,13 @@ def separate_file(request: SeparationRequest | str, **kwargs) -> SeparationResul
             intermediate_paths = dialogue_result.intermediate_paths
 
         if normalized_request.enhance_voice:
-            logger.info("Enhancing voice track.")
+            # NoOpVoiceEnhancer is a passthrough placeholder — there is no real
+            # denoise/dereverb backend wired up yet. Warn instead of silently
+            # implying the track was enhanced (SEP-3).
+            logger.warning(
+                "enhance_voice requested but no real voice-enhancement backend is "
+                "configured; copying the voice track through unchanged (no denoise/dereverb)."
+            )
             enhancer = NoOpVoiceEnhancer()
             enhanced_voice = work_dir / "final" / "voice_enhanced.wav"
             final_voice_wav = enhancer.enhance(final_voice_wav, enhanced_voice)

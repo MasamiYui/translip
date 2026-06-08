@@ -234,11 +234,10 @@
 - **验收**：manifest 含置信度；低质能被发现。
 - **测试**：单测度量计算；坏样本验证告警。
 
-### SEP-3 — `enhance_voice` 死代码处理 ｜ TODO ｜ D ｜ S/M ｜ ◻待确认
-- **现状**：`NoOpVoiceEnhancer` 字节拷贝（`models/clearervoice.py:8`），仅 `separate` CLI 接线、流水线未用，但 CLAUDE.md 列其为真 backend。
+### SEP-3 — `enhance_voice` 死代码处理 ｜ DONE（诚实占位）｜ D ｜ S/M ｜ ✅已核实
+> 选"诚实占位"路径（真 denoise 需真实合成 A/B，本地不可验）：① `pipeline/runner.py` 启用 `enhance_voice` 时把误导的 `logger.info("Enhancing voice track.")` 改为 **WARNING**——明说"无真实增强 backend，原样拷贝、未降噪/去混响"；② `NoOpVoiceEnhancer` 加 docstring 明确是 passthrough 占位、勿当增强音；③ 修文档去"假能力"——CLAUDE.md/README/README.en 的 stage1 backend 列表把 `clearervoice` 改注为"`--enhance-voice` 为空操作占位，无真实降噪"。加 `tests/test_voice_enhancer.py`（passthrough 字节相等 + 是 VoiceEnhancer 子类）。真 denoise 集成仍挂 SEP-3 待真实合成验证。
+- **现状（原）**：`NoOpVoiceEnhancer` 字节拷贝（`models/clearervoice.py:8`），仅 `separate` CLI 接线、流水线未用，但 CLAUDE.md 列其为真 backend。
 - **方案**：要么实现真 denoise/dereverb（ClearerVoice/DeepFilterNet）放 ASR/diarization 前，要么删死代码 + 文档。
-- **验收**：不再有"假能力"。
-- **测试**：若实现则加质量 A/B。
 
 ---
 

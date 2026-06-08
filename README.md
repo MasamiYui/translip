@@ -170,7 +170,7 @@ uv run translip-server
 
 | 阶段 | 命令 | 作用 | 主要产物 |
 | --- | --- | --- | --- |
-| Stage 1 | `translip run` | 音频分离（demucs / cdx23 / clearervoice） | `voice.*`、`background.*` |
+| Stage 1 | `translip run` | 音频分离（demucs / cdx23；`--enhance-voice` 暂为空操作占位，无真实降噪） | `voice.*`、`background.*` |
 | Task A | `translip transcribe` | 说话人归因转写（FunASR/faster-whisper + diarization） | `segments.zh.json`、`segments.zh.srt` |
 | Task B | `translip build-speaker-registry` | 说话人 profile / registry | `speaker_profiles.json`、`speaker_registry.json` |
 | Task C | `translip translate-script` | 配音脚本翻译 | `translation.<lang>.json`、`translation.<lang>.srt` |

@@ -169,7 +169,7 @@ Every stage is both a node in `run-pipeline` orchestration and a CLI subcommand 
 
 | Stage | Command | Purpose | Main Outputs |
 | --- | --- | --- | --- |
-| Stage 1 | `translip run` | Audio separation (demucs / cdx23 / clearervoice) | `voice.*`, `background.*` |
+| Stage 1 | `translip run` | Audio separation (demucs / cdx23; `--enhance-voice` is a no-op placeholder, no real denoise yet) | `voice.*`, `background.*` |
 | Task A | `translip transcribe` | Speaker-attributed transcription (FunASR/faster-whisper + diarization) | `segments.zh.json`, `segments.zh.srt` |
 | Task B | `translip build-speaker-registry` | Speaker profile / registry | `speaker_profiles.json`, `speaker_registry.json` |
 | Task C | `translip translate-script` | Script translation | `translation.<lang>.json`, `translation.<lang>.srt` |

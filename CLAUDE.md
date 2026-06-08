@@ -69,7 +69,7 @@ The core insight: each pipeline stage is an **independent CLI command** that rea
 
 | Node | CLI subcommand | Module (`src/translip/`) | Backends / notes |
 | --- | --- | --- | --- |
-| stage1 | `run` | `models/` + `pipeline/` | demucs (music) / cdx23 (dialogue) / clearervoice |
+| stage1 | `run` | `models/` + `pipeline/` | demucs (music) / cdx23 (dialogue). `--enhance-voice` is a **no-op passthrough placeholder** (`NoOpVoiceEnhancer`) — no real denoise/dereverb backend yet |
 | task-a | `transcribe` | `transcription/` | ASR: faster-whisper, funasr · diarization: ECAPA, pyannote |
 | task-b | `build-speaker-registry` | `speakers/` | speaker profiles/embeddings + cross-task registry |
 | task-c | `translate-script` | `translation/` | `local-m2m100`, `deepseek` (needs `DEEPSEEK_API_KEY`) |
