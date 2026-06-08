@@ -585,7 +585,8 @@
 - **验收**：长任务完成有可感知通知。
 - **测试**：起任务切走 tab 验证通知。
 
-### UI-5 — 阶段日志在 UI 可见 ｜ TODO ｜ 产品 ｜ M ｜ ◻待确认
+### UI-5 — 阶段日志在 UI 可见 ｜ DONE ｜ 产品 ｜ M ｜ ◻待确认
+> 已修：后端加 `GET /api/tasks/{id}/logs/{node}`，读 `<output_root>/logs/<node>.log` 末尾片段（max_bytes 限幅、`is_relative_to` 路径安全、缺失优雅返回 exists:false）。前端 `tasksApi.getNodeLogs` + WorkflowNodeDrawer 在 Error 与 Artifacts 之间加"查看日志"区（折叠 + <pre> 滚动 + 截断提示），i18n zh/en 双语键。后端 515 passed，前端 build/类型检查通过。（实时 SSE 流式留作后续；当前为按需拉取末尾。）
 - **现状**：`WorkflowNodeDrawer.tsx` 有状态/进度/一行 `error_message`/产物 JSON，但无日志查看;`api/tasks.ts` 无 logs 端点;后端写 `logs/<node>.log` 不可达。
 - **方案**：后端加 tail/stream `logs/<node>.log` 端点 + drawer "查看日志" tab(折叠/自动滚/running 时走 SSE)。
 - **验收**：能在 UI 看阶段日志诊断卡顿/失败。

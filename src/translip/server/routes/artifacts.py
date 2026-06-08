@@ -65,3 +65,33 @@ def get_artifact(
         media_type=media_type or "application/octet-stream",
         content_disposition_type="inline" if preview else "attachment",
     )
+
+
+@router.get("/{task_id}/logs/{node}", summary="获取节点阶段日志")
+def get_node_log(
+    task_id: Annotated[str, PathParam(description="任务 ID")],
+    node: Annotated[str, PathParam(description="节点名，如 stage1 / task-a / ocr-detect")],
+    max_bytes: int = Query(65536, gt=0, le=2_000_000, description="返回日志末尾最多字节数"),
+    session: Session = Depends(get_session),
+):
+    """读取某个流水线节点的运行日志（`<output_root>/logs/<node>.log`）末尾片段，供 UI 内联查看。"""
+    task = session.get(Task, task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    logs_dir = (Path(task.output_root) / "logs").resolve()
+    log_path = (logs_dir / f"{node}.log").resolve()
+    if not log_path.is_relative_to(logs_dir):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not log_path.exists() or not log_path.is_file():
+        return {"node": node, "exists": False, "truncated": False, "content": ""}
+
+    data = log_path.read_bytes()
+    truncated = len(data) > max_bytes
+    tail = data[-max_bytes:] if truncated else data
+    return {
+        "node": node,
+        "exists": True,
+        "truncated": truncated,
+        "content": tail.decode("utf-8", errors="replace"),
+    }

@@ -36,6 +36,32 @@ interface WorkflowNodeDrawerProps {
 export function WorkflowNodeDrawer({ node, stage, artifacts = [], taskId, onClose }: WorkflowNodeDrawerProps) {
   const { t, formatDuration, getStageLabel } = useI18n()
   const [preview, setPreview] = useState<ArtifactPreview | null>(null)
+  const [logs, setLogs] = useState<{
+    content: string
+    truncated: boolean
+    isLoading: boolean
+    error: string | null
+  } | null>(null)
+
+  async function handleToggleLogs() {
+    if (!node || !taskId) return
+    if (logs) {
+      setLogs(null)
+      return
+    }
+    setLogs({ content: '', truncated: false, isLoading: true, error: null })
+    try {
+      const data = await tasksApi.getNodeLogs(taskId, node.id)
+      setLogs({
+        content: data.exists ? data.content : '',
+        truncated: data.truncated,
+        isLoading: false,
+        error: data.exists ? null : t.workflow.drawer.logsEmpty,
+      })
+    } catch {
+      setLogs({ content: '', truncated: false, isLoading: false, error: t.workflow.drawer.logsLoadFailed })
+    }
+  }
 
   async function handleLoadManifest() {
     if (!node || !taskId) {
@@ -239,6 +265,39 @@ export function WorkflowNodeDrawer({ node, stage, artifacts = [], taskId, onClos
                     {t.workflow.drawer.error}
                   </div>
                   <div className="mt-1.5 text-sm text-rose-700">{stage?.error_message ?? node.error_message}</div>
+                </div>
+              )}
+
+              {/* Logs */}
+              {taskId && (
+                <div className="border-b border-slate-100 px-5 py-4">
+                  <div className="mb-2 flex items-center justify-between">
+                    <div className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+                      {t.workflow.drawer.logs}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleToggleLogs}
+                      disabled={logs?.isLoading}
+                      className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+                    >
+                      {logs?.isLoading ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
+                      {logs ? t.workflow.drawer.hideLogs : t.workflow.drawer.viewLogs}
+                    </button>
+                  </div>
+                  {logs && !logs.isLoading &&
+                    (logs.error ? (
+                      <div className="text-sm text-slate-400">{logs.error}</div>
+                    ) : (
+                      <>
+                        {logs.truncated && (
+                          <div className="mb-1 text-[11px] text-slate-400">{t.workflow.drawer.logsTruncated}</div>
+                        )}
+                        <pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-md bg-slate-900 px-3 py-2 text-[11px] leading-relaxed text-slate-100">
+                          {logs.content}
+                        </pre>
+                      </>
+                    ))}
                 </div>
               )}
 

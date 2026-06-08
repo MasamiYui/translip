@@ -117,6 +117,14 @@ export const tasksApi = {
   rerun: (id: string, fromStage: string) =>
     api.post<Task>(`/api/tasks/${id}/rerun`, { from_stage: fromStage }).then(r => r.data),
 
+  getNodeLogs: (id: string, node: string, maxBytes = 65536) =>
+    api
+      .get<{ node: string; exists: boolean; truncated: boolean; content: string }>(
+        `/api/tasks/${id}/logs/${encodeURIComponent(node)}`,
+        { params: { max_bytes: maxBytes } },
+      )
+      .then(r => r.data),
+
   stop: (id: string) =>
     api.post(`/api/tasks/${id}/stop`).then(r => r.data),
 

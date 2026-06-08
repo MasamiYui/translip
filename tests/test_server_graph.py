@@ -149,6 +149,48 @@ def test_get_artifact_rejects_sibling_directory_traversal(tmp_path: Path) -> Non
         assert excinfo.value.status_code == 403
 
 
+def test_get_node_log_returns_tail_and_blocks_traversal(tmp_path: Path) -> None:
+    import pytest
+    from fastapi import HTTPException
+
+    from translip.server.routes.artifacts import get_node_log
+
+    logs_dir = tmp_path / "out" / "logs"
+    logs_dir.mkdir(parents=True)
+    (logs_dir / "stage1.log").write_text("line A\nline B\n", encoding="utf-8")
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
+    SQLModel.metadata.create_all(engine)
+    with Session(engine) as session:
+        session.add(
+            Task(
+                id="task-log",
+                name="t",
+                status="succeeded",
+                input_path=str(tmp_path / "in.mp4"),
+                output_root=str(tmp_path / "out"),
+                source_lang="zh",
+                target_lang="en",
+                config={},
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+            )
+        )
+        session.commit()
+
+        existing = get_node_log("task-log", "stage1", max_bytes=65536, session=session)
+        assert existing["exists"] is True
+        assert "line B" in existing["content"]
+
+        missing = get_node_log("task-log", "task-z", max_bytes=65536, session=session)
+        assert missing["exists"] is False
+        assert missing["content"] == ""
+
+        with pytest.raises(HTTPException) as excinfo:
+            get_node_log("task-log", "../../etc/passwd", max_bytes=65536, session=session)
+        assert excinfo.value.status_code == 403
+
+
 def test_build_workflow_graph_payload_returns_nodes_and_edges() -> None:
     from translip.orchestration.graph_export import build_workflow_graph_payload
 
