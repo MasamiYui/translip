@@ -122,22 +122,24 @@ describe('page content widths', () => {
 
   it('keeps new task aligned with the dashboard content width', () => {
     const { container } = render(<NewTaskPage />, { wrapper: createWrapper() })
-    const sectionCards = container.querySelectorAll('section.overflow-hidden.rounded-xl.border.border-slate-200.bg-white')
+    const sectionCards = container.querySelectorAll('section.overflow-hidden.rounded-xl.bg-white')
 
     expect(screen.getByRole('heading', { name: '新建任务' })).toBeInTheDocument()
     expect(container.firstChild).toHaveClass(APP_CONTENT_MAX_WIDTH)
+    // Section cards now carry the dashboard's soft border + subtle shadow chrome.
+    expect(sectionCards.length).toBeGreaterThan(0)
     sectionCards.forEach(section => {
-      expect((section as HTMLElement).className).not.toContain('shadow')
+      expect((section as HTMLElement).className).toContain('shadow-[0_1px_3px_rgba(0,0,0,.04)]')
     })
   })
 
   it('keeps settings aligned with the dashboard content width', () => {
     const { container } = render(<SettingsPage />, { wrapper: createWrapper() })
-    const settingsPanel = container.querySelector('.overflow-hidden.rounded-xl.border.border-slate-200.bg-white')
+    const settingsPanel = container.querySelector('.overflow-hidden.rounded-xl.bg-white')
 
     expect(screen.getByRole('heading', { name: '全局设置' })).toBeInTheDocument()
     expect(container.firstChild).toHaveClass(APP_CONTENT_MAX_WIDTH)
-    expect((settingsPanel as HTMLElement).className).not.toContain('shadow')
+    expect((settingsPanel as HTMLElement).className).toContain('shadow-[0_1px_3px_rgba(0,0,0,.04)]')
   })
 
   it('keeps tool list aligned with the dashboard content width', async () => {

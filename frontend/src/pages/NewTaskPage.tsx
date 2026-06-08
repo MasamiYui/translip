@@ -288,7 +288,7 @@ function SectionCard({
   minimal?: boolean
 }) {
   return (
-    <section className={minimal ? 'space-y-3' : 'overflow-hidden rounded-xl border border-slate-200 bg-white'}>
+    <section className={minimal ? 'space-y-3' : 'overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]'}>
       <div className={minimal ? 'flex items-center justify-between gap-3' : 'flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2.5'}>
         <span className={minimal ? 'text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400' : 'text-xs font-semibold uppercase tracking-widest text-slate-500'}>
           {title}
