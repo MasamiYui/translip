@@ -51,7 +51,7 @@ function pacingScore(ratio: number): number {
  * - issueFree: share of segments without issue tags
  * - coverage: share of segments with a dub audio attached
  */
-export function aggregateSpeakerProfiles(segments: DubQaSegment[]): SpeakerProfile[] {
+function aggregateSpeakerProfiles(segments: DubQaSegment[]): SpeakerProfile[] {
   const grouped = new Map<string, DubQaSegment[]>()
   for (const seg of segments) {
     const key = (seg.speaker_id ?? '').trim() || '—'

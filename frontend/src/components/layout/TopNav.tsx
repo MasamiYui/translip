@@ -32,7 +32,7 @@ import { cn } from '../../lib/utils'
 import { useI18n } from '../../i18n/useI18n'
 import { atomicToolsApi } from '../../api/atomic-tools'
 import { systemApi } from '../../api/config'
-import { shortDeviceLabel } from './Header'
+import { shortDeviceLabel } from './deviceLabel'
 import type { ToolInfo } from '../../types/atomic-tools'
 
 const TOOL_ICON_MAP: Record<string, LucideIcon> = {

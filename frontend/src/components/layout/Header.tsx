@@ -4,6 +4,7 @@ import { Monitor, Zap, AlertCircle, PanelLeft, PanelTop } from 'lucide-react'
 import { systemApi } from '../../api/config'
 import { useI18n } from '../../i18n/useI18n'
 import type { LayoutMode } from './MainLayout'
+import { shortDeviceLabel } from './deviceLabel'
 
 interface HeaderProps {
   workbench?: boolean
@@ -12,15 +13,6 @@ interface HeaderProps {
   layoutMode?: LayoutMode
   onToggleLayoutMode?: () => void
 }
-
-function shortDeviceLabel(device: string): string {
-  if (device.startsWith('MPS')) return 'MPS'
-  if (device.startsWith('CUDA')) return 'CUDA'
-  if (device.startsWith('CPU')) return 'CPU'
-  return device
-}
-
-export { shortDeviceLabel }
 
 export function Header({
   workbench = false,
