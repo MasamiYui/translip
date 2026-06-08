@@ -78,7 +78,6 @@ export function useTaskNotifications(): void {
       const fire = () => {
         for (const task of finished) {
           try {
-            // eslint-disable-next-line no-new
             new Notification(isOk(task.status) ? t.notifications.done : t.notifications.failed, {
               body: task.name,
             })

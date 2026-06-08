@@ -312,19 +312,16 @@ export function SettingsPage() {
 
   const job = jobQuery.data
   const jobIsRunning = !!job && (job.state === 'pending' || job.state === 'running')
+  const jobState = job?.state
 
   // When the job finishes, refresh system info so "not downloaded" turns green.
+  // Depend on jobState alone (not the whole job object) so this fires once per
+  // state transition and satisfies exhaustive-deps.
   useEffect(() => {
-    if (!job) return
-    if (
-      job.state === 'succeeded' ||
-      job.state === 'partial' ||
-      job.state === 'failed' ||
-      job.state === 'cancelled'
-    ) {
+    if (jobState && ['succeeded', 'partial', 'failed', 'cancelled'].includes(jobState)) {
       queryClient.invalidateQueries({ queryKey: ['system-info'] })
     }
-  }, [job?.state, queryClient])
+  }, [jobState, queryClient])
 
   const generalSections = [
     { id: 'system', title: t.settings.systemInfo },

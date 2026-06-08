@@ -111,11 +111,13 @@ function createWrapper(initialEntries = ['/']) {
 describe('page content widths', () => {
   it('keeps task list aligned with the dashboard content width', () => {
     const { container } = render(<TaskListPage />, { wrapper: createWrapper() })
-    const taskListPanel = container.querySelector('.overflow-hidden.rounded-xl.border.border-slate-200.bg-white')
+    const taskListPanel = container.querySelector('.overflow-hidden.rounded-xl.bg-white')
 
     expect(screen.getByRole('heading', { name: '任务列表' })).toBeInTheDocument()
     expect(container.firstChild).toHaveClass(APP_CONTENT_MAX_WIDTH)
-    expect((taskListPanel as HTMLElement).className).not.toContain('shadow')
+    // The redesign (6270c48) gives both the dashboard and this panel the same
+    // soft border + subtle shadow, so "aligned" now means matching that chrome.
+    expect((taskListPanel as HTMLElement).className).toContain('shadow-[0_1px_3px_rgba(0,0,0,.04)]')
   })
 
   it('keeps new task aligned with the dashboard content width', () => {

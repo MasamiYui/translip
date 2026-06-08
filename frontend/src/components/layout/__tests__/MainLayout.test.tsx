@@ -19,7 +19,7 @@ vi.mock('../../../hooks/useTaskNotifications', () => ({
 }))
 
 describe('MainLayout', () => {
-  it('uses a pure white application canvas behind the routed content', () => {
+  it('uses the soft-gray application canvas behind the routed content', () => {
     const { container } = render(
       <I18nProvider>
         <MemoryRouter initialEntries={['/']}>
@@ -33,7 +33,9 @@ describe('MainLayout', () => {
     )
 
     expect(screen.getByText('Content')).toBeInTheDocument()
-    expect(container.firstChild).toHaveClass('bg-white')
+    // The redesign (6270c48) moved the canvas to a soft gray so white cards read
+    // as raised surfaces; cards are bg-white on top of this.
+    expect(container.firstChild).toHaveClass('bg-[#f4f6fa]')
   })
 
   it('does not reserve sidebar width on mobile viewports', () => {

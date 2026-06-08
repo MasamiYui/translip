@@ -328,8 +328,9 @@ describe('DubbingEditorPage resizable workbench layout', () => {
     })
 
     // Click resynth without editing the textarea: the third argument
-    // (inline target_text auto-save payload) should be ``undefined``.
-    expect(dubbingEditorApi.synthesizeUnit).toHaveBeenCalledWith('task-layout', 'unit-1', undefined)
+    // (inline target_text auto-save payload) and the fourth (speed options)
+    // should both be ``undefined``.
+    expect(dubbingEditorApi.synthesizeUnit).toHaveBeenCalledWith('task-layout', 'unit-1', undefined, undefined)
   })
 
   it('auto-saves the dirty target_text draft before resynthesizing', async () => {
@@ -373,11 +374,12 @@ describe('DubbingEditorPage resizable workbench layout', () => {
     })
 
     // Then the synth call carries the same draft inline as a backend safety
-    // net (third positional argument).
+    // net (third positional argument); the fourth (speed options) is undefined.
     expect(dubbingEditorApi.synthesizeUnit).toHaveBeenCalledWith(
       'task-layout',
       'unit-1',
       'Edited dub text 1 from the test.',
+      undefined,
     )
   })
 })
