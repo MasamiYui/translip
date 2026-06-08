@@ -600,7 +600,8 @@
 - **验收**：手机可在页面间导航。
 - **测试**：移动视口手测。
 
-### UI-3 — i18n 补全核心页 ｜ TODO ｜ 产品 ｜ M ｜ ◻待确认
+### UI-3 — i18n 补全核心页 ｜ HOLD（需视觉验证）｜ 产品 ｜ M ｜ ◻待确认
+> ⏸ **暂缓理由**：CJK 字面量散布 17 个 .tsx，大头 TaskDetailPage(144 行)/NewTaskPage(110)/SpeakerReviewDrawer(106) 均为大组件，总计 400+ 串。验收标准是**视觉**的（"英文 locale 下核心页全英文"），自动化只能验 tsc 编译期 key-parity，**无法捕获漏译、插值/复数断裂、英文文案比中文长导致的布局溢出**。需要能目检 en-US 渲染的专门前端 session 来做（迁移→切 en→逐页核对→修布局）。盲迁移风险高于收益，按 [[dubbing-evaluation-loop]] 同类纪律（离线/无目检指标会骗人）暂缓，候补做干净的后端工单。
 - **现状**：TaskDetailPage(~144 行中文硬编码:重跑/停止/交付/清单/三步流程)、SpeakerReviewDrawer(~106 行,无英文路径)、SettingsPage(~114 行,节点高级参数)绕过 i18n；编译期 key parity(`messages.ts:1626`)是好的,问题是字面量没走 `useI18n()`。
 - **方案**：迁移 TaskDetail/SpeakerReviewDrawer/Settings 字面量进 `messages.ts`(优先前两者,在交付/说话人关键流程);加 lint 挡 `.tsx` 内 CJK 字面量。
 - **验收**：英文 locale 下核心页全英文。
