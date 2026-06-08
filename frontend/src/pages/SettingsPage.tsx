@@ -117,10 +117,16 @@ export function SettingsPage() {
   const [globalConfig, setGlobalConfig] = useState<GlobalConfigDraft>(defaultGlobalConfig)
   const [saveGlobalStatus, setSaveGlobalStatus] = useState<'idle' | 'saved'>('idle')
 
-  useEffect(() => {
-    if (!savedGlobalConfig) return
+  // Sync the server-fetched config into the editable draft when it (re)loads,
+  // using the render-time "store previous value" pattern instead of an effect so
+  // the reset happens before paint without a second render pass. react-query's
+  // structural sharing keeps savedGlobalConfig's reference stable across refetches
+  // with identical data, so this never clobbers the user's in-progress edits.
+  const [syncedSavedConfig, setSyncedSavedConfig] = useState(savedGlobalConfig)
+  if (savedGlobalConfig && savedGlobalConfig !== syncedSavedConfig) {
+    setSyncedSavedConfig(savedGlobalConfig)
     setGlobalConfig({ ...defaultGlobalConfig, ...savedGlobalConfig })
-  }, [savedGlobalConfig])
+  }
 
   const saveGlobalMutation = useMutation({
     mutationFn: () => configApi.updateGlobal(globalConfig),
