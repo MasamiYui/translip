@@ -51,6 +51,12 @@ class CleanupRequest(BaseModel):
     keys: list[str] = Field(description="要清理的缓存分组键列表")
 
 
+class GcOutputsRequest(BaseModel):
+    max_bytes: int | None = Field(default=None, description="output-pipeline 总字节上限，超出按 LRU 驱逐未引用产物；留空不按字节限制")
+    max_count: int | None = Field(default=None, description="output-pipeline 目录数上限；留空不按数量限制")
+    dry_run: bool = Field(default=False, description="仅返回将被驱逐的目录，不实际删除")
+
+
 class ModelDownloadRequest(BaseModel):
     keys: list[str] | None = Field(default=None, description="指定要下载的模型注册键；留空则下载全部缺失的模型")
 
@@ -307,6 +313,20 @@ def cleanup_cache(body: CleanupRequest):
         raise HTTPException(status_code=400, detail="keys_required")
     result = cache_manager.cleanup_groups(keys)
     _invalidate_breakdown_cache()
+    return result
+
+
+@router.post("/cache/gc-outputs", summary="按 LRU/容量回收流水线产物")
+def gc_pipeline_outputs(body: GcOutputsRequest):
+    """对 output-pipeline 做 LRU/容量回收：仅驱逐 DB 不再引用的产物目录，最旧优先，直到低于上限。"""
+    cache_manager.apply_active_cache_root()
+    result = cache_manager.gc_pipeline_outputs(
+        max_bytes=body.max_bytes,
+        max_count=body.max_count,
+        dry_run=body.dry_run,
+    )
+    if not body.dry_run and result.get("evicted"):
+        _invalidate_breakdown_cache()
     return result
 
 

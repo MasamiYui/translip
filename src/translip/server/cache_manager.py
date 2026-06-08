@@ -438,6 +438,132 @@ def dir_size(path: Path) -> int:
     return _path_size(path)
 
 
+# ---------------------------------------------------------------------------
+# Pipeline output GC (ARCH-7)
+#
+# `output-pipeline/<task_id>/` directories are only removed on an explicit task
+# delete, so reruns and orphaned runs accumulate without bound. This adds an
+# LRU/capacity GC that evicts *unreferenced* output dirs (no DB task points at
+# them), oldest first, until under the configured byte/count limit. Directories
+# still referenced by a DB task are never evicted.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class PipelineOutputInfo:
+    path: Path
+    size_bytes: int
+    mtime: float
+    referenced: bool
+
+
+def select_evictable_pipeline_outputs(
+    infos: list[PipelineOutputInfo],
+    *,
+    max_bytes: int | None = None,
+    max_count: int | None = None,
+) -> list[PipelineOutputInfo]:
+    """Pick unreferenced output dirs to evict (LRU first) until under the limits.
+
+    Pure selection logic — no filesystem side effects, so it is unit-testable.
+    Referenced directories are never candidates. Returns the dirs to delete.
+    """
+    total_bytes = sum(info.size_bytes for info in infos)
+    total_count = len(infos)
+    # Oldest unreferenced first (LRU eviction).
+    candidates = sorted(
+        (info for info in infos if not info.referenced),
+        key=lambda info: info.mtime,
+    )
+    to_evict: list[PipelineOutputInfo] = []
+    for candidate in candidates:
+        over_bytes = max_bytes is not None and total_bytes > max_bytes
+        over_count = max_count is not None and total_count > max_count
+        if not (over_bytes or over_count):
+            break
+        to_evict.append(candidate)
+        total_bytes -= candidate.size_bytes
+        total_count -= 1
+    return to_evict
+
+
+def _referenced_output_roots(db_engine: Any | None) -> set[Path]:
+    """Resolved per-task output_root paths still recorded in the DB."""
+    from sqlmodel import Session, select
+
+    from .database import engine as default_engine
+    from .models import Task
+
+    engine = db_engine or default_engine
+    referenced: set[Path] = set()
+    with Session(engine) as session:
+        for raw in session.exec(select(Task.output_root)).all():
+            if not raw:
+                continue
+            try:
+                referenced.add(Path(str(raw)).expanduser().resolve())
+            except Exception:
+                continue
+    return referenced
+
+
+def gc_pipeline_outputs(
+    *,
+    max_bytes: int | None = None,
+    max_count: int | None = None,
+    dry_run: bool = False,
+    cache_root: Path | None = None,
+    db_engine: Any | None = None,
+) -> dict[str, Any]:
+    """Evict unreferenced pipeline output dirs by LRU until under the limits.
+
+    Returns a report dict. With both limits None this is a no-op (returns the
+    scan only), so it is safe to call unconditionally.
+    """
+    root = (cache_root or resolve_active_cache_root()) / "output-pipeline"
+    if not root.exists():
+        return {"scanned": 0, "referenced": 0, "evicted": [], "freed_bytes": 0, "dry_run": dry_run}
+
+    referenced = _referenced_output_roots(db_engine)
+    infos: list[PipelineOutputInfo] = []
+    for child in root.iterdir():
+        if not child.is_dir():
+            continue
+        try:
+            resolved = child.resolve()
+        except Exception:
+            resolved = child
+        try:
+            mtime = child.stat().st_mtime
+        except OSError:
+            mtime = 0.0
+        infos.append(
+            PipelineOutputInfo(
+                path=child,
+                size_bytes=dir_size(child),
+                mtime=mtime,
+                referenced=resolved in referenced,
+            )
+        )
+
+    evict = select_evictable_pipeline_outputs(infos, max_bytes=max_bytes, max_count=max_count)
+    freed = 0
+    evicted_paths: list[str] = []
+    for info in evict:
+        evicted_paths.append(str(info.path))
+        freed += info.size_bytes
+        if not dry_run:
+            shutil.rmtree(info.path, ignore_errors=True)
+
+    return {
+        "scanned": len(infos),
+        "referenced": sum(1 for info in infos if info.referenced),
+        "evicted": evicted_paths,
+        "freed_bytes": freed,
+        "dry_run": dry_run,
+    }
+
+
 def _resolve_group_paths(group: CacheGroup, cache_root: Path, hf_root: Path) -> list[Path]:
     seen: set[Path] = set()
     resolved: list[Path] = []

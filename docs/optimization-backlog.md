@@ -133,8 +133,10 @@
 - **验收**：崩溃重跑只补未完成说话人。
 - **测试**：单测 per-speaker 跳过逻辑。
 
-### ARCH-7 — 输出 GC / 容量管理 ｜ TODO ｜ 产品 ｜ M ｜ ◻待确认
-- **现状**：`output-pipeline/<task_id>/` 仅显式删除时清（`tasks.py:191`），无 TTL/容量上限；`cache_manager.py` 能算明细但未对流水线输出做驱逐。
+### ARCH-7 — 输出 GC / 容量管理 ｜ DONE（GC+API；UI 按钮留子项）｜ 产品 ｜ M ｜ ✅已核实
+> 已修：`cache_manager` 加 `select_evictable_pipeline_outputs(infos, max_bytes, max_count)` **纯选择函数**（按 LRU=mtime 最旧优先驱逐**未被 DB 引用**的目录直到低于上限；引用中的目录永不驱逐）+ `gc_pipeline_outputs(max_bytes,max_count,dry_run,cache_root,db_engine)` runner（扫 output-pipeline 子目录、从 DB `Task.output_root` 取引用集、算 dir_size/mtime、选择、删除、返回报告）。两上限默认 None ＝ 无操作（可无条件调用）。加 `POST /api/system/cache/gc-outputs` 端点（max_bytes/max_count/dry_run）接入系统路由。加 6 测试（选择逻辑：LRU/数量/字节/引用保护/无操作 + runner：孤儿驱逐保留引用、dry_run 不删）。全量 613 passed。
+> ⏸ **余项**：前端缓存页的"回收产物"按钮 + 自动触发（启动/定时）——后端 API 已就绪，UI 接入属前端 session。
+- **现状（原）**：`output-pipeline/<task_id>/` 仅显式删除时清（`tasks.py:191`），无 TTL/容量上限；`cache_manager.py` 能算明细但未对流水线输出做驱逐。
 - **方案**：对 `output-pipeline` 加 LRU/容量上限 GC（尊重 DB 仍引用的任务），接入现有缓存 UI。
 - **验收**：超限时按 LRU 清理未被引用产物。
 - **测试**：单测 GC 选择逻辑。
