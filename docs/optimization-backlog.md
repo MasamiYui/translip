@@ -547,8 +547,10 @@
 - **验收**：可在不可逆擦除前审核/修正。
 - **测试**：e2e 审核 → 编辑 → erase。
 
-### SUB-6 — opencc + OCR 文本纠错 ｜ TODO ｜ 算法/清理 ｜ S–M ｜ ◻待确认
-- **现状**：`_COMMON_VARIANT_TRANSLATION` 手写 ~290 条繁简表（`merger.py:16`，含 `亂` 重复键/`了→了` 空操作）；无通用混淆纠错/词典。
+### SUB-6 — opencc + OCR 文本纠错 ｜ DONE（opencc 繁简；LLM 清洗留子项）｜ 算法/清理 ｜ S–M ｜ ✅已核实
+> 已修：`subtitle_merger.py` 加 `to_simplified(text)`——优先 `opencc` `OpenCC('t2s')`（懒加载+缓存，sentinel 区分"未加载/不可用"便于测试 fallback），缺失时 fallback 到原手写繁简表（base 安装不受影响）。`_apply_common_variant_map`（仅用于 `_normalize_text` 的 dedup/相似度 key，**不改输出字幕**）改走 `to_simplified` → 繁/简同句归一到同 key、dedup 更准、覆盖远超手写表。`opencc-python-reimplemented` 加入 `ocr` extra。**实装 opencc 验证**：`OpenCC('t2s').convert('亂世佳人與東風')`→'乱世佳人与东风'，opencc 路径测试真跑通过（非 skip）。加 4 测试（opencc 路径 importorskip / 强制 fallback / 空串 / 繁简 dedup 归一）。全量 621 passed。
+> ⏸ **余项**：用 deepseek 仲裁**清洗 OCR 源文**错字（OCR 是权威台本，错字会传到 dub+字幕）——属 LLM 调用，留 TODO。
+- **现状（原）**：`_COMMON_VARIANT_TRANSLATION` 手写 ~290 条繁简表（`merger.py:16`，含 `亂` 重复键/`了→了` 空操作）；无通用混淆纠错/词典。
 - **方案**：换 `opencc`(t2s)；可选用现有 deepseek 仲裁清洗 OCR 源文（OCR 是权威台本，错字传到 dub + 字幕）。
 - **验收**：繁简/常见 OCR 错降低。
 - **测试**：繁体样本验证转换正确。

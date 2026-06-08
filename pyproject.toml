@@ -41,6 +41,9 @@ ocr = [
   "paddleocr==3.2.0",
   "paddlex==3.2.0",
   "pydantic-settings>=2,<3",
+  # Traditional->Simplified normalization for OCR text dedup (SUB-6). Pure-Python,
+  # imported lazily; the base install falls back to a hand-written variant table.
+  "opencc-python-reimplemented>=0.1.7",
 ]
 # In-tree hard-subtitle erasure (subtitle-erase node + atomic tool). The STTN /
 # big-LaMa inpainting backends run on torch (already pulled transitively by the

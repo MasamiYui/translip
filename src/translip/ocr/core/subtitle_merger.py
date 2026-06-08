@@ -4,7 +4,7 @@ import logging
 import re
 import unicodedata
 from difflib import SequenceMatcher
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 
@@ -347,6 +347,41 @@ _COMMON_VARIANT_TRANSLATION = str.maketrans({
     "黃": "黄",
     "點": "点",
 })
+
+# opencc converter cache. Sentinel distinguishes "not loaded yet" from "loaded
+# but unavailable" and lets tests force the fallback path (set to None).
+_OPENCC_UNSET: Any = object()
+_opencc_converter: Any = _OPENCC_UNSET
+
+
+def _get_opencc_converter() -> Any:
+    global _opencc_converter
+    if _opencc_converter is _OPENCC_UNSET:
+        try:
+            from opencc import OpenCC
+
+            _opencc_converter = OpenCC("t2s")
+        except Exception:  # pragma: no cover - depends on optional dep presence
+            _opencc_converter = None
+    return _opencc_converter
+
+
+def to_simplified(text: str) -> str:
+    """Traditional -> Simplified Chinese for OCR text normalization (SUB-6).
+
+    Prefers opencc (the optional ``ocr`` extra) for comprehensive coverage and
+    falls back to the hand-written variant table when opencc is not installed, so
+    the base install still normalizes the common variants.
+    """
+    if not text:
+        return text
+    converter = _get_opencc_converter()
+    if converter is not None:
+        try:
+            return converter.convert(text)
+        except Exception:  # pragma: no cover - defensive
+            pass
+    return text.translate(_COMMON_VARIANT_TRANSLATION)
 
 
 class SubtitleMerger:
@@ -798,7 +833,7 @@ class SubtitleMerger:
 
     def _apply_common_variant_map(self, text: str) -> str:
         normalized = unicodedata.normalize("NFKC", text or "")
-        return normalized.translate(_COMMON_VARIANT_TRANSLATION)
+        return to_simplified(normalized)
 
     def _select_best_text_variant(self, detections: List[Tuple[DetectedText, str]]) -> str:
         best_text = detections[0][1]
