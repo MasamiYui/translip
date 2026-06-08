@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -46,47 +46,19 @@ class ExportVideoRequest:
     preset: str = "medium"
 
     def normalized(self) -> "ExportVideoRequest":
-        return ExportVideoRequest(
-            input_video_path=(
-                Path(self.input_video_path).expanduser().resolve()
-                if self.input_video_path is not None
-                else None
-            ),
-            pipeline_root=(
-                Path(self.pipeline_root).expanduser().resolve()
-                if self.pipeline_root is not None
-                else None
-            ),
-            task_e_dir=(
-                Path(self.task_e_dir).expanduser().resolve()
-                if self.task_e_dir is not None
-                else None
-            ),
-            output_dir=(
-                Path(self.output_dir).expanduser().resolve()
-                if self.output_dir is not None
-                else None
-            ),
-            target_lang=self.target_lang,
-            export_preview=self.export_preview,
-            export_dub=self.export_dub,
-            container=self.container,
-            video_codec=self.video_codec,
-            audio_codec=self.audio_codec,
-            audio_bitrate=self.audio_bitrate,
-            end_policy=self.end_policy,
-            overwrite=self.overwrite,
-            keep_temp=self.keep_temp,
-            subtitle_mode=self.subtitle_mode,
-            subtitle_delivery=self.subtitle_delivery,
-            subtitle_source=self.subtitle_source,
-            subtitle_style=self.subtitle_style,
-            bilingual_chinese_position=self.bilingual_chinese_position,
-            bilingual_english_position=self.bilingual_english_position,
-            bilingual_export_strategy=self.bilingual_export_strategy,
+        # Only these fields are transformed; replace() carries every other field,
+        # so a newly added field can't be silently dropped here (ARCH-14).
+        def _resolve(value: Path | str | None) -> Path | None:
+            return Path(value).expanduser().resolve() if value is not None else None
+
+        return replace(
+            self,
+            input_video_path=_resolve(self.input_video_path),
+            pipeline_root=_resolve(self.pipeline_root),
+            task_e_dir=_resolve(self.task_e_dir),
+            output_dir=_resolve(self.output_dir),
             embed_original_audio=bool(self.embed_original_audio),
             crf=int(self.crf),
-            preset=self.preset,
         )
 
 

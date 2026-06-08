@@ -190,6 +190,7 @@
 
 ### ARCH-14 — `PipelineRequest.normalized()` 用 `dataclasses.replace` ｜ DONE ｜ D/架构 ｜ S ｜ ✅已核实
 > 已修：`normalized()` 从手写 90 行逐字段重列改为只把**需变换**的 ~35 个字段放进 `overrides` dict（路径 resolve、int/float/bool/list/dict 强制、`normalize_dubbing_quality_check_mode`），其余全部由 `dataclasses.replace(self, **overrides)` 原样保留——**新增字段不再会被静默丢成默认值**。加测试 `test_pipeline_request_normalized_preserves_all_passthrough_fields`（设 11 个非默认 pass-through 值 + 路径 resolve + temperature int→float 强制）。全量 577 passed。
+> 🔒 **ARCH-14b 系统性加固**（2026-06）：DEL-1 暴露同型 bug 后，把**其余 7 个** `Request.normalized()`（separation/rendering/dubbing/translation/speakers/transcription/delivery）也全部从手列重建转为 `dataclasses.replace`——只保留 path resolve + 少量 int/float/bool/list 强制为 overrides。整类"手列重建漏字段"bug 自此消除。加参数化回归闸 `tests/test_request_normalized_preserves_fields.py`（每个 Request 验代表性 pass-through 字段存活 + 路径 resolve）。全量 648 passed。
 - **现状（原）**：`types/pipeline.py:139` 手写 90 行逐字段重列；新字段忘了在此 + `_build_pipeline_request` 加就会被静默丢。
 - **方案**：`normalized()` 改 `dataclasses.replace(self, **overrides)`（近零风险）；长期拆嵌套 sub-config。
 - **验收**：新增字段不再需要改 `normalized()`。

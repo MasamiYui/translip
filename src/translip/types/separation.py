@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -33,22 +33,12 @@ class SeparationRequest:
     audio_stream_index: int = 0
 
     def normalized(self) -> "SeparationRequest":
-        return SeparationRequest(
+        # replace() carries every field; only path resolution is overridden, so a
+        # newly added field can't be silently dropped here (cf. ARCH-14).
+        return replace(
+            self,
             input_path=Path(self.input_path).expanduser().resolve(),
-            mode=self.mode,
             output_dir=Path(self.output_dir).expanduser().resolve(),
-            output_format=self.output_format,
-            quality=self.quality,
-            cdx23_overlap=self.cdx23_overlap,
-            cdx23_shifts=self.cdx23_shifts,
-            sample_rate=self.sample_rate,
-            bitrate=self.bitrate,
-            enhance_voice=self.enhance_voice,
-            device=self.device,
-            keep_intermediate=self.keep_intermediate,
-            backend_music=self.backend_music,
-            backend_dialogue=self.backend_dialogue,
-            audio_stream_index=self.audio_stream_index,
         )
 
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -39,7 +39,9 @@ class RenderDubRequest:
     preview_format: PreviewFormat = "wav"
 
     def normalized(self) -> "RenderDubRequest":
-        return RenderDubRequest(
+        # Only paths are transformed; replace() carries every other field (ARCH-14).
+        return replace(
+            self,
             background_path=Path(self.background_path).expanduser().resolve(),
             segments_path=Path(self.segments_path).expanduser().resolve(),
             translation_path=Path(self.translation_path).expanduser().resolve(),
@@ -53,18 +55,6 @@ class RenderDubRequest:
                 if self.selected_segments_path is not None
                 else None
             ),
-            quality_gate=self.quality_gate,
-            target_lang=self.target_lang,
-            fit_policy=self.fit_policy,
-            fit_backend=self.fit_backend,
-            mix_profile=self.mix_profile,
-            ducking_mode=self.ducking_mode,
-            output_sample_rate=self.output_sample_rate,
-            background_gain_db=self.background_gain_db,
-            window_ducking_db=self.window_ducking_db,
-            max_compress_ratio=self.max_compress_ratio,
-            overflow_max_compress_ratio=self.overflow_max_compress_ratio,
-            preview_format=self.preview_format,
         )
 
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +19,9 @@ class SpeakerRegistryRequest:
     keep_intermediate: bool = False
 
     def normalized(self) -> "SpeakerRegistryRequest":
-        return SpeakerRegistryRequest(
+        # Only paths are transformed; replace() carries every other field (ARCH-14).
+        return replace(
+            self,
             segments_path=Path(self.segments_path).expanduser().resolve(),
             audio_path=Path(self.audio_path).expanduser().resolve(),
             output_dir=Path(self.output_dir).expanduser().resolve(),
@@ -28,10 +30,6 @@ class SpeakerRegistryRequest:
                 if self.registry_path is not None
                 else None
             ),
-            device=self.device,
-            top_k=self.top_k,
-            update_registry=self.update_registry,
-            keep_intermediate=self.keep_intermediate,
         )
 
 

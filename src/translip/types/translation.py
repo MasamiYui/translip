@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -24,24 +24,17 @@ class TranslationRequest:
     condense_mode: CondenseMode = "smart"
 
     def normalized(self) -> "TranslationRequest":
-        return TranslationRequest(
+        # Only paths are transformed; replace() carries every other field (ARCH-14).
+        return replace(
+            self,
             segments_path=Path(self.segments_path).expanduser().resolve(),
             profiles_path=Path(self.profiles_path).expanduser().resolve(),
             output_dir=Path(self.output_dir).expanduser().resolve(),
-            source_lang=self.source_lang,
-            target_lang=self.target_lang,
-            backend=self.backend,
-            device=self.device,
             glossary_path=(
                 Path(self.glossary_path).expanduser().resolve()
                 if self.glossary_path is not None
                 else None
             ),
-            batch_size=self.batch_size,
-            local_model=self.local_model,
-            api_model=self.api_model,
-            api_base_url=self.api_base_url,
-            condense_mode=self.condense_mode,
         )
 
 

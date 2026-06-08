@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -37,26 +37,19 @@ class TranscriptionRequest:
     hotwords: tuple[str, ...] = field(default_factory=tuple)
 
     def normalized(self) -> "TranscriptionRequest":
-        return TranscriptionRequest(
+        # replace() carries every field; only path resolution + scalar coercion is
+        # overridden, so a newly added field can't be silently dropped (ARCH-14).
+        return replace(
+            self,
             input_path=Path(self.input_path).expanduser().resolve(),
             output_dir=Path(self.output_dir).expanduser().resolve(),
-            language=self.language,
-            asr_model=self.asr_model,
-            asr_backend=self.asr_backend,
-            diarizer_backend=self.diarizer_backend,
             enable_diarization=bool(self.enable_diarization),
-            device=self.device,
-            audio_stream_index=self.audio_stream_index,
-            keep_intermediate=self.keep_intermediate,
-            write_srt=self.write_srt,
-            vad_filter=self.vad_filter,
             vad_min_silence_duration_ms=int(self.vad_min_silence_duration_ms),
             vad_max_segment_sec=float(self.vad_max_segment_sec),
             expected_speakers=int(self.expected_speakers),
             beam_size=int(self.beam_size),
             best_of=int(self.best_of),
             temperature=float(self.temperature),
-            condition_on_previous_text=self.condition_on_previous_text,
             hotwords=tuple(self.hotwords),
         )
 

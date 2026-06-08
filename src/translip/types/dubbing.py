@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -30,13 +30,13 @@ class DubbingRequest:
     backread_model: str = "tiny"
 
     def normalized(self) -> "DubbingRequest":
-        return DubbingRequest(
+        # Only these fields are transformed; replace() carries every other field,
+        # so a newly added field can't be silently dropped here (ARCH-14).
+        return replace(
+            self,
             translation_path=Path(self.translation_path).expanduser().resolve(),
             profiles_path=Path(self.profiles_path).expanduser().resolve(),
             output_dir=Path(self.output_dir).expanduser().resolve(),
-            speaker_id=self.speaker_id,
-            backend=self.backend,
-            device=self.device,
             reference_clip_path=(
                 Path(self.reference_clip_path).expanduser().resolve()
                 if self.reference_clip_path is not None
@@ -48,11 +48,7 @@ class DubbingRequest:
                 else None
             ),
             segment_ids=list(self.segment_ids) if self.segment_ids else None,
-            max_segments=self.max_segments,
-            dubbing_workers=self.dubbing_workers,
             quality_check_mode=normalize_dubbing_quality_check_mode(self.quality_check_mode),
-            keep_intermediate=self.keep_intermediate,
-            backread_model=self.backread_model,
         )
 
 
