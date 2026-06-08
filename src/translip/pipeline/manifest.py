@@ -20,6 +20,7 @@ def build_manifest(
     elapsed_sec: float,
     backends: dict[str, str],
     error: str | None = None,
+    quality: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "job_id": voice_path.parent.name,
@@ -51,6 +52,7 @@ def build_manifest(
             "voice": str(voice_path),
             "background": str(background_path),
         },
+        "quality": quality or {},
         "timing": {
             "started_at": started_at,
             "finished_at": finished_at,

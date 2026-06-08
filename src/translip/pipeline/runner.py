@@ -18,6 +18,7 @@ from ..pipeline.export import export_pair
 from ..pipeline.ingest import prepare_working_audio
 from ..pipeline.manifest import build_manifest, now_iso, write_manifest
 from ..pipeline.route import resolve_route
+from ..pipeline.separation_quality import compute_separation_metrics
 from ..types import MediaInfo, RouteDecision, SeparationArtifacts, SeparationRequest, SeparationResult
 from ..utils.files import bundle_directory, copy_if_exists, remove_tree, work_directory
 from ..utils.ffmpeg import render_wav
@@ -130,6 +131,19 @@ def separate_file(request: SeparationRequest | str, **kwargs) -> SeparationResul
                         stem_dir / src.name,
                     )
 
+        # Measure separation quality from the lossless intermediates while the
+        # work dir still exists (SEP-2). Best-effort — never fail separation over
+        # an optional metric.
+        quality_metrics: dict = {}
+        try:
+            quality_metrics = compute_separation_metrics(
+                voice_path=final_voice_wav,
+                background_path=final_background_wav,
+                mix_path=working_audio,
+            )
+        except Exception:
+            logger.warning("Failed to compute separation quality metrics; continuing.", exc_info=True)
+
         finished_at = now_iso()
         manifest_path = output_dir / "manifest.json"
         manifest = build_manifest(
@@ -142,6 +156,7 @@ def separate_file(request: SeparationRequest | str, **kwargs) -> SeparationResul
             finished_at=finished_at,
             elapsed_sec=time.monotonic() - started_monotonic,
             backends=backend_names,
+            quality=quality_metrics,
         )
         write_manifest(manifest, manifest_path)
 

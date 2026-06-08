@@ -230,8 +230,10 @@
 - **验收**：task-a 读到无损 stem；与 ASR-1 配合评估 diarization 改善。
 - **测试**：跑批对比 cross-speaker 相似度分布。
 
-### SEP-2 — 分离质量/SNR 度量 ｜ TODO ｜ A/算法 ｜ M ｜ ◻待确认
-- **现状**：分离只写 timing/route，无任何输出质量度量（grep `snr|si-sdr|leakage` 0 命中）。
+### SEP-2 — 分离质量/SNR 度量 ｜ DONE（核心度量；VAD 覆盖率留子项）｜ A/算法 ｜ M ｜ ✅已核实
+> 已修（UI-3 HOLD 的替补）：新增纯 numpy 模块 `pipeline/separation_quality.py`——`separation_metrics(voice,bg,mix)` 算 `voice_rms`/`background_rms`/`voice_to_background_db` + 残差重构比 `‖mix−(voice+bg)‖/‖mix‖` → `separation_confidence∈[0,1]`（同采样率才报残差）；`compute_separation_metrics` 读三个 WAV。`pipeline/runner.py` 在分离后用无损中间件算度量（**try/except 包裹——绝不因可选度量拖垮分离**），写入 stage1 manifest 新增 `quality` 字段（`build_manifest` 加可选 `quality` 参数）。低置信分离从此可被发现/驱动质量升级。加 `tests/test_separation_quality.py`（完美重构→conf>0.99、坏样本→conf<0.5、异采样率跳残差、空信号→{}、文件往返）。全量 607 passed。
+> ⏸ **余项**：VAD 覆盖率指标 + 低置信自动告警/触发 SEP 升级——框架（manifest.quality）已就位，按需追加。
+- **现状（原）**：分离只写 timing/route，无任何输出质量度量（grep `snr|si-sdr|leakage` 0 命中）。
 - **方案**：算 voice/bg RMS 比、残差 `‖mix−(voice+bg)‖`、VAD 覆盖率 → `separation_confidence` 写入 stage1 manifest，低置信告警 / 触发 SEP/质量升级。
 - **验收**：manifest 含置信度；低质能被发现。
 - **测试**：单测度量计算；坏样本验证告警。
