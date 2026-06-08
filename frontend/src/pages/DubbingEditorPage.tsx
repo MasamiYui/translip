@@ -4150,6 +4150,15 @@ function PreviewPane({
   // Video URL from project — served by backend streaming endpoint
   const videoSrc = `/api/tasks/${taskId}/dubbing-editor/video-preview`
 
+  // Dubbed full mix (voice + background) for the original/dub A/B toggle. The
+  // video-preview endpoint carries the ORIGINAL audio, so for "dub" we mute the
+  // video and play this artifact locked to the video timeline; "original" just
+  // plays the video's own audio. Falls back to original if no mix exists yet.
+  const monitorAudioRef = useRef<HTMLAudioElement>(null)
+  const dubAudioPath = project.artifact_paths?.preview_mix
+  const dubAudioUrl = dubAudioPath ? `/api/tasks/${taskId}/artifacts/${dubAudioPath}` : ''
+  const usesExternalAudio = audioTrack === 'dub' && !!dubAudioUrl
+
   // Sync video currentTime → playhead
   useEffect(() => {
     const video = videoRef.current
@@ -4184,6 +4193,42 @@ function PreviewPane({
     }
   }, [selectedUnit])
 
+  // Keep the external dub track locked to the video while "dub" is selected.
+  useEffect(() => {
+    const video = videoRef.current
+    const audio = monitorAudioRef.current
+    if (!video || !audio) return
+    if (!usesExternalAudio) {
+      audio.pause()
+      return
+    }
+    const drift = () => {
+      if (Math.abs(audio.currentTime - video.currentTime) > 0.25) {
+        audio.currentTime = video.currentTime
+      }
+    }
+    const onPlay = () => {
+      audio.currentTime = video.currentTime
+      void audio.play().catch(() => {})
+    }
+    const onPause = () => audio.pause()
+    const onSeeked = () => {
+      audio.currentTime = video.currentTime
+    }
+    video.addEventListener('play', onPlay)
+    video.addEventListener('pause', onPause)
+    video.addEventListener('seeked', onSeeked)
+    video.addEventListener('timeupdate', drift)
+    if (!video.paused) onPlay()
+    return () => {
+      video.removeEventListener('play', onPlay)
+      video.removeEventListener('pause', onPause)
+      video.removeEventListener('seeked', onSeeked)
+      video.removeEventListener('timeupdate', drift)
+      audio.pause()
+    }
+  }, [usesExternalAudio, dubAudioUrl])
+
   const togglePlay = useCallback(() => {
     const video = videoRef.current
     if (!video) return
@@ -4192,10 +4237,9 @@ function PreviewPane({
   }, [])
 
   const toggleMute = useCallback(() => {
-    const video = videoRef.current
-    if (!video) return
-    video.muted = !video.muted
-    setIsMuted(video.muted)
+    // muted is now a controlled prop on both the video and the external dub
+    // track, so just flip state and let React apply it to whichever is audible.
+    setIsMuted(m => !m)
   }, [])
 
   const toggleFullscreen = useCallback(() => {
@@ -4239,6 +4283,16 @@ function PreviewPane({
           className="max-h-full max-w-full rounded shadow-sm"
           preload="metadata"
           playsInline
+          muted={usesExternalAudio || isMuted}
+        />
+        {/* External dubbed-mix track, played in lock-step with the muted video
+            when the "dub" A/B option is active. */}
+        <audio
+          ref={monitorAudioRef}
+          src={dubAudioUrl || undefined}
+          muted={isMuted}
+          preload="auto"
+          className="hidden"
         />
 
         {/* Subtitle overlay */}

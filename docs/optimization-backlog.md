@@ -363,7 +363,8 @@
 
 ## task-d — TTS（TTS）
 
-### TTS-1 — 长度/语速目标传 MOSS/VoxCPM + micro-fit ｜ TODO ｜ A/产品/算法 ｜ S–M ｜ ◻待确认
+### TTS-1 — 长度/语速目标传 MOSS/VoxCPM + micro-fit ｜ HOLD ｜ A/产品/算法 ｜ S–M ｜ ◻待确认
+> 2026-06 推迟：改的是 TTS 生成行为，但本机 **MOSS CLI 缺失、VoxCPM 太慢**，无法真合成验证；MOSS `max_new_frames` 的 frame→秒 映射未知，盲缩会截断语音（比现状差）。memory 红线「长度/音色必须真合成验证，离线指标会骗我」(R4)。待有可用 TTS 环境再做；届时优先做"安全上界"式 frame 缩放（只增不减、留 headroom）+ best-take 时长 tiebreaker（纯逻辑可单测）。
 - **现状**：`SynthSegmentInput.duration_budget_sec` 只有 Qwen 消费（单边 `max_new_tokens`）；MOSS 固定 `max_new_frames=375`（`moss_tts_nano_backend.py:291`）；VoxCPM 无时长信号；拟合全推给 task-e atempo。
 - **方案**：MOSS frames 按预算缩放；task-d 选最佳 take 时若 `duration_ratio>1.3` 选更短候选或在 task-e 前触发改写；可支持的 backend 暴露 speed/rate 作锦标赛候选轴。
 - **验收**：进 task-e 前 duration_ratio 收敛，atempo 拉伸减少。
@@ -559,7 +560,8 @@
 
 > 已强（保留）：DubbingEditor 逐段闭环（LiveFitPredictor/ClipFitMeter/候选锦标赛/回译/撤销重做/快捷键）、Evaluation 闭环（before/after + 回滚 + A/B 原声配音）、统一 Dashboard、原子工具链式跳转、persona 绑定导出。
 
-### UI-1 — 修 Preview 音频 A/B ｜ TODO ｜ D/产品 ｜ M ｜ ✅已核实
+### UI-1 — 修 Preview 音频 A/B ｜ DONE ｜ D/产品 ｜ M ｜ ✅已核实
+> 已修：PreviewPane 的 original/dub 开关原先只切字幕、video src 固定（始终原声）。现镜像 EditMonitorPane 的成熟做法：加 `monitorAudioRef` + 从 `project.artifact_paths.preview_mix` 取配音全混 URL，`usesExternalAudio = audioTrack==='dub' && 有混音`；选 dub 时 video `muted`，外部 `<audio>` 与 video play/pause/seek/drift 锁同步；toggleMute 改为受控 state（video 与外部音轨共用）。无混音时优雅回退原声。tsc 通过，DubbingEditor 布局测试除 2 个既有失败(inspector preview/autosave，非本次)外全过。⚠ 音频同步需真实播放手验（jsdom 无法）。
 - **现状**：`PreviewPane`（`DubbingEditorPage.tsx`）的 `audioTrack`（`:4141` 的 original|dub）只用于选字幕文本(`:4248`)与按钮样式(`:4339`)，video src 固定(`:4151`)；`EditMonitorPane`（`:3655`）才有正确 3 路真音频切换。
 - **方案**：在 PreviewPane 复用 EditMonitorPane 的外部音频同步（original→视频静音、dub→视频音、mix→preview_mix），加"正在对比：原声/配音"标注。
 - **验收**：Preview 能真正切原声/配音。
