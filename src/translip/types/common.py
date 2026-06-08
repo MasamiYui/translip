@@ -50,6 +50,7 @@ DeliveryVideoCodec = Literal["copy", "libx264"]
 DeliveryAudioCodec = Literal["aac"]
 DeliveryEndPolicy = Literal["trim_audio_to_video", "keep_longest"]
 SubtitleCompositionMode = Literal["none", "chinese_only", "english_only", "bilingual"]
+SubtitleDeliveryMode = Literal["burn", "soft"]
 SubtitleSourceType = Literal["ocr", "asr"]
 SubtitlePosition = Literal["top", "bottom"]
 BilingualExportStrategy = Literal[
@@ -147,6 +148,7 @@ __all__ = [
     "DeliveryAudioCodec",
     "DeliveryEndPolicy",
     "SubtitleCompositionMode",
+    "SubtitleDeliveryMode",
     "SubtitleSourceType",
     "SubtitlePosition",
     "BilingualExportStrategy",

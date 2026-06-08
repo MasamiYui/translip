@@ -160,6 +160,7 @@ def test_export_video_infers_inputs_from_pipeline_root_and_writes_delivery_artif
         audio_bitrate: str | None,
         end_policy: str,
         loudnorm: bool = False,
+        **_extra: object,
     ) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(b"video")
@@ -235,6 +236,7 @@ def test_export_video_can_export_preview_only(tmp_path: Path, monkeypatch) -> No
         audio_bitrate: str | None,
         end_policy: str,
         loudnorm: bool = False,
+        **_extra: object,
     ) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(b"preview-only")
@@ -265,6 +267,52 @@ def test_export_video_can_export_preview_only(tmp_path: Path, monkeypatch) -> No
     assert report["summary"]["requested_exports"] == ["preview"]
 
 
+def test_export_video_soft_delivery_uses_soft_muxer_and_embeds_original(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    from translip.delivery.runner import export_video
+
+    pipeline_root, input_video_path, preview_mix_path, _dub = _build_task_e_fixture(tmp_path)
+    output_dir = tmp_path / "delivery"
+    soft_calls: list[dict] = []
+
+    def fake_soft(*, output_path: Path, **kwargs) -> Path:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_bytes(b"soft")
+        soft_calls.append({"output_path": output_path, **kwargs})
+        return output_path
+
+    def boom(**_kwargs):  # the burn/plain muxers must NOT be used in soft mode
+        raise AssertionError("soft delivery must not call the burn/plain muxer")
+
+    monkeypatch.setattr("translip.delivery.runner.mux_with_soft_subtitle", fake_soft)
+    monkeypatch.setattr("translip.delivery.runner.mux_video_with_audio", boom)
+    monkeypatch.setattr("translip.delivery.runner.probe_media", _fake_media_info)
+
+    result = export_video(
+        ExportVideoRequest(
+            input_video_path=input_video_path,
+            task_e_dir=pipeline_root / "task-e" / "voice",
+            output_dir=output_dir,
+            target_lang="en",
+            export_preview=False,
+            export_dub=True,
+            subtitle_mode="none",
+            subtitle_delivery="soft",
+            embed_original_audio=True,
+        )
+    )
+
+    assert result.artifacts.dub_video_path is not None
+    assert len(soft_calls) == 1
+    call = soft_calls[0]
+    assert call["embed_original_audio"] is True
+    assert call["audio_language"] == "en"
+    # subtitle_mode "none" -> no soft subtitle stream
+    assert call["subtitle_path"] is None
+
+
 def test_export_video_preview_only_removes_stale_final_dub_and_omits_dub_audio(
     tmp_path: Path,
     monkeypatch,
@@ -286,6 +334,7 @@ def test_export_video_preview_only_removes_stale_final_dub_and_omits_dub_audio(
         audio_bitrate: str | None,
         end_policy: str,
         loudnorm: bool = False,
+        **_extra: object,
     ) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(b"preview-only")
@@ -383,6 +432,7 @@ def test_bilingual_export_can_preserve_hard_subtitles_and_only_burn_english(
         audio_bitrate: str | None,
         end_policy: str,
         loudnorm: bool = False,
+        **_extra: object,
     ) -> Path:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_bytes(b"video")

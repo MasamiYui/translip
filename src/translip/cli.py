@@ -715,6 +715,20 @@ def build_parser() -> argparse.ArgumentParser:
     export_parser.add_argument("--subtitle-bold", action="store_true")
     export_parser.add_argument("--bilingual-chinese-position", choices=["top", "bottom"], default="bottom")
     export_parser.add_argument("--bilingual-english-position", choices=["top", "bottom"], default="top")
+    export_parser.add_argument(
+        "--subtitle-delivery",
+        choices=["burn", "soft"],
+        default="burn",
+        help="burn = render subtitles into the video; soft = embed a selectable subtitle stream (no re-encode)",
+    )
+    export_parser.add_argument(
+        "--embed-original-audio",
+        dest="embed_original_audio",
+        action="store_true",
+        help="With --subtitle-delivery soft, keep the original audio as a second (non-default) track",
+    )
+    export_parser.add_argument("--crf", type=int, default=18, help="x264 CRF for the burn path (lower = higher quality)")
+    export_parser.add_argument("--preset", default="medium", help="x264 preset for the burn path")
     return parser
 
 
@@ -1184,6 +1198,10 @@ def main(argv: list[str] | None = None) -> int:
             ),
             bilingual_chinese_position=args.bilingual_chinese_position,
             bilingual_english_position=args.bilingual_english_position,
+            subtitle_delivery=args.subtitle_delivery,
+            embed_original_audio=args.embed_original_audio,
+            crf=args.crf,
+            preset=args.preset,
         )
         result = export_video(request)
         if result.artifacts.preview_video_path:

@@ -444,8 +444,12 @@
 
 ## task-g — 交付（DEL）
 
-### DEL-1 — 软字幕 + 多音轨 + CRF/语言元数据 ｜ TODO ｜ 产品 ｜ M ｜ ◻待确认
-- **现状**：`_export_video_variant`（`delivery/runner.py:372`）只烧录字幕（`ass=` filter）；强制 `libx264 crf=18`；单音轨（`-map 1:a:0`）无语言 metadata；AAC 192k。
+### DEL-1 — 软字幕 + 多音轨 + CRF/语言元数据 ｜ DONE（核心+CLI+直连API）｜ 产品 ｜ M ｜ ✅已核实
+> 已修：**ffmpeg 层**新增纯 arg-builder `build_soft_subtitle_mux_args`（可单测、不跑 ffmpeg）+ `mux_with_soft_subtitle` 包装——`-c:v copy` **免重编码**、dub 为默认轨、可选 `-map 0:a:0?` 原声第二轨、`-c:s mov_text`(mp4)/`srt`(mkv) **软字幕流**、per-stream 语言标签(`iso639_2` en→eng/zh→zho/…)+disposition、`-filter:a:0` 只对 dub 做 loudnorm；`mux_video_with_audio`/`burn_subtitle_and_mux` 加 `audio_language` 元数据，burn 暴露 `crf`/`preset`。**请求**：`ExportVideoRequest` 加 `subtitle_delivery`(burn/soft 默认 burn)/`embed_original_audio`/`crf`/`preset`，`SubtitleDeliveryMode` 字面量。**runner** `_export_video_variant` soft 分支走新 muxer，burn 透传 crf/preset/语言。**接线** CLI(`--subtitle-delivery/--embed-original-audio/--crf/--preset`) + server 直连 `/export-video` 路由。
+> 🐞 **顺手修真实 bug**：`export_video`+`_resolve_request` 两处**手工逐字段重建** request（ARCH-14 同型反模式）会把**任何新字段静默丢成默认**——改 `dataclasses.replace` 根治（否则 soft 永不生效）。
+> 加 11 测试（arg-builder 全特性/无字幕/mkv/非法 end_policy、iso639_2、两 muxer 语言/crf/preset monkeypatch、runner soft 路由集成）。全量 595 passed。
+> ⏸ **余项**：mkv 容器(`DeliveryContainer` 仍 Literal["mp4"])、按分辨率缩放 CRF、Opus、前端 toggle + 流水线集成导出(task_manager)的 4 字段透传——属后续。
+- **现状（原）**：`_export_video_variant`（`delivery/runner.py:372`）只烧录字幕（`ass=` filter）；强制 `libx264 crf=18`；单音轨（`-map 1:a:0`）无语言 metadata；AAC 192k。
 - **方案**：加软字幕模式（mp4 `mov_text`/mkv copy，免重编码）；`-metadata:s:a:0 language=`+disposition；mkv 多音轨(dub+原声)；CRF/preset 暴露并按分辨率缩放；AAC 256k 或 Opus。
 - **验收**：可选软字幕（不重编码）、多音轨、带语言标签。
 - **测试**：导出后用 ffprobe 验证轨道/字幕流/元数据。

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +9,13 @@ from ..config import DEFAULT_SUBTITLE_FONT_CJK
 from ..exceptions import TranslipError
 from ..subtitles.burn import merge_bilingual_ass, recommend_style, srt_to_ass
 from ..types import ExportVideoArtifacts, ExportVideoRequest, ExportVideoResult, PipelineRequest, SubtitleStyle
-from ..utils.ffmpeg import burn_subtitle_and_mux, mux_video_with_audio, probe_media, probe_video_resolution
+from ..utils.ffmpeg import (
+    burn_subtitle_and_mux,
+    mux_video_with_audio,
+    mux_with_soft_subtitle,
+    probe_media,
+    probe_video_resolution,
+)
 from ..utils.files import ensure_directory
 from ..utils.io import read_json
 from .export import build_delivery_manifest, build_delivery_report, now_iso, write_json
@@ -72,28 +78,10 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
     _cleanup_unrequested_outputs(normalized_request, target_lang)
     subtitle_path = _resolve_subtitle_path(normalized_request, target_lang)
     chinese_subtitle_path = _resolve_chinese_subtitle_path(normalized_request)
-    normalized_request = ExportVideoRequest(
-        input_video_path=normalized_request.input_video_path,
-        pipeline_root=normalized_request.pipeline_root,
-        task_e_dir=normalized_request.task_e_dir,
-        output_dir=normalized_request.output_dir,
-        target_lang=target_lang,
-        export_preview=normalized_request.export_preview,
-        export_dub=normalized_request.export_dub,
-        container=normalized_request.container,
-        video_codec=normalized_request.video_codec,
-        audio_codec=normalized_request.audio_codec,
-        audio_bitrate=normalized_request.audio_bitrate,
-        end_policy=normalized_request.end_policy,
-        overwrite=normalized_request.overwrite,
-        keep_temp=normalized_request.keep_temp,
-        subtitle_mode=normalized_request.subtitle_mode,
-        subtitle_source=normalized_request.subtitle_source,
-        subtitle_style=normalized_request.subtitle_style,
-        bilingual_chinese_position=normalized_request.bilingual_chinese_position,
-        bilingual_english_position=normalized_request.bilingual_english_position,
-        bilingual_export_strategy=normalized_request.bilingual_export_strategy,
-    )
+    # Pin the resolved target_lang; replace() carries every other field so newly
+    # added request fields (subtitle_delivery, embed_original_audio, …) are never
+    # silently dropped here (cf. ARCH-14).
+    normalized_request = replace(normalized_request, target_lang=target_lang)
 
     manifest_path = normalized_request.output_dir / "delivery-manifest.json"
     report_path = normalized_request.output_dir / "delivery-report.json"
@@ -256,27 +244,13 @@ def _resolve_request(request: ExportVideoRequest) -> ExportVideoRequest:
         else:
             output_dir = Path("output-delivery").resolve()
 
-    return ExportVideoRequest(
+    # Only the inferred paths are overridden; replace() preserves all other
+    # request fields so new ones aren't silently dropped here (cf. ARCH-14).
+    return replace(
+        normalized,
         input_video_path=input_video_path,
-        pipeline_root=pipeline_root,
         task_e_dir=task_e_dir,
         output_dir=output_dir,
-        target_lang=normalized.target_lang,
-        export_preview=normalized.export_preview,
-        export_dub=normalized.export_dub,
-        container=normalized.container,
-        video_codec=normalized.video_codec,
-        audio_codec=normalized.audio_codec,
-        audio_bitrate=normalized.audio_bitrate,
-        end_policy=normalized.end_policy,
-        overwrite=normalized.overwrite,
-        keep_temp=normalized.keep_temp,
-        subtitle_mode=normalized.subtitle_mode,
-        subtitle_source=normalized.subtitle_source,
-        subtitle_style=normalized.subtitle_style,
-        bilingual_chinese_position=normalized.bilingual_chinese_position,
-        bilingual_english_position=normalized.bilingual_english_position,
-        bilingual_export_strategy=normalized.bilingual_export_strategy,
     )
 
 
@@ -381,6 +355,34 @@ def _export_video_variant(
     video_width: int,
     video_height: int,
 ) -> None:
+    # Container-native delivery (DEL-1): copy the video (no re-encode), keep the
+    # dub as the default track, optionally embed the original audio as a second
+    # track, and attach the translated subtitle as a *soft* (selectable) stream
+    # with language tags. Bilingual layout / hard-sub erase remain burn-only, so
+    # soft delivery embeds the translated track and leaves the source video as-is.
+    if request.subtitle_delivery == "soft":
+        soft_subtitle = (
+            Path(subtitle_path)
+            if subtitle_path and request.subtitle_mode in {"english_only", "bilingual"}
+            else None
+        )
+        mux_with_soft_subtitle(
+            input_video_path=Path(request.input_video_path),
+            dub_audio_path=audio_path,
+            subtitle_path=soft_subtitle,
+            output_path=output_path,
+            container=request.container,
+            video_codec=request.video_codec,
+            audio_codec=request.audio_codec,
+            audio_bitrate=request.audio_bitrate,
+            audio_language=target_lang,
+            subtitle_language=target_lang,
+            embed_original_audio=request.embed_original_audio,
+            end_policy=request.end_policy,
+            loudnorm=True,
+        )
+        return
+
     if request.subtitle_mode in {"none", "chinese_only"}:
         mux_video_with_audio(
             input_video_path=Path(request.input_video_path),
@@ -389,6 +391,7 @@ def _export_video_variant(
             video_codec=request.video_codec,
             audio_codec=request.audio_codec,
             audio_bitrate=request.audio_bitrate,
+            audio_language=target_lang,
             end_policy=request.end_policy,
             loudnorm=True,
         )
@@ -475,7 +478,10 @@ def _export_video_variant(
         video_codec="libx264" if request.video_codec == "copy" else request.video_codec,
         audio_codec=request.audio_codec,
         audio_bitrate=request.audio_bitrate,
+        audio_language=target_lang,
         end_policy=request.end_policy,
+        crf=request.crf,
+        preset=request.preset,
         loudnorm=True,
     )
 

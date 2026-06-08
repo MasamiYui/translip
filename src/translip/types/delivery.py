@@ -11,6 +11,7 @@ from .common import (
     DeliveryEndPolicy,
     DeliveryVideoCodec,
     SubtitleCompositionMode,
+    SubtitleDeliveryMode,
     SubtitlePosition,
     SubtitleSourceType,
     SubtitleStyle,
@@ -34,11 +35,15 @@ class ExportVideoRequest:
     overwrite: bool = True
     keep_temp: bool = False
     subtitle_mode: SubtitleCompositionMode = "none"
+    subtitle_delivery: SubtitleDeliveryMode = "burn"
     subtitle_source: SubtitleSourceType = "ocr"
     subtitle_style: SubtitleStyle | None = None
     bilingual_chinese_position: SubtitlePosition = "bottom"
     bilingual_english_position: SubtitlePosition = "top"
     bilingual_export_strategy: BilingualExportStrategy = "auto_standard_bilingual"
+    embed_original_audio: bool = False
+    crf: int = 18
+    preset: str = "medium"
 
     def normalized(self) -> "ExportVideoRequest":
         return ExportVideoRequest(
@@ -73,11 +78,15 @@ class ExportVideoRequest:
             overwrite=self.overwrite,
             keep_temp=self.keep_temp,
             subtitle_mode=self.subtitle_mode,
+            subtitle_delivery=self.subtitle_delivery,
             subtitle_source=self.subtitle_source,
             subtitle_style=self.subtitle_style,
             bilingual_chinese_position=self.bilingual_chinese_position,
             bilingual_english_position=self.bilingual_english_position,
             bilingual_export_strategy=self.bilingual_export_strategy,
+            embed_original_audio=bool(self.embed_original_audio),
+            crf=int(self.crf),
+            preset=self.preset,
         )
 
 

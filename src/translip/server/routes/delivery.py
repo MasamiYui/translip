@@ -53,6 +53,8 @@ class DeliveryComposeRequestPayload(BaseModel):
     bold: bool = Field(default=False, description="字幕是否加粗")
     bilingual_chinese_position: Literal["top", "bottom"] = Field(default="bottom", description="双语模式下中文字幕的位置")
     bilingual_english_position: Literal["top", "bottom"] = Field(default="top", description="双语模式下英文字幕的位置")
+    subtitle_delivery: Literal["burn", "soft"] = Field(default="burn", description="字幕投递方式：burn 烧录进画面；soft 内嵌可切换的字幕轨（不重编码）")
+    embed_original_audio: bool = Field(default=False, description="soft 投递时，把原声保留为第二条（非默认）音轨")
     export_preview: bool = Field(default=True, description="是否导出预览版（不含配音音轨）视频")
     export_dub: bool = Field(default=True, description="是否导出配音版（替换为配音音轨）视频")
 
@@ -166,6 +168,8 @@ def compose_delivery(
             bilingual_chinese_position=payload.bilingual_chinese_position,
             bilingual_english_position=payload.bilingual_english_position,
             bilingual_export_strategy=payload.bilingual_export_strategy,
+            subtitle_delivery=payload.subtitle_delivery,
+            embed_original_audio=payload.embed_original_audio,
         )
     )
 

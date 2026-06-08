@@ -223,6 +223,107 @@ def export_audio(
 # loudness normalization happens).
 _DELIVERY_LOUDNORM_FILTER = "loudnorm=I=-16:LRA=11:TP=-1.5,alimiter=limit=0.97"
 
+# BCP-47 / 2-letter -> ISO 639-2/B for container language tags (mov_text, mkv).
+_LANG_ISO639_2 = {
+    "en": "eng",
+    "zh": "zho",
+    "ja": "jpn",
+    "ko": "kor",
+    "es": "spa",
+    "fr": "fra",
+    "de": "deu",
+    "ru": "rus",
+    "pt": "por",
+    "it": "ita",
+    "ar": "ara",
+    "hi": "hin",
+}
+
+
+def iso639_2(language: str | None) -> str:
+    """Map a language code to an ISO 639-2/B tag ffmpeg accepts (``und`` if unknown)."""
+    if not language:
+        return "und"
+    base = str(language).strip().lower().replace("_", "-").split("-")[0]
+    return _LANG_ISO639_2.get(base, base if len(base) == 3 else "und")
+
+
+def _soft_subtitle_codec(container: str) -> str:
+    return "srt" if container == "mkv" else "mov_text"
+
+
+def build_soft_subtitle_mux_args(
+    *,
+    input_video_path: Path,
+    dub_audio_path: Path,
+    subtitle_path: Path | None,
+    output_path: Path,
+    container: str = "mp4",
+    video_codec: str = "copy",
+    audio_codec: str = "aac",
+    audio_bitrate: str | None = None,
+    audio_language: str | None = None,
+    subtitle_language: str | None = None,
+    embed_original_audio: bool = False,
+    original_audio_language: str | None = None,
+    end_policy: str = "trim_audio_to_video",
+    loudnorm: bool = False,
+) -> list[str]:
+    """Build ffmpeg argv to mux a dub track (+ optional original audio + soft
+    subtitle stream) without burning subtitles into the video (DEL-1).
+
+    Input order: 0=source video (carries original audio), 1=dub audio,
+    2=subtitle file (when present). The dub is the default audio track.
+    """
+    args: list[str] = ["-y", "-i", str(input_video_path), "-i", str(dub_audio_path)]
+    if subtitle_path is not None:
+        args.extend(["-i", str(subtitle_path)])
+
+    args.extend(["-map", "0:v:0", "-map", "1:a:0"])
+    if embed_original_audio:
+        # '?' makes the original audio optional so videos without an audio track
+        # still export cleanly.
+        args.extend(["-map", "0:a:0?"])
+    if subtitle_path is not None:
+        args.extend(["-map", f"{2}:s:0"])
+
+    args.extend(["-c:v", video_codec, "-c:a", audio_codec])
+    if audio_bitrate:
+        args.extend(["-b:a", audio_bitrate])
+    if subtitle_path is not None:
+        args.extend(["-c:s", _soft_subtitle_codec(container)])
+
+    # loudnorm only the dub track (a:0); the original track is passed through.
+    if loudnorm:
+        args.extend(["-filter:a:0", _DELIVERY_LOUDNORM_FILTER])
+
+    # Per-stream language tags + dispositions so players label the tracks.
+    args.extend(["-metadata:s:a:0", f"language={iso639_2(audio_language)}", "-disposition:a:0", "default"])
+    if embed_original_audio:
+        args.extend([
+            "-metadata:s:a:1",
+            f"language={iso639_2(original_audio_language)}",
+            "-disposition:a:1",
+            "0",
+        ])
+    if subtitle_path is not None:
+        args.extend(["-metadata:s:s:0", f"language={iso639_2(subtitle_language)}"])
+
+    if end_policy == "trim_audio_to_video":
+        args.append("-shortest")
+    elif end_policy != "keep_longest":
+        raise FFmpegError(f"Unsupported end policy: {end_policy}")
+
+    args.extend(["-movflags", "+faststart", str(output_path)])
+    return args
+
+
+def mux_with_soft_subtitle(**kwargs: Any) -> Path:
+    output_path = Path(kwargs["output_path"])
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    run_ffmpeg(build_soft_subtitle_mux_args(**kwargs))
+    return output_path
+
 
 def mux_video_with_audio(
     *,
@@ -232,6 +333,7 @@ def mux_video_with_audio(
     video_codec: str = "copy",
     audio_codec: str = "aac",
     audio_bitrate: str | None = None,
+    audio_language: str | None = None,
     end_policy: str = "trim_audio_to_video",
     loudnorm: bool = False,
 ) -> Path:
@@ -253,6 +355,8 @@ def mux_video_with_audio(
     ]
     if audio_bitrate:
         args.extend(["-b:a", audio_bitrate])
+    if audio_language:
+        args.extend(["-metadata:s:a:0", f"language={iso639_2(audio_language)}"])
     audio_filters: list[str] = []
     if loudnorm:
         audio_filters.append(_DELIVERY_LOUDNORM_FILTER)
@@ -292,6 +396,7 @@ def burn_subtitle_and_mux(
     video_codec: str = "libx264",
     audio_codec: str = "aac",
     audio_bitrate: str | None = None,
+    audio_language: str | None = None,
     end_policy: str = "trim_audio_to_video",
     crf: int = 18,
     preset: str = "medium",
@@ -319,6 +424,8 @@ def burn_subtitle_and_mux(
     args.extend(["-c:a", audio_codec])
     if audio_bitrate:
         args.extend(["-b:a", audio_bitrate])
+    if audio_language:
+        args.extend(["-metadata:s:a:0", f"language={iso639_2(audio_language)}"])
     if loudnorm:
         args.extend(["-af", _DELIVERY_LOUDNORM_FILTER])
     if end_policy == "trim_audio_to_video":
