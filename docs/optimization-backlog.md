@@ -115,6 +115,7 @@
 
 ### ARCH-4 — 缓存键补上游产物指纹 ｜ DONE ｜ D/正确性 ｜ S ｜ ◻待确认
 > 已修：task-a 缓存 payload 加 `voice` = `_file_fingerprint(stage1_voice_path)`；task-d 加 `translation`/`profiles`/`voice_bank` 三个上游指纹。原先这两段只含标量参数，上游产物变了但参数 hash 不变会 false hit。缓存键在节点循环里、上游已完成后计算，故指纹有效。加 2 回归测试（改 stage1 voice → task-a 键变；改 task-c/task-b → task-d 键变）。后端 511 passed。
+> 🔎 **ARCH-4c 审计补漏**（2026-06）：程序化比对每个 stage 的 `build_X_command` 用的 `request.*` 参数 vs 其缓存 payload 参数，抓到 **task-c 命令用 `--batch-size` 但缓存 payload 缺 `translation_batch_size`**——改 batch size 不重算 task-c（batch 影响 LLM prompt 分组→可变译文）。已补入 task-c payload。其余 stage（含 task-d）审计无缺失。加回归测试（batch 4↔8 → task-c 键变）。全量 655 passed。
 - **现状**：`_stage_cache_payload`（`runner.py:120`）对 task-b/c/e、subtitle-erase 有上游指纹，但 **task-a 键不含 stage1 `voice.*` 指纹**，task-d 键不含 task-c/task-b 指纹（只有标量）。上游文件变了但参数 hash 不变 → false hit on stale。
 - **方案**：用已存在的 `_file_fingerprint` 给 task-a（←stage1 voice）、task-d（←translation+profiles+voice_bank）补指纹。
 - **验收**：替换上游产物后对应阶段必重算。

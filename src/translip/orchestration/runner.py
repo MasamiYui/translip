@@ -199,6 +199,9 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "api_model": request.api_model,
                 "api_base_url": request.api_base_url,
                 "condense_mode": request.condense_mode,
+                # Batch size changes how segments are grouped in each LLM prompt,
+                # which can change the translation — track it so it recomputes (ARCH-4).
+                "translation_batch_size": request.translation_batch_size,
             }
         )
     elif stage_name == "task-d":
