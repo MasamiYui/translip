@@ -109,6 +109,9 @@ class TimelineItem:
     available_duration_sec: float | None = None
     applied_tempo: float | None = None
     trimmed_tail_sec: float = 0.0
+    # Of ``trimmed_tail_sec``, how much was actual speech (vs trailing silence).
+    # Only this part is perceived as a dropped word; the silence part is free.
+    trimmed_speech_sec: float = 0.0
 
     def to_payload(self) -> dict[str, Any]:
         return {
@@ -125,6 +128,7 @@ class TimelineItem:
             "available_duration_sec": round(self.available_duration_sec, 3) if self.available_duration_sec is not None else None,
             "applied_tempo": round(self.applied_tempo, 4) if self.applied_tempo is not None else None,
             "trimmed_tail_sec": round(self.trimmed_tail_sec, 3),
+            "trimmed_speech_sec": round(self.trimmed_speech_sec, 3),
             "fit_strategy": self.fit_strategy,
             "placement_start": round(self.placement_start, 3) if self.placement_start is not None else None,
             "placement_end": round(self.placement_end, 3) if self.placement_end is not None else None,
@@ -331,6 +335,8 @@ def _validate_request(request: RenderDubRequest) -> RenderDubRequest:
         raise TranslipError("output_sample_rate must be greater than 0")
     if normalized.max_compress_ratio < 1.0:
         raise TranslipError("max_compress_ratio must be >= 1.0")
+    if normalized.overflow_max_compress_ratio < 1.0:
+        raise TranslipError("overflow_max_compress_ratio must be >= 1.0")
     return normalized
 
 
@@ -598,7 +604,12 @@ def _apply_fit_strategy(
                 output_sample_rate=request.output_sample_rate,
             )
         elif strategy == "overflow_unfitted":
-            tempo = request.max_compress_ratio
+            # Last resort before destroying audio: compress harder than the
+            # comfortable cap (up to overflow_max_compress_ratio) so the line
+            # plays whole. Slightly faster speech beats a chopped word; only the
+            # residual that even the higher cap can't absorb is trimmed below.
+            over_cap = max(request.overflow_max_compress_ratio, request.max_compress_ratio)
+            tempo = min(item.generated_duration_sec / max(available, 1e-6), over_cap)
             item.applied_tempo = tempo
             fitted_path = compress_audio(
                 input_path=item.audio_path,
@@ -611,10 +622,29 @@ def _apply_fit_strategy(
             actual_dur = audio_duration_sec(fitted_path)
             if actual_dur > max_dur + 1e-3:
                 item.trimmed_tail_sec = max(0.0, actual_dur - max_dur)
+                # Tell a harmless trailing-silence trim apart from one that cuts
+                # speech: only audio past the last active frame is a real dropped
+                # word. The silence case is the common one and must not be
+                # counted (or alarmed on) as lost speech downstream.
+                speech_end = _trailing_speech_end_sec(
+                    fitted_path, sample_rate=request.output_sample_rate
+                )
+                item.trimmed_speech_sec = round(max(0.0, speech_end - max_dur), 3)
                 _trim_audio_inplace(fitted_path, max_dur, request.output_sample_rate)
+                item.notes.append(
+                    "overflow_trimmed_speech"
+                    if item.trimmed_speech_sec > 0.0
+                    else "overflow_trimmed_silence"
+                )
                 item.notes.append("overflow_trimmed")
             else:
-                item.notes.append("overflow_compressed")
+                # Fit achieved by over-compression — no word dropped (faster but
+                # complete), so lost_speech_sec stays 0 for these.
+                item.notes.append(
+                    "overflow_overcompressed"
+                    if tempo > request.max_compress_ratio + 1e-3
+                    else "overflow_compressed"
+                )
         elif strategy == "stretch":
             tempo = item.generated_duration_sec / max(item.source_duration_sec, 1e-6)
             item.applied_tempo = tempo
@@ -1097,6 +1127,44 @@ def _float_or_none(value: Any) -> float | None:
 
 def _timeline_sort_key(item: TimelineItem) -> tuple[float, float, str]:
     return (float(item.anchor_start or 0.0), float(item.anchor_end or 0.0), item.segment_id)
+
+
+def _trailing_speech_end_sec(path: Path, *, sample_rate: int) -> float:
+    """Timestamp (seconds) of the last speech-active sample in a clip.
+
+    Used to tell a harmless trailing-silence trim apart from one that truncates a
+    word: only audio past this point is safe to drop. Mirrors the RMS framing /
+    adaptive threshold of ``_source_voice_activity_mask`` for consistency.
+    """
+    waveform = prepare_audio_for_mix(path, target_sample_rate=sample_rate)
+    if waveform.size == 0:
+        return 0.0
+    frame_samples = max(1, int(round(SOURCE_VOICE_ACTIVITY_FRAME_SEC * sample_rate)))
+    hop_samples = max(1, int(round(SOURCE_VOICE_ACTIVITY_HOP_SEC * sample_rate)))
+    rms_values: list[float] = []
+    for start_idx in range(0, waveform.size, hop_samples):
+        chunk = waveform[start_idx:start_idx + frame_samples]
+        rms_values.append(float(np.sqrt(np.mean(chunk * chunk))) if chunk.size else 0.0)
+    if not rms_values:
+        return 0.0
+    rms = np.asarray(rms_values, dtype=np.float32)
+    speech_level = float(np.percentile(rms, 95))
+    if speech_level < SOURCE_VOICE_ACTIVITY_MIN_RMS:
+        # Effectively silent clip — nothing to protect.
+        return 0.0
+    noise_floor = float(np.percentile(rms, 20))
+    threshold = max(
+        SOURCE_VOICE_ACTIVITY_MIN_RMS,
+        noise_floor + (speech_level - noise_floor) * SOURCE_VOICE_ACTIVITY_THRESHOLD_RATIO,
+    )
+    last_active = -1
+    for frame_index, frame_rms in enumerate(rms):
+        if frame_rms > threshold:
+            last_active = frame_index
+    if last_active < 0:
+        return 0.0
+    end_idx = min(waveform.size, last_active * hop_samples + frame_samples)
+    return round(end_idx / sample_rate, 3)
 
 
 def _trim_audio_inplace(path: Path, max_duration_sec: float, sample_rate: int) -> None:

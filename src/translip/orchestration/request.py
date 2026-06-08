@@ -122,6 +122,7 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
         background_gain_db=float(merged.get("background_gain_db", DEFAULT_RENDER_BACKGROUND_GAIN_DB)),
         window_ducking_db=float(merged.get("window_ducking_db", DEFAULT_RENDER_WINDOW_DUCKING_DB)),
         max_compress_ratio=float(merged.get("max_compress_ratio", 1.45)),
+        overflow_max_compress_ratio=float(merged.get("overflow_max_compress_ratio", 1.6)),
         dubbing_workers=_optional_positive_int(merged.get("dubbing_workers"), name="dubbing_workers"),
         dubbing_quality_check=_validated_dubbing_quality_check(merged.get("dubbing_quality_check")),
         dub_repair_enabled=bool(merged.get("dub_repair_enabled", False)),

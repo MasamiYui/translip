@@ -458,6 +458,8 @@ def _build_row(
         "source_duration_sec": _number(item.get("source_duration_sec")),
         "generated_duration_sec": _number(item.get("generated_duration_sec")),
         "fitted_duration_sec": _number(item.get("fitted_duration_sec")),
+        "trimmed_tail_sec": _number(item.get("trimmed_tail_sec")),
+        "trimmed_speech_sec": _number(item.get("trimmed_speech_sec")),
         "placement_start": _coalesce_number(item.get("placement_start")),
         "placement_end": _coalesce_number(item.get("placement_end")),
         "subtitle_coverage_ratio": subtitle_coverage,
@@ -556,6 +558,8 @@ def _summarize(
     severe_overflow_count = 0
     unfitted_count = 0
     cut_audio_sec = 0.0
+    lost_speech_sec = 0.0
+    silence_only_trim_count = 0
     for row in rows:
         if not row.get("placed"):
             continue
@@ -570,6 +574,17 @@ def _summarize(
             fitted = row.get("fitted_duration_sec")
             if isinstance(generated, (int, float)) and isinstance(fitted, (int, float)):
                 cut_audio_sec += max(0.0, float(generated) - float(fitted))
+            # ``cut_audio_sec`` conflates time-stretch shrink with real
+            # truncation, so it over-reports loss. ``lost_speech_sec`` is the
+            # honest signal: of the tail actually cut, how much was speech (vs
+            # trailing silence). This is the number that should trend to zero.
+            trimmed_tail = row.get("trimmed_tail_sec")
+            if isinstance(trimmed_tail, (int, float)) and trimmed_tail > 0.0:
+                trimmed_speech = row.get("trimmed_speech_sec")
+                if isinstance(trimmed_speech, (int, float)) and trimmed_speech > 0.0:
+                    lost_speech_sec += float(trimmed_speech)
+                else:
+                    silence_only_trim_count += 1
     timeline = {
         "overflow_segment_count": len(overflow_ratios),
         "severe_overflow_count": severe_overflow_count,
@@ -577,6 +592,10 @@ def _summarize(
         "max_duration_ratio": round(max(overflow_ratios), 4) if overflow_ratios else None,
         "avg_overflow_ratio": round(sum(overflow_ratios) / len(overflow_ratios), 4) if overflow_ratios else None,
         "cut_audio_sec": round(cut_audio_sec, 3),
+        # Speech actually dropped to tail-trim (silence trims excluded) — the
+        # perceived-loss metric the overhaul targets at zero.
+        "lost_speech_sec": round(lost_speech_sec, 3),
+        "silence_only_trim_count": silence_only_trim_count,
     }
 
     stats = mix_report.get("stats", {}) if isinstance(mix_report.get("stats"), dict) else {}
