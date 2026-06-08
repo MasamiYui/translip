@@ -457,10 +457,11 @@ def test_llm_keys_endpoints_roundtrip(
     assert client.get("/api/system/llm-keys").json() == {
         "ok": True,
         "providers": {"deepseek": False},
+        "base_urls": {"deepseek": None},
     }
 
     resp = client.post("/api/system/llm-keys", json={"provider": "deepseek", "api_key": "  sk-abc  "})
-    assert resp.json() == {"ok": True, "provider": "deepseek", "set": True}
+    assert resp.json() == {"ok": True, "provider": "deepseek", "set": True, "base_url": None}
     # Stored trimmed and bridged into the environment for task subprocesses.
     assert cache_manager.read_user_setting("deepseek_api_key") == "sk-abc"
     assert os.environ["DEEPSEEK_API_KEY"] == "sk-abc"
@@ -468,9 +469,78 @@ def test_llm_keys_endpoints_roundtrip(
 
     # Empty string clears the key and removes the value we bridged into env.
     resp = client.post("/api/system/llm-keys", json={"provider": "deepseek", "api_key": ""})
-    assert resp.json() == {"ok": True, "provider": "deepseek", "set": False}
+    assert resp.json() == {"ok": True, "provider": "deepseek", "set": False, "base_url": None}
     assert cache_manager.read_user_setting("deepseek_api_key") is None
     assert "DEEPSEEK_API_KEY" not in os.environ
+
+
+def test_llm_base_url_endpoints_roundtrip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from translip.server import cache_manager
+    from translip.server.app import app
+
+    _clear_llm_keys(monkeypatch, tmp_path)
+    monkeypatch.delenv("DEEPSEEK_BASE_URL", raising=False)
+    client = TestClient(app)
+
+    # Saving a base URL trims whitespace/trailing slash and bridges it into env.
+    resp = client.post(
+        "/api/system/llm-keys",
+        json={"provider": "deepseek", "base_url": " https://proxy.example.com/v1/ "},
+    )
+    assert resp.json()["base_url"] == "https://proxy.example.com/v1"
+    assert cache_manager.read_llm_base_url("deepseek") == "https://proxy.example.com/v1"
+    assert os.environ["DEEPSEEK_BASE_URL"] == "https://proxy.example.com/v1"
+    assert client.get("/api/system/llm-keys").json()["base_urls"]["deepseek"] == "https://proxy.example.com/v1"
+
+    # A key-only update leaves the saved base URL untouched.
+    client.post("/api/system/llm-keys", json={"provider": "deepseek", "api_key": "sk-abc"})
+    assert cache_manager.read_llm_base_url("deepseek") == "https://proxy.example.com/v1"
+
+    # Empty string clears the override and removes the value we bridged into env.
+    resp = client.post("/api/system/llm-keys", json={"provider": "deepseek", "base_url": ""})
+    assert resp.json()["base_url"] is None
+    assert cache_manager.read_llm_base_url("deepseek") is None
+    assert "DEEPSEEK_BASE_URL" not in os.environ
+
+
+def test_migrate_deepseek_base_url_from_global_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import json
+
+    from translip.server import cache_manager
+    from translip.server.routes import config as config_routes
+
+    _clear_llm_keys(monkeypatch, tmp_path)
+    monkeypatch.delenv("DEEPSEEK_BASE_URL", raising=False)
+    monkeypatch.setattr(config_routes, "CONFIG_DIR", tmp_path)
+    monkeypatch.setattr(config_routes, "CONFIG_PATH", tmp_path / "config.json")
+
+    # Legacy layout: base URL stored in the global task-default config.
+    (tmp_path / "config.json").write_text(
+        json.dumps({"global": {"deepseek_base_url": "https://proxy.example.com", "beam_size": 3}}),
+        encoding="utf-8",
+    )
+
+    config_routes.migrate_deepseek_base_url_to_user_settings()
+
+    assert cache_manager.read_llm_base_url("deepseek") == "https://proxy.example.com"
+    raw = json.loads((tmp_path / "config.json").read_text(encoding="utf-8"))
+    assert "deepseek_base_url" not in raw["global"]
+    assert raw["global"]["beam_size"] == 3  # other overrides untouched
+
+    # Idempotent: a second run (and an already-saved user setting) is a no-op.
+    cache_manager.set_llm_base_url("deepseek", "https://kept.example.com")
+    (tmp_path / "config.json").write_text(
+        json.dumps({"global": {"deepseek_base_url": "https://stale.example.com"}}),
+        encoding="utf-8",
+    )
+    config_routes.migrate_deepseek_base_url_to_user_settings()
+    assert cache_manager.read_llm_base_url("deepseek") == "https://kept.example.com"
 
 
 def test_llm_keys_rejects_unknown_provider(
@@ -501,7 +571,9 @@ def test_llm_key_test_endpoint_uses_saved_key(
 
     seen: list[tuple[str, str | None]] = []
 
-    def fake_test_provider(mode: str, *, api_key: str | None = None, timeout_sec: int = 20):
+    def fake_test_provider(
+        mode: str, *, api_key: str | None = None, base_url: str | None = None, timeout_sec: int = 20
+    ):
         seen.append((mode, api_key))
         return {"ok": True, "model": "deepseek-v4-pro", "message": "OK"}
 

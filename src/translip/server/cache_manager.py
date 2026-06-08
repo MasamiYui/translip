@@ -1063,6 +1063,15 @@ _LLM_KEY_PROVIDERS: dict[str, tuple[str, str]] = {
     "deepseek": ("deepseek_api_key", "DEEPSEEK_API_KEY"),
 }
 
+# provider id -> (user-setting key, environment variable name) for the optional
+# API base URL (account-level, e.g. an OpenAI-compatible proxy). Stored next to
+# the key and bridged into the environment the same way, so every consumer
+# (translation backend, arbitration, judge — in-process or subprocess) resolves
+# it via the env var without plumbing it through per-task config.
+_LLM_BASE_URL_PROVIDERS: dict[str, tuple[str, str]] = {
+    "deepseek": ("deepseek_base_url", "DEEPSEEK_BASE_URL"),
+}
+
 
 def llm_key_providers() -> tuple[str, ...]:
     """Return the provider ids that support a configurable API key."""
@@ -1116,14 +1125,47 @@ def set_llm_key(provider: str, value: str | None) -> None:
         os.environ.pop(env_name, None)
 
 
+def read_llm_base_url(provider: str) -> str | None:
+    """Return the saved API base URL override for ``provider``, if any.
+
+    Unlike the key, the saved value (not the env var) is what the UI shows and
+    edits; the env var is just the delivery mechanism to consumers.
+    """
+    spec = _LLM_BASE_URL_PROVIDERS.get(provider)
+    if spec is None:
+        return None
+    stored = read_user_setting(spec[0])
+    return str(stored) if stored else None
+
+
+def set_llm_base_url(provider: str, value: str | None) -> None:
+    """Persist (or clear, when empty) the API base URL override for ``provider``.
+
+    Mirrors :func:`set_llm_key`: the change is reflected in this process's
+    environment immediately, and on clear only a value we bridged ourselves is
+    removed — an operator-exported env var is left untouched.
+    """
+    spec = _LLM_BASE_URL_PROVIDERS.get(provider)
+    if spec is None:
+        raise KeyError(provider)
+    setting_key, env_name = spec
+    prev = read_user_setting(setting_key)
+    cleaned = (value or "").strip().rstrip("/") or None
+    update_user_setting(setting_key, cleaned)
+    if cleaned:
+        os.environ[env_name] = cleaned
+    elif prev is not None and os.environ.get(env_name) == str(prev):
+        os.environ.pop(env_name, None)
+
+
 def apply_llm_keys_to_env() -> None:
-    """Bridge persisted LLM API keys into ``os.environ`` if unset.
+    """Bridge persisted LLM API keys and base URLs into ``os.environ`` if unset.
 
     Mirrors :func:`apply_hf_token_to_env`: the subprocesses (and in-process
-    judge) read ``DEEPSEEK_API_KEY`` only from the environment. No-op for any
-    provider whose env var is already present.
+    judge) read ``DEEPSEEK_API_KEY`` / ``DEEPSEEK_BASE_URL`` only from the
+    environment. No-op for any entry whose env var is already present.
     """
-    for setting_key, env_name in _LLM_KEY_PROVIDERS.values():
+    for setting_key, env_name in (*_LLM_KEY_PROVIDERS.values(), *_LLM_BASE_URL_PROVIDERS.values()):
         if os.environ.get(env_name):
             continue
         stored = read_user_setting(setting_key)

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ChevronDown, RotateCcw } from 'lucide-react'
+import { AlertTriangle, ChevronDown, RotateCcw } from 'lucide-react'
 import { DUBBING_BACKEND_OPTIONS } from '../../lib/dubbingBackends'
 import { useI18n } from '../../i18n/useI18n'
 import type { TaskConfig } from '../../types'
@@ -10,6 +10,10 @@ const FASTER_WHISPER_MODEL_OPTIONS = ['tiny', 'base', 'small', 'medium', 'large-
   value,
   label: value,
 }))
+
+const DEEPSEEK_MODEL_OPTIONS = [
+  { value: 'deepseek-v4-pro', label: 'deepseek-v4-pro' },
+]
 
 const FUNASR_MODEL_OPTIONS = [
   { value: 'paraformer-zh', label: 'Paraformer-zh' },
@@ -59,6 +63,8 @@ export function AdvancedDefaultsSection({
   saved,
   changedKeys,
   defaults,
+  deepseekKeySet,
+  onOpenLlmKeys,
   onPatch,
   onResetGroup,
 }: {
@@ -66,6 +72,8 @@ export function AdvancedDefaultsSection({
   saved: boolean
   changedKeys: Set<string>
   defaults: GlobalConfigDraft
+  deepseekKeySet?: boolean
+  onOpenLlmKeys?: () => void
   onPatch: (patch: GlobalConfigDraft) => void
   onResetGroup: (keys: (keyof GlobalConfigDraft)[]) => void
 }) {
@@ -79,6 +87,11 @@ export function AdvancedDefaultsSection({
     ? String(config.asr_model)
     : asrModelOptions[0].value
   const subtitleMode = config.subtitle_mode ?? 'none'
+  const usesDeepseekTranslation = config.translation_backend === 'deepseek'
+  const llmArbitration = config.transcription_correction?.llm_arbitration ?? 'off'
+  const deepseekModelValue = DEEPSEEK_MODEL_OPTIONS.some(option => option.value === config.deepseek_model)
+    ? String(config.deepseek_model)
+    : DEEPSEEK_MODEL_OPTIONS[0].value
 
   // Stage title/description come from i18n; ADVANCED_GROUPS only carries ids + keys.
   const stageTitle: Record<string, string> = {
@@ -199,9 +212,34 @@ export function AdvancedDefaultsSection({
             <StagePanel
               title={a.stages.transcriptionTitle}
               description={a.stages.transcriptionDesc}
-              advancedCount={6}
+              advancedCount={7}
               advanced={
                 <>
+                  <SettingsSelect
+                    label={a.fields.correction}
+                    dirtyKey="transcription_correction"
+                    value={llmArbitration}
+                    options={[
+                      { value: 'off', label: a.opts.correctionOff },
+                      { value: 'deepseek', label: 'DeepSeek' },
+                    ]}
+                    onChange={value =>
+                      onPatch({
+                        transcription_correction: {
+                          ...(config.transcription_correction ?? {
+                            enabled: true,
+                            preset: 'standard',
+                            ocr_only_policy: 'report_only',
+                            llm_arbitration: 'off',
+                          }),
+                          llm_arbitration: value as 'off' | 'deepseek',
+                        },
+                      })
+                    }
+                  />
+                  {llmArbitration === 'deepseek' && deepseekKeySet === false && (
+                    <MissingKeyHint onOpenLlmKeys={onOpenLlmKeys} />
+                  )}
                   <SettingsField label={a.fields.vad} dirtyKey="vad_filter">
                     <SettingsCheckbox
                       label={a.checks.enableVad}
@@ -353,7 +391,7 @@ export function AdvancedDefaultsSection({
             <StagePanel
               title={a.stages.translationTitle}
               description={a.stages.translationDesc}
-              advancedCount={4}
+              advancedCount={usesDeepseekTranslation ? 2 : 1}
               advanced={
                 <>
                   <SettingsNumber
@@ -364,42 +402,15 @@ export function AdvancedDefaultsSection({
                     step={1}
                     onChange={value => onPatch({ translation_batch_size: value })}
                   />
-                  <SettingsText
-                    label={a.fields.deepseekModel}
-                    dirtyKey="deepseek_model"
-                    value={config.deepseek_model ?? ''}
-                    placeholder="deepseek-v4-pro"
-                    onChange={value => onPatch({ deepseek_model: value || null })}
-                  />
-                  <SettingsText
-                    label={a.fields.deepseekBaseUrl}
-                    dirtyKey="deepseek_base_url"
-                    value={config.deepseek_base_url ?? ''}
-                    placeholder="https://api.deepseek.com"
-                    onChange={value => onPatch({ deepseek_base_url: value || null })}
-                  />
-                  <SettingsSelect
-                    label={a.fields.correction}
-                    dirtyKey="transcription_correction"
-                    value={config.transcription_correction?.llm_arbitration ?? 'off'}
-                    options={[
-                      { value: 'off', label: a.opts.correctionOff },
-                      { value: 'deepseek', label: 'DeepSeek V4 Pro' },
-                    ]}
-                    onChange={value =>
-                      onPatch({
-                        transcription_correction: {
-                          ...(config.transcription_correction ?? {
-                            enabled: true,
-                            preset: 'standard',
-                            ocr_only_policy: 'report_only',
-                            llm_arbitration: 'off',
-                          }),
-                          llm_arbitration: value as 'off' | 'deepseek',
-                        },
-                      })
-                    }
-                  />
+                  {usesDeepseekTranslation && (
+                    <SettingsSelect
+                      label={a.fields.deepseekModel}
+                      dirtyKey="deepseek_model"
+                      value={deepseekModelValue}
+                      options={DEEPSEEK_MODEL_OPTIONS}
+                      onChange={value => onPatch({ deepseek_model: value })}
+                    />
+                  )}
                 </>
               }
               {...stageProps('translation')}
@@ -425,6 +436,9 @@ export function AdvancedDefaultsSection({
                 ]}
                 onChange={value => onPatch({ condense_mode: value })}
               />
+              {usesDeepseekTranslation && deepseekKeySet === false && (
+                <MissingKeyHint onOpenLlmKeys={onOpenLlmKeys} />
+              )}
             </StagePanel>
 
             <StagePanel
@@ -743,6 +757,28 @@ function AdvancedReveal({ count, children }: { count: number; children?: ReactNo
         {open ? t.settings.advanced.advancedHide : t.settings.advanced.advancedShow(count)}
       </button>
       <div className={open ? 'mt-3 grid gap-4 md:grid-cols-2' : 'hidden'}>{children}</div>
+    </div>
+  )
+}
+
+/** Inline warning shown when a DeepSeek-backed option is on but no key is saved. */
+function MissingKeyHint({ onOpenLlmKeys }: { onOpenLlmKeys?: () => void }) {
+  const { t } = useI18n()
+  return (
+    <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 md:col-span-2">
+      <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+      <span>
+        {t.settings.advanced.deepseekKeyMissing}{' '}
+        {onOpenLlmKeys && (
+          <button
+            type="button"
+            onClick={onOpenLlmKeys}
+            className="font-medium text-amber-800 underline underline-offset-2 hover:text-amber-900"
+          >
+            {t.settings.advanced.deepseekKeyMissingAction}
+          </button>
+        )}
+      </span>
     </div>
   )
 }

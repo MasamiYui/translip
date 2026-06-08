@@ -59,6 +59,9 @@ def startup_event():
     init_db()
     job_manager.mark_interrupted_jobs()
     mark_interrupted_tasks()
+    from .routes.config import migrate_deepseek_base_url_to_user_settings
+
+    migrate_deepseek_base_url_to_user_settings()
     cache_manager.apply_hf_token_to_env()
     cache_manager.apply_llm_keys_to_env()
     logger.info("Database initialized")

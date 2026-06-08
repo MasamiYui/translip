@@ -133,7 +133,7 @@ class TaskConfigInput(BaseModel):
     translation_backend: str = Field(default="local-m2m100", description="翻译后端：local-m2m100 或 deepseek")
     translation_glossary: Optional[str] = Field(default=None, description="翻译术语表（glossary）路径")
     translation_batch_size: int = Field(default=4, gt=0, description="翻译批处理大小")
-    deepseek_base_url: Optional[str] = Field(default=None, description="deepseek 后端的 API 基础地址")
+    deepseek_base_url: Optional[str] = Field(default=None, description="deepseek 后端 API 基地址的单任务覆盖；通常留空，使用「常规 → 大模型密钥」中保存的账号级地址")
     deepseek_model: Optional[str] = Field(default=None, description="deepseek 后端使用的模型名")
     condense_mode: str = Field(default="smart", description="译文精简模式，off 为不精简，smart 仅精简超时段落")
     # Task D

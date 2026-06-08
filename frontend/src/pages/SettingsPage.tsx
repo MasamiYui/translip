@@ -53,6 +53,7 @@ const defaultGlobalConfig: GlobalConfigDraft = {
   translation_backend: 'local-m2m100',
   translation_batch_size: 4,
   condense_mode: 'smart',
+  deepseek_model: null,
   transcription_correction: { enabled: true, preset: 'standard', ocr_only_policy: 'report_only', llm_arbitration: 'off' },
   tts_backend: 'moss-tts-nano-onnx',
   dubbing_quality_check: 'standard',
@@ -218,19 +219,37 @@ export function SettingsPage() {
   const [llmKeyInputs, setLlmKeyInputs] = useState<Record<string, string>>({
     deepseek: '',
   })
+  // Base URL inputs mirror the saved value (account-level, e.g. a compatible
+  // proxy); null means "not loaded into the input yet".
+  const [llmBaseUrlInputs, setLlmBaseUrlInputs] = useState<Record<string, string | null>>({
+    deepseek: null,
+  })
   const [llmTestResult, setLlmTestResult] = useState<
     Record<string, { ok: boolean; message: string } | null>
   >({ deepseek: null })
   const saveLlmKeyMutation = useMutation({
-    mutationFn: (provider: string) => systemApi.saveLlmKey(provider, llmKeyInputs[provider] ?? ''),
+    mutationFn: (provider: string) => {
+      const update: { api_key?: string; base_url?: string } = {}
+      if (llmKeyInputs[provider]) update.api_key = llmKeyInputs[provider]
+      const baseUrlInput = llmBaseUrlInputs[provider]
+      if (baseUrlInput !== null && baseUrlInput !== (llmKeys?.base_urls?.[provider] ?? '')) {
+        update.base_url = baseUrlInput
+      }
+      return systemApi.saveLlmKey(provider, update)
+    },
     onSuccess: (_data, provider) => {
       setLlmKeyInputs(prev => ({ ...prev, [provider]: '' }))
+      setLlmBaseUrlInputs(prev => ({ ...prev, [provider]: null }))
       queryClient.invalidateQueries({ queryKey: ['llm-keys'] })
     },
   })
   const testLlmKeyMutation = useMutation({
     mutationFn: (provider: string) =>
-      systemApi.testLlmKey(provider, llmKeyInputs[provider] || undefined),
+      systemApi.testLlmKey(
+        provider,
+        llmKeyInputs[provider] || undefined,
+        llmBaseUrlInputs[provider] || undefined,
+      ),
     onSuccess: (data, provider) =>
       setLlmTestResult(prev => ({ ...prev, [provider]: { ok: data.ok, message: data.message } })),
     onError: (_err, provider) =>
@@ -587,6 +606,10 @@ export function SettingsPage() {
             ] as const).map(provider => {
               const isSet = llmKeys?.providers?.[provider.id] ?? false
               const input = llmKeyInputs[provider.id] ?? ''
+              const savedBaseUrl = llmKeys?.base_urls?.[provider.id] ?? ''
+              const baseUrlInput = llmBaseUrlInputs[provider.id] ?? savedBaseUrl
+              const baseUrlChanged =
+                llmBaseUrlInputs[provider.id] !== null && baseUrlInput !== savedBaseUrl
               const result = llmTestResult[provider.id]
               const saving =
                 saveLlmKeyMutation.isPending && saveLlmKeyMutation.variables === provider.id
@@ -609,8 +632,12 @@ export function SettingsPage() {
                     )}
                   </div>
 
+                  <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                    {t.settings.llmKeys.apiKey}
+                  </label>
                   <input
                     type="password"
+                    aria-label={`${provider.label} ${t.settings.llmKeys.apiKey}`}
                     value={input}
                     onChange={e =>
                       setLlmKeyInputs(prev => ({ ...prev, [provider.id]: e.target.value }))
@@ -622,10 +649,25 @@ export function SettingsPage() {
                     <p className="mt-1 text-xs text-slate-500">{t.settings.llmKeys.savedHint}</p>
                   )}
 
+                  <label className="mb-1.5 mt-3 block text-sm font-medium text-slate-700">
+                    {t.settings.llmKeys.baseUrl}
+                  </label>
+                  <input
+                    type="text"
+                    aria-label={`${provider.label} ${t.settings.llmKeys.baseUrl}`}
+                    value={baseUrlInput}
+                    onChange={e =>
+                      setLlmBaseUrlInputs(prev => ({ ...prev, [provider.id]: e.target.value }))
+                    }
+                    placeholder="https://api.deepseek.com"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  />
+                  <p className="mt-1 text-xs text-slate-500">{t.settings.llmKeys.baseUrlHint}</p>
+
                   <div className="mt-3 flex items-center gap-3">
                     <button
                       onClick={() => saveLlmKeyMutation.mutate(provider.id)}
-                      disabled={saving || !input}
+                      disabled={saving || (!input && !baseUrlChanged)}
                       className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Save size={16} />
@@ -774,6 +816,11 @@ export function SettingsPage() {
             saved={saveGlobalStatus === 'saved'}
             changedKeys={changedKeys}
             defaults={defaultGlobalConfig}
+            deepseekKeySet={llmKeys ? Boolean(llmKeys.providers?.deepseek) : undefined}
+            onOpenLlmKeys={() => {
+              setActiveSection('global')
+              setActiveGeneralSection('keys')
+            }}
             onPatch={patchGlobalConfig}
             onResetGroup={resetGroupDefaults}
           />

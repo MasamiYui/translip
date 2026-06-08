@@ -15,6 +15,7 @@ export const ADVANCED_GROUPS: { id: string; title: string; keys: (keyof GlobalCo
       'enable_diarization',
       'diarizer_backend',
       'generate_srt',
+      'transcription_correction',
       'vad_filter',
       'vad_min_silence_duration_ms',
       'beam_size',
@@ -43,7 +44,7 @@ export const ADVANCED_GROUPS: { id: string; title: string; keys: (keyof GlobalCo
   {
     id: 'translation',
     title: '翻译',
-    keys: ['translation_backend', 'translation_batch_size', 'condense_mode', 'deepseek_model', 'deepseek_base_url', 'transcription_correction'],
+    keys: ['translation_backend', 'translation_batch_size', 'condense_mode', 'deepseek_model'],
   },
   {
     id: 'dubbing',

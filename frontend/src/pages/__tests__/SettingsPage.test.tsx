@@ -28,6 +28,14 @@ vi.mock('../../api/config', () => ({
         models: [],
       }),
     ),
+    getHfToken: vi.fn(() => Promise.resolve({ ok: true, hf_token_set: false })),
+    getLlmKeys: vi.fn(() =>
+      Promise.resolve({ ok: true, providers: { deepseek: true }, base_urls: { deepseek: null } }),
+    ),
+    saveLlmKey: vi.fn(),
+    testLlmKey: vi.fn(),
+    saveHfToken: vi.fn(),
+    testHfToken: vi.fn(),
   },
   modelsApi: {
     downloadMissing: vi.fn(),
@@ -256,22 +264,32 @@ describe('SettingsPage global and advanced settings', () => {
     render(<SettingsPage />, { wrapper: createWrapper() })
     fireEvent.click(await screen.findByRole('button', { name: '任务默认参数' }))
 
-    const deepseekModel = screen.getByLabelText('DeepSeek 模型')
     const dubbingWorkers = screen.getByLabelText('配音并发数')
-    expect(deepseekModel).toHaveValue('deepseek-v4-pro')
     expect(dubbingWorkers).toHaveValue(2)
 
-    fireEvent.change(deepseekModel, { target: { value: '' } })
     fireEvent.change(dubbingWorkers, { target: { value: '' } })
     fireEvent.click(screen.getByRole('button', { name: '保存默认参数' }))
 
     await waitFor(() => {
       expect(configApi.updateGlobal).toHaveBeenCalledWith(
         expect.objectContaining({
-          deepseek_model: null,
           dubbing_workers: null,
         }),
       )
     })
+  })
+
+  it('renders the DeepSeek model as a dropdown only for the deepseek backend', async () => {
+    render(<SettingsPage />, { wrapper: createWrapper() })
+    fireEvent.click(await screen.findByRole('button', { name: '任务默认参数' }))
+
+    // Saved backend is deepseek → the model select is rendered with options.
+    const deepseekModel = screen.getByLabelText('DeepSeek 模型')
+    expect(deepseekModel.tagName).toBe('SELECT')
+    expect(within(deepseekModel).getByRole('option', { name: 'deepseek-v4-pro' })).toBeInTheDocument()
+
+    // Switching to the local backend removes the DeepSeek-only field.
+    fireEvent.change(screen.getByLabelText('翻译后端'), { target: { value: 'local-m2m100' } })
+    expect(screen.queryByLabelText('DeepSeek 模型')).not.toBeInTheDocument()
   })
 })

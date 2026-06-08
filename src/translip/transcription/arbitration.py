@@ -15,9 +15,9 @@ import json
 import os
 import urllib.error
 import urllib.request
-from typing import Any
+from typing import Any, Callable
 
-from ..config import DEFAULT_DEEPSEEK_BASE_URL, DEFAULT_DEEPSEEK_MODEL
+from ..config import DEFAULT_DEEPSEEK_MODEL, resolve_deepseek_base_url
 from ..exceptions import BackendUnavailableError
 from ..translation.llm_utils import extract_message_content, parse_json_payload
 from .ocr_correction import ArbitrationRequest, ArbitrationVerdict
@@ -39,12 +39,14 @@ _SYSTEM_PROMPT = (
 class _Provider:
     name: str
     api_key_env: str
-    base_url: str
+    # Resolved at call time (not import time) so a base URL saved through the
+    # settings UI and bridged into the environment takes effect immediately.
+    resolve_base_url: Callable[[], str]
     model_name: str
 
 
 _PROVIDERS: dict[str, _Provider] = {
-    "deepseek": _Provider("DeepSeek", "DEEPSEEK_API_KEY", DEFAULT_DEEPSEEK_BASE_URL, DEFAULT_DEEPSEEK_MODEL),
+    "deepseek": _Provider("DeepSeek", "DEEPSEEK_API_KEY", resolve_deepseek_base_url, DEFAULT_DEEPSEEK_MODEL),
 }
 
 
@@ -56,6 +58,7 @@ class ChatArbitrator:
         provider: _Provider,
         *,
         api_key: str | None = None,
+        base_url: str | None = None,
         timeout_sec: int = 60,
         max_retries: int = 2,
     ) -> None:
@@ -65,7 +68,7 @@ class ChatArbitrator:
             raise BackendUnavailableError(
                 f"Missing {provider.name} API key. Set {provider.api_key_env}."
             )
-        self.base_url = provider.base_url.rstrip("/")
+        self.base_url = (base_url or provider.resolve_base_url()).rstrip("/")
         self.model_name = provider.model_name
         self.timeout_sec = timeout_sec
         self.max_retries = max_retries
@@ -140,7 +143,9 @@ def make_arbitrator(mode: str, **kwargs: Any) -> ChatArbitrator:
     return ChatArbitrator(provider, **kwargs)
 
 
-def test_provider(mode: str, *, api_key: str | None = None, timeout_sec: int = 20) -> dict[str, Any]:
+def test_provider(
+    mode: str, *, api_key: str | None = None, base_url: str | None = None, timeout_sec: int = 20
+) -> dict[str, Any]:
     """Lightweight connectivity/auth check for an arbitration provider.
 
     Returns ``{"ok": bool, "model": str, "message": str}``. Never raises for
@@ -158,7 +163,7 @@ def test_provider(mode: str, *, api_key: str | None = None, timeout_sec: int = 2
             "message": f"Missing API key. Set {provider.api_key_env}.",
         }
     try:
-        ChatArbitrator(provider, api_key=key, timeout_sec=timeout_sec, max_retries=0).ping()
+        ChatArbitrator(provider, api_key=key, base_url=base_url, timeout_sec=timeout_sec, max_retries=0).ping()
         return {"ok": True, "model": provider.model_name, "message": "OK"}
     except urllib.error.HTTPError as exc:
         try:

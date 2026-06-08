@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from ..config import DEFAULT_DEEPSEEK_BASE_URL, DEFAULT_DEEPSEEK_MODEL
+from ..config import DEFAULT_DEEPSEEK_MODEL, resolve_deepseek_base_url
 from ..exceptions import BackendUnavailableError
 from ..pipeline.manifest import now_iso
 from ..translation.backend import canonical_language_code
@@ -73,7 +73,7 @@ class TranslationJudge:
             raise BackendUnavailableError(
                 "Missing DeepSeek API key. Set DEEPSEEK_API_KEY to enable translation judging."
             )
-        self.base_url = (base_url or DEFAULT_DEEPSEEK_BASE_URL).rstrip("/")
+        self.base_url = (base_url or resolve_deepseek_base_url()).rstrip("/")
         self.model_name = model_name or DEFAULT_DEEPSEEK_MODEL
         self.timeout_sec = timeout_sec
         self.max_retries = max_retries

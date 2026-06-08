@@ -50,20 +50,25 @@ export const systemApi = {
       .then(r => r.data),
   getLlmKeys: () =>
     api
-      .get<{ ok: boolean; providers: Record<string, boolean> }>('/api/system/llm-keys')
+      .get<{
+        ok: boolean
+        providers: Record<string, boolean>
+        base_urls: Record<string, string | null>
+      }>('/api/system/llm-keys')
       .then(r => r.data),
-  saveLlmKey: (provider: string, api_key: string) =>
+  // Only submitted fields take effect (empty string clears); omit to keep as-is.
+  saveLlmKey: (provider: string, update: { api_key?: string; base_url?: string }) =>
     api
-      .post<{ ok: boolean; provider: string; set: boolean }>('/api/system/llm-keys', {
-        provider,
-        api_key,
-      })
+      .post<{ ok: boolean; provider: string; set: boolean; base_url: string | null }>(
+        '/api/system/llm-keys',
+        { provider, ...update },
+      )
       .then(r => r.data),
-  testLlmKey: (provider: string, api_key?: string) =>
+  testLlmKey: (provider: string, api_key?: string, base_url?: string) =>
     api
       .post<{ ok: boolean; provider: string; model: string; message: string }>(
         '/api/system/llm-keys/test',
-        { provider, api_key },
+        { provider, api_key, base_url },
       )
       .then(r => r.data),
 }

@@ -4,7 +4,7 @@ import json
 import os
 from typing import Any
 
-from ..config import DEFAULT_DEEPSEEK_BASE_URL, DEFAULT_DEEPSEEK_MODEL
+from ..config import DEFAULT_DEEPSEEK_MODEL, resolve_deepseek_base_url
 from ..exceptions import BackendUnavailableError
 from .backend import (
     BackendSegmentInput,
@@ -32,7 +32,7 @@ class DeepSeekBackend:
         self.api_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
         if not self.api_key:
             raise BackendUnavailableError("Missing DeepSeek API key. Set DEEPSEEK_API_KEY.")
-        self.base_url = (base_url or DEFAULT_DEEPSEEK_BASE_URL).rstrip("/")
+        self.base_url = (base_url or resolve_deepseek_base_url()).rstrip("/")
         self.model_name = model_name or DEFAULT_DEEPSEEK_MODEL
         self.timeout_sec = timeout_sec
         self.max_retries = max_retries

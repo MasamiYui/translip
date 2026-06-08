@@ -50,7 +50,6 @@ _DEFAULT_CONFIG = {
     "ocr_extraction_mode": "conservative",
     "translation_backend": "local-m2m100",
     "translation_batch_size": 4,
-    "deepseek_base_url": None,
     "deepseek_model": None,
     "condense_mode": "smart",
     "transcription_correction": {"enabled": True, "preset": "standard", "ocr_only_policy": "report_only", "llm_arbitration": "off"},
@@ -126,7 +125,32 @@ def _load_global_config() -> dict[str, Any]:
     saved_global = config.get("global", {})
     if not isinstance(saved_global, dict):
         saved_global = {}
-    return {**_DEFAULT_CONFIG, **saved_global}
+    merged = {**_DEFAULT_CONFIG, **saved_global}
+    # Dropped from task defaults (now an account-level setting next to the API
+    # key); tolerate stale saved configs that still carry it.
+    merged.pop("deepseek_base_url", None)
+    return merged
+
+
+def migrate_deepseek_base_url_to_user_settings() -> None:
+    """One-time migration: move ``global.deepseek_base_url`` to user settings.
+
+    The DeepSeek API base URL used to live in the task-default config; it is now
+    an account-level setting stored next to the API key (see
+    ``cache_manager.set_llm_base_url``). Runs at server startup; a no-op once the
+    old key is gone. An already-saved user-setting value wins over the old one.
+    """
+    config = _load_config()
+    saved_global = config.get("global")
+    if not isinstance(saved_global, dict) or "deepseek_base_url" not in saved_global:
+        return
+    from .. import cache_manager
+
+    old_value = saved_global.pop("deepseek_base_url", None)
+    if old_value and not cache_manager.read_llm_base_url("deepseek"):
+        cache_manager.set_llm_base_url("deepseek", str(old_value))
+    config["global"] = saved_global
+    _save_config(config)
 
 
 @router.get("/defaults", summary="默认全局配置")
@@ -162,7 +186,6 @@ class GlobalConfigRequest(BaseModel):
     ocr_extraction_mode: Optional[str] = Field(default=None, description="OCR 字幕提取模式，如 conservative")
     translation_backend: Optional[str] = Field(default=None, description="task-c 翻译后端，如 local-m2m100/deepseek")
     translation_batch_size: Optional[int] = Field(default=None, description="翻译批处理大小，需大于 0")
-    deepseek_base_url: Optional[str] = Field(default=None, description="deepseek 翻译后端的 API 基地址")
     deepseek_model: Optional[str] = Field(default=None, description="deepseek 翻译后端使用的模型名")
     condense_mode: Optional[str] = Field(default=None, description="文本精简模式，如 off")
     transcription_correction: Optional[dict] = Field(default=None, description="转写纠错配置（启用开关、预设、OCR 仅报告策略、LLM 仲裁等）")

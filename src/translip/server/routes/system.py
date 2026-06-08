@@ -66,13 +66,15 @@ class HfTokenTestRequest(BaseModel):
 
 class LlmKeyRequest(BaseModel):
     provider: str = Field(description="大模型服务商标识，如 deepseek")
-    api_key: str | None = Field(default=None, description="要保存的 API 密钥；为空则清除该服务商已保存的密钥")
+    api_key: str | None = Field(default=None, description="要保存的 API 密钥；为空则清除该服务商已保存的密钥；不提交该字段则保持原值")
+    base_url: str | None = Field(default=None, description="要保存的 API 基地址（如兼容代理）；为空则清除恢复官方地址；不提交该字段则保持原值")
 
 
 class LlmKeyTestRequest(BaseModel):
     provider: str = Field(description="大模型服务商标识，如 deepseek")
     # Optional: test a not-yet-saved key. Falls back to the saved/env key when omitted.
     api_key: str | None = Field(default=None, description="待校验的 API 密钥；留空则回退到已保存或环境变量中的密钥")
+    base_url: str | None = Field(default=None, description="待校验的 API 基地址；留空则回退到已保存或环境变量中的地址")
 
 
 # ---------------------------------------------------------------------------
@@ -453,31 +455,43 @@ def test_hf_token(body: HfTokenTestRequest):
 
 @router.get("/llm-keys", summary="仲裁密钥状态")
 def get_llm_keys():
-    """返回各大模型仲裁服务商（用于转写校正）是否已配置 API 密钥（不返回密钥明文）。"""
+    """返回各大模型服务商是否已配置 API 密钥（不返回密钥明文），以及已保存的 API 基地址覆盖值（未覆盖时为 null，使用官方地址）。"""
+    providers = cache_manager.llm_key_providers()
     return {
         "ok": True,
-        "providers": {p: cache_manager.llm_key_is_set(p) for p in cache_manager.llm_key_providers()},
+        "providers": {p: cache_manager.llm_key_is_set(p) for p in providers},
+        "base_urls": {p: cache_manager.read_llm_base_url(p) for p in providers},
     }
 
 
 @router.post("/llm-keys", summary="保存仲裁密钥")
 def save_llm_key(body: LlmKeyRequest):
-    """保存（或在为空时清除）指定仲裁服务商的 API 密钥；服务商未知返回 400。"""
+    """保存指定服务商的 API 密钥和/或 API 基地址：仅提交的字段生效，值为空表示清除；服务商未知返回 400。"""
     if body.provider not in cache_manager.llm_key_providers():
         raise HTTPException(status_code=400, detail="unknown_provider")
-    cache_manager.set_llm_key(body.provider, body.api_key)
-    return {"ok": True, "provider": body.provider, "set": cache_manager.llm_key_is_set(body.provider)}
+    submitted = body.model_dump(exclude_unset=True)
+    if "api_key" in submitted:
+        cache_manager.set_llm_key(body.provider, body.api_key)
+    if "base_url" in submitted:
+        cache_manager.set_llm_base_url(body.provider, body.base_url)
+    return {
+        "ok": True,
+        "provider": body.provider,
+        "set": cache_manager.llm_key_is_set(body.provider),
+        "base_url": cache_manager.read_llm_base_url(body.provider),
+    }
 
 
 @router.post("/llm-keys/test", summary="校验仲裁密钥")
 def test_llm_key(body: LlmKeyTestRequest):
-    """对指定仲裁服务商端点做一次轻量的鉴权/连通性校验；服务商未知返回 400。"""
+    """对指定服务商端点做一次轻量的鉴权/连通性校验（可传入未保存的密钥/基地址试连）；服务商未知返回 400。"""
     if body.provider not in cache_manager.llm_key_providers():
         raise HTTPException(status_code=400, detail="unknown_provider")
     from ...transcription.arbitration import test_provider
 
     key = (body.api_key or "").strip() or cache_manager.read_llm_key(body.provider)
-    result = test_provider(body.provider, api_key=key)
+    base_url = (body.base_url or "").strip() or cache_manager.read_llm_base_url(body.provider)
+    result = test_provider(body.provider, api_key=key, base_url=base_url)
     return {
         "ok": bool(result.get("ok")),
         "provider": body.provider,
