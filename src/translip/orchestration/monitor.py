@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -41,10 +42,18 @@ class PipelineMonitor:
         write_status: bool = True,
         item_order: list[str] | None = None,
         item_weights: dict[str, float] | None = None,
+        status_update_interval_sec: float = 0.0,
     ) -> None:
         self.job_id = job_id
         self.status_path = status_path
         self.write_status = write_status
+        # Throttle intermediate "running" progress writes to at most one per
+        # interval to cut disk churn; 0 disables throttling. Status transitions
+        # (start/complete/fail/finalize) always force a write, so the terminal
+        # state is never lost (ARCH-10 / wires the previously dead field).
+        self._status_update_interval_sec = max(0.0, float(status_update_interval_sec))
+        self._last_write_monotonic = 0.0
+        self._write_count = 0
         self._stages: dict[str, _StageState] = {}
         self._pipeline_status = "pending"
         self._current_stage: str | None = None
@@ -61,7 +70,7 @@ class PipelineMonitor:
             current_step=current_step,
             updated_at=_now_iso(),
         )
-        self._write()
+        self._write(force=True)
 
     def update_stage_progress(
         self,
@@ -89,7 +98,8 @@ class PipelineMonitor:
         if status == "running":
             self._current_stage = stage_name
             self._pipeline_status = "running"
-        self._write()
+        # Terminal stage states always persist; only intermediate progress throttles.
+        self._write(force=status != "running")
 
     def complete_stage(self, stage_name: str, *, status: str = "succeeded", current_step: str = "completed") -> None:
         self.update_stage_progress(stage_name, 100.0, current_step, status=status)
@@ -106,11 +116,11 @@ class PipelineMonitor:
         self.update_stage_progress(stage_name, progress_percent, error, status="failed")
         self._pipeline_status = pipeline_status
         self._current_stage = stage_name
-        self._write()
+        self._write(force=True)
 
     def finalize(self, *, status: str) -> None:
         self._pipeline_status = status
-        self._write()
+        self._write(force=True)
 
     def _overall_progress(self) -> float:
         total = 0.0
@@ -134,14 +144,20 @@ class PipelineMonitor:
             "nodes": nodes,
         }
 
-    def _write(self) -> None:
+    def _write(self, *, force: bool = False) -> None:
         if not self.write_status:
             return
+        now = time.monotonic()
+        if not force and self._status_update_interval_sec > 0:
+            if now - self._last_write_monotonic < self._status_update_interval_sec:
+                return  # throttled — a later forced/timed write will catch up
+        self._last_write_monotonic = now
         ensure_directory(self.status_path.parent)
         self.status_path.write_text(
             json.dumps(self.payload(), ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
+        self._write_count += 1
 
 
 __all__ = ["PipelineMonitor"]

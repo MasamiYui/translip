@@ -160,7 +160,9 @@
 
 ### ARCH-10 — 进度双轮询 + SSE 假 timeout ｜ DONE（假 timeout+心跳；pub/sub 留子项）｜ 性能/产品 ｜ S–M ｜ ✅已核实
 > 已修核心 bug：`stream_progress` 去掉 **300s 硬上限**（>5min 长任务不再报假 `timeout`）——改为**循环到终态**，且终态判定以**DB 行为权威**（`_sync_status_to_db` 保持其最新，故 JSON 停更/缺失也能正确结束）；无变化时每 `heartbeat_sec` 发 `: keepalive` SSE 注释**保活**（防 idle 代理掐断）；Starlette 在客户端断开时取消生成器，故无界循环安全。加 `interval`/`heartbeat_sec` 参数便于快测。加 4 测试（DB 终态退出无 timeout、JSON 进度+done、running 心跳、not-found）。全量 633 passed。
-> ⏸ **余项**：彻底消除"双 reader"（SSE 仍读 JSON 取富 per-stage 数据，DB 只作终态权威）+ 把 `PipelineMonitor` 改进程内 pub/sub（免每 tick 全量重写/重读 JSON）——较大重构，留 TODO。
+> 🔌 **ARCH-10b 接线死字段 + 降 churn**（2026-06）：审计 `PipelineRequest` 字段发现 `status_update_interval_sec` **被 set 从不 read**（monitor 每次 update 全量重写 JSON，正是上面的 churn 源）。`PipelineMonitor` 加 `status_update_interval_sec` 参数（默认 0.0=不节流，向后兼容）+ `_write(force)`：**running 中间进度节流**到每 interval 一次、**transition/terminal（start/complete/fail/finalize）强制写**（终态永不丢）；run_pipeline 传 `request.status_update_interval_sec`(默认 2s)。加 `_write_count` 可观测 + 4 测试（不节流每次写/大 interval 节流 running/终态强制写且文件反映终态/fail+finalize 强制）。全量 659 passed。
+> ⏸ **余项**：彻底消除"双 reader"（SSE 仍读 JSON 取富 per-stage 数据，DB 只作终态权威）+ 把 `PipelineMonitor` 改进程内 pub/sub——较大重构，留 TODO。
+> 🔎 **同次审计未修的 unwired 字段**（需产品判断，未动）：`resume`（`--resume` 设它但 run_pipeline 只读 `reuse_existing`，redundant 死 flag）；`keep_logs`（set 不 read——但删日志与 UI-5 日志查看端点冲突 + 失败时丢诊断）；`config_path`（无加载方）。建议另开工单决定 wire/删除。
 - **现状**：每任务 `_sync_status_to_db` 3s（`task_manager.py:315`）+ `stream_progress` 独立 1.5s（`:445`）重读同一 JSON；`monitor._write()` 每 tick 全量重写 JSON；SSE `max_wait=300`（`:440`）让 >5 分钟任务报假 timeout。
 - **方案**：SSE 改读已同步的 DB 行（消除重复 reader）；去掉/心跳化 300s 上限；长期把 `PipelineMonitor` 改进程内 pub/sub。
 - **验收**：长任务不再断流；磁盘读减少。

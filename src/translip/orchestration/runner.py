@@ -855,6 +855,7 @@ def run_pipeline(
         write_status=request.write_status,
         item_order=node_names,
         item_weights=_node_weights(node_names),
+        status_update_interval_sec=request.status_update_interval_sec,
     )
     previous_cache_keys = _previous_stage_cache_keys(request.output_root) if request.reuse_existing else {}
     force_stages = {stage for stage in (request.force_stages or [])}
