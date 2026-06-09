@@ -427,7 +427,7 @@ export function TaskDetailPage() {
           )}
           <div className="mt-5 grid gap-x-8 gap-y-3 md:grid-cols-2 xl:grid-cols-5">
             <MetaItem
-              label={t.workflow.runtimeTitle}
+              label={t.common.elapsed}
               value={
                 task.status === 'running'
                   ? t.taskDetail.runningFor(formatDuration(task.elapsed_sec))
@@ -435,10 +435,10 @@ export function TaskDetailPage() {
               }
             />
             <MetaItem label={t.newTask.summary.direction} value={`${getLanguageLabel(task.source_lang)} → ${getLanguageLabel(task.target_lang)}`} />
-            <MetaItem label="成品目标" value={getOutputIntentLabel(task.output_intent, locale)} />
-            <MetaItem label="质量档位" value={getQualityPresetLabel(task.quality_preset, locale)} />
+            <MetaItem label={t.taskDetail.outputGoalLabel} value={getOutputIntentLabel(task.output_intent, locale)} />
+            <MetaItem label={t.taskDetail.qualityPresetLabel} value={getQualityPresetLabel(task.quality_preset, locale)} />
             <MetaItem
-              label={t.taskDetail.currentStage('')}
+              label={t.taskDetail.currentStageLabel}
               value={task.current_stage ? getStageLabel(task.current_stage as keyof typeof t.stages) : t.common.notAvailable}
             />
           </div>
