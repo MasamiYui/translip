@@ -43,6 +43,7 @@ const zhMessages = {
     layoutModeTop: '切换到顶部菜单',
     openMobileMenu: '打开导航菜单',
     closeMobileMenu: '关闭导航菜单',
+    moreMenu: '更多',
   },
   blog: {
     title: '博客',
@@ -1836,6 +1837,7 @@ const enMessages: LocaleMessages = {
     layoutModeTop: 'Switch to top menu',
     openMobileMenu: 'Open navigation menu',
     closeMobileMenu: 'Close navigation menu',
+    moreMenu: 'More',
   },
   blog: {
     title: 'Blog',

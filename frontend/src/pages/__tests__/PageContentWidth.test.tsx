@@ -111,7 +111,7 @@ function createWrapper(initialEntries = ['/']) {
 describe('page content widths', () => {
   it('keeps task list aligned with the dashboard content width', () => {
     const { container } = render(<TaskListPage />, { wrapper: createWrapper() })
-    const taskListPanel = container.querySelector('.overflow-hidden.rounded-xl.bg-white')
+    const taskListPanel = container.querySelector('.rounded-xl.bg-white')
 
     expect(screen.getByRole('heading', { name: '任务列表' })).toBeInTheDocument()
     expect(container.firstChild).toHaveClass(APP_CONTENT_MAX_WIDTH)

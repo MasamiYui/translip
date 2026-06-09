@@ -72,9 +72,12 @@ export function MainLayout() {
   const openMobileNav = useCallback(() => setMobileNavOpen(true), [])
   const closeMobileNav = useCallback(() => setMobileNavOpen(false), [])
 
-  // Auto-close mobile drawer on route change.
+  // Auto-close mobile drawer on route change. Safety net in case a navigation
+  // bypasses the in-drawer click delegation. Rule disabled: this synchronization
+  // is intentional and unavoidable — closing must follow router pathname updates.
   useEffect(() => {
-    setMobileNavOpen(false)
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMobileNavOpen((prev) => (prev ? false : prev))
   }, [pathname])
 
   // ESC closes mobile drawer + lock body scroll while open.
