@@ -541,6 +541,8 @@ const zhMessages = {
       previous: '上一步',
       next: '下一步',
       start: '开始执行',
+      createTask: '创建任务',
+      creatingTask: '正在创建任务…',
     },
     filePicker: {
       title: '选择输入视频',
@@ -2323,6 +2325,8 @@ const enMessages: LocaleMessages = {
       previous: 'Previous',
       next: 'Next',
       start: 'Start Run',
+      createTask: 'Create Task',
+      creatingTask: 'Creating task…',
     },
     filePicker: {
       title: 'Select input video',

@@ -640,7 +640,11 @@ export function NewTaskPage() {
         ? applyGlobalDefaults(config, defaultsForSubmit)
         : config
     createMutation.mutate({
-      name: name || `任务-${new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}`,
+      name:
+        name ||
+        t.newTask.generatedTaskName(
+          new Date().toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' }),
+        ),
       input_path: inputPath,
       source_lang: sourceLang,
       target_lang: targetLang,
@@ -1225,10 +1229,11 @@ export function NewTaskPage() {
               type="button"
               onClick={handleSubmit}
               disabled={createMutation.isPending || !inputPath}
-              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              aria-busy={createMutation.isPending}
+              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {createMutation.isPending ? <Loader2 size={16} className="animate-spin" /> : <Cpu size={16} />}
-              {locale === 'zh-CN' ? '创建任务' : 'Create Task'}
+              {createMutation.isPending ? t.newTask.actions.creatingTask : t.newTask.actions.createTask}
             </button>
           )}
         </div>
