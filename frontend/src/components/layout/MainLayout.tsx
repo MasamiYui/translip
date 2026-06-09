@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useState, type CSSProperties } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
+import { Menu } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { TopNav } from './TopNav'
 import { useTaskNotifications } from '../../hooks/useTaskNotifications'
+import { useI18n } from '../../i18n/useI18n'
 
 const SIDEBAR_STORAGE_KEY = 'translip:sidebar-collapsed'
 const LAYOUT_MODE_STORAGE_KEY = 'translip:layout-mode'
@@ -34,6 +36,7 @@ function readInitialLayoutMode(): LayoutMode {
 
 export function MainLayout() {
   const { pathname } = useLocation()
+  const { t } = useI18n()
   // App-wide watcher: notify when a long pipeline run finishes while tabbed away.
   useTaskNotifications()
   const isWorkbench =
@@ -43,6 +46,7 @@ export function MainLayout() {
 
   const [collapsed, setCollapsed] = useState<boolean>(readInitialCollapsed)
   const [layoutMode, setLayoutMode] = useState<LayoutMode>(readInitialLayoutMode)
+  const [mobileNavOpen, setMobileNavOpen] = useState<boolean>(false)
 
   useEffect(() => {
     try {
@@ -65,6 +69,28 @@ export function MainLayout() {
     () => setLayoutMode((prev) => (prev === 'left' ? 'top' : 'left')),
     [],
   )
+  const openMobileNav = useCallback(() => setMobileNavOpen(true), [])
+  const closeMobileNav = useCallback(() => setMobileNavOpen(false), [])
+
+  // Auto-close mobile drawer on route change.
+  useEffect(() => {
+    setMobileNavOpen(false)
+  }, [pathname])
+
+  // ESC closes mobile drawer + lock body scroll while open.
+  useEffect(() => {
+    if (!mobileNavOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileNavOpen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.body.style.overflow = prevOverflow
+    }
+  }, [mobileNavOpen])
 
   const isTopMode = layoutMode === 'top'
   const sidebarWidth = isTopMode ? 0 : collapsed ? SIDEBAR_COLLAPSED_WIDTH : SIDEBAR_EXPANDED_WIDTH
@@ -85,6 +111,33 @@ export function MainLayout() {
           <Sidebar collapsed={collapsed} onToggle={toggleSidebar} />
         </div>
       )}
+
+      {/* Mobile hamburger trigger (visible <md only) */}
+      <button
+        type="button"
+        onClick={openMobileNav}
+        aria-label={t.nav.openMobileMenu}
+        aria-controls="mobile-nav-drawer"
+        aria-expanded={mobileNavOpen}
+        title={t.nav.openMobileMenu}
+        className="md:hidden print:hidden fixed left-3 top-3 z-[60] flex h-9 w-9 items-center justify-center rounded-lg border border-[#e5e7eb] bg-white text-[#374151] shadow-sm transition-colors hover:bg-[#f3f4f6]"
+      >
+        <Menu size={18} />
+      </button>
+
+      {/* Mobile drawer + backdrop (rendered only when open, visible <md only) */}
+      {mobileNavOpen && (
+        <div className="md:hidden print:hidden" id="mobile-nav-drawer" role="dialog" aria-modal="true" aria-label={t.nav.openMobileMenu}>
+          <div
+            onClick={closeMobileNav}
+            className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm animate-[fadeIn_150ms_ease-out]"
+          />
+          <div className="fixed left-0 top-0 z-[80] h-full animate-[slideInLeft_200ms_ease-out]">
+            <Sidebar mobileDrawer onCloseMobile={closeMobileNav} />
+          </div>
+        </div>
+      )}
+
       {isTopMode ? (
         <div className="hidden md:block print:hidden">
           <TopNav height={topNavHeight} onToggleLayoutMode={toggleLayoutMode} />

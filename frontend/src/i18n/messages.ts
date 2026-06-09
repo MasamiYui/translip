@@ -41,6 +41,8 @@ const zhMessages = {
     expandSidebar: '展开侧边栏',
     layoutModeLeft: '切换到左侧菜单',
     layoutModeTop: '切换到顶部菜单',
+    openMobileMenu: '打开导航菜单',
+    closeMobileMenu: '关闭导航菜单',
   },
   blog: {
     title: '博客',
@@ -1832,6 +1834,8 @@ const enMessages: LocaleMessages = {
     expandSidebar: 'Expand sidebar',
     layoutModeLeft: 'Switch to left sidebar menu',
     layoutModeTop: 'Switch to top menu',
+    openMobileMenu: 'Open navigation menu',
+    closeMobileMenu: 'Close navigation menu',
   },
   blog: {
     title: 'Blog',

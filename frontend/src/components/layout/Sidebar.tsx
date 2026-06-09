@@ -24,6 +24,7 @@ import {
   ScanText,
   Settings,
   Wrench,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -80,9 +81,11 @@ function TranslipVoiceStemsLogo() {
 interface SidebarProps {
   collapsed?: boolean
   onToggle?: () => void
+  mobileDrawer?: boolean
+  onCloseMobile?: () => void
 }
 
-export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
+export function Sidebar({ collapsed: collapsedProp = false, onToggle, mobileDrawer = false, onCloseMobile }: SidebarProps = {}) {
   const { t, locale } = useI18n()
   const { pathname } = useLocation()
   const navigate = useNavigate()
@@ -163,7 +166,8 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
     icon: resolveToolIcon(tool.icon),
   }))
 
-  const asideWidth = collapsed ? 'w-[60px]' : 'w-[220px]'
+  const asideWidth = mobileDrawer ? 'w-[260px]' : collapsedProp ? 'w-[60px]' : 'w-[220px]'
+  const collapsed = mobileDrawer ? false : collapsedProp
 
   function navItemClass(isActive: boolean) {
     if (isActive) {
@@ -200,18 +204,34 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
           <TranslipVoiceStemsLogo />
         </div>
         {!collapsed && (
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-[#111827] leading-tight">
               Translip
             </div>
             <div className="truncate text-[11px] text-[#9ca3af] leading-tight">{t.nav.subtitle}</div>
           </div>
         )}
+        {mobileDrawer && onCloseMobile && (
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            aria-label={t.nav.closeMobileMenu}
+            title={t.nav.closeMobileMenu}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-[#9ca3af] transition-colors hover:bg-[#f3f4f6] hover:text-[#374151]"
+          >
+            <X size={16} />
+          </button>
+        )}
       </div>
 
       {/* Navigation */}
       <nav
         className={cn('flex-1 space-y-0.5 py-3 overflow-y-auto', collapsed ? 'px-[10px]' : 'px-3')}
+        onClick={(e) => {
+          if (!mobileDrawer || !onCloseMobile) return
+          const target = e.target as HTMLElement | null
+          if (target?.closest('a[href]')) onCloseMobile()
+        }}
       >
         {navItems.map(({ to, label, icon: Icon, isActive }) => (
           <Link
@@ -516,7 +536,7 @@ export function Sidebar({ collapsed = false, onToggle }: SidebarProps = {}) {
         )}
       >
         {!collapsed && <div className="text-[11px] text-[#d1d5db] font-medium">v0.1.0</div>}
-        {onToggle && (
+        {onToggle && !mobileDrawer && (
           <button
             type="button"
             onClick={onToggle}
