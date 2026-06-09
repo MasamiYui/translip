@@ -118,8 +118,11 @@ describe('DashboardPage layout', () => {
 
     // Running task shows as an active card linking to its detail page.
     expect(screen.getByRole('link', { name: /任务-01:58/ })).toHaveAttribute('href', '/tasks/task-running')
-    // Finished task moves into the unified recent-activity table.
-    expect(screen.getByRole('link', { name: /任务-已完成/ })).toHaveAttribute('href', '/tasks/task-done')
+    // Finished task moves into the unified recent-activity feed; both the
+    // >=sm table and the <sm card list render the same link in jsdom.
+    const doneLinks = screen.getAllByRole('link', { name: /任务-已完成/ })
+    expect(doneLinks.length).toBeGreaterThan(0)
+    doneLinks.forEach((link) => expect(link).toHaveAttribute('href', '/tasks/task-done'))
     expect(screen.getByText('最近任务')).toBeInTheDocument()
   })
 
@@ -134,11 +137,15 @@ describe('DashboardPage layout', () => {
     // Total task stat counts both systems (1 pipeline + 1 atomic = 2).
     expect(screen.getByText('总任务').parentElement).toHaveTextContent('2')
 
-    // Both kinds appear in the same recent-activity table.
+    // Both kinds appear in the unified recent-activity feed (table + card list).
     expect(screen.getByText('最近任务')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /任务-已完成/ })).toHaveAttribute('href', '/tasks/task-done')
-    expect(screen.getByRole('link', { name: /媒体信息探测/ })).toHaveAttribute('href', '/tools/jobs/job-probe-1')
-    expect(screen.getByText('demo.mp4')).toBeInTheDocument()
+    const doneLinks = screen.getAllByRole('link', { name: /任务-已完成/ })
+    expect(doneLinks.length).toBeGreaterThan(0)
+    doneLinks.forEach((link) => expect(link).toHaveAttribute('href', '/tasks/task-done'))
+    const probeLinks = screen.getAllByRole('link', { name: /媒体信息探测/ })
+    expect(probeLinks.length).toBeGreaterThan(0)
+    probeLinks.forEach((link) => expect(link).toHaveAttribute('href', '/tools/jobs/job-probe-1'))
+    expect(screen.getAllByText('demo.mp4').length).toBeGreaterThan(0)
   })
 
   it('shows a running atomic job as an active card', () => {
@@ -151,8 +158,10 @@ describe('DashboardPage layout', () => {
 
     renderDashboard()
 
-    expect(screen.getByText('进行中')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /媒体信息探测/ })).toHaveAttribute('href', '/tools/jobs/job-running')
+    expect(screen.getAllByText('进行中').length).toBeGreaterThan(0)
+    const links = screen.getAllByRole('link', { name: /媒体信息探测/ })
+    expect(links.length).toBeGreaterThan(0)
+    links.forEach((link) => expect(link).toHaveAttribute('href', '/tools/jobs/job-running'))
   })
 
   it('only shows the empty state when both pipeline and atomic lists are empty', () => {

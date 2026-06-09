@@ -4,11 +4,12 @@ import { atomicToolsApi } from '../api/atomic-tools'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { StatusBadge } from '../components/shared/StatusBadge'
 import { ProgressBar } from '../components/shared/ProgressBar'
+import { EmptyState } from '../components/shared/EmptyState'
 import { PipelineGraph } from '../components/pipeline/PipelineGraph'
 import { Link } from 'react-router-dom'
 import { PlusCircle, ArrowRight, Activity, CheckCircle2, XCircle, Layers, Workflow, Wrench } from 'lucide-react'
-import type { Task } from '../types'
-import type { AtomicJobRead } from '../types/atomic-tools'
+import type { TaskListResponse, Task } from '../types'
+import type { AtomicJobListResponse, AtomicJobRead } from '../types/atomic-tools'
 import { useI18n } from '../i18n/useI18n'
 
 type ActivityKind = 'pipeline' | 'atomic'
@@ -50,7 +51,7 @@ function StatCard({ label, value, icon: Icon, iconColor, iconBg }: StatCardProps
         <Icon size={18} className={iconColor} />
       </div>
       <div>
-        <div className="text-xs font-medium text-[#9ca3af] uppercase tracking-wide">{label}</div>
+        <div className="text-xs font-medium text-[#4b5563] uppercase tracking-wide">{label}</div>
         <div className="mt-0.5 text-2xl font-bold tabular-nums text-[#111827]">{value}</div>
       </div>
     </div>
@@ -155,16 +156,18 @@ function RecentActivityTable({ items }: { items: ActivityItem[] }) {
           </Link>
         </div>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]">
+
+      {/* >= sm: tabular layout with progressive column reveal. */}
+      <div className="hidden sm:block overflow-x-auto rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]">
         <table className="w-full min-w-[480px] md:min-w-[620px] lg:min-w-[820px] text-sm">
           <thead>
             <tr className="border-b border-[#f3f4f6] text-left">
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap">{t.dashboard.columns.type}</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap">{t.dashboard.columns.name}</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap">{t.dashboard.columns.status}</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap hidden lg:table-cell">{t.dashboard.columns.detail}</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap hidden md:table-cell">{t.dashboard.columns.duration}</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap">{t.dashboard.columns.time}</th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#4b5563] whitespace-nowrap">{t.dashboard.columns.type}</th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#4b5563] whitespace-nowrap">{t.dashboard.columns.name}</th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#4b5563] whitespace-nowrap">{t.dashboard.columns.status}</th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#4b5563] whitespace-nowrap hidden lg:table-cell">{t.dashboard.columns.detail}</th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#4b5563] whitespace-nowrap hidden md:table-cell">{t.dashboard.columns.duration}</th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#4b5563] whitespace-nowrap">{t.dashboard.columns.time}</th>
             </tr>
           </thead>
           <tbody>
@@ -182,14 +185,61 @@ function RecentActivityTable({ items }: { items: ActivityItem[] }) {
                 <td className="px-5 py-3.5 whitespace-nowrap"><StatusBadge status={item.status} size="sm" /></td>
                 <td className="max-w-[260px] truncate px-5 py-3.5 text-[#6b7280] hidden lg:table-cell">{item.detail}</td>
                 <td className="px-5 py-3.5 text-[#6b7280] whitespace-nowrap hidden md:table-cell">{formatDuration(item.elapsedSec)}</td>
-                <td className="px-5 py-3.5 text-[#9ca3af] whitespace-nowrap">{formatRelativeTime(item.timeRef)}</td>
+                <td className="px-5 py-3.5 text-[#6b7280] whitespace-nowrap">{formatRelativeTime(item.timeRef)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
+
+      {/* < sm: card list — preserves all key metadata without horizontal scrolling. */}
+      <ul className="sm:hidden space-y-2.5" aria-label={t.dashboard.recentActivity}>
+        {items.map(item => (
+          <li
+            key={`${item.kind}-${item.id}`}
+            className="rounded-xl border border-[#e5e7eb] bg-white px-4 py-3 shadow-[0_1px_3px_rgba(0,0,0,.04)]"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <TypeChip kind={item.kind} />
+                  <StatusBadge status={item.status} size="sm" />
+                </div>
+                <Link
+                  to={item.href}
+                  className="mt-1.5 block truncate text-sm font-semibold text-[#111827] hover:text-[#3b5bdb]"
+                >
+                  {item.name}
+                </Link>
+                <div className="mt-0.5 truncate text-xs text-[#6b7280]">{item.detail}</div>
+              </div>
+              <div className="shrink-0 text-right text-xs text-[#6b7280] tabular-nums">
+                <div>{formatDuration(item.elapsedSec)}</div>
+                <div className="mt-0.5 text-[#9ca3af]">{formatRelativeTime(item.timeRef)}</div>
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
     </section>
   )
+}
+
+const POLL_INTERVAL_MS = 5000
+
+/**
+ * Smart polling: only re-fetch while there are pipeline tasks or atomic jobs
+ * actively running/pending, and never poll when the tab is backgrounded. This
+ * eliminates a constant 5s background load on idle dashboards.
+ */
+function tasksRefetchInterval(query: { state: { data?: TaskListResponse } }): number | false {
+  const items = query.state.data?.items ?? []
+  return items.some((task) => PIPELINE_RUNNING_STATES.has(task.status)) ? POLL_INTERVAL_MS : false
+}
+
+function atomicRefetchInterval(query: { state: { data?: AtomicJobListResponse } }): number | false {
+  const items = query.state.data?.items ?? []
+  return items.some((job) => ATOMIC_RUNNING_STATES.has(job.status)) ? POLL_INTERVAL_MS : false
 }
 
 export function DashboardPage() {
@@ -197,12 +247,14 @@ export function DashboardPage() {
   const { data: allTasks } = useQuery({
     queryKey: ['tasks', 'all'],
     queryFn: () => tasksApi.list({ size: 100 }),
-    refetchInterval: 5000,
+    refetchInterval: tasksRefetchInterval,
+    refetchIntervalInBackground: false,
   })
   const { data: atomicJobsPage } = useQuery({
     queryKey: ['atomic-tool-jobs', 'dashboard'],
     queryFn: () => atomicToolsApi.listJobs({ size: 100 }),
-    refetchInterval: 5000,
+    refetchInterval: atomicRefetchInterval,
+    refetchIntervalInBackground: false,
   })
 
   const tasks = allTasks?.items ?? []
@@ -330,20 +382,21 @@ export function DashboardPage() {
       {recentItems.length > 0 && <RecentActivityTable items={recentItems} />}
 
       {isEmpty && (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-[#d1d5db] bg-white py-20 text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f3f4f6]">
-            <Layers size={24} className="text-[#9ca3af]" />
-          </div>
-          <div className="text-base font-semibold text-[#374151]">{t.dashboard.emptyTitle}</div>
-          <div className="mt-1 text-sm text-[#9ca3af] mb-6">{t.dashboard.emptyDescription}</div>
-          <Link
-            to="/tasks/new"
-            className="inline-flex items-center gap-2 rounded-lg bg-[#3b5bdb] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#3451c7]"
-          >
-            <PlusCircle size={14} />
-            {t.common.createTask}
-          </Link>
-        </div>
+        <EmptyState
+          testId="dashboard-empty"
+          icon={Layers}
+          title={t.dashboard.emptyTitle}
+          description={t.dashboard.emptyDescription}
+          action={
+            <Link
+              to="/tasks/new"
+              className="inline-flex items-center gap-2 rounded-lg bg-[#3b5bdb] px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#3451c7]"
+            >
+              <PlusCircle size={14} />
+              {t.common.createTask}
+            </Link>
+          }
+        />
       )}
     </PageContainer>
   )
