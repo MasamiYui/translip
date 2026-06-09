@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, RotateCw, Search, Square, Trash2 } from 'lucide-react'
+import { ArrowRight, RotateCw, Search, Square, Trash2, X } from 'lucide-react'
 import { atomicToolsApi } from '../api/atomic-tools'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { Pagination } from '../components/shared/Pagination'
@@ -11,6 +11,11 @@ import { useI18n } from '../i18n/useI18n'
 import type { AtomicJobRead } from '../types/atomic-tools'
 
 const DEFAULT_PAGE_SIZE = 20
+
+type BulkBanner =
+  | { tone: 'success'; message: string }
+  | { tone: 'warning'; message: string }
+  | { tone: 'error'; message: string }
 
 export function AtomicJobListPage() {
   const { t, formatDuration, formatRelativeTime } = useI18n()
@@ -22,6 +27,8 @@ export function AtomicJobListPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkBanner, setBulkBanner] = useState<BulkBanner | null>(null)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   const { data: tools = [] } = useQuery({
     queryKey: ['atomic-tools'],
@@ -84,11 +91,24 @@ export function AtomicJobListPage() {
   }
 
   async function handleBulkDelete() {
+    if (bulkDeleting) return
     if (!confirm(t.atomicJobs.deleteConfirmMany(selected.size))) return
-    for (const id of selected) {
-      await deleteMutation.mutateAsync(id)
+    const ids = Array.from(selected)
+    setBulkDeleting(true)
+    setBulkBanner(null)
+    const results = await Promise.allSettled(ids.map(id => atomicToolsApi.deleteJob(id)))
+    const okCount = results.filter(r => r.status === 'fulfilled').length
+    const failCount = results.length - okCount
+    if (failCount === 0) {
+      setBulkBanner({ tone: 'success', message: t.atomicJobs.bulkDeleteSuccess(okCount) })
+    } else if (okCount === 0) {
+      setBulkBanner({ tone: 'error', message: t.atomicJobs.bulkDeleteAllFailed(failCount) })
+    } else {
+      setBulkBanner({ tone: 'warning', message: t.atomicJobs.bulkDeletePartial(okCount, failCount) })
     }
     setSelected(new Set())
+    setBulkDeleting(false)
+    queryClient.invalidateQueries({ queryKey: ['atomic-tool-jobs'] })
   }
 
   return (
@@ -146,13 +166,39 @@ export function AtomicJobListPage() {
         {selected.size > 0 && (
           <button
             onClick={handleBulkDelete}
-            className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100"
+            disabled={bulkDeleting}
+            aria-busy={bulkDeleting}
+            className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Trash2 size={12} />
             {t.atomicJobs.deleteSelected(selected.size)}
           </button>
         )}
       </div>
+
+      {bulkBanner && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-2.5 text-sm ${
+            bulkBanner.tone === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : bulkBanner.tone === 'warning'
+                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                : 'border-red-200 bg-red-50 text-red-600'
+          }`}
+        >
+          <span>{bulkBanner.message}</span>
+          <button
+            type="button"
+            onClick={() => setBulkBanner(null)}
+            aria-label={t.atomicJobs.bulkDismissBanner}
+            className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-black/5"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       <div className="overflow-x-auto rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]">
         {isLoading ? (

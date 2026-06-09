@@ -488,6 +488,10 @@ const zhMessages = {
     deleteConfirmOne: '确定删除此任务及其产物？',
     deleteConfirmMany: (count: number) => `确定删除 ${count} 个任务及其产物？`,
     deleteAction: '删除',
+    bulkDeleteSuccess: (count: number) => `已删除 ${count} 个任务`,
+    bulkDeletePartial: (ok: number, failed: number) => `已删除 ${ok} 个任务，${failed} 个失败`,
+    bulkDeleteAllFailed: (count: number) => `${count} 个任务删除失败，请重试`,
+    bulkDismissBanner: '关闭提示',
   },
   newTask: {
     title: '新建任务',
@@ -1208,6 +1212,10 @@ const zhMessages = {
     deleteSelected: (count: number) => `删除 ${count} 项`,
     deleteConfirm: '确定删除此原子任务及其产物？',
     deleteConfirmMany: (count: number) => `确定删除 ${count} 个原子任务及其产物？`,
+    bulkDeleteSuccess: (count: number) => `已删除 ${count} 个原子任务`,
+    bulkDeletePartial: (ok: number, failed: number) => `已删除 ${ok} 个原子任务，${failed} 个失败`,
+    bulkDeleteAllFailed: (count: number) => `${count} 个原子任务删除失败，请重试`,
+    bulkDismissBanner: '关闭提示',
     filters: {
       allStatuses: '全部状态',
       allTools: '全部工具',
@@ -2272,6 +2280,10 @@ const enMessages: LocaleMessages = {
     deleteConfirmOne: 'Delete this task and its artifacts?',
     deleteConfirmMany: (count: number) => `Delete ${count} tasks and their artifacts?`,
     deleteAction: 'Delete',
+    bulkDeleteSuccess: (count: number) => `Deleted ${count} tasks`,
+    bulkDeletePartial: (ok: number, failed: number) => `Deleted ${ok} tasks, ${failed} failed`,
+    bulkDeleteAllFailed: (count: number) => `Failed to delete ${count} tasks, please retry`,
+    bulkDismissBanner: 'Dismiss',
   },
   newTask: {
     title: 'Create Task',
@@ -2997,6 +3009,10 @@ const enMessages: LocaleMessages = {
     deleteSelected: (count: number) => `Delete ${count} items`,
     deleteConfirm: 'Delete this atomic job and its artifacts?',
     deleteConfirmMany: (count: number) => `Delete ${count} atomic jobs and their artifacts?`,
+    bulkDeleteSuccess: (count: number) => `Deleted ${count} atomic jobs`,
+    bulkDeletePartial: (ok: number, failed: number) => `Deleted ${ok} atomic jobs, ${failed} failed`,
+    bulkDeleteAllFailed: (count: number) => `Failed to delete ${count} atomic jobs, please retry`,
+    bulkDismissBanner: 'Dismiss',
     filters: {
       allStatuses: 'All statuses',
       allTools: 'All tools',

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import { PlusCircle, Search, Trash2 } from 'lucide-react'
+import { PlusCircle, Search, Trash2, X } from 'lucide-react'
 import { tasksApi } from '../api/tasks'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { StatusBadge } from '../components/shared/StatusBadge'
@@ -12,6 +12,11 @@ import { useI18n } from '../i18n/useI18n'
 
 const DEFAULT_PAGE_SIZE = 20
 
+type BulkBanner =
+  | { tone: 'success'; message: string }
+  | { tone: 'warning'; message: string }
+  | { tone: 'error'; message: string }
+
 export function TaskListPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
@@ -21,6 +26,8 @@ export function TaskListPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [bulkBanner, setBulkBanner] = useState<BulkBanner | null>(null)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   const { data, isLoading } = useQuery({
     queryKey: ['tasks', statusFilter, search, page, pageSize],
@@ -61,11 +68,24 @@ export function TaskListPage() {
   }
 
   async function handleBulkDelete() {
+    if (bulkDeleting) return
     if (!confirm(t.tasks.deleteConfirmMany(selected.size))) return
-    for (const id of selected) {
-      await deleteMutation.mutateAsync(id)
+    const ids = Array.from(selected)
+    setBulkDeleting(true)
+    setBulkBanner(null)
+    const results = await Promise.allSettled(ids.map(id => tasksApi.delete(id)))
+    const okCount = results.filter(r => r.status === 'fulfilled').length
+    const failCount = results.length - okCount
+    if (failCount === 0) {
+      setBulkBanner({ tone: 'success', message: t.tasks.bulkDeleteSuccess(okCount) })
+    } else if (okCount === 0) {
+      setBulkBanner({ tone: 'error', message: t.tasks.bulkDeleteAllFailed(failCount) })
+    } else {
+      setBulkBanner({ tone: 'warning', message: t.tasks.bulkDeletePartial(okCount, failCount) })
     }
     setSelected(new Set())
+    setBulkDeleting(false)
+    queryClient.invalidateQueries({ queryKey: ['tasks'] })
   }
 
   return (
@@ -111,13 +131,39 @@ export function TaskListPage() {
         {selected.size > 0 && (
           <button
             onClick={handleBulkDelete}
-            className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100"
+            disabled={bulkDeleting}
+            aria-busy={bulkDeleting}
+            className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Trash2 size={12} />
             {t.tasks.deleteSelected(selected.size)}
           </button>
         )}
       </div>
+
+      {bulkBanner && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-2.5 text-sm ${
+            bulkBanner.tone === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+              : bulkBanner.tone === 'warning'
+                ? 'border-amber-200 bg-amber-50 text-amber-700'
+                : 'border-red-200 bg-red-50 text-red-600'
+          }`}
+        >
+          <span>{bulkBanner.message}</span>
+          <button
+            type="button"
+            onClick={() => setBulkBanner(null)}
+            aria-label={t.tasks.bulkDismissBanner}
+            className="inline-flex h-6 w-6 items-center justify-center rounded hover:bg-black/5"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="overflow-x-auto rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]">
