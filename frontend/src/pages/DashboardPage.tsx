@@ -155,16 +155,16 @@ function RecentActivityTable({ items }: { items: ActivityItem[] }) {
           </Link>
         </div>
       </div>
-      <div className="overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]">
-        <table className="w-full text-sm">
+      <div className="overflow-x-auto rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]">
+        <table className="w-full min-w-[480px] md:min-w-[620px] lg:min-w-[820px] text-sm">
           <thead>
             <tr className="border-b border-[#f3f4f6] text-left">
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.dashboard.columns.type}</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.dashboard.columns.name}</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.dashboard.columns.status}</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.dashboard.columns.detail}</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.dashboard.columns.duration}</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.dashboard.columns.time}</th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap">{t.dashboard.columns.type}</th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap">{t.dashboard.columns.name}</th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap">{t.dashboard.columns.status}</th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap hidden lg:table-cell">{t.dashboard.columns.detail}</th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap hidden md:table-cell">{t.dashboard.columns.duration}</th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap">{t.dashboard.columns.time}</th>
             </tr>
           </thead>
           <tbody>
@@ -173,16 +173,16 @@ function RecentActivityTable({ items }: { items: ActivityItem[] }) {
                 key={`${item.kind}-${item.id}`}
                 className="border-b border-[#f9fafb] transition-colors last:border-0 hover:bg-[#fafafa]"
               >
-                <td className="px-5 py-3.5"><TypeChip kind={item.kind} /></td>
+                <td className="px-5 py-3.5 whitespace-nowrap"><TypeChip kind={item.kind} /></td>
                 <td className="px-5 py-3.5">
                   <Link to={item.href} className="font-medium text-[#111827] hover:text-[#3b5bdb]">
                     {item.name}
                   </Link>
                 </td>
-                <td className="px-5 py-3.5"><StatusBadge status={item.status} size="sm" /></td>
-                <td className="max-w-[260px] truncate px-5 py-3.5 text-[#6b7280]">{item.detail}</td>
-                <td className="px-5 py-3.5 text-[#6b7280]">{formatDuration(item.elapsedSec)}</td>
-                <td className="px-5 py-3.5 text-[#9ca3af]">{formatRelativeTime(item.timeRef)}</td>
+                <td className="px-5 py-3.5 whitespace-nowrap"><StatusBadge status={item.status} size="sm" /></td>
+                <td className="max-w-[260px] truncate px-5 py-3.5 text-[#6b7280] hidden lg:table-cell">{item.detail}</td>
+                <td className="px-5 py-3.5 text-[#6b7280] whitespace-nowrap hidden md:table-cell">{formatDuration(item.elapsedSec)}</td>
+                <td className="px-5 py-3.5 text-[#9ca3af] whitespace-nowrap">{formatRelativeTime(item.timeRef)}</td>
               </tr>
             ))}
           </tbody>

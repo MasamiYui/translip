@@ -154,13 +154,13 @@ export function AtomicJobListPage() {
         )}
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]">
+      <div className="overflow-x-auto rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]">
         {isLoading ? (
           <div className="py-16 text-center text-sm text-[#9ca3af]">{t.tasks.loading}</div>
         ) : jobs.length === 0 ? (
           <div className="py-16 text-center text-sm text-[#9ca3af]">{t.atomicJobs.empty}</div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[520px] md:min-w-[700px] lg:min-w-[960px] text-sm">
             <thead>
               <tr className="border-b border-[#f3f4f6] text-left">
                 <th className="px-4 py-3 w-10">
@@ -171,13 +171,13 @@ export function AtomicJobListPage() {
                     className="rounded accent-[#3b5bdb]"
                   />
                 </th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.atomicJobs.columns.tool}</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.atomicJobs.columns.status}</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.atomicJobs.columns.input}</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] w-32">{t.atomicJobs.columns.progress}</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.atomicJobs.columns.duration}</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.atomicJobs.columns.createdAt}</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#9ca3af] w-32">{t.atomicJobs.columns.actions}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap">{t.atomicJobs.columns.tool}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap">{t.atomicJobs.columns.status}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap hidden lg:table-cell">{t.atomicJobs.columns.input}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] w-32 whitespace-nowrap">{t.atomicJobs.columns.progress}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap hidden lg:table-cell">{t.atomicJobs.columns.duration}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap hidden md:table-cell">{t.atomicJobs.columns.createdAt}</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#9ca3af] w-32 whitespace-nowrap">{t.atomicJobs.columns.actions}</th>
               </tr>
             </thead>
             <tbody>
@@ -281,15 +281,15 @@ function AtomicJobRow({
       <td className="px-4 py-3.5" onClick={onClick}>
         <StatusBadge status={job.status} size="sm" />
       </td>
-      <td className="max-w-[220px] truncate px-4 py-3.5 text-[#6b7280]" onClick={onClick}>{inputName}</td>
+      <td className="max-w-[220px] truncate px-4 py-3.5 text-[#6b7280] hidden lg:table-cell" onClick={onClick}>{inputName}</td>
       <td className="px-4 py-3.5" onClick={onClick}>
         <div className="flex items-center gap-2">
           <ProgressBar value={job.progress_percent} size="sm" className="flex-1" />
           <span className="w-8 text-right text-xs tabular-nums text-[#6b7280]">{job.progress_percent.toFixed(0)}%</span>
         </div>
       </td>
-      <td className="px-4 py-3.5 tabular-nums text-[#6b7280]" onClick={onClick}>{formatDuration(job.elapsed_sec ?? undefined)}</td>
-      <td className="px-4 py-3.5 text-[#9ca3af]" onClick={onClick}>{formatRelativeTime(job.created_at)}</td>
+      <td className="px-4 py-3.5 tabular-nums text-[#6b7280] whitespace-nowrap hidden lg:table-cell" onClick={onClick}>{formatDuration(job.elapsed_sec ?? undefined)}</td>
+      <td className="px-4 py-3.5 text-[#9ca3af] whitespace-nowrap hidden md:table-cell" onClick={onClick}>{formatRelativeTime(job.created_at)}</td>
       <td className="px-4 py-3.5" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-end gap-0.5">
           {isRunning ? (

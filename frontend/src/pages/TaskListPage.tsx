@@ -120,13 +120,13 @@ export function TaskListPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]">
+      <div className="overflow-x-auto rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]">
         {isLoading ? (
           <div className="py-16 text-center text-[#9ca3af] text-sm">{t.tasks.loading}</div>
         ) : items.length === 0 ? (
           <div className="py-16 text-center text-[#9ca3af] text-sm">{t.tasks.noMatches}</div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[520px] md:min-w-[680px] lg:min-w-[920px] text-sm">
             <thead>
               <tr className="border-b border-[#f3f4f6] text-left">
                 <th className="px-4 py-3 w-10">
@@ -137,13 +137,13 @@ export function TaskListPage() {
                     className="rounded"
                   />
                 </th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.tasks.columns.name}</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.tasks.columns.status}</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] w-32">{t.tasks.columns.progress}</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.tasks.columns.language}</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.tasks.columns.duration}</th>
-                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">{t.tasks.columns.createdAt}</th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#9ca3af] w-20">{t.tasks.columns.actions}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap">{t.tasks.columns.name}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap">{t.tasks.columns.status}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] w-32 whitespace-nowrap">{t.tasks.columns.progress}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap hidden lg:table-cell">{t.tasks.columns.language}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap hidden lg:table-cell">{t.tasks.columns.duration}</th>
+                <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#9ca3af] whitespace-nowrap hidden md:table-cell">{t.tasks.columns.createdAt}</th>
+                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-[#9ca3af] w-20 whitespace-nowrap">{t.tasks.columns.actions}</th>
               </tr>
             </thead>
             <tbody>
@@ -220,13 +220,13 @@ function TaskRow({ task, selected, onSelect, onDelete, onClick }: {
           <span className="text-xs text-[#6b7280] w-8 text-right tabular-nums">{task.overall_progress.toFixed(0)}%</span>
         </div>
       </td>
-      <td className="px-4 py-3.5 text-[#6b7280]" onClick={onClick}>
+      <td className="px-4 py-3.5 text-[#6b7280] whitespace-nowrap hidden lg:table-cell" onClick={onClick}>
         {getLanguageLabel(task.source_lang)} → {getLanguageLabel(task.target_lang)}
       </td>
-      <td className="px-4 py-3.5 text-[#6b7280] tabular-nums" onClick={onClick}>
+      <td className="px-4 py-3.5 text-[#6b7280] tabular-nums whitespace-nowrap hidden lg:table-cell" onClick={onClick}>
         {formatDuration(elapsedSec)}
       </td>
-      <td className="px-4 py-3.5 text-[#9ca3af]" onClick={onClick}>
+      <td className="px-4 py-3.5 text-[#9ca3af] whitespace-nowrap hidden md:table-cell" onClick={onClick}>
         {formatRelativeTime(task.created_at)}
       </td>
       <td className="px-4 py-3.5 text-right" onClick={e => e.stopPropagation()}>
