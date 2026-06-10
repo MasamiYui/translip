@@ -16,6 +16,7 @@ import type { Work } from '../../types'
 interface TMDbImportPanelProps {
   onImported: (work: Work) => void
   onError: () => void
+  onFallbackToManual?: (suggestedTitle: string) => void
 }
 
 const IMAGE_BASE_URL = 'https://image.tmdb.org/t/p'
@@ -26,7 +27,7 @@ function mediaTypeLabel(type: 'movie' | 'tv', labels: { movie: string; tv: strin
   return type === 'movie' ? labels.movie : labels.tv
 }
 
-export function TMDbImportPanel({ onImported, onError }: TMDbImportPanelProps) {
+export function TMDbImportPanel({ onImported, onError, onFallbackToManual }: TMDbImportPanelProps) {
   const { t } = useI18n()
   const [draftQuery, setDraftQuery] = useState('')
   const [submittedQuery, setSubmittedQuery] = useState('')
@@ -204,18 +205,38 @@ export function TMDbImportPanel({ onImported, onError }: TMDbImportPanelProps) {
             {showNoResults && (
               <div
                 data-testid="works-tmdb-empty"
-                className="flex min-h-[92px] items-center justify-center text-sm text-slate-400"
+                className="flex min-h-[92px] flex-col items-center justify-center gap-2 text-sm text-slate-400"
               >
-                {t.worksLibrary.tmdb.search.noResults}
+                <span>{t.worksLibrary.tmdb.search.noResults}</span>
+                {onFallbackToManual && submittedQuery && (
+                  <button
+                    type="button"
+                    data-testid="works-tmdb-fallback-manual"
+                    onClick={() => onFallbackToManual(submittedQuery)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-[#dbe3f0] bg-white px-3 py-1.5 text-xs font-medium text-[#3b5bdb] transition-colors hover:border-[#3b5bdb]/40 hover:bg-[#3b5bdb]/5"
+                  >
+                    {t.worksLibrary.tmdb.search.fallbackToManual(submittedQuery)}
+                  </button>
+                )}
               </div>
             )}
 
             {showSearchError && (
               <div
                 data-testid="works-tmdb-error"
-                className="border-l-2 border-rose-400 bg-rose-50 px-3 py-2.5 text-sm text-rose-700"
+                className="flex flex-col gap-2 border-l-2 border-rose-400 bg-rose-50 px-3 py-2.5 text-sm text-rose-700"
               >
-                {searchResults?.error || t.worksLibrary.tmdb.search.error}
+                <span>{searchResults?.error || t.worksLibrary.tmdb.search.error}</span>
+                {onFallbackToManual && submittedQuery && (
+                  <button
+                    type="button"
+                    data-testid="works-tmdb-fallback-manual"
+                    onClick={() => onFallbackToManual(submittedQuery)}
+                    className="inline-flex w-fit items-center gap-1.5 rounded-md border border-rose-300 bg-white px-3 py-1.5 text-xs font-medium text-rose-700 transition-colors hover:bg-rose-100"
+                  >
+                    {t.worksLibrary.tmdb.search.fallbackToManual(submittedQuery)}
+                  </button>
+                )}
               </div>
             )}
 

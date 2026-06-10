@@ -476,6 +476,10 @@ export function WorkEditorDrawer({
             <TMDbImportPanel
               onImported={handleTmdbImported}
               onError={() => onError?.(t.worksLibrary.flash.saveFailed)}
+              onFallbackToManual={suggestedTitle => {
+                setForm(f => ({ ...f, title: suggestedTitle }))
+                setCreateMode('manual')
+              }}
             />
           </div>
         )}
