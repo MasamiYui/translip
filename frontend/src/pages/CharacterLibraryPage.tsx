@@ -367,7 +367,7 @@ export function CharacterLibraryPage() {
         >
             {isLoading ? (
               <div className="px-6 py-10 text-center text-sm text-slate-400">
-                Loading…
+                {t.common.loading}
               </div>
             ) : filtered.length === 0 ? (
               isLibraryEmpty ? (
