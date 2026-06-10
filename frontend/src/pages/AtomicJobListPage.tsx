@@ -8,9 +8,23 @@ import { Pagination } from '../components/shared/Pagination'
 import { ProgressBar } from '../components/shared/ProgressBar'
 import { StatusBadge } from '../components/shared/StatusBadge'
 import { useI18n } from '../i18n/useI18n'
-import type { AtomicJobRead } from '../types/atomic-tools'
+import type { AtomicJobListResponse, AtomicJobRead } from '../types/atomic-tools'
 
 const DEFAULT_PAGE_SIZE = 20
+const POLL_INTERVAL_MS = 3000
+const RUNNING_STATES = new Set<AtomicJobRead['status']>(['running', 'pending'])
+
+/**
+ * Smart polling for the atomic-job list: only re-fetch while at least one
+ * visible job is still running/pending, and pause entirely when the tab is
+ * backgrounded. Avoids constant API hits on idle history pages.
+ */
+function jobListRefetchInterval(
+  query: { state: { data?: AtomicJobListResponse } },
+): number | false {
+  const items = query.state.data?.items ?? []
+  return items.some((job) => RUNNING_STATES.has(job.status)) ? POLL_INTERVAL_MS : false
+}
 
 type BulkBanner =
   | { tone: 'success'; message: string }
@@ -45,7 +59,8 @@ export function AtomicJobListPage() {
         page,
         size: pageSize,
       }),
-    refetchInterval: 3000,
+    refetchInterval: jobListRefetchInterval,
+    refetchIntervalInBackground: false,
   })
 
   const deleteMutation = useMutation({
