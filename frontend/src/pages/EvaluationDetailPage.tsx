@@ -178,7 +178,20 @@ export function EvaluationDetailPage() {
               </span>
             )}
           </div>
-          <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-blue-100">
+          <div
+            className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-blue-100"
+            role="progressbar"
+            aria-label={t.evaluation.running}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            {...(latest?.progress
+              ? {
+                  'aria-valuenow': Math.round(
+                    (latest.progress.step / Math.max(1, latest.progress.total)) * 100,
+                  ),
+                }
+              : { 'aria-busy': true })}
+          >
             {latest?.progress ? (
               <div
                 className="h-full rounded-full bg-[#3b5bdb] transition-[width] duration-500 ease-out"
@@ -189,8 +202,7 @@ export function EvaluationDetailPage() {
                 }}
               />
             ) : (
-              // No phase reported yet (just queued) — indeterminate, no fake position.
-              <div className="h-full w-1/3 animate-pulse rounded-full bg-[#3b5bdb]/60" />
+              <div className="indeterminate-bar" />
             )}
           </div>
         </div>
