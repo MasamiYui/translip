@@ -422,7 +422,7 @@ function EditorTopBar({
 
         {/* Workbench layout presets */}
         <div
-          className="hidden shrink-0 items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 p-0.5 xl:flex"
+          className="hidden shrink-0 items-center gap-0.5 rounded-lg border border-slate-200 bg-slate-50 p-0.5 lg:flex"
           role="tablist"
           aria-label={t.dubbingEditor.layoutPresetGroupLabel}
         >
