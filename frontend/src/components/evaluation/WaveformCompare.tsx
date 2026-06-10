@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Loader2, Maximize2, ZoomIn, ZoomOut } from 'lucide-react'
+import { AlertCircle, Loader2, Maximize2, RefreshCw, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   taskArtifactUrl,
   type DubQaReport,
@@ -491,12 +491,36 @@ export function WaveformCompare({
       </div>
 
       {state === 'loading' && (
-        <div className="flex h-[120px] items-center justify-center gap-2 text-xs text-[#9ca3af]">
-          <Loader2 size={14} className="animate-spin" /> {tc.loading}
+        <div
+          className="flex h-[132px] flex-col items-center justify-center gap-2 rounded-md bg-[#f8fafc] text-xs text-[#9ca3af]"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+          <span>{tc.loading}</span>
         </div>
       )}
       {state === 'error' && (
-        <div className="flex h-[80px] items-center justify-center text-xs text-[#9ca3af]">{tc.decodeError}</div>
+        <div
+          className="flex h-[132px] flex-col items-center justify-center gap-2 rounded-md border border-[#fde2e2] bg-[#fff7f7] text-xs text-[#b91c1c]"
+          role="alert"
+        >
+          <AlertCircle size={16} aria-hidden="true" />
+          <span>{tc.decodeError}</span>
+          <button
+            type="button"
+            onClick={() => tracksQuery.refetch()}
+            disabled={tracksQuery.isFetching}
+            className="mt-1 inline-flex items-center gap-1.5 rounded-md border border-[#b91c1c]/30 bg-white px-2.5 py-1 text-[11px] font-medium text-[#b91c1c] transition-colors hover:bg-[#fde2e2] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RefreshCw
+              size={12}
+              className={tracksQuery.isFetching ? 'animate-spin' : undefined}
+              aria-hidden="true"
+            />
+            {tc.decodeRetry}
+          </button>
+        </div>
       )}
 
       {state === 'ready' && (
