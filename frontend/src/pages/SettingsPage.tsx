@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { configApi, modelsApi, systemApi } from '../api/config'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
@@ -16,9 +17,13 @@ import {
   AlertTriangle,
   Plug,
   Undo2,
+  ArrowRight,
+  Clock,
+  Sparkles,
 } from 'lucide-react'
 import { useI18n } from '../i18n/useI18n'
 import { worksApi } from '../api/works'
+import { getAllReleases } from '../lib/changelog'
 import type { ModelDownloadEntry } from '../types'
 import type { GlobalConfigUpdate } from '../api/config'
 
@@ -95,7 +100,7 @@ const defaultGlobalConfig: GlobalConfigDraft = {
 }
 
 export function SettingsPage() {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const queryClient = useQueryClient()
   const [activeSection, setActiveSection] = useState<SettingsSection>('global')
   const [activeGeneralSection, setActiveGeneralSection] = useState('system')
@@ -327,8 +332,11 @@ export function SettingsPage() {
     { id: 'system', title: t.settings.systemInfo },
     { id: 'keys', title: t.settings.keysGroup },
     { id: 'models', title: t.settings.modelStatus },
+    { id: 'changelog', title: t.settings.changelog.navTitle },
     { id: 'about', title: t.settings.about },
   ]
+
+  const releases = useMemo(() => getAllReleases(locale), [locale])
 
   return (
     <PageContainer className={APP_CONTENT_MAX_WIDTH}>
@@ -802,6 +810,91 @@ export function SettingsPage() {
           </div>
         )}
 
+        </div>
+        {/* Changelog / Release notes */}
+        <div className={activeGeneralSection === 'changelog' ? 'px-6 py-5' : 'hidden'}>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+              {t.settings.changelog.title}
+            </h2>
+            {releases.length > 0 && (
+              <span className="text-xs text-slate-400">
+                {t.settings.changelog.countHint(releases.length)}
+              </span>
+            )}
+          </div>
+          <p className="mb-5 text-sm text-slate-500">{t.settings.changelog.subtitle}</p>
+
+          {releases.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-[#e5e7eb] bg-slate-50 px-6 py-12 text-center text-sm text-slate-400">
+              {t.settings.changelog.empty}
+            </div>
+          ) : (
+            <ul className="space-y-3">
+              {releases.map((release, index) => {
+                const isLatest = index === 0
+                return (
+                  <li
+                    key={release.slug}
+                    className="group relative overflow-hidden rounded-xl border border-[#e5e7eb] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,.04)] transition-all hover:-translate-y-0.5 hover:border-[#3b5bdb]/40 hover:shadow-md"
+                  >
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-md bg-[#3b5bdb]/10 px-2 py-0.5 text-[12px] font-semibold text-[#3b5bdb]">
+                        {release.version}
+                      </span>
+                      {isLatest && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700">
+                          <Sparkles size={11} />
+                          {t.settings.changelog.latest}
+                        </span>
+                      )}
+                      {release.tag && (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">
+                          {release.tag}
+                        </span>
+                      )}
+                      {release.date && (
+                        <span className="text-[11px] text-slate-400">{release.date}</span>
+                      )}
+                      <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+                        <Clock size={11} />
+                        {t.settings.changelog.readingTime(release.readingTime)}
+                      </span>
+                    </div>
+                    <h3 className="mt-2 text-[15px] font-semibold leading-snug tracking-tight text-slate-900 transition-colors group-hover:text-[#3b5bdb]">
+                      {release.title}
+                    </h3>
+                    {release.summary && (
+                      <p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-slate-500">
+                        {release.summary}
+                      </p>
+                    )}
+                    {release.highlights.length > 0 && (
+                      <ul className="mt-2.5 flex flex-wrap gap-1.5">
+                        {release.highlights.slice(0, 4).map(item => (
+                          <li
+                            key={item}
+                            className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600"
+                          >
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="mt-3 flex items-center justify-end">
+                      <Link
+                        to={`/changelog/${encodeURIComponent(release.slug)}`}
+                        className="inline-flex items-center gap-1 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-[12px] font-medium text-slate-700 transition-colors hover:border-[#3b5bdb] hover:text-[#3b5bdb]"
+                      >
+                        {t.settings.changelog.viewDetails}
+                        <ArrowRight size={12} />
+                      </Link>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </div>
         {/* About */}
         <div className={activeGeneralSection === 'about' ? 'px-6 py-5' : 'hidden'}>

@@ -55,6 +55,9 @@ const BlogListPage = lazy(() =>
 const BlogPostPage = lazy(() =>
   import('./pages/BlogPostPage').then(module => ({ default: module.BlogPostPage })),
 )
+const ChangelogDetailPage = lazy(() =>
+  import('./pages/ChangelogDetailPage').then(module => ({ default: module.ChangelogDetailPage })),
+)
 const ApiDocsPage = lazy(() =>
   import('./pages/ApiDocsPage').then(module => ({ default: module.ApiDocsPage })),
 )
@@ -99,6 +102,7 @@ export default function App() {
                 <Route path="evaluation/:taskId" element={<EvaluationDetailPage />} />
                 <Route path="blog" element={<BlogListPage />} />
                 <Route path="blog/:slug" element={<BlogPostPage />} />
+                <Route path="changelog/:slug" element={<ChangelogDetailPage />} />
                 <Route path="api-docs" element={<ApiDocsPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
