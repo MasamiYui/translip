@@ -180,6 +180,7 @@ export function TaskListPage() {
                     type="checkbox"
                     checked={selected.size === items.length && items.length > 0}
                     onChange={e => setSelected(e.target.checked ? new Set(items.map(t => t.id)) : new Set())}
+                    aria-label={t.tasks.selectAllAriaLabel}
                     className="rounded"
                   />
                 </th>
@@ -248,6 +249,7 @@ function TaskRow({ task, selected, onSelect, onDelete, onClick }: {
           type="checkbox"
           checked={selected}
           onChange={onSelect}
+          aria-label={t.tasks.selectRowAriaLabel(task.name)}
           className="rounded accent-[#3b5bdb]"
         />
       </td>

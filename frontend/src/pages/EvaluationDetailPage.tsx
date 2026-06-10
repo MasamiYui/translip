@@ -285,7 +285,7 @@ export function EvaluationDetailPage() {
               <button
                 type="button"
                 onClick={() => setFocus(null)}
-                aria-label="clear focus"
+                aria-label={t.evaluation.clearFocus}
                 className="flex items-center justify-center rounded-md p-1 font-medium hover:bg-[#3b5bdb]/10"
               >
                 <X size={12} />
@@ -633,7 +633,7 @@ function SegmentDrawer({
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
       <button
         type="button"
-        aria-label="close"
+        aria-label={t.evaluation.closeDrawer}
         className="absolute inset-0 bg-black/20"
         onClick={onClose}
       />

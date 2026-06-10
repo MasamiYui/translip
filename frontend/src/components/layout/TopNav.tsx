@@ -35,6 +35,7 @@ import { useI18n } from '../../i18n/useI18n'
 import { atomicToolsApi } from '../../api/atomic-tools'
 import { systemApi } from '../../api/config'
 import { shortDeviceLabel } from './deviceLabel'
+import { LanguageToggle } from './LanguageToggle'
 import type { ToolInfo } from '../../types/atomic-tools'
 import type { LayoutMode } from './MainLayout'
 
@@ -366,7 +367,7 @@ interface TopNavProps {
 }
 
 export function TopNav({ height = 60, layoutMode = 'top', onToggleLayoutMode }: TopNavProps = {}) {
-  const { t, locale, setLocale } = useI18n()
+  const { t, locale } = useI18n()
   const { pathname } = useLocation()
   const currentPath = normalizePathname(pathname)
   const isNewTaskRoute = currentPath === '/tasks/new' || currentPath.startsWith('/tasks/new/')
@@ -661,35 +662,7 @@ export function TopNav({ height = 60, layoutMode = 'top', onToggleLayoutMode }: 
           </div>
         )}
 
-        <div
-          className="flex items-center gap-0.5 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-0.5"
-          aria-label={t.header.languageSwitcherLabel}
-        >
-          <button
-            type="button"
-            onClick={() => setLocale('zh-CN')}
-            className={cn(
-              'rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all',
-              locale === 'zh-CN'
-                ? 'bg-white text-[#111827] shadow-sm'
-                : 'text-[#9ca3af] hover:text-[#374151]',
-            )}
-          >
-            中文
-          </button>
-          <button
-            type="button"
-            onClick={() => setLocale('en-US')}
-            className={cn(
-              'rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all',
-              locale === 'en-US'
-                ? 'bg-white text-[#111827] shadow-sm'
-                : 'text-[#9ca3af] hover:text-[#374151]',
-            )}
-          >
-            EN
-          </button>
-        </div>
+        <LanguageToggle />
 
         {onToggleLayoutMode && (() => {
           const isTopMode = layoutMode === 'top'

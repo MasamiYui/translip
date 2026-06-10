@@ -4,6 +4,7 @@ import { Monitor, Zap, AlertCircle, PanelLeft, PanelTop } from 'lucide-react'
 import { systemApi } from '../../api/config'
 import { useI18n } from '../../i18n/useI18n'
 import type { LayoutMode } from './MainLayout'
+import { LanguageToggle } from './LanguageToggle'
 import { shortDeviceLabel } from './deviceLabel'
 
 interface HeaderProps {
@@ -21,7 +22,7 @@ export function Header({
   layoutMode = 'left',
   onToggleLayoutMode,
 }: HeaderProps) {
-  const { locale, setLocale, t } = useI18n()
+  const { t } = useI18n()
   const { data: sysInfo } = useQuery({
     queryKey: ['system-info'],
     queryFn: systemApi.getInfo,
@@ -67,33 +68,7 @@ export function Header({
         )}
 
         {/* Language switcher */}
-        <div
-          className="flex items-center gap-0.5 rounded-lg border border-[#e5e7eb] bg-[#f9fafb] p-0.5"
-          aria-label={t.header.languageSwitcherLabel}
-        >
-          <button
-            type="button"
-            onClick={() => setLocale('zh-CN')}
-            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
-              locale === 'zh-CN'
-                ? 'bg-white text-[#111827] shadow-sm'
-                : 'text-[#9ca3af] hover:text-[#374151]'
-            }`}
-          >
-            中文
-          </button>
-          <button
-            type="button"
-            onClick={() => setLocale('en-US')}
-            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-all ${
-              locale === 'en-US'
-                ? 'bg-white text-[#111827] shadow-sm'
-                : 'text-[#9ca3af] hover:text-[#374151]'
-            }`}
-          >
-            EN
-          </button>
-        </div>
+        <LanguageToggle />
 
         {/* Layout mode switcher */}
         {onToggleLayoutMode && (
