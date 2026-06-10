@@ -456,18 +456,18 @@ export function CharacterLibraryPage() {
                             type="button"
                             data-testid={`character-edit-${persona.id}`}
                             onClick={() => openEdit(persona)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-[#e5e7eb] bg-white px-3 py-1.5 text-xs font-semibold text-[#6b7280] transition-all hover:bg-[#f9fafb] hover:text-[#374151]"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-xs font-semibold text-[#6b7280] transition-all hover:bg-[#f9fafb] hover:text-[#374151]"
                           >
-                            <Pencil size={12} />
+                            <Pencil size={14} />
                             {t.characterLibrary.actions.edit}
                           </button>
                           <button
                             type="button"
                             data-testid={`character-delete-${persona.id}`}
                             onClick={() => handleDelete(persona)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 transition-all hover:bg-rose-50"
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 py-2 text-xs font-semibold text-rose-600 transition-all hover:bg-rose-50"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={14} />
                             {t.characterLibrary.actions.delete}
                           </button>
                         </div>
