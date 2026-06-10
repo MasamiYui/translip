@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { diffFinishedTasks } from '../useTaskNotifications'
+import type { TaskListResponse } from '../../types'
+import { diffFinishedTasks, notificationsRefetchInterval } from '../useTaskNotifications'
 
 describe('diffFinishedTasks', () => {
   it('returns only tasks that transitioned from active to terminal', () => {
@@ -29,5 +30,31 @@ describe('diffFinishedTasks', () => {
     expect(diffFinishedTasks(prev, [{ id: 'a', name: 'A', status: 'interrupted' }])).toEqual([
       { name: 'A', status: 'interrupted' },
     ])
+  })
+})
+
+describe('notificationsRefetchInterval', () => {
+  const makeQuery = (items: { status: string }[] | undefined) =>
+    ({ state: { data: items ? ({ items } as TaskListResponse) : undefined } }) as {
+      state: { data?: TaskListResponse }
+    }
+
+  it('returns false when there are no items yet (undefined data)', () => {
+    expect(notificationsRefetchInterval(makeQuery(undefined))).toBe(false)
+  })
+
+  it('returns false when every task is terminal', () => {
+    expect(
+      notificationsRefetchInterval(
+        makeQuery([{ status: 'succeeded' }, { status: 'failed' }, { status: 'interrupted' }]),
+      ),
+    ).toBe(false)
+  })
+
+  it('keeps polling at 5s while any task is running or pending', () => {
+    expect(
+      notificationsRefetchInterval(makeQuery([{ status: 'succeeded' }, { status: 'running' }])),
+    ).toBe(5000)
+    expect(notificationsRefetchInterval(makeQuery([{ status: 'pending' }]))).toBe(5000)
   })
 })

@@ -1,10 +1,25 @@
 import { useEffect, useRef } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { tasksApi } from '../api/tasks'
+import type { TaskListResponse } from '../types'
 import { useI18n } from '../i18n/useI18n'
 
 const ACTIVE = new Set(['pending', 'running'])
 const TERMINAL = new Set(['succeeded', 'partial_success', 'failed', 'interrupted'])
+const POLL_INTERVAL_MS = 5000
+
+/**
+ * Smart polling: only keep tapping the server while at least one task is still
+ * pending/running. Once everything is terminal, idle out and let the next mount
+ * (e.g. user navigating, focus return, mutation invalidation) re-trigger.
+ * Exported for unit testing.
+ */
+export function notificationsRefetchInterval(
+  query: { state: { data?: TaskListResponse } },
+): number | false {
+  const items = query.state.data?.items ?? []
+  return items.some(task => ACTIVE.has(task.status)) ? POLL_INTERVAL_MS : false
+}
 
 type FinishedTask = { name: string; status: string }
 
@@ -45,7 +60,8 @@ export function useTaskNotifications(): void {
   const { data } = useQuery({
     queryKey: ['tasks', 'notifications'],
     queryFn: () => tasksApi.list({ page: 1, size: 100 }),
-    refetchInterval: 5000,
+    refetchInterval: notificationsRefetchInterval,
+    refetchIntervalInBackground: false,
   })
 
   useEffect(() => {
