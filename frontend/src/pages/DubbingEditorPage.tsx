@@ -404,17 +404,22 @@ function EditorTopBar({
 
         <span className="h-4 w-px shrink-0 bg-slate-200" aria-hidden="true" />
 
-        {/* Status cluster — compact */}
+        {/* Status cluster — compact; secondary widgets fold away on small screens to keep the
+            48px bar from overflowing. BenchmarkBadge stays as the primary at-a-glance signal. */}
         <div className="flex shrink-0 items-center gap-2">
           <BenchmarkBadge
             status={quality_benchmark?.status ?? 'unknown'}
             score={summary?.quality_score ?? 0}
           />
-          <ProgressBar
-            approved={summary?.approved_count ?? 0}
-            total={summary?.unit_count ?? 0}
-          />
-          <IssueSeverityChart project={project} />
+          <span className="hidden md:contents">
+            <ProgressBar
+              approved={summary?.approved_count ?? 0}
+              total={summary?.unit_count ?? 0}
+            />
+          </span>
+          <span className="hidden lg:contents">
+            <IssueSeverityChart project={project} />
+          </span>
         </div>
 
         {/* Spacer */}
@@ -486,18 +491,6 @@ function EditorTopBar({
             <Sliders size={14} />
           </button>
 
-          {/* Refresh as icon-only */}
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isRefreshing}
-            className={TOPBAR_ICON_BTN}
-            title={t.dubbingEditor.refreshTooltip}
-            aria-label={t.dubbingEditor.refresh}
-          >
-            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
-          </button>
-
           {/* Keyboard shortcuts popover */}
           <div className="relative" ref={shortcutsRef}>
             <button
@@ -555,6 +548,21 @@ function EditorTopBar({
             </button>
             {showMore && (
               <div className="absolute right-0 top-9 z-50 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+                <button
+                  type="button"
+                  data-testid="refresh-menu-btn"
+                  onClick={() => { setShowMore(false); onRefresh() }}
+                  disabled={isRefreshing}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+                  title={t.dubbingEditor.refreshTooltip}
+                >
+                  <RefreshCw
+                    size={13}
+                    className={isRefreshing ? 'animate-spin text-slate-400' : 'text-slate-400'}
+                  />
+                  {t.dubbingEditor.refresh}
+                </button>
+                <div className="my-1 h-px bg-slate-100" aria-hidden="true" />
                 <button
                   type="button"
                   data-testid="srt-export-btn"
