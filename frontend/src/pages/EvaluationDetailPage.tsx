@@ -856,7 +856,14 @@ function DropoutText({ target, backread }: { target: string; backread: string })
         const norm = normalizeToken(word)
         const dropped = norm.length > 0 && !backreadSet.has(norm)
         return (
-          <span key={idx} className={dropped ? 'rounded bg-red-100 text-red-700' : undefined}>
+          <span
+            key={idx}
+            className={
+              dropped
+                ? 'rounded bg-amber-50 text-amber-900 underline decoration-amber-500 decoration-wavy decoration-1 underline-offset-2'
+                : undefined
+            }
+          >
             {word}
           </span>
         )
