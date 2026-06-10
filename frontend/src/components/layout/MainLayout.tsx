@@ -143,7 +143,7 @@ export function MainLayout() {
 
       {isTopMode ? (
         <div className="hidden md:block print:hidden">
-          <TopNav height={topNavHeight} onToggleLayoutMode={toggleLayoutMode} />
+          <TopNav height={topNavHeight} layoutMode={layoutMode} onToggleLayoutMode={toggleLayoutMode} />
         </div>
       ) : (
         <Header

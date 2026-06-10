@@ -21,6 +21,7 @@ import {
   MoreHorizontal,
   Music,
   PanelLeft,
+  PanelTop,
   PlusCircle,
   ScanSearch,
   ScanText,
@@ -35,6 +36,7 @@ import { atomicToolsApi } from '../../api/atomic-tools'
 import { systemApi } from '../../api/config'
 import { shortDeviceLabel } from './deviceLabel'
 import type { ToolInfo } from '../../types/atomic-tools'
+import type { LayoutMode } from './MainLayout'
 
 const TOOL_ICON_MAP: Record<string, LucideIcon> = {
   AudioLines,
@@ -359,10 +361,11 @@ function MoreMenu({ label, slots }: MoreMenuProps) {
 
 interface TopNavProps {
   height?: number
+  layoutMode?: LayoutMode
   onToggleLayoutMode?: () => void
 }
 
-export function TopNav({ height = 60, onToggleLayoutMode }: TopNavProps = {}) {
+export function TopNav({ height = 60, layoutMode = 'top', onToggleLayoutMode }: TopNavProps = {}) {
   const { t, locale, setLocale } = useI18n()
   const { pathname } = useLocation()
   const currentPath = normalizePathname(pathname)
@@ -688,18 +691,22 @@ export function TopNav({ height = 60, onToggleLayoutMode }: TopNavProps = {}) {
           </button>
         </div>
 
-        {onToggleLayoutMode && (
-          <button
-            type="button"
-            onClick={onToggleLayoutMode}
-            title={t.nav.layoutModeLeft}
-            aria-label={t.nav.layoutModeLeft}
-            data-testid="toggle-layout-mode"
-            className="flex h-7 w-7 items-center justify-center rounded-md border border-[#e5e7eb] bg-[#f9fafb] text-[#6b7280] transition-colors hover:bg-white hover:text-[#111827]"
-          >
-            <PanelLeft size={14} />
-          </button>
-        )}
+        {onToggleLayoutMode && (() => {
+          const isTopMode = layoutMode === 'top'
+          const switchTitle = isTopMode ? t.nav.layoutModeLeft : t.nav.layoutModeTop
+          return (
+            <button
+              type="button"
+              onClick={onToggleLayoutMode}
+              title={switchTitle}
+              aria-label={switchTitle}
+              data-testid="toggle-layout-mode"
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-[#e5e7eb] bg-[#f9fafb] text-[#6b7280] transition-colors hover:bg-white hover:text-[#111827]"
+            >
+              {isTopMode ? <PanelLeft size={14} /> : <PanelTop size={14} />}
+            </button>
+          )
+        })()}
       </div>
     </nav>
   )
