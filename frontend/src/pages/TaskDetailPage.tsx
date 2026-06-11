@@ -67,6 +67,77 @@ const ARTIFACT_PREFIX: Record<string, string[]> = {
 const DOWNLOAD_ICON_BUTTON_CLASS =
   'inline-flex h-5 w-5 shrink-0 items-center justify-center text-slate-400 transition-colors hover:text-slate-600 group-hover:text-slate-600'
 
+const HEX_COLOR_RE = /^#([0-9a-fA-F]{6})$/
+
+function normalizeHex(value: string): string {
+  const v = value.trim()
+  if (!v) return ''
+  const withHash = v.startsWith('#') ? v : `#${v}`
+  return withHash.toUpperCase()
+}
+
+interface ColorFieldProps {
+  value: string
+  onChange: (next: string) => void
+  ariaLabel: string
+}
+
+function ColorField({ value, onChange, ariaLabel }: ColorFieldProps) {
+  const [text, setText] = useState(value)
+  useEffect(() => {
+    setText(value)
+  }, [value])
+  const isValid = HEX_COLOR_RE.test(text)
+  const safeColor = isValid ? text : value
+  return (
+    <div className="flex items-center gap-2">
+      <label className="relative inline-flex h-9 w-9 shrink-0 cursor-pointer overflow-hidden rounded-lg border border-slate-200">
+        <input
+          type="color"
+          value={safeColor}
+          onChange={event => {
+            const next = event.target.value.toUpperCase()
+            setText(next)
+            onChange(next)
+          }}
+          aria-label={ariaLabel}
+          className="absolute inset-0 h-full w-full cursor-pointer border-0 bg-transparent p-0"
+        />
+      </label>
+      <input
+        type="text"
+        value={text}
+        onChange={event => {
+          const raw = event.target.value
+          setText(raw)
+          const normalized = normalizeHex(raw)
+          if (HEX_COLOR_RE.test(normalized)) {
+            onChange(normalized)
+          }
+        }}
+        onBlur={() => {
+          const normalized = normalizeHex(text)
+          if (HEX_COLOR_RE.test(normalized)) {
+            setText(normalized)
+            onChange(normalized)
+          } else {
+            setText(value)
+          }
+        }}
+        spellCheck={false}
+        aria-label={`${ariaLabel} (hex)`}
+        aria-invalid={!isValid && text.length > 0}
+        placeholder="#RRGGBB"
+        className={`w-full rounded-lg border bg-white px-3 py-2 text-sm font-mono uppercase tracking-wide ${
+          !isValid && text.length > 0
+            ? 'border-rose-300 text-rose-700'
+            : 'border-slate-200 text-slate-700'
+        }`}
+      />
+    </div>
+  )
+}
+
 const PROFILE_CONFIG: Record<
   TaskExportProfile,
   {
@@ -972,17 +1043,17 @@ export function TaskDetailPage() {
                       />
                     </DrawerField>
                     <DrawerField label="字幕颜色">
-                      <input
+                      <ColorField
                         value={subtitleColor}
-                        onChange={event => setSubtitleColor(event.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                        onChange={setSubtitleColor}
+                        ariaLabel="字幕颜色"
                       />
                     </DrawerField>
                     <DrawerField label="描边颜色">
-                      <input
+                      <ColorField
                         value={outlineColor}
-                        onChange={event => setOutlineColor(event.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                        onChange={setOutlineColor}
+                        ariaLabel="描边颜色"
                       />
                     </DrawerField>
                     <DrawerField label="描边宽度">
