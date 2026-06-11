@@ -13,6 +13,8 @@ import {
   Save,
   Lock,
   Download,
+  Eye,
+  EyeOff,
   Loader2,
   AlertTriangle,
   Plug,
@@ -434,12 +436,11 @@ export function SettingsPage() {
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   API Key (v3)
                 </label>
-                <input
-                  type="password"
+                <PasswordField
                   value={apiKeyV3}
-                  onChange={(e) => setApiKeyV3(e.target.value)}
+                  onChange={setApiKeyV3}
                   placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  ariaLabel="TMDb API Key (v3)"
                 />
                 {tmdbConfig?.api_key_v3_set && !apiKeyV3 && (
                   <p className="mt-1 text-xs text-slate-500">{t.settings.tmdb.savedHint}</p>
@@ -450,12 +451,11 @@ export function SettingsPage() {
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">
                   Bearer Token (v4)
                 </label>
-                <input
-                  type="password"
+                <PasswordField
                   value={apiKeyV4}
-                  onChange={(e) => setApiKeyV4(e.target.value)}
+                  onChange={setApiKeyV4}
                   placeholder="eyJhbGciOiJIUzI1NiJ9..."
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                  ariaLabel="TMDb Bearer Token (v4)"
                 />
                 {tmdbConfig?.api_key_v4_set && !apiKeyV4 && (
                   <p className="mt-1 text-xs text-slate-500">{t.settings.tmdb.savedHint}</p>
@@ -550,12 +550,11 @@ export function SettingsPage() {
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
                 {t.settings.hfToken.title}
               </label>
-              <input
-                type="password"
+              <PasswordField
                 value={hfToken}
-                onChange={e => setHfToken(e.target.value)}
+                onChange={setHfToken}
                 placeholder="hf_xxxxxxxxxxxxxxxxxxxxxxxx"
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                ariaLabel={t.settings.hfToken.title}
               />
               {hfTokenConfig?.hf_token_set && !hfToken && (
                 <p className="mt-1 text-xs text-slate-500">{t.settings.hfToken.savedHint}</p>
@@ -646,15 +645,13 @@ export function SettingsPage() {
                   <label className="mb-1.5 block text-sm font-medium text-slate-700">
                     {t.settings.llmKeys.apiKey}
                   </label>
-                  <input
-                    type="password"
-                    aria-label={`${provider.label} ${t.settings.llmKeys.apiKey}`}
+                  <PasswordField
                     value={input}
-                    onChange={e =>
-                      setLlmKeyInputs(prev => ({ ...prev, [provider.id]: e.target.value }))
+                    onChange={next =>
+                      setLlmKeyInputs(prev => ({ ...prev, [provider.id]: next }))
                     }
                     placeholder="sk-xxxxxxxxxxxxxxxxxxxxxxxx"
-                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    ariaLabel={`${provider.label} ${t.settings.llmKeys.apiKey}`}
                   />
                   {isSet && !input && (
                     <p className="mt-1 text-xs text-slate-500">{t.settings.llmKeys.savedHint}</p>
@@ -957,6 +954,40 @@ function InfoRow({ label, value, mono }: { label: string; value: string; mono?: 
     <div className="flex gap-4 py-2.5">
       <span className="w-24 shrink-0 text-slate-400">{label}</span>
       <span className={`text-slate-700 ${mono ? 'font-mono text-xs' : ''}`}>{value}</span>
+    </div>
+  )
+}
+
+interface PasswordFieldProps {
+  value: string
+  onChange: (next: string) => void
+  placeholder?: string
+  ariaLabel: string
+}
+
+function PasswordField({ value, onChange, placeholder, ariaLabel }: PasswordFieldProps) {
+  const { t } = useI18n()
+  const [reveal, setReveal] = useState(false)
+  return (
+    <div className="relative">
+      <input
+        type={reveal ? 'text' : 'password'}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={ariaLabel}
+        className="w-full rounded-lg border border-slate-200 px-3 py-2 pr-10 text-sm focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-100"
+      />
+      <button
+        type="button"
+        onClick={() => setReveal(v => !v)}
+        aria-label={reveal ? t.common.hidePassword : t.common.showPassword}
+        aria-pressed={reveal}
+        title={reveal ? t.common.hidePassword : t.common.showPassword}
+        className="absolute right-1 top-1/2 inline-flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-100"
+      >
+        {reveal ? <EyeOff size={14} /> : <Eye size={14} />}
+      </button>
     </div>
   )
 }

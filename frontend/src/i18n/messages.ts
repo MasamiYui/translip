@@ -20,6 +20,8 @@ const zhMessages = {
     prevPage: '上一页',
     nextPage: '下一页',
     perPage: (count: number) => `每页 ${count} 条`,
+    showPassword: '显示',
+    hidePassword: '隐藏',
   },
   nav: {
     dashboard: '仪表盘',
@@ -1842,6 +1844,8 @@ const enMessages: LocaleMessages = {
     prevPage: 'Previous',
     nextPage: 'Next',
     perPage: (count: number) => `${count} / page`,
+    showPassword: 'Show',
+    hidePassword: 'Hide',
   },
   nav: {
     dashboard: 'Dashboard',
