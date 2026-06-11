@@ -64,6 +64,7 @@ register_tool(
         accept_formats=[".mp4", ".mkv", ".avi", ".mov", ".wav", ".mp3", ".flac", ".m4a", ".ogg"],
         max_file_size_mb=500,
         max_files=1,
+        heavy=True,
     ),
     SeparationAdapter,
 )

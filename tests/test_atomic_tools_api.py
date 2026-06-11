@@ -64,6 +64,7 @@ def test_atomic_tools_api_supports_upload_run_status_and_artifacts(tmp_path: Pat
         "muxing",
         "subtitle-detect",
         "subtitle-erase",
+        "video-analyze",
     }
 
     upload_response = client.post(

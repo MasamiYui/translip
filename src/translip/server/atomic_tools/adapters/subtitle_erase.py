@@ -324,6 +324,7 @@ register_tool(
         description_en="Remove hardcoded subtitles from video (balanced=STTN / quality=LaMa presets)",
         category="video",
         icon="Eraser",
+        heavy=True,
         accept_formats=[".mp4", ".mkv", ".avi", ".mov", ".json"],
         max_file_size_mb=2048,
         max_files=2,

@@ -181,6 +181,35 @@ class SubtitleDetectToolRequest(BaseModel):
     extraction_mode: Literal["conservative", "balanced", "variety_recall"] = "conservative"
 
 
+VideoAnalyzeTask = Literal["scene-context", "erase-qc", "ocr-classify", "freeform"]
+
+
+class VideoAnalyzeToolRequest(BaseModel):
+    file_id: str = Field(description="待分析视频的文件 ID")
+    task: VideoAnalyzeTask = Field(
+        default="scene-context",
+        description="分析任务：scene-context=场景描述；erase-qc=擦除质检；ocr-classify=画面文字分类（需上传 OCR 事件 JSON）；freeform=自由问答",
+    )
+    question: str | None = Field(default=None, description="自由问答的问题（task=freeform 时必填）")
+    detection_file_id: str | None = Field(
+        default=None,
+        description="OCR 事件 JSON（ocr_events.json / detection.json）的文件 ID；ocr-classify 必填，erase-qc 可选（提供则只检查原字幕区间）",
+    )
+    sample_interval: float = Field(default=10.0, gt=0, description="无字幕分段时的固定采样间隔（秒）")
+    frames_per_unit: int = Field(default=4, ge=1, le=8, description="每个分析单元抽取的帧数")
+    lang: Literal["zh", "en"] = Field(default="zh", description="分析输出语言")
+    max_units: int | None = Field(default=None, ge=1, description="最多分析的单元数（均匀抽样，控制耗时）")
+    backend: Literal["auto", "mlx", "ollama"] = Field(default="auto", description="推理后端")
+
+    @model_validator(mode="after")
+    def validate_task_inputs(self) -> "VideoAnalyzeToolRequest":
+        if self.task == "freeform" and not (self.question or "").strip():
+            raise ValueError("task=freeform requires a question")
+        if self.task == "ocr-classify" and not self.detection_file_id:
+            raise ValueError("task=ocr-classify requires detection_file_id (OCR events JSON)")
+        return self
+
+
 class SubtitleEraseToolRequest(BaseModel):
     file_id: str
     detection_file_id: str | None = None

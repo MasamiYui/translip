@@ -2,7 +2,7 @@ export type TaskStatus = 'pending' | 'running' | 'succeeded' | 'partial_success'
 export type StageStatus = 'pending' | 'running' | 'succeeded' | 'cached' | 'failed' | 'skipped'
 export type WorkflowStatus = TaskStatus
 export type WorkflowEdgeState = 'inactive' | 'active' | 'completed' | 'blocked'
-export type WorkflowNodeGroup = 'audio-spine' | 'ocr-subtitles' | 'video-cleanup' | 'delivery'
+export type WorkflowNodeGroup = 'audio-spine' | 'ocr-subtitles' | 'visual-perception' | 'video-cleanup' | 'delivery'
 export type TaskOutputIntent = 'dub_final' | 'bilingual_review' | 'english_subtitle' | 'fast_validation'
 export type TaskQualityPreset = 'fast' | 'standard' | 'high_quality'
 export type TaskExportProfile = 'dub_no_subtitles' | 'bilingual_review' | 'english_subtitle_burned' | 'preview_only'
@@ -162,7 +162,7 @@ export interface TaskConfig {
   device: string
   output_intent: TaskOutputIntent
   quality_preset: TaskQualityPreset
-  template: 'asr-dub-basic' | 'asr-dub+ocr-subs' | 'asr-dub+ocr-subs+erase'
+  template: 'asr-dub-basic' | 'asr-dub+visual' | 'asr-dub+ocr-subs' | 'asr-dub+ocr-subs+erase'
   run_from_stage: string
   run_to_stage: string
   use_cache: boolean

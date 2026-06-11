@@ -20,6 +20,14 @@ TEMPLATE_REGISTRY: dict[WorkflowTemplateName, TemplateDef] = {
         selected_nodes=("stage1", "task-a", "task-b", "task-c", "task-d", "task-e", "task-g"),
         required_nodes=("stage1", "task-a", "task-b", "task-c", "task-d", "task-e", "task-g"),
     ),
+    "asr-dub+visual": TemplateDef(
+        template_id="asr-dub+visual",
+        selected_nodes=("stage1", "task-a", "task-b", "visual-context", "task-c", "task-d", "task-e", "task-g"),
+        required_nodes=("stage1", "task-a", "task-b", "task-c", "task-d", "task-e", "task-g"),
+        # Optional: translation degrades gracefully without visual context, so a
+        # missing vision backend must not fail the whole pipeline.
+        optional_nodes=("visual-context",),
+    ),
     "asr-dub+ocr-subs": TemplateDef(
         template_id="asr-dub+ocr-subs",
         selected_nodes=(

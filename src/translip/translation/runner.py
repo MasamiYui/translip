@@ -35,6 +35,7 @@ from .glossary import (
 )
 from .qa import build_qa_flags
 from .units import ContextUnit, SegmentRecord, build_context_units
+from .visual_context import best_visual_scene, load_visual_units
 
 logger = logging.getLogger(__name__)
 
@@ -81,12 +82,20 @@ def translate_script(
             ),
         )
         backend = backend_override if backend_override is not None else build_translation_backend(normalized_request)
+        # Optional visual scene context (visual-context node). Missing/corrupt
+        # files load as [] — translation never fails because vision did.
+        visual_units = load_visual_units(
+            Path(normalized_request.visual_context_path)
+            if normalized_request.visual_context_path
+            else None
+        )
 
         translated_segments, editable_units, glossary_match_count = _translate_units(
             units=units,
             glossary=glossary,
             request=normalized_request,
             backend=backend,
+            visual_units=visual_units,
         )
 
         payload = build_translation_payload(
@@ -251,12 +260,22 @@ def _translate_units(
     glossary: list[object],
     request: TranslationRequest,
     backend: object,
+    visual_units: list[dict[str, object]] | None = None,
 ) -> tuple[list[dict[str, object]], list[dict[str, object]], int]:
     segment_rows: list[dict[str, object]] = []
     editable_units: list[dict[str, object]] = []
     glossary_match_count = 0
 
     for unit in units:
+        # Visual scene context rides the `context` channel: the LLM backend is
+        # told to use context only for pronouns/references/tone, and m2m100
+        # reads source_text only — so injection is LLM-only by construction.
+        context_text = unit.source_text
+        if visual_units:
+            scene = best_visual_scene(unit.start, unit.end, visual_units)
+            if scene:
+                context_text = f"[画面] {scene}\n{context_text}"
+
         prepared_items: list[BackendSegmentInput] = []
         prepared_meta: dict[str, tuple[str, list[dict[str, object]]]] = {}
         for segment in unit.segments:
@@ -270,7 +289,7 @@ def _translate_units(
                 BackendSegmentInput(
                     segment_id=segment.segment_id,
                     source_text=prepared_text,
-                    context_text=unit.source_text,
+                    context_text=context_text,
                     metadata={
                         "speaker_label": segment.speaker_label,
                         # Soft length budget so LLM backends translate-to-fit the

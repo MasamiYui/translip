@@ -28,6 +28,11 @@ from .ocr_bridge import (
     ocr_source_srt_path,
     run_ocr_detect,
 )
+from .vision_bridge import (
+    run_visual_context,
+    visual_context_manifest_path,
+    visual_context_path,
+)
 from .commands import (
     build_asr_ocr_correction_command,
     build_stage1_command,
@@ -105,6 +110,29 @@ def _file_fingerprint(path: Path) -> dict[str, Any]:
         return {"path": str(path), "exists": False, "sha256": None}
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     return {"path": str(path), "exists": True, "sha256": digest}
+
+
+def _resolved_vision_backend(request: PipelineRequest) -> dict[str, str]:
+    """Resolve vision "auto" to the concrete backend/model for the cache key.
+
+    Cheap by contract (find_spec + HTTP probe, no model load). Resolution
+    failure is itself a stable key value — the node will fail with the real
+    dependency error when it runs, and installing a backend later changes the
+    key, forcing the recompute we want.
+    """
+    import dataclasses
+
+    from ..vision.backends import VisionDependencyError, resolve_backend_name
+    from ..vision.config import load_settings
+
+    settings = load_settings()
+    if request.vision_backend and request.vision_backend != settings.backend:
+        settings = dataclasses.replace(settings, backend=str(request.vision_backend))
+    try:
+        backend_name, model_id = resolve_backend_name(settings)
+    except VisionDependencyError:
+        return {"backend": "unavailable", "model": ""}
+    return {"backend": backend_name, "model": model_id}
 
 
 def _pipeline_paths(request: PipelineRequest) -> dict[str, Path]:
@@ -202,6 +230,10 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 # Batch size changes how segments are grouped in each LLM prompt,
                 # which can change the translation — track it so it recomputes (ARCH-4).
                 "translation_batch_size": request.translation_batch_size,
+                # Visual scene context is injected into translation prompts when
+                # present, so its content must cascade into task-c's key. Missing
+                # file fingerprints to a stable {exists: False} (no-vision runs).
+                "visual_context": _file_fingerprint(visual_context_path(request)),
             }
         )
     elif stage_name == "task-d":
@@ -245,6 +277,18 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "ocr_sample_interval": request.ocr_sample_interval,
                 "ocr_position_mode": request.ocr_position_mode,
                 "ocr_extraction_mode": request.ocr_extraction_mode,
+            }
+        )
+    elif stage_name == "visual-context":
+        common.update(
+            {
+                # "auto" must not go into the key — its resolution drifts with the
+                # environment (mlx installed or not, ollama up or not). Resolve via
+                # the cheap probe so backend/model changes force a recompute.
+                "vision_backend_resolved": _resolved_vision_backend(request),
+                "vision_frames_per_unit": int(request.vision_frames_per_unit),
+                "vision_lang": request.vision_lang,
+                "segments": _file_fingerprint(effective_task_a_segments_path(request)),
             }
         )
     elif stage_name == "subtitle-erase":
@@ -358,6 +402,9 @@ def _node_cache_spec(
             request.output_root / "ocr-translate" / f"ocr_subtitles.{output_tag}.srt",
             manifest_path,
         ]
+    elif stage_name == "visual-context":
+        manifest_path = visual_context_manifest_path(request)
+        artifact_paths = [visual_context_path(request), manifest_path]
     elif stage_name == "subtitle-erase":
         manifest_path = request.output_root / "subtitle-erase" / "subtitle-erase-manifest.json"
         artifact_paths = [request.output_root / "subtitle-erase" / "clean_video.mp4", manifest_path]
@@ -824,6 +871,9 @@ def execute_node(
             "artifact_paths": [str(result.json_path), str(result.srt_path), str(result.manifest_path)],
             "log_path": str(_node_log_path(request, node_name)),
         }
+    if node_name == "visual-context":
+        monitor.update_stage_progress(node_name, 5.0, "analyzing video scenes")
+        return run_visual_context(request, log_path=_node_log_path(request, node_name), monitor=monitor, should_cancel=should_cancel)
     if node_name == "subtitle-erase":
         monitor.update_stage_progress(node_name, 5.0, "erasing hard subtitles")
         return run_subtitle_erase(request, log_path=_node_log_path(request, node_name), monitor=monitor, should_cancel=should_cancel)

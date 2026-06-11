@@ -1,8 +1,9 @@
 # Qwen3-VL-4B 视频内容感知模块 — 技术方案
 
-> 状态：草案 v1（2026-06-10）
+> 状态：v2（2026-06-10，评审修订版；v1 同日草案）
 > 目标：为 translip 引入本地视频理解能力（Qwen3-VL-4B），用于场景上下文、说话人视觉归属、擦除质检、OCR 语义过滤。
 > 设计哲学：与 ocr/erase 先例完全一致 —— in-tree 模块 + 可选 extra + lazy import + 隔离子进程 + manifest 契约。
+> v2 修订要点：单元匹配改为时间重叠（弃 unit_id 跨进程对齐）；原子工具增加无 segments 的固定间隔模式；auto 后端的缓存 key 需编排器侧预解析；ocr-classify 补缓存联动与帧级 mask 映射设计；依赖下限 mlx-vlm>=0.3.4；ollama tag 显式 instruct；超时仅对 ollama 后端生效；监控权重一节按现状改写。
 
 ---
 
@@ -115,23 +116,31 @@ vision_backend = "auto" | "mlx" | "ollama"
 | 后端 | 依赖 | 优点 | 缺点 |
 | --- | --- | --- | --- |
 | **mlx**（macOS arm64 默认） | `mlx-vlm`（extra） | Metal 原生最快；权重经 HF hub 自动下载，可控缓存目录；进程内运行，随子进程退出释放内存 → 完美契合 translip 子进程隔离模型 | 仅 Apple Silicon |
-| **ollama**（fallback） | 无 Python 依赖，HTTP 调 `localhost:11434` | 跨平台（Linux/NVIDIA 也能用）；用户可能已装 | 常驻 server 占内存，与"子进程退出即释放"哲学冲突；需用户自行 `ollama pull qwen3-vl:4b` |
+| **ollama**（fallback） | 无 Python 依赖，HTTP 调 `localhost:11434` | 跨平台（Linux/NVIDIA 也能用）；用户可能已装 | 常驻 server 占内存，与"子进程退出即释放"哲学冲突；需用户自行 `ollama pull qwen3-vl:4b-instruct` |
 
 `auto` 解析顺序：macOS arm64 且 `mlx_vlm` 可导入 → mlx；否则探测 `OLLAMA_HOST`（默认 `http://127.0.0.1:11434`）可达且有 qwen3-vl 模型 → ollama；都没有 → 清晰的依赖错误（仿照 task-d 对 moss-tts-nano 的处理）。
 
+> ⚠️ **auto 解析必须是一个轻量、可在编排器进程内调用的纯函数**（平台判断 + `importlib.util.find_spec` + HTTP 探测，不加载模型），单独放在 `backends/__init__.py` 的 `resolve_backend_name()`。原因见 §6.4：缓存 key 需要在编排器侧拿到**解析后**的 backend/model，`"auto"` 字符串本身不能入 key。
+
 权重：
 
-- mlx 路径用 HF 模型 `mlx-community/Qwen3-VL-4B-Instruct-4bit`（~3.3 GB）。下载交给 `huggingface_hub`，但通过设置 `HF_HOME=<CACHE_ROOT>/vision_models/hf` 收敛到 translip 缓存目录（与 `SUBTITLE_ERASE_MODELS_DIR` 同级语义）。
+- mlx 路径用 HF 模型 `mlx-community/Qwen3-VL-4B-Instruct-4bit`（~3.3 GB）。下载交给 `huggingface_hub`，通过设置 **`HF_HUB_CACHE=<CACHE_ROOT>/vision_models/hf`** 收敛到 translip 缓存目录（与 `SUBTITLE_ERASE_MODELS_DIR` 同级语义）。不用 `HF_HOME` —— 它会连 token 等全局状态一起挪走。注意：若用户 `~/.cache/huggingface` 已有该模型，此设置会导致重复下载一份（~3.3 GB），文档需写明；不想重复的用户可设 `VISION_HF_CACHE` 指回默认 HF 缓存。
 - `VISION_LOCAL_MODELS_ONLY=1` 时传 `local_files_only=True`，权重缺失直接报错（对齐 `SUBTITLE_ERASE_LOCAL_MODELS_ONLY`）。
 - 不自己实现下载器（HF hub 已带断点续传 + etag 校验，无需复刻 erase 的 `ensure_weight`）。
+- ollama 默认模型 tag **显式写 `qwen3-vl:4b-instruct`**：ollama 库同时有 `4b-instruct` 与 `4b-thinking`，裸 `4b` tag 的指向不受我们控制（qwen3 文本系的裸 tag 就指向 thinking），与 §3.1"不用 Thinking 变体"的决策冲突。
 
 ### 3.3 喂入策略：抽帧，不喂原生视频流
 
 4B 模型 + 16 GB 内存下，多图输入比原生视频 token 更稳。统一约定：
 
-- 每个分析单元（segment / ContextUnit / 事件区间）取 **k 帧**（默认 4，可配 1–8）：单元时长 < 2s 取中点 1 帧；否则在 `[start, end]` 内均匀取 k 帧。
+- 每个分析单元（时间区间）取 **k 帧**（默认 4，可配 1–8）：单元时长 < 2s 取中点 1 帧；否则在 `[start, end]` 内均匀取 k 帧。
 - 帧用 ffmpeg 抽取（`imageio-ffmpeg` 已是 base 依赖），长边缩到 **768px**（再大对 4B 无增益、徒增显存）。
-- 整片任务（如 V3 抽样质检）按固定间隔抽帧，单批 ≤ 8 帧。
+- 整片任务（如 V3 抽样质检、无 segments 的 scene-context）按固定间隔切分单元，单批 ≤ 8 帧。
+
+**分析单元的两种来源**（统一抽象为 `[(start, end), ...]` 区间列表，frames.py 只认区间）：
+
+1. **segments 驱动**（管线内 / 提供了 `--segments`）：把 task-a 的 segments 按"同说话人 + 间隔 ≤ 阈值 + 时长上限"聚成区间。注意这是 vision 自己的聚合（参数独立配置），**不试图复刻 task-c 的 `build_context_units` 产出同样的 unit_id** —— 消费侧用时间重叠匹配（§6.5），不依赖两边分组一致。
+2. **固定间隔驱动**（原子工具默认 / erase-qc）：`--sample-interval N` 秒切一个单元。原子工具上传裸视频即可用，无需先跑 ASR。
 
 ---
 
@@ -167,18 +176,20 @@ class Settings(BaseSettings):
 
     VISION_BACKEND: str = "auto"            # auto | mlx | ollama
     VISION_MODEL: str = "mlx-community/Qwen3-VL-4B-Instruct-4bit"
-    VISION_OLLAMA_MODEL: str = "qwen3-vl:4b"
+    VISION_OLLAMA_MODEL: str = "qwen3-vl:4b-instruct"
     VISION_OLLAMA_HOST: str = "http://127.0.0.1:11434"
-    VISION_MODELS_DIR: str = str(CACHE_ROOT / "vision_models")
+    VISION_HF_CACHE: str = str(CACHE_ROOT / "vision_models" / "hf")  # 注入 HF_HUB_CACHE
     VISION_LOCAL_MODELS_ONLY: bool = False
     VISION_FRAMES_PER_UNIT: int = 4         # 每单元抽帧数 1-8
     VISION_FRAME_MAX_EDGE: int = 768        # 帧长边像素
     VISION_MAX_NEW_TOKENS: int = 256
     VISION_TEMPERATURE: float = 0.2         # 感知任务要低温
-    VISION_TIMEOUT_SEC: int = 120           # 单次推理超时
+    VISION_TIMEOUT_SEC: int = 120           # 单次推理超时（仅 ollama HTTP 后端，见下）
 
 settings = Settings()
 ```
+
+**超时语义按后端区分**：ollama 是 HTTP 调用，`VISION_TIMEOUT_SEC` 作为请求超时直接生效；mlx 是**进程内同步推理**，Python 没有干净的中途打断手段，不做单次超时 —— 卡死防护交给上层：编排器/job_manager 的取消机制（SIGTERM 杀整个子进程）天然覆盖。首跑的权重下载不算推理时间（下载有 HF hub 自己的进度与重试）。
 
 ### 4.2 子进程入口 extract.py
 
@@ -186,13 +197,17 @@ settings = Settings()
 python -m translip.vision.extract \
   --input <video> \
   --output-dir <dir> \
-  --task scene-context|erase-qc|ocr-classify|speaker-visual \
-  [--segments <segments.zh.json>]      # scene-context / speaker-visual 必填
+  --task scene-context|erase-qc|ocr-classify|speaker-visual|freeform \
+  [--segments <segments.json>]         # scene-context/speaker-visual 可选：给了按 segments 聚合单元，
+                                       # 不给则按 --sample-interval 固定间隔切单元（原子工具裸视频路径）
   [--detection <detection.json>]       # ocr-classify 必填
-  [--sample-interval <sec>]            # erase-qc 用，默认 10
+  [--question "<text>"]                # freeform 必填：对整段视频的任意提问
+  [--sample-interval <sec>]            # 无 segments 时的单元间隔，默认 10
   [--backend auto|mlx|ollama]
-  [--frames-per-unit N] [--lang zh|en]
+  [--frames-per-unit N] [--lang zh|en] [--max-units N]
 ```
+
+> 管线内（visual-context 节点）segments 驱动；原子工具上传裸视频时走固定间隔。`--max-units` 抽样模式两边都可用（§9 降本）。
 
 要点（全部照抄 erase 先例）：
 
@@ -213,8 +228,9 @@ python -m translip.vision.extract \
   "model": {"backend": "mlx", "model": "mlx-community/Qwen3-VL-4B-Instruct-4bit"},
   "units": [
     {
-      "unit_id": "unit-0001",
+      "unit_id": "vis-0001",
       "start": 0.5, "end": 11.8,
+      "segment_ids": ["seg-0001", "seg-0002"],
       "frames_sampled": [1.2, 4.0, 7.5, 10.9],
       "scene": "车内，男女二人对话，男方驾驶，气氛紧张",
       "people_visible": 2,
@@ -224,6 +240,8 @@ python -m translip.vision.extract \
   ]
 }
 ```
+
+> `unit_id`（`vis-` 前缀）只是文件内局部 id，**不与 task-c 的 ContextUnit id 对齐**——后者是 task-c 运行时在自己进程内现场编号的（`unit-{序号}`），跨进程复刻同样的编号要求两边分组参数与输入 segments 文件永远一致，是巧合性正确。消费侧匹配协议见 §6.5：以**时间区间重叠**为准；segments 驱动时附带 `segment_ids`（segments JSON 中的稳定 id）作为精确索引，固定间隔模式下该字段为空数组。
 
 **V3 erase-qc → `erase_qc_report.json`**：`{"timestamp": 123.0, "residual_text": true, "artifact": "blur_patch", "confidence": 0.8, "note": "..."}` 列表 + 汇总通过率。
 
@@ -258,7 +276,7 @@ register_tool(
         description_zh="基于 Qwen3-VL 本地模型分析视频画面：场景描述、画面文字分类、擦除质检",
         description_en="Analyze video frames with local Qwen3-VL: scene description, on-screen text triage, erase QC",
         category="video",
-        icon="Visibility",
+        icon="ScanEye",          # 必须是 lucide 图标名（前端约定，参照 ScanText/Eraser）
         accept_formats=[".mp4", ".mkv", ".avi", ".mov"],
         max_file_size_mb=2048,
     ),
@@ -266,9 +284,11 @@ register_tool(
 )
 ```
 
-参数：`task`（默认 `scene-context`）、`question`（自由问答模式，task=`freeform` 时必填）、`sample_interval`、`frames_per_unit`、`lang`。
+参数：`task`（`scene-context`（默认）/`erase-qc`/`ocr-classify`/`freeform`）、`question`（task=`freeform` 时必填）、`sample_interval`（默认 10s——原子工具只有裸视频，无 segments，统一走固定间隔模式，见 §3.3/§4.2）、`frames_per_unit`、`lang`、`max_units`。
 
 > 为什么先做原子工具：adapter 壳子极薄（subtitle-detect 同款），不动管线和缓存；能在管理 UI 里独立验证模型输出质量，验证不过关随时止损。
+
+**并发约束（真实工作项，不是"必要时"）**：`job_manager` 目前只有全局 `max_concurrent_jobs=2` 的信号量，没有 per-tool 并发机制。16 GB 机器上 vision（6–8 GB）+ erase/separation 同时跑会爆内存。Phase 1 的最小做法：给 `ToolSpec` 加 `heavy: bool = False` 标记，job_manager 对 heavy 工具串行（单独一把 `BoundedSemaphore(1)`，vision/erase/separation 标 heavy）；或者至少在文档与 UI 提示。实现量小，但要当作一个明确的子任务排期。
 
 **配套（按项目惯例必做）**：新端点/字段加中文 docstring + Field description（接口文档页从 OpenAPI 渲染）；前端 `i18n/messages.ts` 加 zh-CN/en-US 词条；atomic tool 列表页会自动出现新工具。
 
@@ -282,22 +302,27 @@ register_tool(
 "visual-context": WorkflowNodeDef("visual-context", "visual-perception", ("task-a",), 45),
 ```
 
-- 依赖 task-a（需要 segments 的时间轴和文本），排在 task-b/c 之前（`sequence_hint=45`，介于 task-a 与 task-c 之间，具体值按现有注册表插空）。
-- 模板：现有三个模板**不默认包含**该节点。新增 `asr-dub+visual` 模板（或作为现有模板的 `optional_nodes`，按 templates.py 现状选侵入更小的方式），保证默认行为零变化。
+- 依赖 task-a（需要 segments 的时间轴）。`sequence_hint=45` 落在 task-b(40) 与 task-c(50) **之间**——串行执行下它跑在 asr-ocr-correct(35) 之后，正好能消费 corrected segments（见 §6.2）。
+- 模板：现有三个模板**不默认包含**该节点。新增 `asr-dub+visual` 模板（required 集合 = basic + `visual-context`），保证默认行为零变化。
+- **类型配套（必改，方案 v1 漏列）**：`src/translip/types/common.py` 的三个 Literal 都要扩 —— `WorkflowNodeName` 加 `"visual-context"`、`WorkflowNodeGroup` 加 `"visual-perception"`、`WorkflowTemplateName` 加 `"asr-dub+visual"`。前端管线进度页的节点名/分组标签 i18n（`i18n/messages.ts`）同步补。
 
 ### 6.2 命令构建（commands.py + vision_bridge.py）
 
 新增 `orchestration/vision_bridge.py`（照抄 erase_bridge.py 三件套）：
 
 ```python
-def build_visual_context_command(request, *, segments_path) -> list[str]:
+def build_visual_context_command(request) -> list[str]:
+    # ⚠️ segments 必须用 effective_task_a_segments_path(request)（commands.py 已有），
+    # 即 speaker-corrected → corrected → 原始 的优先级——与 task-c 实际消费的同一份。
+    # 用原始 segments.zh.json 会在 +ocr-subs 模板下与 task-c 看到的时间轴/文本错位。
     return [sys.executable, "-m", "translip.vision.extract",
             "--input", str(request.input_path),
             "--task", "scene-context",
-            "--segments", str(segments_path),
+            "--segments", str(effective_task_a_segments_path(request)),
             "--output-dir", str(request.output_root / "visual-context"),
             "--backend", request.vision_backend,
-            "--frames-per-unit", str(request.vision_frames_per_unit)]
+            "--frames-per-unit", str(request.vision_frames_per_unit),
+            "--lang", request.vision_lang]
 
 def parse_vision_progress_line(line) -> tuple[float, str] | None: ...
 def run_visual_context(request, *, log_path, monitor, should_cancel) -> dict: ...
@@ -314,44 +339,81 @@ vision_lang: str = "zh"
 
 ### 6.4 缓存 spec（runner.py）
 
+实际落点是 `runner.py` 的 `_stage_cache_payload()` 加 `elif stage_name == "visual-context":` 分支 + `_node_cache_spec()` 的 manifest/artifact 路径分支（不是独立的 `StageCacheSpec` 构造，照 ocr-detect/subtitle-erase 分支抄）：
+
 ```python
-StageCacheSpec(
-    stage_name="visual-context",
-    manifest_path=visual_context_manifest_path(request),
-    artifact_paths=[visual_context_path(request)],
-    cache_key=compute_cache_key({
-        "input_path": str(request.input_path),
-        "vision_backend": request.vision_backend,   # 换后端/模型强制重算
-        "vision_model": resolved_model_id,
-        "vision_frames_per_unit": request.vision_frames_per_unit,
-        "vision_lang": request.vision_lang,
-        "segments_fingerprint": file_fingerprint(segments_path),  # 上游指纹
-    }),
-)
+elif stage_name == "visual-context":
+    common.update(
+        {
+            # ⚠️ 不能放 "auto" 字符串：auto 的解析结果会随环境漂移（mlx 装了没装、
+            # ollama 起没起），cache key 必须放编排器侧轻量预解析后的结果。
+            # resolve_backend_name() 见 §3.2 —— 平台判断 + find_spec + HTTP 探测，不加载模型。
+            "vision_backend": resolved_backend_name,      # "mlx" | "ollama"
+            "vision_model": resolved_model_id,            # 对应后端的模型 id/tag
+            "vision_frames_per_unit": request.vision_frames_per_unit,
+            "vision_lang": request.vision_lang,
+            "segments": _file_fingerprint(effective_task_a_segments_path(request)),
+        }
+    )
 ```
 
-### 6.5 task-c 消费（最小侵入）
+代价是缓存判定阶段就要做一次后端探测（毫秒级，可接受）。若探测结果与上次不同（比如这次 ollama 没起、解析到 mlx），cache key 变化、节点重算——这正是想要的语义。
 
-`TranslationRequest` 加可选字段 `visual_context_path: Path | None = None`。翻译器构建 ContextUnit 后，按 `unit_id`（或时间区间重叠）查 `visual_context.json`，命中则在 prompt 前注入一行：
+### 6.5 task-c 消费（最小侵入）——匹配协议：时间重叠，不是 id 对齐
+
+`TranslationRequest` 加可选字段 `visual_context_path: Path | None = None`。翻译器构建自己的 ContextUnit 后，对每个 unit 按 **时间区间重叠** 查 `visual_context.json`：
+
+```python
+def best_visual_match(unit, visual_units):
+    # 重叠时长最大者胜；零重叠不匹配。两边各自怎么分组都不影响正确性。
+    best = max(visual_units, key=lambda v: overlap(unit.start, unit.end, v["start"], v["end"]), default=None)
+    return best if best and overlap(...) > 0 else None
+```
+
+命中则在该 unit 的 prompt 前注入一行：
 
 ```
 [画面] 车内，男女二人对话，男方驾驶，气氛紧张
 ```
 
+- **为什么不用 unit_id 匹配**（v1 方案的缺陷）：task-c 的 `unit-{N}` 是运行时现场编号，visual-context 在另一个进程、可能在另一份 segments 上分组；要求两边产出相同编号 = 要求分组参数与输入文件永远逐字节一致，任何一边调参就静默错位。时间重叠匹配对两边的分组方式完全不敏感。
 - 仅 `deepseek` 后端注入（m2m100 是 seq2seq 模型，不吃自然语言上下文）。
 - 文件缺失/单元未命中 → 静默跳过，**翻译阶段不因视觉模块失败而失败**。
-- task-c 的 cache key 需把 `visual_context` 文件指纹纳入（有上下文与无上下文的译文不同）。
+- task-c 的 cache key（`_stage_cache_payload` 的 task-c 分支）加一项 `"visual_context": _file_fingerprint(visual_context_path(request))`：文件不存在时 `_file_fingerprint` 返回 `exists: False` 的稳定值，所以基础模板（无 visual 节点）的 task-c cache key 也会变一次——**这是一次性的全量重算成本，发版说明里写明**；之后有/无视觉上下文、视觉产物内容变化都正确触发重算。
 
-### 6.6 监控权重（stages.py）
+### 6.6 监控权重 —— 现状是均匀权重，无需新代码
 
-`visual-context` 进度权重给较小值（如 0.05 量级，参照 ocr-detect 的设定），单元数已知所以进度 = 已处理单元 / 总单元，线性可信。
+v1 方案此节有误：`run_pipeline` 实际用 `_node_weights()` 给**所有节点均匀 1/n** 权重（`stages.py` 的 `STAGE_WEIGHTS` 只是 monitor 的 fallback，且不含 ocr-detect/subtitle-erase 等节点）。`visual-context` 自动获得 1/n，无事可做。节点内部进度 = 已处理单元 / 总单元，通过 `__VISION_PROGRESS__` 行上报，线性可信。
 
 ---
 
 ## 7. 接入点三/四：erase-qc 与 ocr-classify（第三阶段）
 
-- **erase-qc**：节点 `erase-qc`，依赖 `("subtitle-erase",)`，对 `clean_video.mp4` 在原 OCR 事件时间区间内抽帧提问"画面中是否仍有可读文字或涂抹痕迹"。产物 `erase_qc_report.json` 进入 delivery 的 task_read_model，前端在擦除结果页展示问题帧列表（截图 + 时间戳，点击跳转播放器）。不阻断管线，纯报告。
-- **ocr-classify**：不新增节点，作为 `ocr-detect` 的可选后处理步骤（`ocr_classify_text: bool = False` 字段）。对每个 OCR 事件取 1 帧 + 事件框裁剪图，问"这段文字是硬字幕还是场景文字"。下游：erase 的 mask planning 跳过 `scene_text`；task-c 不翻译 `watermark/title_card`。**默认关闭**，因为它改变 erase/翻译行为，需要在真实片源上验证误分类率后再考虑默认开启。
+### 7.1 erase-qc（纯报告，风险低）
+
+节点 `erase-qc`，依赖 `("subtitle-erase",)`，对 `clean_video.mp4` 在原 OCR 事件时间区间内抽帧提问"画面中是否仍有可读文字或涂抹痕迹"。产物 `erase_qc_report.json` 进入 delivery 的 task_read_model，前端在擦除结果页展示问题帧列表（截图 + 时间戳，点击跳转播放器）。不阻断管线，纯报告。同样需要扩 `WorkflowNodeName` Literal 与缓存分支（key 含 clean_video 指纹 + 抽样间隔 + 模型）。
+
+### 7.2 ocr-classify（改变下游行为，是 V4 的真正难点）
+
+作为 `ocr-detect` 的可选后处理（`ocr_classify_text: bool = False` 字段，不新增节点）。对每个 OCR 事件取 1 帧 + 事件框裁剪图，问"这段文字是硬字幕还是场景文字"。**默认关闭**，在真实片源上验证误分类率后再考虑默认开启。v1 方案遗漏了两件必须设计的事：
+
+**（a）缓存联动 —— 所有消费 OCR 产物的下游 cache key 都要感知分类**：
+
+| 下游 | 现 key 来源 | 需新增 |
+| --- | --- | --- |
+| `subtitle-erase` | erase_* 参数 | `ocr_classify_text` 开关 + `ocr_events.classified.json` 指纹 |
+| `ocr-translate` | 翻译参数 | 同上（跳过 watermark/title_card 改变其输入集合） |
+| `asr-ocr-correct` | correction 配置 | 同上（场景文字不应参与 ASR 校正对齐） |
+
+否则开/关分类或分类结果变化不会触发重算，下游继续用旧行为的缓存。
+
+**（b）事件级分类 → 帧级 mask 的映射**：分类是对 `ocr_events.json`（时间聚合的事件粒度）做的，而 erase 消费的是 `detection.json`（逐帧 box，还要过 `prepare_subtitle_erase_detection` 的 lead/trail 扩展）。映射规则：
+
+- `detection.json` 的每个帧级 box，按 `(时间 ∈ 事件区间) AND (box 与事件框 IoU ≥ 0.5)` 归属到事件，继承其分类；归属不到任何事件的 box **保守视为 subtitle**（宁可多擦不可漏擦的反面是误擦场景文字——但未归属 box 本来就是现行为，保持不变）。
+- 同一帧内字幕 box 与 scene_text box 共存：只把 subtitle box 写进 mask，scene_text box 剔除——mask 本来就是逐 box 构建的，这在 mask planning 层做，不改 inpaint 核心。
+- 实现位置：`prepare_subtitle_erase_detection`（orchestration 侧，已是 detection 预处理的家）读 classified 文件做过滤，erase 模块本身零改动。
+
+这两项加上验证工作量，Phase 3 估时从 2 天调到 **3–4 天**。
 
 ---
 
@@ -372,14 +434,29 @@ uv run translip analyze-video \
 
 ```toml
 vision = [
-  "mlx-vlm>=0.1,<1; sys_platform == 'darwin' and platform_machine == 'arm64'",
+  # Qwen3-VL 架构支持是 mlx-vlm 0.3.x 才加入的（官方 4bit 转换用 0.3.4 产出），
+  # 下限必须 >=0.3.4，否则旧版运行期报不认识的模型架构。
+  "mlx-vlm>=0.3.4,<1; sys_platform == 'darwin' and platform_machine == 'arm64'",
+  # 实测坑①：基础约束 transformers<5 把 mlx-vlm 钉在 0.3.x，其 Qwen3-VL
+  # AutoProcessor 的视频处理路径 import torchvision；torch 本就是 base 传递
+  # 依赖，只补伴生 wheel。<0.27 保持与 torch 2.11 配对，避免连带升 torch。
+  "torchvision>=0.20,<0.27; sys_platform == 'darwin' and platform_machine == 'arm64'",
   "huggingface_hub>=0.26,<1",
   "pillow>=10,<12",
+]
+
+[tool.uv]
+override-dependencies = [
+  # 实测坑②：mlx-vlm 声明 opencv-python，会在 ocr/erase 栈的
+  # opencv-contrib-python 旁边装第二个 cv2 发行版、在同一 cv2/ 目录混 wheel
+  # 文件（先装的 contrib 被部分覆盖，import cv2 直接坏）。contrib 是严格超集，
+  # 用 uv 的 override 全局排除 plain wheel，让 contrib 独占提供 cv2。
+  "opencv-python; sys_platform == 'never'",
 ]
 ```
 
 - ollama 后端零依赖（标准库 urllib + 复用 imageio-ffmpeg 抽帧），所以 **Linux 用户不装 extra 也能用 ollama 后端**。
-- 提醒（CLAUDE.md 已记录的坑）：`uv sync --extra X` 会精确同步，文档里写明 `uv sync --extra dev --extra vision` 组合用法。
+- 提醒（CLAUDE.md 已记录的坑）：`uv sync --extra X` 会精确同步，文档里写明 `uv sync --extra dev --extra ocr --extra erase --extra vision` 组合用法。
 
 ---
 
@@ -390,7 +467,7 @@ vision = [
 | Qwen3-VL-4B 4bit 峰值内存 | ~6–8 GB（含 KV cache + 视觉编码器） |
 | 单单元推理（4 帧 + 256 token 输出） | 估 5–15 s（M2，待 Phase 0 实测校准） |
 | 90 min 影片，~300 ContextUnit 的 V1 全量 | 估 30–75 min —— **必须有缓存** 且建议提供 `--max-units` 抽样模式 |
-| 与其它阶段并发 | **不并发**。编排器本身串行执行节点，天然满足；原子工具侧 job_manager 的并发上限需确认 vision 任务与其它重任务不同时跑（必要时给 vision 工具单独并发=1 的约束） |
+| 与其它阶段并发 | **不并发**。编排器本身串行执行节点，天然满足；原子工具侧 job_manager 全局并发=2、无 per-tool 机制 —— vision 与 erase/separation 并发会爆 16 GB 内存，heavy 工具串行化是 Phase 1 的明确子任务（见 §5 并发约束） |
 
 降本手段（按优先级实现）：
 
@@ -398,7 +475,7 @@ vision = [
 2. `scene-context` 支持"按 ContextUnit 而非 segment"粒度（300 vs 800+ 次推理）；
 3. 相邻单元画面相似时跳过（ffmpeg scene-change 分数 < 阈值则复用上一单元描述）——Phase 2 再做，先跑通。
 
-超时与失败语义：单单元推理超 `VISION_TIMEOUT_SEC` → 记 error 继续下一单元；连续 5 个单元失败 → 整阶段 fail fast（大概率是后端挂了而非内容问题）。
+失败语义：单单元推理异常（含 ollama 超时）→ 记 error 继续下一单元；连续 5 个单元失败 → 整阶段 fail fast（大概率是后端挂了而非内容问题）。mlx 后端无单次超时（§4.1），卡死由上层取消（SIGTERM 杀子进程）兜底。
 
 ---
 
@@ -428,21 +505,49 @@ vision = [
 
 ## 12. 实施阶段与验收
 
-### Phase 0 — 质量验证（不写正式代码，0.5 天）
+### Phase 0 — 质量验证（不写正式代码，0.5 天）✅ 已完成（2026-06-10）
 脚本跑通 mlx-vlm + Qwen3-VL-4B-4bit：在 2–3 个真实测试片源上人工评估 V1 场景描述、V4 字幕/场景文字分类的输出质量与速度。建议同时对 §2.1 的各信息类型各问一轮，产出一份"能力实测表"，校准 §2.4 的边界判断。
-**Gate：场景描述对翻译"有用率"主观 ≥ 70%，单次推理 ≤ 15s，否则换模型档位或终止。**
+**Gate：场景描述对翻译"有用率"主观 ≥ 70%，单次推理 ≤ 15s，否则换模型档位或终止。→ 通过。**
 
-### Phase 1 — vision 模块 + 原子工具 + CLI（2–3 天）
-`translip/vision/` 全量 + `video-analyze` 原子工具 + `analyze-video` 子命令 + 单测 + extra 声明 + i18n/接口文档。
-**验收：UI 上传视频跑 scene-context 出结构化 JSON；`uv run pytest -k vision` 全绿；不装 extra 时其余测试不受影响。**
+实测（M4 16GB，mlx-vlm 0.6.2，`我在迪拜等你.mp4` 960×416 截段，测试脚本 `/tmp/vision_lab/phase0_test.py`，报告 `/tmp/vision_lab/phase0_report.json`）：
 
-### Phase 2 — 管线节点 + task-c 注入（2 天）
-`visual-context` 节点 + bridge + 缓存 spec + 新模板 + TranslationRequest 注入 + 监控权重。
-**验收：带 visual 模板端到端跑通；缓存语义正确；对照同一片源有/无视觉上下文的译文 diff，人工确认改善案例。**
+| 项 | 实测 |
+| --- | --- |
+| 权重下载（一次性） | ~3.3 GB，约 5 min |
+| 模型热加载 | **3.4 s** |
+| 单帧推理（256 tok） | **2.5–3.3 s** |
+| 4 帧推理（256 tok） | **7.7 s** |
+| Python 进程 peak RSS | 2.55 GB（Metal 统一内存分配不完全计入 RSS，§9 的 6–8 GB 预算维持不变） |
+| V1 场景描述 | 准确（车内/敞篷车/人数/气氛正确，JSON 合规） |
+| V4 文字分类 | 两帧均正确区分对白字幕 vs "芒果tv"台标水印 |
+| 视频类型/谁在说话 | live_action/白天/有水印 正确；说话人判断给出口型+字幕连贯性依据，合理 |
 
-### Phase 3 — erase-qc + ocr-classify（2 天）
-两个集成点 + 前端报告展示。
-**验收：erase-qc 在已知擦除不净的样例（参考 box-vs-polygon 那次的片源）上能标出残留帧。**
+按 4 帧/单元 ~8s 推算，90 min 影片 ~300 单元 ≈ **40 min**，落在 §9 估算区间内。
+
+### Phase 1 — vision 模块 + 原子工具 + CLI（2–3 天）✅ 已完成（2026-06-11）
+`translip/vision/` 全量 + `video-analyze` 原子工具 + `analyze-video` 子命令 + 单测 + extra 声明 + i18n/接口文档 + heavy 工具串行约束（§5）。
+**验收：UI 上传视频跑 scene-context 出结构化 JSON；`uv run pytest -k vision` 全绿；不装 extra 时其余测试不受影响。→ 通过。**
+
+落地与方案的差异（实现时的决定）：
+
+- `vision/config.py` 用 **stdlib dataclass 而非 pydantic-settings**：ollama 后端承诺零 extra 可用，而 pydantic-settings 只随 ocr/erase/vision extra 安装，基础安装下 import 会炸。`load_settings()` 每次调用现读 env（测试可 monkeypatch 不需 reimport）。
+- 真模型 e2e 实测（60s 测试片，M4 16GB）：scene-context 5 单元 ~45s（含 ~9s 模型加载），freeform ~19s，ocr-classify 4 事件 ~16s，全部一次通过；字幕/水印分类与 Phase 0 一致正确。
+- 发现并修复两个边角：① ffprobe 时长带毫秒尾差（60.001s）会产生 1ms 尾单元、ffmpeg 在末帧 seek 失败 → `units_from_interval` 合并 <1s 尾巴进前一单元；② 非 full-range YUV 源 mjpeg 编码报错 → 抽帧命令加 `-strict unofficial`。
+
+### Phase 2 — 管线节点 + task-c 注入（2 天）✅ 已完成（2026-06-11）
+`visual-context` 节点 + bridge（effective segments）+ 缓存分支（含 auto 预解析）+ 类型 Literal 扩充 + 新模板 + TranslationRequest 时间重叠注入 + 前端节点 i18n。
+**验收：带 visual 模板端到端跑通；缓存语义正确（换后端/改帧数重算、上游 segments 变化级联）；对照同一片源有/无视觉上下文的译文 diff，人工确认改善案例。→ 全部通过。** 译文 diff（deepseek-v4-pro，60s 测试片 24 段）：20/24 段译文不同，改善案例如开场"天堂迪拜老贾"——无视觉直译 "Paradise Dubai, Lao Jia"，有视觉（场景=敞篷车旁两人欢乐互动）译为 "Old Jia, living the high life in Dubai!"；"什么情况来接拜当土豪了" → "You a Dubai tycoon now?"（更口语、贴合气氛）。
+
+实测（60s 测试片，`asr-dub+visual` 模板跑到 task-c）：
+
+- 端到端：stage1→task-a→task-b→visual-context→task-c 全部 succeeded；visual_context.json 6 单元、segments 驱动（每单元带 `segment_ids`）、场景描述质量与 Phase 0/1 一致。
+- 缓存：原参数重跑 → 5 节点全部 cached；`vision_frames_per_unit: 4→2` → visual-context 重算且 task-c 正确级联重算（指纹联动生效），上游 task-b 之前保持 cached。
+- 注入路径：scene 经 `BackendSegmentInput.context` 通道注入（`[画面] …` 前缀行）。deepseek prompt 已声明"context 仅用于解决指代/连贯性"，m2m100 只读 source_text —— LLM-only 语义由构造保证，无需 if-backend 分支。
+- 落地差异：visual-context 路径 helper 放在 `orchestration/commands.py`（vision_bridge 引用），因 bridge 已依赖 commands、反向会循环 import。
+
+### Phase 3 — erase-qc + ocr-classify（3–4 天）
+两个集成点 + 前端报告展示 + §7.2 的缓存联动与帧级 mask 映射 + 误分类率验证。
+**验收：erase-qc 在已知擦除不净的样例（参考 box-vs-polygon 那次的片源）上能标出残留帧；开/关 ocr_classify_text 正确触发 erase/ocr-translate/asr-ocr-correct 重算。**
 
 ### Phase 4（择期）— speaker-visual + dashscope 云后端，以及 §2.3 需求池中验证有价值的项（视频类型识别、章节分段、字幕排版感知等）。
 

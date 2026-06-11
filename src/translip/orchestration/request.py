@@ -165,6 +165,7 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
             "auto_standard_bilingual",
         ),
         **_erase_overrides(merged),
+        **_vision_overrides(merged),
     ).normalized()
 
 
@@ -186,6 +187,14 @@ _ERASE_KEYS = (
 
 def _erase_overrides(merged: dict[str, Any]) -> dict[str, Any]:
     return {key: merged[key] for key in _ERASE_KEYS if merged.get(key) is not None}
+
+
+# Visual-context tunables, same pass-through pattern as erase.
+_VISION_KEYS = ("vision_backend", "vision_frames_per_unit", "vision_lang")
+
+
+def _vision_overrides(merged: dict[str, Any]) -> dict[str, Any]:
+    return {key: merged[key] for key in _VISION_KEYS if merged.get(key) is not None}
 
 
 __all__ = ["build_pipeline_request"]

@@ -316,6 +316,29 @@ function renderUploadZones(
     )
   }
 
+  if (toolId === 'video-analyze') {
+    return (
+      <>
+        <FileUploadZone
+          label={hints.videoLabel}
+          hint={hints.videoHint}
+          accept=".mp4,.mkv,.mov,.avi"
+          value={fileRefs.file ?? null}
+          onFileSelected={file => onFileSelected('file', file)}
+        />
+        <FileUploadZone
+          label={hints.visionDetectionLabel}
+          hint={hints.visionDetectionHint}
+          accept=".json"
+          value={fileRefs.detection_file ?? null}
+          onFileSelected={file => onFileSelected('detection_file', file)}
+          optional
+          optionalLabel={hints.optionalBadge}
+        />
+      </>
+    )
+  }
+
   if (toolId === 'transcript-correction') {
     return (
       <>
@@ -539,6 +562,78 @@ function renderControls(
     )
   }
 
+  if (toolId === 'video-analyze') {
+    const visionTask = String(params.task ?? 'scene-context')
+    const visionTaskKeys = ['scene-context', 'erase-qc', 'ocr-classify', 'freeform'] as const
+    return (
+      <div className="space-y-4">
+        <div>
+          <div className="mb-2 text-sm font-medium text-slate-700">{atomicTools.fields.visionTask}</div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {visionTaskKeys.map(option => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setField('task', option)}
+                className={`rounded-2xl border p-3 text-left transition ${
+                  visionTask === option
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="text-sm font-semibold text-slate-900">
+                  {atomicTools.visionTasks[option]}
+                </div>
+                <div className="mt-1 text-xs leading-5 text-slate-500">
+                  {atomicTools.visionTaskHints[option]}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+        {visionTask === 'freeform' && (
+          <TextAreaField
+            label={atomicTools.fields.visionQuestion}
+            value={String(params.question ?? '')}
+            onChange={value => setField('question', value)}
+          />
+        )}
+        <div className="grid gap-4 md:grid-cols-3">
+          <TextField
+            label={atomicTools.fields.sampleInterval}
+            type="number"
+            value={String(params.sample_interval ?? 10)}
+            onChange={value => setField('sample_interval', Number(value))}
+          />
+          <TextField
+            label={atomicTools.fields.framesPerUnit}
+            type="number"
+            value={String(params.frames_per_unit ?? 4)}
+            onChange={value => setField('frames_per_unit', Number(value))}
+          />
+          <TextField
+            label={atomicTools.fields.maxUnits}
+            type="number"
+            value={String(params.max_units ?? '')}
+            onChange={value => setField('max_units', value === '' ? '' : Number(value))}
+          />
+          <SelectField
+            label={atomicTools.fields.outputLang}
+            value={String(params.lang ?? 'zh')}
+            options={['zh', 'en']}
+            onChange={value => setField('lang', value)}
+          />
+          <SelectField
+            label={atomicTools.fields.visionBackend}
+            value={String(params.backend ?? 'auto')}
+            options={['auto', 'mlx', 'ollama']}
+            onChange={value => setField('backend', value)}
+          />
+        </div>
+      </div>
+    )
+  }
+
   if (toolId === 'subtitle-erase') {
     const preset = String(params.preset ?? 'balanced')
     const backendRaw = String(params.backend ?? '')
@@ -693,6 +788,21 @@ function buildRunPayload(
     return { ...params, file_id: fileRefs.file?.file_id }
   }
 
+  if (toolId === 'video-analyze') {
+    const cleaned: Record<string, unknown> = {
+      file_id: fileRefs.file?.file_id,
+    }
+    if (fileRefs.detection_file?.file_id) {
+      cleaned.detection_file_id = fileRefs.detection_file.file_id
+    }
+    for (const [key, value] of Object.entries(params)) {
+      if (value === '' || value === undefined) continue
+      if (key === 'max_units' && !value) continue
+      cleaned[key] = value
+    }
+    return cleaned
+  }
+
   if (toolId === 'subtitle-erase') {
     const cleaned: Record<string, unknown> = {
       file_id: fileRefs.file?.file_id,
@@ -824,6 +934,15 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
       break
     case 'subtitle-erase':
       params = { preset: 'balanced', backend: '', device: 'auto' }
+      break
+    case 'video-analyze':
+      params = {
+        task: 'scene-context',
+        sample_interval: 10,
+        frames_per_unit: 4,
+        lang: 'zh',
+        backend: 'auto',
+      }
       break
     case 'transcript-correction':
       params = { preset: 'standard', llm_arbitration: 'off' }

@@ -22,6 +22,9 @@ class TranslationRequest:
     api_model: str | None = None
     api_base_url: str | None = None
     condense_mode: CondenseMode = "smart"
+    # Optional visual_context.json from the visual-context node; matched to
+    # translation units by time overlap and injected as prompt context.
+    visual_context_path: Path | str | None = None
 
     def normalized(self) -> "TranslationRequest":
         # Only paths are transformed; replace() carries every other field (ARCH-14).
@@ -33,6 +36,11 @@ class TranslationRequest:
             glossary_path=(
                 Path(self.glossary_path).expanduser().resolve()
                 if self.glossary_path is not None
+                else None
+            ),
+            visual_context_path=(
+                Path(self.visual_context_path).expanduser().resolve()
+                if self.visual_context_path is not None
                 else None
             ),
         )

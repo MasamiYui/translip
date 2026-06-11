@@ -991,6 +991,7 @@ const zhMessages = {
     'task-a': '语音转写',
     'asr-ocr-correct': '文稿校正',
     'task-b': '说话人注册',
+    'visual-context': '画面感知',
     'task-c': '翻译',
     'ocr-translate': '成片字幕翻译',
     'task-d': '语音合成',
@@ -1004,6 +1005,7 @@ const zhMessages = {
     'task-a': '语音转写',
     'asr-ocr-correct': '文稿校正',
     'task-b': '说话人注册',
+    'visual-context': '画面感知',
     'task-c': '翻译',
     'ocr-translate': '字幕翻译',
     'task-d': '语音合成',
@@ -1024,11 +1026,13 @@ const zhMessages = {
     lanes: {
       'audio-spine': '音频主干',
       'ocr-subtitles': 'OCR 字幕线',
+      'visual-perception': '画面感知线',
       'video-cleanup': '视频净化线',
       delivery: '交付线',
     },
     templates: {
       'asr-dub-basic': 'ASR Dub Basic',
+      'asr-dub+visual': 'ASR Dub + 画面感知',
       'asr-dub+ocr-subs': 'ASR Dub + OCR Subs',
       'asr-dub+ocr-subs+erase': 'ASR Dub + OCR Subs + Erase',
     },
@@ -1090,6 +1094,7 @@ const zhMessages = {
       muxing: '音视频合并',
       'subtitle-detect': '字幕识别',
       'subtitle-erase': '字幕擦除',
+      'video-analyze': '视频内容分析',
     },
     fields: {
       mode: '模式',
@@ -1129,6 +1134,24 @@ const zhMessages = {
       neighborStride: '相邻帧步长（仅 STTN）',
       referenceLength: '参考帧间隔（区间合并；STTN 还作参考帧采样）',
       backendFollowPreset: '跟随预设',
+      visionTask: '分析任务',
+      visionQuestion: '提问内容',
+      framesPerUnit: '每单元帧数',
+      maxUnits: '最大单元数（留空=全量）',
+      outputLang: '输出语言',
+      visionBackend: '推理后端',
+    },
+    visionTasks: {
+      'scene-context': '场景描述',
+      'erase-qc': '擦除质检',
+      'ocr-classify': '画面文字分类',
+      freeform: '自由问答',
+    },
+    visionTaskHints: {
+      'scene-context': '按固定间隔抽帧，对每段输出一句场景描述（地点/人数/气氛），可注入翻译上下文',
+      'erase-qc': '对照 OCR 事件区间检查擦除后的视频是否有残留文字或涂抹痕迹（建议上传 OCR 事件 JSON）',
+      'ocr-classify': '对每个 OCR 事件判断是对白字幕、场景文字、水印还是标题（需上传 OCR 事件 JSON）',
+      freeform: '对整段视频提任意问题，如"出现过几次手机屏幕特写"',
     },
     options: {
       mode: {
@@ -1160,6 +1183,8 @@ const zhMessages = {
       segmentsHint: '上传 ASR 字幕（.srt/.vtt）或语音转文字的 segments JSON（含时间轴与说话人）',
       ocrEventsLabel: 'OCR 字幕事件',
       ocrEventsHint: '上传 OCR 字幕（.srt/.vtt）或字幕识别产出的 ocr_events.json（JSON 带置信度，更精准）',
+      visionDetectionLabel: 'OCR 事件 JSON',
+      visionDetectionHint: '字幕识别产出的 ocr_events.json / detection.json；画面文字分类必填，擦除质检可选',
       optionalBadge: '可选',
     },
     actions: {
@@ -2821,6 +2846,7 @@ const enMessages: LocaleMessages = {
     'task-a': 'Transcription',
     'asr-ocr-correct': 'Transcript Correction',
     'task-b': 'Speaker Registration',
+    'visual-context': 'Visual Perception',
     'task-c': 'Translation',
     'ocr-translate': 'Final Subtitle Translation',
     'task-d': 'Speech Synthesis',
@@ -2834,6 +2860,7 @@ const enMessages: LocaleMessages = {
     'task-a': 'Transcription',
     'asr-ocr-correct': 'OCR Correction',
     'task-b': 'Speaker ID',
+    'visual-context': 'Visual',
     'task-c': 'Translation',
     'ocr-translate': 'OCR Trans.',
     'task-d': 'Synthesis',
@@ -2854,11 +2881,13 @@ const enMessages: LocaleMessages = {
     lanes: {
       'audio-spine': 'Audio Spine',
       'ocr-subtitles': 'OCR Subtitle Line',
+      'visual-perception': 'Visual Perception',
       'video-cleanup': 'Video Cleanup',
       delivery: 'Delivery',
     },
     templates: {
       'asr-dub-basic': 'ASR Dub Basic',
+      'asr-dub+visual': 'ASR Dub + Visual',
       'asr-dub+ocr-subs': 'ASR Dub + OCR Subs',
       'asr-dub+ocr-subs+erase': 'ASR Dub + OCR Subs + Erase',
     },
@@ -2920,6 +2949,7 @@ const enMessages: LocaleMessages = {
       muxing: 'Video Audio Muxing',
       'subtitle-detect': 'Subtitle Detect',
       'subtitle-erase': 'Subtitle Erase',
+      'video-analyze': 'Video Content Analysis',
     },
     fields: {
       mode: 'Mode',
@@ -2959,6 +2989,24 @@ const enMessages: LocaleMessages = {
       neighborStride: 'Neighbor Stride (STTN only)',
       referenceLength: 'Reference Length (range merge; also STTN sampling)',
       backendFollowPreset: 'Follow preset',
+      visionTask: 'Analysis Task',
+      visionQuestion: 'Question',
+      framesPerUnit: 'Frames / Unit',
+      maxUnits: 'Max Units (empty = all)',
+      outputLang: 'Output Language',
+      visionBackend: 'Inference Backend',
+    },
+    visionTasks: {
+      'scene-context': 'Scene Description',
+      'erase-qc': 'Erase QC',
+      'ocr-classify': 'On-screen Text Triage',
+      freeform: 'Free-form Q&A',
+    },
+    visionTaskHints: {
+      'scene-context': 'Sample frames at a fixed interval and describe each span (location/people/mood) — usable as translation context',
+      'erase-qc': 'Check the erased video for leftover text or inpainting artifacts within the OCR event spans (upload the OCR events JSON for best results)',
+      'ocr-classify': 'Classify each OCR event as dialogue subtitle, scene text, watermark or title card (OCR events JSON required)',
+      freeform: 'Ask any question about the video, e.g. "how many phone close-ups appear"',
     },
     options: {
       mode: {
@@ -2990,6 +3038,8 @@ const enMessages: LocaleMessages = {
       segmentsHint: 'Upload an ASR subtitle (.srt/.vtt) or the speech-to-text segments JSON (with timing and speakers)',
       ocrEventsLabel: 'OCR Subtitle Events',
       ocrEventsHint: 'Upload an OCR subtitle (.srt/.vtt) or ocr_events.json from Subtitle Detect (JSON carries confidence — more precise)',
+      visionDetectionLabel: 'OCR Events JSON',
+      visionDetectionHint: 'ocr_events.json / detection.json from Subtitle Detect; required for text triage, optional for erase QC',
       optionalBadge: 'Optional',
     },
     actions: {

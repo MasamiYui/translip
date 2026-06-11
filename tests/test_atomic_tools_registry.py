@@ -19,6 +19,7 @@ def test_atomic_tools_registry_exposes_all_tools() -> None:
         "muxing",
         "subtitle-detect",
         "subtitle-erase",
+        "video-analyze",
     }
     assert {tool.category for tool in tools} == {"audio", "speech", "video"}
     correction = next(tool for tool in tools if tool.tool_id == "transcript-correction")

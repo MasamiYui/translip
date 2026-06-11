@@ -80,6 +80,9 @@ class JobManager:
         # (ATOM-2): excess execute_job calls block here, forming a queue, until a
         # running job releases a slot.
         self._run_semaphore = threading.BoundedSemaphore(max(1, int(max_concurrent_jobs)))
+        # Tools marked heavy in their ToolSpec (multi-GB model inference) also
+        # queue on this single slot so two heavy jobs never overlap in memory.
+        self._heavy_semaphore = threading.BoundedSemaphore(1)
 
     def register_adapter(self, tool_id: str, adapter: Any) -> None:
         self._adapter_overrides[tool_id] = adapter
@@ -173,6 +176,14 @@ class JobManager:
             tool_id = job.tool_id
         # Queue here when all run slots are busy (ATOM-2) — released in finally.
         self._run_semaphore.acquire()
+        heavy = False
+        try:
+            heavy = bool(get_tool_spec(tool_id).heavy)
+        except KeyError:
+            pass
+        if heavy:
+            # Heavy (multi-GB model) tools additionally serialize on one slot.
+            self._heavy_semaphore.acquire()
         try:
             adapter = self._get_adapter(tool_id)
             job_dir = self.jobs_root / job_id
@@ -241,6 +252,8 @@ class JobManager:
             )
             self._register_artifacts(job_id, tool_id)
         finally:
+            if heavy:
+                self._heavy_semaphore.release()
             self._run_semaphore.release()
             self._drop_cancel_event(job_id)
 

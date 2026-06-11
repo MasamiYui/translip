@@ -56,6 +56,23 @@ erase = [
   "opencv-contrib-python>=4.10,<5",
   "pydantic-settings>=2,<3",
 ]
+# In-tree video content perception (Qwen3-VL via mlx-vlm). Apple Silicon only;
+# on other platforms the ollama HTTP backend works with NO extra installed
+# (stdlib urllib + the base imageio-ffmpeg frame sampling). Qwen3-VL support
+# landed in mlx-vlm 0.3.x (the official 4-bit conversion was produced with
+# 0.3.4), so the floor must be >=0.3.4. Weights download to
+# TRANSLIP_CACHE_DIR/vision_models/hf on first use (VISION_HF_CACHE overrides).
+vision = [
+  "mlx-vlm>=0.3.4,<1; sys_platform == 'darwin' and platform_machine == 'arm64'",
+  # transformers<5 (base constraint) resolves mlx-vlm to 0.3.x, whose Qwen3-VL
+  # AutoProcessor imports torchvision for the video processor path. torch is
+  # already base-transitive, so this only adds the small companion wheel.
+  # <0.27 keeps the resolver on the torch 2.11 pairing the rest of the stack
+  # (erase/voxcpm) is locked against — 0.27 would force a torch 2.12 upgrade.
+  "torchvision>=0.20,<0.27; sys_platform == 'darwin' and platform_machine == 'arm64'",
+  "huggingface_hub>=0.26,<1",
+  "pillow>=10,<12",
+]
 
 [project.scripts]
 translip = "translip.cli:main"
@@ -66,6 +83,15 @@ video-voice-server = "video_voice_separate.server.app:run_server"
 [build-system]
 requires = ["hatchling>=1.27.0"]
 build-backend = "hatchling.build"
+
+[tool.uv]
+override-dependencies = [
+  # mlx-vlm (vision extra) declares opencv-python, which would install a second
+  # cv2 distribution next to the ocr/erase stack's opencv-contrib-python and mix
+  # wheel files inside one cv2/ directory. contrib is a strict superset, so
+  # exclude the plain wheel everywhere and let contrib provide cv2.
+  "opencv-python; sys_platform == 'never'",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

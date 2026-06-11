@@ -18,6 +18,10 @@ class ToolSpec:
     accept_formats: list[str]
     max_file_size_mb: int = 500
     max_files: int = 1
+    # Heavy tools (multi-GB model inference) are additionally serialized on a
+    # dedicated single slot in the job manager so two of them never run at
+    # once on a 16 GB host (vision + erase together would exhaust memory).
+    heavy: bool = False
 
 
 TOOL_REGISTRY: dict[str, ToolSpec] = {}

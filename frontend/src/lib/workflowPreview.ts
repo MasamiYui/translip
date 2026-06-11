@@ -11,6 +11,7 @@ interface NodeDefinition {
 export const WORKFLOW_LANES: Array<{ id: WorkflowGraphNode['group']; columnCount: number }> = [
   { id: 'audio-spine', columnCount: 7 },
   { id: 'ocr-subtitles', columnCount: 7 },
+  { id: 'visual-perception', columnCount: 7 },
   { id: 'video-cleanup', columnCount: 7 },
   { id: 'delivery', columnCount: 7 },
 ]
@@ -21,6 +22,7 @@ export const WORKFLOW_NODE_DEFINITIONS: Record<string, NodeDefinition> = {
   'task-a': { group: 'audio-spine', dependencies: ['stage1'], column: 2 },
   'asr-ocr-correct': { group: 'audio-spine', dependencies: ['task-a', 'ocr-detect'], column: 3 },
   'task-b': { group: 'audio-spine', dependencies: ['task-a'], column: 4 },
+  'visual-context': { group: 'visual-perception', dependencies: ['task-a'], column: 4 },
   'task-c': { group: 'audio-spine', dependencies: ['task-b'], column: 5 },
   'ocr-translate': { group: 'ocr-subtitles', dependencies: ['ocr-detect'], column: 4 },
   'task-d': { group: 'audio-spine', dependencies: ['task-c'], column: 6 },
@@ -35,6 +37,10 @@ const TEMPLATE_DEFINITIONS: Record<
 > = {
   'asr-dub-basic': {
     nodeIds: ['stage1', 'task-a', 'task-b', 'task-c', 'task-d', 'task-e', 'task-g'],
+    requiredIds: ['stage1', 'task-a', 'task-b', 'task-c', 'task-d', 'task-e', 'task-g'],
+  },
+  'asr-dub+visual': {
+    nodeIds: ['stage1', 'task-a', 'task-b', 'visual-context', 'task-c', 'task-d', 'task-e', 'task-g'],
     requiredIds: ['stage1', 'task-a', 'task-b', 'task-c', 'task-d', 'task-e', 'task-g'],
   },
   'asr-dub+ocr-subs': {

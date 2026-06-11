@@ -107,6 +107,18 @@ def task_b_voice_bank_path(request: PipelineRequest) -> Path:
     return task_b_bundle_dir(request) / f"voice_bank.{request.target_lang}.json"
 
 
+def visual_context_dir(request: PipelineRequest) -> Path:
+    return request.output_root / "visual-context"
+
+
+def visual_context_path(request: PipelineRequest) -> Path:
+    return visual_context_dir(request) / "visual_context.json"
+
+
+def visual_context_manifest_path(request: PipelineRequest) -> Path:
+    return visual_context_dir(request) / "scene-context-manifest.json"
+
+
 def task_c_bundle_dir(request: PipelineRequest) -> Path:
     return request.output_root / "task-c" / "voice"
 
@@ -316,6 +328,10 @@ def build_task_c_command(request: PipelineRequest) -> list[str]:
         command.extend(["--api-model", request.api_model])
     if request.api_base_url:
         command.extend(["--api-base-url", request.api_base_url])
+    # Hand visual scene context to task-c when the visual-context node produced
+    # it (templates without the node simply never have this file).
+    if visual_context_path(request).exists():
+        command.extend(["--visual-context", str(visual_context_path(request))])
     return command
 
 
@@ -433,6 +449,9 @@ __all__ = [
     "stage1_bundle_dir",
     "stage1_manifest_path",
     "stage1_voice_path",
+    "visual_context_dir",
+    "visual_context_manifest_path",
+    "visual_context_path",
     "effective_task_a_segments_path",
     "task_a_corrected_segments_path",
     "task_a_corrected_srt_path",

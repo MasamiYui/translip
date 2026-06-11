@@ -1029,6 +1029,7 @@ export function NewTaskPage() {
                     onChange={value => patchConfig({ template: normalizeTemplateId(value) })}
                     options={([
                       'asr-dub-basic',
+                      'asr-dub+visual',
                       'asr-dub+ocr-subs',
                       'asr-dub+ocr-subs+erase',
                     ] as TaskConfig['template'][]).map(value => ({ value, label: value }))}
@@ -1245,6 +1246,7 @@ export function NewTaskPage() {
 function normalizeTemplateId(value: unknown): TaskConfig['template'] {
   if (
     value === 'asr-dub-basic' ||
+    value === 'asr-dub+visual' ||
     value === 'asr-dub+ocr-subs' ||
     value === 'asr-dub+ocr-subs+erase'
   ) {

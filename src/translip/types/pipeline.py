@@ -129,6 +129,10 @@ class PipelineRequest:
             },
         )
     )
+    # Video content perception (visual-context node) — in-tree Qwen3-VL.
+    vision_backend: str = "auto"  # auto | mlx | ollama
+    vision_frames_per_unit: int = 4
+    vision_lang: str = "zh"
     # Hard-subtitle erasure (subtitle-erase node) — in-tree inpainting.
     erase_backend: str = "sttn"  # sttn | lama
     erase_device: str = "auto"  # auto | mps | cuda | cpu

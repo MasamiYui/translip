@@ -19,6 +19,9 @@ NODE_REGISTRY: dict[WorkflowNodeName, WorkflowNodeDef] = {
     "task-a": WorkflowNodeDef("task-a", "audio-spine", ("stage1",), 30),
     "asr-ocr-correct": WorkflowNodeDef("asr-ocr-correct", "audio-spine", ("task-a", "ocr-detect"), 35),
     "task-b": WorkflowNodeDef("task-b", "audio-spine", ("stage1", "task-a"), 40),
+    # Runs after asr-ocr-correct (35) in templates that include it, so it sees
+    # the corrected segments task-c will consume (matching by time overlap).
+    "visual-context": WorkflowNodeDef("visual-context", "visual-perception", ("task-a",), 45),
     "task-c": WorkflowNodeDef("task-c", "audio-spine", ("task-a", "task-b"), 50),
     "ocr-translate": WorkflowNodeDef("ocr-translate", "ocr-subtitles", ("ocr-detect",), 60),
     "task-d": WorkflowNodeDef("task-d", "audio-spine", ("task-b", "task-c"), 70),

@@ -298,6 +298,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["off", "smart", "aggressive"],
         help="LLM-based translation condensation for overflowing TTS segments",
     )
+    translate_parser.add_argument(
+        "--visual-context",
+        default=None,
+        help="Optional visual_context.json (analyze-video scene-context output) injected as scene context",
+    )
 
     synthesize_parser = subparsers.add_parser(
         "synthesize-speaker",
@@ -529,6 +534,34 @@ def build_parser() -> argparse.ArgumentParser:
     probe_parser = subparsers.add_parser("probe", help="Inspect a media file")
     probe_parser.add_argument("--input", required=True, help="Input media file path")
 
+    analyze_video_parser = subparsers.add_parser(
+        "analyze-video",
+        help="Analyze video frames with a local Qwen3-VL model (scene context, erase QC, OCR triage, Q&A)",
+    )
+    analyze_video_parser.add_argument("--input", required=True, help="Input video file path")
+    analyze_video_parser.add_argument("--output-dir", default="output-vision", help="Output directory")
+    analyze_video_parser.add_argument(
+        "--task",
+        default="scene-context",
+        choices=["scene-context", "erase-qc", "ocr-classify", "speaker-visual", "freeform"],
+    )
+    analyze_video_parser.add_argument(
+        "--segments",
+        default=None,
+        help="Task A segments JSON; omit to sample fixed intervals",
+    )
+    analyze_video_parser.add_argument(
+        "--detection",
+        default=None,
+        help="OCR events JSON (required for ocr-classify, optional for erase-qc)",
+    )
+    analyze_video_parser.add_argument("--question", default=None, help="Question for task=freeform")
+    analyze_video_parser.add_argument("--sample-interval", type=float, default=10.0)
+    analyze_video_parser.add_argument("--backend", default=None, choices=["auto", "mlx", "ollama"])
+    analyze_video_parser.add_argument("--frames-per-unit", type=int, default=None)
+    analyze_video_parser.add_argument("--lang", default="zh", choices=["zh", "en"])
+    analyze_video_parser.add_argument("--max-units", type=int, default=None)
+
     preview_parser = subparsers.add_parser(
         "preview-subtitles",
         help="Render a short preview video with burned subtitles",
@@ -571,7 +604,7 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument(
         "--template",
         default=None,
-        choices=["asr-dub-basic", "asr-dub+ocr-subs", "asr-dub+ocr-subs+erase"],
+        choices=["asr-dub-basic", "asr-dub+visual", "asr-dub+ocr-subs", "asr-dub+ocr-subs+erase"],
     )
     pipeline_parser.add_argument(
         "--erase-backend",
@@ -771,6 +804,27 @@ def main(argv: list[str] | None = None) -> int:
             )
         )
         return 0
+
+    if args.command == "analyze-video":
+        # Imported lazily: the vision stack (and its optional extra) only loads
+        # when an analysis actually runs.
+        from .vision.extract import analyze_to_dir
+
+        manifest = analyze_to_dir(
+            input_path=Path(args.input),
+            output_dir=Path(args.output_dir),
+            task=args.task,
+            segments_path=Path(args.segments) if args.segments else None,
+            detection_path=Path(args.detection) if args.detection else None,
+            question=args.question,
+            sample_interval_sec=float(args.sample_interval),
+            backend=args.backend,
+            frames_per_unit=args.frames_per_unit,
+            lang=args.lang,
+            max_units=args.max_units,
+        )
+        print(json.dumps(manifest, ensure_ascii=False, indent=2))
+        return 0 if manifest.get("status") == "succeeded" else 1
 
     if args.command == "preview-subtitles":
         style = SubtitleStyle(
@@ -1025,6 +1079,7 @@ def main(argv: list[str] | None = None) -> int:
             api_model=args.api_model,
             api_base_url=args.api_base_url,
             condense_mode=args.condense_mode,
+            visual_context_path=args.visual_context,
         )
         result = translate_script(request)
         print(f"translation={result.artifacts.translation_json_path}")
