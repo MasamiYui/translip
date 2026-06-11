@@ -1,6 +1,6 @@
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react'
+import { useEffect, useId, useState, type Dispatch, type SetStateAction } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Info, RefreshCw } from 'lucide-react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { atomicToolsApi } from '../api/atomic-tools'
 import { configApi } from '../api/config'
@@ -425,6 +425,8 @@ function renderControls(
         {showOverlap && (
           <SelectField
             label={atomicTools.fields.cdx23Overlap}
+            hint={atomicTools.hints.cdx23Overlap}
+            hintAriaLabel={atomicTools.hints.termHintAria}
             value={String(params.cdx23_overlap ?? 0.5)}
             options={['0.25', '0.5', '0.75', '0.9']}
             onChange={value => setField('cdx23_overlap', Number(value))}
@@ -461,11 +463,11 @@ function renderControls(
       <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-3">
           <SelectField label={atomicTools.fields.language} value={String(params.language)} options={sourceLanguageOptions} onChange={value => setField('language', value)} />
-          <SelectField label={atomicTools.fields.asrBackend} value={asrBackend} options={ASR_BACKEND_OPTIONS} onChange={handleAsrBackendChange} />
-          <SelectField label={atomicTools.fields.asrModel} value={asrModelValue} options={asrModelOptions} onChange={value => setField('asr_model', value)} />
+          <SelectField label={atomicTools.fields.asrBackend} hint={atomicTools.hints.asrBackend} hintAriaLabel={atomicTools.hints.termHintAria} value={asrBackend} options={ASR_BACKEND_OPTIONS} onChange={handleAsrBackendChange} />
+          <SelectField label={atomicTools.fields.asrModel} hint={atomicTools.hints.asrModel} hintAriaLabel={atomicTools.hints.termHintAria} value={asrModelValue} options={asrModelOptions} onChange={value => setField('asr_model', value)} />
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-          <CheckboxField label={atomicTools.fields.enableDiarization} checked={Boolean(params.enable_diarization)} onChange={value => setField('enable_diarization', value)} />
+          <CheckboxField label={atomicTools.fields.enableDiarization} hint={atomicTools.hints.diarization} hintAriaLabel={atomicTools.hints.termHintAria} checked={Boolean(params.enable_diarization)} onChange={value => setField('enable_diarization', value)} />
           <CheckboxField label={atomicTools.fields.generateSrt} checked={Boolean(params.generate_srt)} onChange={value => setField('generate_srt', value)} />
         </div>
         <div className="grid gap-4 md:grid-cols-2">
@@ -509,7 +511,7 @@ function renderControls(
         <TextAreaField label={atomicTools.fields.text} value={textInput} onChange={setTextInput} />
         <div className="grid gap-4 md:grid-cols-2">
           <TextField label={atomicTools.fields.language} value={String(params.language)} onChange={value => setField('language', value)} />
-          <SelectField label={atomicTools.fields.ttsBackend} value={String(params.backend ?? 'qwen3tts')} options={DUBBING_BACKEND_OPTIONS} onChange={value => setField('backend', value)} />
+          <SelectField label={atomicTools.fields.ttsBackend} hint={atomicTools.hints.ttsBackend} hintAriaLabel={atomicTools.hints.termHintAria} value={String(params.backend ?? 'qwen3tts')} options={DUBBING_BACKEND_OPTIONS} onChange={value => setField('backend', value)} />
         </div>
       </div>
     )
@@ -684,6 +686,8 @@ function renderControls(
           <div className="mt-3 grid gap-4 md:grid-cols-3">
             <SelectField
               label={atomicTools.fields.backend}
+              hint={atomicTools.hints.backendInpaint}
+              hintAriaLabel={atomicTools.hints.termHintAria}
               value={backendRaw}
               options={[
                 { value: '', label: atomicTools.fields.backendFollowPreset },
@@ -694,6 +698,8 @@ function renderControls(
             />
             <SelectField
               label={atomicTools.fields.device}
+              hint={atomicTools.hints.device}
+              hintAriaLabel={atomicTools.hints.termHintAria}
               value={String(params.device ?? 'auto')}
               options={['auto', 'mps', 'cuda', 'cpu']}
               onChange={value => setField('device', value)}
@@ -706,12 +712,16 @@ function renderControls(
             />
             <TextField
               label={atomicTools.fields.maskDilateX}
+              hint={atomicTools.hints.maskDilateX}
+              hintAriaLabel={atomicTools.hints.termHintAria}
               type="number"
               value={String(params.mask_dilate_x ?? '')}
               onChange={value => setField('mask_dilate_x', value === '' ? '' : Number(value))}
             />
             <TextField
               label={atomicTools.fields.maskDilateY}
+              hint={atomicTools.hints.maskDilateY}
+              hintAriaLabel={atomicTools.hints.termHintAria}
               type="number"
               value={String(params.mask_dilate_y ?? '')}
               onChange={value => setField('mask_dilate_y', value === '' ? '' : Number(value))}
@@ -719,6 +729,8 @@ function renderControls(
             {showNeighborStride && (
               <TextField
                 label={atomicTools.fields.neighborStride}
+                hint={atomicTools.hints.neighborStride}
+                hintAriaLabel={atomicTools.hints.termHintAria}
                 type="number"
                 value={String(params.neighbor_stride ?? '')}
                 onChange={value => setField('neighbor_stride', value === '' ? '' : Number(value))}
@@ -726,6 +738,8 @@ function renderControls(
             )}
             <TextField
               label={atomicTools.fields.referenceLength}
+              hint={atomicTools.hints.referenceLength}
+              hintAriaLabel={atomicTools.hints.termHintAria}
               type="number"
               value={String(params.reference_length ?? '')}
               onChange={value => setField('reference_length', value === '' ? '' : Number(value))}
@@ -983,28 +997,73 @@ function languageOptions(
   }))
 }
 
+function TermHint({ hint, ariaLabel }: { hint: string; ariaLabel: string }) {
+  return (
+    <span
+      role="img"
+      aria-label={`${ariaLabel}: ${hint}`}
+      title={hint}
+      tabIndex={0}
+      className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+    >
+      <Info size={14} aria-hidden="true" />
+    </span>
+  )
+}
+
+function FieldLabelRow({
+  label,
+  htmlFor,
+  hint,
+  hintAriaLabel,
+}: {
+  label: string
+  htmlFor?: string
+  hint?: string
+  hintAriaLabel?: string
+}) {
+  return (
+    <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
+      <label htmlFor={htmlFor} className="cursor-pointer">
+        {label}
+      </label>
+      {hint && <TermHint hint={hint} ariaLabel={hintAriaLabel ?? label} />}
+    </span>
+  )
+}
+
+const useStableId = (prefix: string) => {
+  const reactId = useId()
+  return `${prefix}-${reactId.replace(/[^a-zA-Z0-9_-]/g, '')}`
+}
+
 function SelectField({
   label,
   value,
   options,
   onChange,
+  hint,
+  hintAriaLabel,
 }: {
   label: string
   value: string
   options: SelectOption[]
   onChange: (value: string) => void
+  hint?: string
+  hintAriaLabel?: string
 }) {
+  const id = useStableId('select-field')
   return (
-    <label className="block space-y-2 text-sm">
-      <span className="font-medium text-slate-700">{label}</span>
-      <select value={value} onChange={event => onChange(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
+    <div className="block space-y-2 text-sm">
+      <FieldLabelRow label={label} htmlFor={id} hint={hint} hintAriaLabel={hintAriaLabel} />
+      <select id={id} value={value} onChange={event => onChange(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
         {options.map(option => (
           <option key={typeof option === 'string' ? option : option.value} value={typeof option === 'string' ? option : option.value}>
             {typeof option === 'string' ? option : option.label}
           </option>
         ))}
       </select>
-    </label>
+    </div>
   )
 }
 
@@ -1013,17 +1072,22 @@ function TextField({
   value,
   onChange,
   type = 'text',
+  hint,
+  hintAriaLabel,
 }: {
   label: string
   value: string
   onChange: (value: string) => void
   type?: string
+  hint?: string
+  hintAriaLabel?: string
 }) {
+  const id = useStableId('text-field')
   return (
-    <label className="block space-y-2 text-sm">
-      <span className="font-medium text-slate-700">{label}</span>
-      <input type={type} value={value} onChange={event => onChange(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700" />
-    </label>
+    <div className="block space-y-2 text-sm">
+      <FieldLabelRow label={label} htmlFor={id} hint={hint} hintAriaLabel={hintAriaLabel} />
+      <input id={id} type={type} value={value} onChange={event => onChange(event.target.value)} className="w-full rounded-2xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700" />
+    </div>
   )
 }
 
@@ -1048,15 +1112,22 @@ function CheckboxField({
   label,
   checked,
   onChange,
+  hint,
+  hintAriaLabel,
 }: {
   label: string
   checked: boolean
   onChange: (value: boolean) => void
+  hint?: string
+  hintAriaLabel?: string
 }) {
   return (
-    <label className="inline-flex items-center gap-3 rounded-2xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
-      <input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} />
-      {label}
-    </label>
+    <div className="inline-flex items-center gap-3 rounded-2xl border border-slate-200 px-3 py-2.5 text-sm text-slate-700">
+      <label className="inline-flex cursor-pointer items-center gap-3">
+        <input type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} />
+        <span>{label}</span>
+      </label>
+      {hint && <TermHint hint={hint} ariaLabel={hintAriaLabel ?? label} />}
+    </div>
   )
 }

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useId, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronLeft, ChevronRight, Cpu, FolderOpen, Loader2 } from 'lucide-react'
@@ -209,23 +209,71 @@ function applyGlobalDefaults(
   return next
 }
 
-function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+function Field({
+  label,
+  children,
+  hint,
+  required = false,
+  error,
+  htmlFor,
+  requiredMark,
+}: {
+  label: string
+  children: React.ReactNode
+  hint?: string
+  required?: boolean
+  error?: string
+  htmlFor?: string
+  requiredMark?: string
+}) {
+  const hintId = htmlFor && hint ? `${htmlFor}-hint` : undefined
+  const errorId = htmlFor && error ? `${htmlFor}-error` : undefined
   return (
     <div>
-      <label className="mb-1.5 block text-sm font-medium text-slate-700">{label}</label>
+      <label
+        htmlFor={htmlFor}
+        className="mb-1.5 block text-sm font-medium text-slate-700"
+      >
+        {label}
+        {required && (
+          <span
+            className="ml-0.5 text-rose-500"
+            aria-label={requiredMark}
+            title={requiredMark}
+          >
+            *
+          </span>
+        )}
+      </label>
       {children}
-      {hint && <p className="mt-1 text-xs text-slate-400">{hint}</p>}
+      {error ? (
+        <p id={errorId} role="alert" className="mt-1 text-xs text-rose-500">
+          {error}
+        </p>
+      ) : (
+        hint && (
+          <p id={hintId} className="mt-1 text-xs text-slate-400">
+            {hint}
+          </p>
+        )
+      )}
     </div>
   )
 }
 
-function Select({ value, onChange, options }: {
+function Select({ value, onChange, options, id, ariaDescribedBy, ariaInvalid }: {
   value: string | number
   onChange: (v: string) => void
   options: { value: string | number; label: string }[]
+  id?: string
+  ariaDescribedBy?: string
+  ariaInvalid?: boolean
 }) {
   return (
     <select
+      id={id}
+      aria-describedby={ariaDescribedBy}
+      aria-invalid={ariaInvalid || undefined}
       value={value}
       onChange={event => onChange(event.target.value)}
       className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
@@ -239,21 +287,44 @@ function Select({ value, onChange, options }: {
   )
 }
 
-function TextInput({ value, onChange, onBlur, placeholder = '', type = 'text' }: {
+function TextInput({
+  value,
+  onChange,
+  onBlur,
+  placeholder = '',
+  type = 'text',
+  id,
+  required = false,
+  ariaDescribedBy,
+  ariaInvalid,
+}: {
   value: string | number
   onChange: (v: string) => void
   onBlur?: () => void
   placeholder?: string
   type?: string
+  id?: string
+  required?: boolean
+  ariaDescribedBy?: string
+  ariaInvalid?: boolean
 }) {
   return (
     <input
+      id={id}
       type={type}
       value={value}
       onChange={event => onChange(event.target.value)}
       onBlur={onBlur}
       placeholder={placeholder}
-      className="w-full rounded-lg border border-[#e5e7eb] bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#3b5bdb]/20 focus:border-[#3b5bdb] transition-all"
+      required={required}
+      aria-required={required || undefined}
+      aria-describedby={ariaDescribedBy}
+      aria-invalid={ariaInvalid || undefined}
+      className={`w-full rounded-lg border bg-white px-3 py-2 text-sm transition-all focus:outline-none focus:ring-2 ${
+        ariaInvalid
+          ? 'border-rose-300 focus:border-rose-400 focus:ring-rose-200/40'
+          : 'border-[#e5e7eb] focus:border-[#3b5bdb] focus:ring-[#3b5bdb]/20'
+      }`}
     />
   )
 }
@@ -484,6 +555,7 @@ export function NewTaskPage() {
   const [step, setStep] = useState(0)
   const [name, setName] = useState('')
   const [inputPath, setInputPath] = useState('')
+  const [inputPathTouched, setInputPathTouched] = useState(false)
   const [sourceLang, setSourceLang] = useState('zh')
   const [targetLang, setTargetLang] = useState('en')
   const [config, setConfig] = useState<Partial<TaskConfig>>(defaultConfig)
@@ -495,6 +567,10 @@ export function NewTaskPage() {
   const [showCorrectionExplanation, setShowCorrectionExplanation] = useState(false)
   const [autoBindWork, setAutoBindWork] = useState(true)
   const [globalDefaultsApplied, setGlobalDefaultsApplied] = useState(false)
+
+  const inputPathFieldId = useId()
+  const inputPathHasError = inputPathTouched && !inputPath.trim()
+  const inputPathErrorMessage = inputPathHasError ? t.newTask.validation.inputVideoPathMissing : undefined
 
   const steps = locale === 'zh-CN'
     ? ['素材与语言', '成品目标', '质量与设置', '确认创建']
@@ -672,15 +748,33 @@ export function NewTaskPage() {
         <Field label={t.newTask.fields.taskName}>
           <TextInput value={name} onChange={setName} placeholder={t.newTask.placeholders.taskName} />
         </Field>
-        <Field label={t.newTask.fields.inputVideoPath} hint={t.newTask.hints.inputVideoPath}>
+        <Field
+          label={t.newTask.fields.inputVideoPath}
+          hint={t.newTask.hints.inputVideoPath}
+          required
+          requiredMark={t.newTask.validation.requiredMark}
+          htmlFor={inputPathFieldId}
+          error={inputPathErrorMessage}
+        >
           <div className="flex gap-2">
             <TextInput
+              id={inputPathFieldId}
+              required
+              ariaInvalid={inputPathHasError}
+              ariaDescribedBy={
+                inputPathHasError
+                  ? `${inputPathFieldId}-error`
+                  : `${inputPathFieldId}-hint`
+              }
               value={inputPath}
               onChange={value => {
                 setInputPath(value)
                 setMediaInfo(null)
               }}
-              onBlur={() => inputPath && !mediaInfo && probeMutation.mutate(inputPath)}
+              onBlur={() => {
+                setInputPathTouched(true)
+                if (inputPath && !mediaInfo) probeMutation.mutate(inputPath)
+              }}
               placeholder={t.newTask.placeholders.inputVideoPath}
             />
             <button
@@ -1255,9 +1349,23 @@ export function NewTaskPage() {
           {step < stepContent.length - 1 ? (
             <button
               type="button"
-              onClick={() => setStep(step + 1)}
-              disabled={(step === 0 && !inputPath) || createMutation.isPending}
-              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              onClick={() => {
+                if (step === 0 && !inputPath.trim()) {
+                  setInputPathTouched(true)
+                  return
+                }
+                setStep(step + 1)
+              }}
+              disabled={createMutation.isPending}
+              title={
+                step === 0 && !inputPath.trim()
+                  ? t.newTask.validation.nextDisabledHint
+                  : undefined
+              }
+              aria-disabled={step === 0 && !inputPath.trim() ? true : undefined}
+              className={`inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50 ${
+                step === 0 && !inputPath.trim() ? 'cursor-not-allowed opacity-50 hover:bg-blue-600' : ''
+              }`}
             >
               {t.newTask.actions.next}
               <ChevronRight size={16} />
