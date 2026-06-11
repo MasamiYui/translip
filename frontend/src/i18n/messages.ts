@@ -651,6 +651,7 @@ const zhMessages = {
     stopTask: '停止任务',
     deleteTask: '删除',
     deleteConfirm: '确定删除此任务及其产物？',
+    elapsed: '耗时',
     stageDetails: {
       progress: '进度',
       duration: '耗时',
@@ -2473,6 +2474,7 @@ const enMessages: LocaleMessages = {
     stopTask: 'Stop Task',
     deleteTask: 'Delete',
     deleteConfirm: 'Delete this task and its artifacts?',
+    elapsed: 'Elapsed',
     stageDetails: {
       progress: 'Progress',
       duration: 'Duration',

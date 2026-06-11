@@ -427,7 +427,7 @@ export function TaskDetailPage() {
           )}
           <div className="mt-5 grid gap-x-8 gap-y-3 md:grid-cols-2 xl:grid-cols-5">
             <MetaItem
-              label={t.common.elapsed}
+              label={t.taskDetail.elapsed}
               value={
                 task.status === 'running'
                   ? t.taskDetail.runningFor(formatDuration(task.elapsed_sec))
