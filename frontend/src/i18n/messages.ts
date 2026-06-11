@@ -507,6 +507,14 @@ const zhMessages = {
     title: '新建任务',
     steps: ['基础信息', '节点配置', '高级选项', '确认提交'],
     stepTitle: (step: number, label: string) => `步骤 ${step}: ${label}`,
+    stepIndicator: {
+      ariaLabel: '创建流程进度',
+      completed: '已完成',
+      current: '进行中',
+      upcoming: '待完成',
+      stepDescriptor: (step: number, total: number, label: string, status: string) =>
+        `步骤 ${step} / ${total}：${label}，${status}`,
+    },
     fields: {
       taskName: '任务名称',
       inputVideoPath: '输入视频路径',
@@ -1121,6 +1129,7 @@ const zhMessages = {
       preset: '预设',
       llmArbitration: 'LLM 仲裁',
       advanced: '高级参数',
+      advancedHint: '默认值适合大多数场景，按需展开调整',
       positionMode: '字幕位置',
       extractionMode: '提取策略',
       roiBottomRatio: '底部感兴趣区占比',
@@ -2357,6 +2366,14 @@ const enMessages: LocaleMessages = {
     title: 'Create Task',
     steps: ['Basics', 'Stages', 'Advanced', 'Review'],
     stepTitle: (step: number, label: string) => `Step ${step}: ${label}`,
+    stepIndicator: {
+      ariaLabel: 'Creation progress',
+      completed: 'completed',
+      current: 'in progress',
+      upcoming: 'upcoming',
+      stepDescriptor: (step: number, total: number, label: string, status: string) =>
+        `Step ${step} of ${total}: ${label}, ${status}`,
+    },
     fields: {
       taskName: 'Task Name',
       inputVideoPath: 'Input Video Path',
@@ -2976,6 +2993,7 @@ const enMessages: LocaleMessages = {
       preset: 'Preset',
       llmArbitration: 'LLM Arbitration',
       advanced: 'Advanced',
+      advancedHint: 'Defaults suit most cases; expand to tune as needed',
       positionMode: 'Subtitle Position',
       extractionMode: 'Extraction Mode',
       roiBottomRatio: 'Bottom ROI Ratio',

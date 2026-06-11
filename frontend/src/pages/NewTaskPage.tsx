@@ -1175,27 +1175,64 @@ export function NewTaskPage() {
     <PageContainer className={APP_CONTENT_MAX_WIDTH}>
       <h1 className="mb-6 text-2xl font-bold text-slate-900">{t.newTask.title}</h1>
 
-      <div className="mb-8 flex items-center">
-        {steps.map((label, index) => (
-          <div key={label} className="flex items-center">
-            <div className="flex items-center gap-2">
-              <div className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-colors ${
-                index < step ? 'bg-emerald-500 text-white' :
-                index === step ? 'bg-blue-600 text-white' :
-                'bg-slate-200 text-slate-500'
-              }`}>
-                {index < step ? '✓' : index + 1}
+      <ol
+        className="mb-8 -mx-1 flex items-center gap-0 overflow-x-auto px-1 pb-2 sm:overflow-visible sm:pb-0"
+        aria-label={t.newTask.stepIndicator.ariaLabel}
+      >
+        {steps.map((label, index) => {
+          const isCompleted = index < step
+          const isCurrent = index === step
+          const statusText = isCompleted
+            ? t.newTask.stepIndicator.completed
+            : isCurrent
+              ? t.newTask.stepIndicator.current
+              : t.newTask.stepIndicator.upcoming
+          return (
+            <li
+              key={label}
+              className="flex shrink-0 items-center"
+              aria-current={isCurrent ? 'step' : undefined}
+            >
+              <div className="flex items-center gap-2">
+                <div
+                  aria-label={t.newTask.stepIndicator.stepDescriptor(
+                    index + 1,
+                    steps.length,
+                    label,
+                    statusText,
+                  )}
+                  className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-colors ${
+                    isCompleted
+                      ? 'bg-emerald-500 text-white'
+                      : isCurrent
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-200 text-slate-500'
+                  }`}
+                >
+                  <span aria-hidden="true">{isCompleted ? '✓' : index + 1}</span>
+                </div>
+                <span
+                  className={`text-sm font-medium ${
+                    isCurrent
+                      ? 'text-slate-900'
+                      : isCompleted
+                        ? 'text-slate-500'
+                        : 'text-slate-400'
+                  } ${isCurrent ? '' : 'hidden sm:inline'}`}
+                >
+                  {label}
+                </span>
               </div>
-              <span className={`hidden text-sm font-medium sm:block ${index === step ? 'text-slate-900' : 'text-slate-400'}`}>
-                {label}
-              </span>
-            </div>
-            {index < steps.length - 1 && (
-              <div className={`mx-2 h-px w-8 ${index < step ? 'bg-emerald-300' : 'bg-slate-200'}`} />
-            )}
-          </div>
-        ))}
-      </div>
+              {index < steps.length - 1 && (
+                <div
+                  aria-hidden="true"
+                  className={`mx-2 h-px w-8 ${isCompleted ? 'bg-emerald-300' : 'bg-slate-200'}`}
+                />
+              )}
+            </li>
+          )
+        })}
+      </ol>
 
       <div className="overflow-hidden rounded-xl border border-slate-100 bg-white p-6">
         <h2 className="mb-5 text-base font-semibold text-slate-800">

@@ -666,9 +666,20 @@ function renderControls(
           </div>
         </div>
 
-        <details className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
-          <summary className="cursor-pointer text-sm font-medium text-slate-700">
-            {atomicTools.fields.advanced}
+        <details className="group rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-1 py-0.5 text-sm font-medium text-slate-700 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
+            <span className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="inline-flex h-4 w-4 items-center justify-center text-slate-400 transition-transform group-open:rotate-90"
+              >
+                ▶
+              </span>
+              {atomicTools.fields.advanced}
+            </span>
+            <span className="hidden text-xs font-normal text-slate-400 sm:inline">
+              {atomicTools.fields.advancedHint}
+            </span>
           </summary>
           <div className="mt-3 grid gap-4 md:grid-cols-3">
             <SelectField
