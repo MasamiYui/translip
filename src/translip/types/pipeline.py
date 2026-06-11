@@ -138,6 +138,11 @@ class PipelineRequest:
     # ocr-translate / asr-ocr-correct behavior, so it is opt-in until the
     # misclassification rate is validated on real footage.
     ocr_classify_text: bool = False
+    # Vision QC of the erased video (erase-qc node): samples original subtitle
+    # spans on clean_video.mp4 and reports residual text / artifacts. Pure
+    # report, opt-in (needs a vision backend + extra inference time).
+    erase_qc_enabled: bool = False
+    erase_qc_max_units: int = 40  # evenly subsample long films; 0 = check all
     # Hard-subtitle erasure (subtitle-erase node) — in-tree inpainting.
     erase_backend: str = "sttn"  # sttn | lama
     erase_device: str = "auto"  # auto | mps | cuda | cpu

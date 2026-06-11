@@ -31,6 +31,9 @@ from .ocr_bridge import (
     run_ocr_detect,
 )
 from .vision_bridge import (
+    erase_qc_manifest_path,
+    erase_qc_report_path,
+    run_erase_qc,
     run_visual_context,
     visual_context_manifest_path,
     visual_context_path,
@@ -314,6 +317,20 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "segments": _file_fingerprint(effective_task_a_segments_path(request)),
             }
         )
+    elif stage_name == "erase-qc":
+        common.update(
+            {
+                "vision_backend_resolved": _resolved_vision_backend(request),
+                "vision_lang": request.vision_lang,
+                "erase_qc_max_units": int(request.erase_qc_max_units),
+                # A re-erased video must re-QC; the erase manifest fingerprint
+                # changes with every successful erase run (cheaper than hashing
+                # the multi-GB clean_video itself).
+                "erase_manifest": _file_fingerprint(
+                    request.output_root / "subtitle-erase" / "subtitle-erase-manifest.json"
+                ),
+            }
+        )
     elif stage_name == "subtitle-erase":
         common.update(
             {
@@ -435,6 +452,9 @@ def _node_cache_spec(
     elif stage_name == "visual-context":
         manifest_path = visual_context_manifest_path(request)
         artifact_paths = [visual_context_path(request), manifest_path]
+    elif stage_name == "erase-qc":
+        manifest_path = erase_qc_manifest_path(request)
+        artifact_paths = [erase_qc_report_path(request), manifest_path]
     elif stage_name == "subtitle-erase":
         manifest_path = request.output_root / "subtitle-erase" / "subtitle-erase-manifest.json"
         artifact_paths = [request.output_root / "subtitle-erase" / "clean_video.mp4", manifest_path]
@@ -482,6 +502,10 @@ def _resolve_execution_nodes(request: PipelineRequest) -> tuple[Any, list[str]]:
         for node_name in plan.node_order
         if start_hint <= NODE_REGISTRY[node_name].sequence_hint <= end_hint
     ]
+    # erase-qc is template-selected but runtime-gated: it costs extra vision
+    # inference, so it only runs when explicitly enabled.
+    if not request.erase_qc_enabled:
+        node_names = [node_name for node_name in node_names if node_name != "erase-qc"]
     return plan, node_names
 
 
@@ -906,6 +930,9 @@ def execute_node(
     if node_name == "visual-context":
         monitor.update_stage_progress(node_name, 5.0, "analyzing video scenes")
         return run_visual_context(request, log_path=_node_log_path(request, node_name), monitor=monitor, should_cancel=should_cancel)
+    if node_name == "erase-qc":
+        monitor.update_stage_progress(node_name, 5.0, "checking erased video for residual text")
+        return run_erase_qc(request, log_path=_node_log_path(request, node_name), monitor=monitor, should_cancel=should_cancel)
     if node_name == "subtitle-erase":
         monitor.update_stage_progress(node_name, 5.0, "erasing hard subtitles")
         return run_subtitle_erase(request, log_path=_node_log_path(request, node_name), monitor=monitor, should_cancel=should_cancel)

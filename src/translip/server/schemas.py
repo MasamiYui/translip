@@ -96,6 +96,11 @@ class TaskConfigInput(BaseModel):
         default=False,
         description="字幕识别后用视觉模型给每条 OCR 事件分类（对白字幕/场景文字/水印/标题），擦除与字幕翻译将跳过非字幕文字。默认关闭",
     )
+    erase_qc_enabled: bool = Field(
+        default=False,
+        description="字幕擦除后用视觉模型抽查原字幕区间是否有残留文字/涂抹痕迹，输出质检报告（纯报告，不阻断管线）。默认关闭",
+    )
+    erase_qc_max_units: int = Field(default=40, ge=0, description="擦除质检最多抽查的字幕区间数（均匀抽样；0=全部检查）")
     # Subtitle erase (subtitle-erase node)
     erase_backend: Literal["sttn", "lama"] = Field(default="sttn", description="字幕擦除后端：sttn/lama")
     erase_device: Literal["auto", "mps", "cuda", "cpu"] = Field(default="auto", description="字幕擦除计算设备")

@@ -127,8 +127,8 @@ def _frames_for_unit(
     settings: VisionSettings,
     frames_dir: Path,
 ) -> tuple[list[Path], list[float]]:
-    if request.task == "ocr-classify":
-        frames_per_unit = 1  # one midpoint frame per OCR event
+    if request.task in ("ocr-classify", "erase-qc"):
+        frames_per_unit = 1  # one midpoint frame per OCR/erased event span
     elif request.task == "freeform":
         frames_per_unit = 8  # spread over the whole video
     else:

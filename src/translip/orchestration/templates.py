@@ -69,10 +69,13 @@ TEMPLATE_REGISTRY: dict[WorkflowTemplateName, TemplateDef] = {
             "ocr-detect",
             "ocr-translate",
             "subtitle-erase",
+            "erase-qc",
             "task-g",
         ),
         required_nodes=("stage1", "task-a", "asr-ocr-correct", "task-b", "task-c", "task-d", "task-e", "ocr-detect", "task-g"),
-        optional_nodes=("ocr-translate", "subtitle-erase"),
+        # erase-qc is opt-in at runtime (erase_qc_enabled) and a pure report —
+        # a missing vision backend or QC failure never blocks delivery.
+        optional_nodes=("ocr-translate", "subtitle-erase", "erase-qc"),
         dependency_overrides={"task-b": ("asr-ocr-correct",)},
     ),
 }

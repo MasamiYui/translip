@@ -545,7 +545,7 @@ override-dependencies = [
 - 注入路径：scene 经 `BackendSegmentInput.context` 通道注入（`[画面] …` 前缀行）。deepseek prompt 已声明"context 仅用于解决指代/连贯性"，m2m100 只读 source_text —— LLM-only 语义由构造保证，无需 if-backend 分支。
 - 落地差异：visual-context 路径 helper 放在 `orchestration/commands.py`（vision_bridge 引用），因 bridge 已依赖 commands、反向会循环 import。
 
-### Phase 3 — erase-qc + ocr-classify（3–4 天）⏳ ocr-classify 闭环已完成（2026-06-11），erase-qc 节点待做
+### Phase 3 — erase-qc + ocr-classify（3–4 天）✅ 已完成（2026-06-11）
 两个集成点 + 前端报告展示 + §7.2 的缓存联动与帧级 mask 映射 + 误分类率验证。
 **验收：erase-qc 在已知擦除不净的样例（参考 box-vs-polygon 那次的片源）上能标出残留帧；开/关 ocr_classify_text 正确触发 erase/ocr-translate/asr-ocr-correct 重算。→ ocr-classify 部分已落地并测试。**
 
@@ -555,6 +555,15 @@ ocr-classify 闭环落地说明（与 §7.2 设计的差异）：
 - **只剔除 `scene_text`**：watermark/title_card 保持可擦（擦掉台标/片头字是期望行为而非缺陷）；ocr-translate 与 asr-ocr-correct 则跳过全部三类非对白文字。未分类事件（无 kind）行为与从前一致——"没分类"永远不等于"跳过擦除"。
 - **缓存联动**按表落地：ocr-detect key 含开关 + 解析后端；erase/ocr-translate/asr-ocr-correct key 含 effective events 指纹（`effective_ocr_events_path` 仅在开关开且文件存在时指向 classified 文件，杜绝旧产物泄漏进关闭开关的跑次）。
 - 入口：节点内作为 ocr-detect 的后处理（进度映射到 90–99%）；CLI `run-pipeline --ocr-classify-text`；服务端 `ocr_classify_text` 字段；新建任务页在"台词校正"下方有开关；原子工具侧 subtitle-detect 的 ocr_events.json 产物可一键"转到画面文字分类"。
+
+erase-qc 节点落地说明（2026-06-11 第三轮）：
+
+- **节点形态**：`erase-qc`（组 `visual-perception`，依赖 `subtitle-erase`，hint=95），加入 `asr-dub+ocr-subs+erase` 模板的 optional 集合。**模板选入 + 运行时门控**：`erase_qc_enabled=False` 默认关，关时从执行节点列表过滤（不进 status/manifest，不产生"跳过"噪音）。
+- **QC 的对象是擦除真正动过的区间**：`--detection` 用 `reuse_detection.expanded.json`（lead/trail 扩帧 + 视觉兜底事件 + 分类过滤之后的最终 mask 依据），而非原始 OCR 时间轴——擦了什么查什么。`--input` 是 `clean_video.mp4`。`erase_qc_max_units`（默认 40）均匀抽样控制长片成本。
+- **缓存**：key 含解析后端 + max_units + **erase manifest 指纹**（每次成功擦除都更新，重擦自动触发重检；比哈希多 GB 视频便宜）。
+- **prompt 教训（实测发现）**：v1 prompt 告诉模型"这是擦除后的视频"，模型被暗示性引导，对画面上清晰可见的字幕也回答"已擦除干净"（4/4 漏报）。改为中性提问（"下半部分是否存在可读叠加文字/修复痕迹"，不预设任何前提）后，未擦除负样本 4/4 正确标记——提问方式对小模型 QC 任务是决定性的。
+- **首次真实运行即抓到一例真实擦除失败**：用错位 box 的 detection 跑 STTN（inpaint 打在错误区域、字幕原封未动），QC 如实报告 4/4 残留；用真实 PaddleOCR detection 重擦后抽样 8/8 通过（pass_rate 1.0）。双向校验（漏报/误报）都过了。
+- 入口：CLI `run-pipeline --erase-qc`；服务端 `erase_qc_enabled`/`erase_qc_max_units` 字段；新建任务页 erase 模板下有"擦除质检"开关。报告产物 `erase-qc/erase_qc_report.json`（samples + summary.pass_rate）。
 
 ### Phase 4（择期）— speaker-visual + dashscope 云后端，以及 §2.3 需求池中验证有价值的项（视频类型识别、章节分段、字幕排版感知等）。
 

@@ -28,6 +28,7 @@ export const WORKFLOW_NODE_DEFINITIONS: Record<string, NodeDefinition> = {
   'task-d': { group: 'audio-spine', dependencies: ['task-c'], column: 6 },
   'task-e': { group: 'audio-spine', dependencies: ['task-d'], column: 6 },
   'subtitle-erase': { group: 'video-cleanup', dependencies: ['ocr-detect'], column: 5 },
+  'erase-qc': { group: 'visual-perception', dependencies: ['subtitle-erase'], column: 6 },
   'task-g': { group: 'delivery', dependencies: ['task-e', 'ocr-translate', 'subtitle-erase'], column: 7 },
 }
 

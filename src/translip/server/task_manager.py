@@ -60,6 +60,8 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
         vision_frames_per_unit=int(cfg.get("vision_frames_per_unit", 4)),
         vision_lang=cfg.get("vision_lang", "zh"),
         ocr_classify_text=bool(cfg.get("ocr_classify_text", False)),
+        erase_qc_enabled=bool(cfg.get("erase_qc_enabled", False)),
+        erase_qc_max_units=int(cfg.get("erase_qc_max_units", 40)),
         erase_backend=cfg.get("erase_backend", "sttn"),
         erase_device=cfg.get("erase_device", "auto"),
         erase_max_load=int(cfg.get("erase_max_load", 50)),

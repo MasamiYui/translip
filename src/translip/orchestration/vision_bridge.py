@@ -46,6 +46,48 @@ def build_visual_context_command(request: PipelineRequest) -> list[str]:
     ]
 
 
+def erase_qc_dir(request: PipelineRequest) -> Path:
+    return request.output_root / "erase-qc"
+
+
+def erase_qc_report_path(request: PipelineRequest) -> Path:
+    return erase_qc_dir(request) / "erase_qc_report.json"
+
+
+def erase_qc_manifest_path(request: PipelineRequest) -> Path:
+    return erase_qc_dir(request) / "erase-qc-manifest.json"
+
+
+def build_erase_qc_command(request: PipelineRequest) -> list[str]:
+    # QC the erased video at the original subtitle spans. The expanded reuse
+    # detection (lead/trail padding + visual-fallback events, post
+    # classification filter) is exactly the set of spans erasure touched — QC
+    # checks what was actually inpainted, not the raw OCR timeline.
+    from .erase_bridge import subtitle_erase_output_path, subtitle_erase_reuse_detection_path
+
+    detection = subtitle_erase_reuse_detection_path(request)
+    command = [
+        sys.executable,
+        "-m",
+        "translip.vision.extract",
+        "--input",
+        str(subtitle_erase_output_path(request)),
+        "--task",
+        "erase-qc",
+        "--detection",
+        str(detection),
+        "--output-dir",
+        str(erase_qc_dir(request)),
+        "--backend",
+        str(request.vision_backend),
+        "--lang",
+        str(request.vision_lang),
+    ]
+    if int(request.erase_qc_max_units) > 0:
+        command.extend(["--max-units", str(int(request.erase_qc_max_units))])
+    return command
+
+
 def parse_vision_progress_line(line: str) -> tuple[float, str] | None:
     """Parse one `__VISION_PROGRESS__\\t<pct>\\t<message>` line from the extractor."""
     if not line.startswith(_VISION_PROGRESS_PREFIX + "\t"):
@@ -60,14 +102,16 @@ def parse_vision_progress_line(line: str) -> tuple[float, str] | None:
     return percent, parts[2] if len(parts) > 2 else "analyzing video"
 
 
-def _build_progress_handler(monitor: "PipelineMonitor | None") -> Callable[[str], None] | None:
+def _build_progress_handler(
+    monitor: "PipelineMonitor | None", stage_name: str = "visual-context"
+) -> Callable[[str], None] | None:
     if monitor is None:
         return None
 
     def _handle(line: str) -> None:
         parsed = parse_vision_progress_line(line)
         if parsed is not None:
-            monitor.update_stage_progress("visual-context", parsed[0], parsed[1])
+            monitor.update_stage_progress(stage_name, parsed[0], parsed[1])
 
     return _handle
 
@@ -96,9 +140,37 @@ def run_visual_context(
     }
 
 
+def run_erase_qc(
+    request: PipelineRequest,
+    *,
+    log_path: Path,
+    monitor: "PipelineMonitor | None" = None,
+    should_cancel: Callable[[], bool] | None = None,
+) -> dict[str, object]:
+    run_stage_command(
+        build_erase_qc_command(request),
+        log_path=log_path,
+        on_stdout_line=_build_progress_handler(monitor, stage_name="erase-qc"),
+        should_cancel=should_cancel,
+    )
+    return {
+        "manifest_path": str(erase_qc_manifest_path(request)),
+        "artifact_paths": [
+            str(erase_qc_report_path(request)),
+            str(erase_qc_manifest_path(request)),
+        ],
+        "log_path": str(log_path),
+    }
+
+
 __all__ = [
+    "build_erase_qc_command",
     "build_visual_context_command",
+    "erase_qc_dir",
+    "erase_qc_manifest_path",
+    "erase_qc_report_path",
     "parse_vision_progress_line",
+    "run_erase_qc",
     "run_visual_context",
     "visual_context_dir",
     "visual_context_manifest_path",

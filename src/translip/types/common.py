@@ -38,6 +38,7 @@ WorkflowNodeName = Literal[
     "task-d",
     "task-e",
     "subtitle-erase",
+    "erase-qc",
     "task-g",
 ]
 WorkflowNodeGroup = Literal["audio-spine", "ocr-subtitles", "visual-perception", "video-cleanup", "delivery"]

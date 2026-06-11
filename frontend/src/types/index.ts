@@ -233,6 +233,8 @@ export interface TaskConfig {
   vision_frames_per_unit?: number
   vision_lang?: 'zh' | 'en'
   ocr_classify_text?: boolean
+  erase_qc_enabled?: boolean
+  erase_qc_max_units?: number
   erase_backend?: 'sttn' | 'lama'
   erase_device?: 'auto' | 'mps' | 'cuda' | 'cpu'
   erase_max_load?: number

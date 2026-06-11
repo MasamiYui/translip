@@ -985,6 +985,22 @@ export function NewTaskPage() {
               </div>
             </Field>
           )}
+          {normalizeTemplateId(config.template) === 'asr-dub+ocr-subs+erase' && (
+            <Field
+              label={locale === 'zh-CN' ? '擦除质检（视觉模型）' : 'Erase QC (vision model)'}
+              hint={locale === 'zh-CN'
+                ? '字幕擦除完成后，用本地 Qwen3-VL 抽查原字幕区间是否仍有残留文字或涂抹痕迹，输出问题帧报告。纯报告，不阻断管线；需要视觉后端。'
+                : 'After erasure, samples the original subtitle spans on the clean video with a local Qwen3-VL model and reports leftover text or inpainting artifacts. Pure report, never blocks the pipeline; needs a vision backend.'}
+            >
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                <Checkbox
+                  checked={config.erase_qc_enabled ?? false}
+                  onChange={value => patchConfig({ erase_qc_enabled: value })}
+                  label={locale === 'zh-CN' ? '擦除后自动抽查残留字幕' : 'Auto-check the erased video for residual subtitles'}
+                />
+              </div>
+            </Field>
+          )}
         </SectionCard>
 
         <SectionCard

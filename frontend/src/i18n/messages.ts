@@ -1010,6 +1010,7 @@ const zhMessages = {
     'task-d': '语音合成',
     'task-e': '时间线装配',
     'subtitle-erase': '擦除原字幕',
+    'erase-qc': '擦除质检',
     'task-g': '视频交付',
   },
   stageShort: {
@@ -1024,6 +1025,7 @@ const zhMessages = {
     'task-d': '语音合成',
     'task-e': '时间线装配',
     'subtitle-erase': '擦除字幕',
+    'erase-qc': '擦除质检',
     'task-g': '视频交付',
   },
   pipeline: {
@@ -2894,6 +2896,7 @@ const enMessages: LocaleMessages = {
     'task-d': 'Speech Synthesis',
     'task-e': 'Timeline Assembly',
     'subtitle-erase': 'Hard Subtitle Removal',
+    'erase-qc': 'Erase QC',
     'task-g': 'Delivery',
   },
   stageShort: {
@@ -2908,6 +2911,7 @@ const enMessages: LocaleMessages = {
     'task-d': 'Synthesis',
     'task-e': 'Timeline',
     'subtitle-erase': 'Sub Erase',
+    'erase-qc': 'Erase QC',
     'task-g': 'Delivery',
   },
   pipeline: {

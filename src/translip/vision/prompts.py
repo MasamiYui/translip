@@ -25,19 +25,26 @@ _SCENE_EN = (
     '"confidence": number between 0 and 1}'
 )
 
+# Deliberately neutral: telling the model "this video was already erased"
+# primes it to answer "clean" even when a subtitle is plainly visible
+# (observed on real footage). Ask what IS there, presume nothing.
 _ERASE_QC_ZH = (
-    "这一帧来自字幕擦除后的视频，原本此处有字幕。请检查画面下方等区域是否仍有"
-    "残留文字或修复涂抹痕迹（模糊块/色块/鬼影）。只输出一个 JSON 对象："
-    '{"residual_text": true或false, "artifact": "无则 null，有则简短英文标签如 blur_patch/ghosting", '
-    '"note": "一句话说明", "confidence": 0到1}'
+    "仔细检查这一帧画面的下半部分。问题一：是否存在可读的叠加文字（如对白字幕）？"
+    "问题二：是否存在图像修复痕迹（模糊块/色块涂抹/鬼影/纹理异常）？"
+    "只输出一个 JSON 对象："
+    '{"residual_text": true或false（存在可读叠加文字即为 true）, '
+    '"artifact": "无则 null，有则简短英文标签如 blur_patch/ghosting", '
+    '"note": "一句话描述你看到的内容", "confidence": 0到1}'
 )
 
 _ERASE_QC_EN = (
-    "This frame comes from a video after subtitle erasure; a subtitle used to be here. "
-    "Check for leftover text or inpainting artifacts (blur patches, color smears, ghosting). "
+    "Inspect the lower half of this frame carefully. Question 1: is there any readable "
+    "overlay text (e.g. a dialogue subtitle)? Question 2: are there image-inpainting "
+    "artifacts (blur patches, color smears, ghosting, texture anomalies)? "
     "Output exactly one JSON object: "
-    '{"residual_text": true|false, "artifact": "null or a short label like blur_patch/ghosting", '
-    '"note": "one short sentence", "confidence": number 0-1}'
+    '{"residual_text": true|false (true when readable overlay text is present), '
+    '"artifact": "null or a short label like blur_patch/ghosting", '
+    '"note": "one sentence describing what you see", "confidence": number 0-1}'
 )
 
 # {text} is substituted with the OCR-recognized text of the event.

@@ -229,3 +229,64 @@ def test_correction_loader_skips_non_dialogue_kinds() -> None:
     }
     events = _load_events(payload)
     assert [event.event_id for event in events] == ["evt-0001", "evt-0004"]
+
+
+def test_erase_qc_node_gated_by_flag(tmp_path: Path) -> None:
+    from translip.orchestration.graph import resolve_template_plan
+    from translip.orchestration.runner import _resolve_execution_nodes
+
+    plan = resolve_template_plan("asr-dub+ocr-subs+erase")
+    assert "erase-qc" in plan.node_order
+    assert plan.nodes["erase-qc"].required is False
+    assert plan.dependencies_for("erase-qc") == ("subtitle-erase",)
+
+    request_off = _request(tmp_path)
+    _, nodes_off = _resolve_execution_nodes(request_off)
+    assert "erase-qc" not in nodes_off
+
+    request_on = _request(tmp_path, erase_qc_enabled=True)
+    _, nodes_on = _resolve_execution_nodes(request_on)
+    assert "erase-qc" in nodes_on
+    # Ordered after erasure, before delivery.
+    assert nodes_on.index("erase-qc") > nodes_on.index("subtitle-erase")
+    assert nodes_on.index("erase-qc") < nodes_on.index("task-g")
+
+
+def test_build_erase_qc_command_shape(tmp_path: Path) -> None:
+    from translip.orchestration.vision_bridge import build_erase_qc_command
+
+    request = _request(tmp_path, erase_qc_enabled=True, erase_qc_max_units=25, vision_backend="mlx")
+    command = build_erase_qc_command(request)
+    assert "translip.vision.extract" in command
+    assert command[command.index("--task") + 1] == "erase-qc"
+    # QCs the CLEAN video at the spans erasure actually touched.
+    assert command[command.index("--input") + 1].endswith("subtitle-erase/clean_video.mp4")
+    assert command[command.index("--detection") + 1].endswith("reuse_detection.expanded.json")
+    assert command[command.index("--max-units") + 1] == "25"
+
+    unbounded = build_erase_qc_command(_request(tmp_path, erase_qc_enabled=True, erase_qc_max_units=0))
+    assert "--max-units" not in unbounded
+
+
+def test_erase_qc_cache_key_reacts_to_erase_rerun(tmp_path: Path, monkeypatch) -> None:
+    from translip.orchestration import runner as runner_module
+
+    monkeypatch.setattr(
+        runner_module,
+        "_resolved_vision_backend",
+        lambda _request: {"backend": "mlx", "model": "m"},
+    )
+    request = _request(tmp_path, erase_qc_enabled=True)
+    key_before = compute_cache_key(_stage_cache_payload(request, "erase-qc"))
+
+    manifest = tmp_path / "out" / "subtitle-erase" / "subtitle-erase-manifest.json"
+    manifest.parent.mkdir(parents=True, exist_ok=True)
+    manifest.write_text('{"status": "succeeded"}', encoding="utf-8")
+    key_after = compute_cache_key(_stage_cache_payload(request, "erase-qc"))
+    assert key_after != key_before
+
+    # max_units is a sampling knob -> changes the key too.
+    key_sampled = compute_cache_key(
+        _stage_cache_payload(_request(tmp_path, erase_qc_enabled=True, erase_qc_max_units=10), "erase-qc")
+    )
+    assert key_sampled != key_after

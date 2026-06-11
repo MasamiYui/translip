@@ -27,6 +27,10 @@ NODE_REGISTRY: dict[WorkflowNodeName, WorkflowNodeDef] = {
     "task-d": WorkflowNodeDef("task-d", "audio-spine", ("task-b", "task-c"), 70),
     "task-e": WorkflowNodeDef("task-e", "audio-spine", ("stage1", "task-a", "task-c", "task-d"), 80),
     "subtitle-erase": WorkflowNodeDef("subtitle-erase", "video-cleanup", ("ocr-detect",), 90),
+    # Vision QC of the erased video: samples the original subtitle spans on
+    # clean_video.mp4 and reports leftover text / inpainting artifacts.
+    # Pure report — never blocks the pipeline (optional in templates).
+    "erase-qc": WorkflowNodeDef("erase-qc", "visual-perception", ("subtitle-erase",), 95),
     "task-g": WorkflowNodeDef("task-g", "delivery", (), 100),
 }
 
