@@ -88,6 +88,14 @@ class TaskConfigInput(BaseModel):
     video_source: str = Field(default="original", description="导出所用视频来源，如原始或字幕擦除后")
     audio_source: str = Field(default="both", description="音频来源选择（人声/背景/两者）")
     subtitle_source: str = Field(default="asr", description="字幕来源，如转写（asr）或字幕识别（OCR）")
+    # Video perception (visual-context node / OCR classify post-step)
+    vision_backend: Literal["auto", "mlx", "ollama"] = Field(default="auto", description="画面感知推理后端")
+    vision_frames_per_unit: int = Field(default=4, ge=1, le=8, description="画面感知每单元抽帧数")
+    vision_lang: Literal["zh", "en"] = Field(default="zh", description="画面感知输出语言")
+    ocr_classify_text: bool = Field(
+        default=False,
+        description="字幕识别后用视觉模型给每条 OCR 事件分类（对白字幕/场景文字/水印/标题），擦除与字幕翻译将跳过非字幕文字。默认关闭",
+    )
     # Subtitle erase (subtitle-erase node)
     erase_backend: Literal["sttn", "lama"] = Field(default="sttn", description="字幕擦除后端：sttn/lama")
     erase_device: Literal["auto", "mps", "cuda", "cpu"] = Field(default="auto", description="字幕擦除计算设备")

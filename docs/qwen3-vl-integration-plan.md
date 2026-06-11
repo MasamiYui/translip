@@ -545,9 +545,16 @@ override-dependencies = [
 - 注入路径：scene 经 `BackendSegmentInput.context` 通道注入（`[画面] …` 前缀行）。deepseek prompt 已声明"context 仅用于解决指代/连贯性"，m2m100 只读 source_text —— LLM-only 语义由构造保证，无需 if-backend 分支。
 - 落地差异：visual-context 路径 helper 放在 `orchestration/commands.py`（vision_bridge 引用），因 bridge 已依赖 commands、反向会循环 import。
 
-### Phase 3 — erase-qc + ocr-classify（3–4 天）
+### Phase 3 — erase-qc + ocr-classify（3–4 天）⏳ ocr-classify 闭环已完成（2026-06-11），erase-qc 节点待做
 两个集成点 + 前端报告展示 + §7.2 的缓存联动与帧级 mask 映射 + 误分类率验证。
-**验收：erase-qc 在已知擦除不净的样例（参考 box-vs-polygon 那次的片源）上能标出残留帧；开/关 ocr_classify_text 正确触发 erase/ocr-translate/asr-ocr-correct 重算。**
+**验收：erase-qc 在已知擦除不净的样例（参考 box-vs-polygon 那次的片源）上能标出残留帧；开/关 ocr_classify_text 正确触发 erase/ocr-translate/asr-ocr-correct 重算。→ ocr-classify 部分已落地并测试。**
+
+ocr-classify 闭环落地说明（与 §7.2 设计的差异）：
+
+- **事件映射比设计的 IoU 方案更简单可靠**：实现时发现 `detection.json` 与 `ocr_events.json` 出自 `translip.ocr.extract` 的同一循环、共享逐事件 `index`（event_id 就是 `evt-{index:04d}`）——按 index 1:1 映射即可，无需"时间区间 + IoU≥0.5"的归属推断。`filter_detection_by_classification` 在 `prepare_subtitle_erase_detection` 内联过滤，erase 核心零改动。
+- **只剔除 `scene_text`**：watermark/title_card 保持可擦（擦掉台标/片头字是期望行为而非缺陷）；ocr-translate 与 asr-ocr-correct 则跳过全部三类非对白文字。未分类事件（无 kind）行为与从前一致——"没分类"永远不等于"跳过擦除"。
+- **缓存联动**按表落地：ocr-detect key 含开关 + 解析后端；erase/ocr-translate/asr-ocr-correct key 含 effective events 指纹（`effective_ocr_events_path` 仅在开关开且文件存在时指向 classified 文件，杜绝旧产物泄漏进关闭开关的跑次）。
+- 入口：节点内作为 ocr-detect 的后处理（进度映射到 90–99%）；CLI `run-pipeline --ocr-classify-text`；服务端 `ocr_classify_text` 字段；新建任务页在"台词校正"下方有开关；原子工具侧 subtitle-detect 的 ocr_events.json 产物可一键"转到画面文字分类"。
 
 ### Phase 4（择期）— speaker-visual + dashscope 云后端，以及 §2.3 需求池中验证有价值的项（视频类型识别、章节分段、字幕排版感知等）。
 

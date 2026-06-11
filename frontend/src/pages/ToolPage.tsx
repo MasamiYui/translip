@@ -68,7 +68,10 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
   const [fileRefs, setFileRefs] = useState<FileRefMap>(() => buildInitialFileRefs(prefill))
   const [translationInputMode, setTranslationInputMode] = useState<'text' | 'file'>('text')
   const [textInput, setTextInput] = useState(() => prefill?.text ?? '')
-  const [params, setParams] = useState<ToolParams>(getDefaultParams(toolId))
+  const [params, setParams] = useState<ToolParams>(() => ({
+    ...getDefaultParams(toolId),
+    ...(prefill?.params ?? {}),
+  }))
   const [originalVideoUrl, setOriginalVideoUrl] = useState<string | null>(null)
 
   // Fold saved transcription defaults into the params when they load. Tracked by

@@ -183,6 +183,105 @@ def extract_frame(
     return output_path
 
 
+def extract_frames_batch(
+    video_path: Path,
+    timestamps: list[float],
+    output_paths: list[Path],
+    *,
+    max_edge: int = 768,
+) -> list[Path]:
+    """Extract several frames of one unit with a single ffmpeg invocation.
+
+    One input seek to the earliest timestamp + a ``select`` filter picking each
+    requested time — one process start and one decode pass per unit instead of
+    per frame (a 300-unit film at 4 frames/unit would otherwise spawn 1200
+    ffmpeg processes, each re-seeking from scratch). Falls back to per-frame
+    extraction when the batch path fails or produces fewer frames than asked.
+    """
+    if len(timestamps) != len(output_paths):
+        raise ValueError("timestamps and output_paths must be the same length")
+    if not timestamps:
+        return []
+    if len(timestamps) == 1:
+        return [extract_frame(video_path, timestamps[0], output_paths[0], max_edge=max_edge)]
+
+    for path in output_paths:
+        path.parent.mkdir(parents=True, exist_ok=True)
+    out_dir = output_paths[0].parent
+    base = max(0.0, min(timestamps))
+    # select by in-segment time (t is relative to the -ss seek point). For each
+    # target offset pick exactly the frame that crosses it: prev frame was
+    # before the offset (or there is no prev frame) and this one is at/after.
+    # A window like lt(t,o+0.5) would pass every frame inside the window and
+    # -frames:v would then take them all from the first offset.
+    offsets = sorted(round(max(0.0, t - base), 3) for t in timestamps)
+    select_expr = "+".join(
+        f"gte(t,{offset})*(isnan(prev_t)+lt(prev_t,{offset}))" for offset in offsets
+    )
+    scale = f"scale='if(gt(iw,ih),{max_edge},-2)':'if(gt(iw,ih),-2,{max_edge})'"
+    pattern = out_dir / f".batch_{output_paths[0].stem}_%02d.jpg"
+    command = [
+        ffmpeg_binary(),
+        "-y",
+        "-v",
+        "error",
+        "-ss",
+        f"{base:.3f}",
+        "-i",
+        str(video_path),
+        "-vf",
+        f"select='{select_expr}',{scale}",
+        "-fps_mode",
+        "passthrough",
+        "-frames:v",
+        str(len(timestamps)),
+        "-q:v",
+        "3",
+        "-strict",
+        "unofficial",
+        str(pattern),
+    ]
+    result = subprocess.run(command, capture_output=True, text=True)
+    produced = sorted(out_dir.glob(f".batch_{output_paths[0].stem}_*.jpg"))
+    if result.returncode != 0 or len(produced) < len(timestamps):
+        for stale in produced:
+            stale.unlink(missing_ok=True)
+        return [
+            extract_frame(video_path, timestamp, path, max_edge=max_edge)
+            for timestamp, path in zip(timestamps, output_paths)
+        ]
+    for src, dst in zip(produced, output_paths):
+        src.replace(dst)
+    for extra in produced[len(output_paths) :]:
+        extra.unlink(missing_ok=True)
+    return list(output_paths)
+
+
+def frame_signature(image_path: Path, *, grid: int = 16) -> list[int] | None:
+    """Tiny grayscale thumbnail signature for cheap frame similarity.
+
+    Returns ``grid*grid`` luma values, or None when Pillow is unavailable or
+    the image cannot be read (callers must treat None as "cannot compare").
+    """
+    try:
+        from PIL import Image
+    except ImportError:
+        return None
+    try:
+        with Image.open(image_path) as img:
+            small = img.convert("L").resize((grid, grid))
+            return list(small.getdata())
+    except OSError:
+        return None
+
+
+def signature_distance(a: list[int], b: list[int]) -> float:
+    """Mean absolute luma difference (0 = identical, 255 = inverted)."""
+    if not a or not b or len(a) != len(b):
+        return 255.0
+    return sum(abs(x - y) for x, y in zip(a, b)) / len(a)
+
+
 def video_duration_sec(video_path: Path) -> float:
     return float(probe_media(video_path).duration_sec or 0.0)
 
@@ -212,9 +311,12 @@ __all__ = [
     "SHORT_UNIT_SEC",
     "AnalysisUnit",
     "extract_frame",
+    "extract_frames_batch",
+    "frame_signature",
     "frame_times_for_unit",
     "load_detection_events",
     "load_segments_file",
+    "signature_distance",
     "units_from_events",
     "units_from_interval",
     "units_from_segments",

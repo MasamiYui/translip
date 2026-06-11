@@ -969,6 +969,22 @@ export function NewTaskPage() {
               </div>
             </Field>
           )}
+          {supportsCorrection && (
+            <Field
+              label={locale === 'zh-CN' ? '画面文字分类（视觉模型）' : 'On-screen Text Triage (vision model)'}
+              hint={locale === 'zh-CN'
+                ? '用本地 Qwen3-VL 给每条 OCR 文字分类：对白字幕 / 场景文字（路牌店招）/ 水印 / 标题。开启后字幕擦除会跳过场景文字、字幕翻译与台词校正只处理对白字幕。需要视觉后端（Apple Silicon 装 vision 扩展或本地 Ollama）。'
+                : 'Classifies every OCR text event with a local Qwen3-VL model: dialogue subtitle / scene text (signs) / watermark / title card. When enabled, erase skips scene text, and subtitle translation / transcript correction only consume dialogue. Needs a vision backend (vision extra on Apple Silicon, or a local Ollama).'}
+            >
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                <Checkbox
+                  checked={config.ocr_classify_text ?? false}
+                  onChange={value => patchConfig({ ocr_classify_text: value })}
+                  label={locale === 'zh-CN' ? '识别后区分字幕与场景文字（不误擦路牌店招）' : 'Triage subtitles vs scene text after detection (avoid erasing signs)'}
+                />
+              </div>
+            </Field>
+          )}
         </SectionCard>
 
         <SectionCard

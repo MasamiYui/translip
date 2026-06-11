@@ -65,7 +65,15 @@ def translate_ocr_events(
     if batch_size <= 0:
         raise ValueError("batch_size must be greater than 0")
     payload = json.loads(events_path.read_text(encoding="utf-8"))
-    events = [event for event in payload.get("events", []) if isinstance(event, dict)]
+    # When the events file carries vision classification (`kind`), only
+    # dialogue subtitles get translated — scene text / watermarks / title
+    # cards are not spoken lines. Unclassified events translate as before.
+    non_dialogue_kinds = {"scene_text", "watermark", "title_card"}
+    events = [
+        event
+        for event in payload.get("events", [])
+        if isinstance(event, dict) and event.get("kind") not in non_dialogue_kinds
+    ]
     backend = backend_override or _build_backend(
         backend_name=backend_name,
         device=device,

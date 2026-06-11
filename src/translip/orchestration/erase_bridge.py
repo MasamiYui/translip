@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 from ..types import PipelineRequest
-from .ocr_bridge import ocr_detection_path
+from .ocr_bridge import ocr_classified_events_path, ocr_detection_path
 from .subprocess_runner import run_stage_command
 from .subtitle_erase_detection import prepare_subtitle_erase_detection
 
@@ -102,13 +102,18 @@ def run_subtitle_erase(
     should_cancel: Callable[[], bool] | None = None,
 ) -> dict[str, object]:
     # Expand the OCR detection (lead/trail padding + visual-fallback events) and
-    # hand the expanded detection.json to the in-tree extractor.
+    # hand the expanded detection.json to the in-tree extractor. When OCR
+    # classification ran, scene_text events are filtered out of the masks first.
+    classified_path = ocr_classified_events_path(request)
     prepared_detection_path = prepare_subtitle_erase_detection(
         ocr_detection_path(request),
         subtitle_erase_reuse_detection_path(request),
         lead_frames=request.erase_event_lead_frames,
         trail_frames=request.erase_event_trail_frames,
         video_path=Path(request.input_path),
+        classified_events_path=classified_path
+        if getattr(request, "ocr_classify_text", False) and classified_path.exists()
+        else None,
     )
     run_stage_command(
         build_subtitle_erase_command(request, detection_path=prepared_detection_path),

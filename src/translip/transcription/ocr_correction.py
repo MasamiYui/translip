@@ -302,9 +302,19 @@ def _normalize_event(raw: dict[str, Any], index: int) -> _OcrEvent | None:
     )
 
 
+# Vision classification kinds excluded from ASR correction: only dialogue
+# subtitles should align against the transcript. Unclassified events (no
+# `kind`) participate as before.
+_NON_DIALOGUE_KINDS = {"scene_text", "watermark", "title_card"}
+
+
 def _load_events(ocr_payload: dict[str, Any]) -> list[_OcrEvent]:
     raw_events = ocr_payload.get("events") or ocr_payload.get("results") or []
-    events = [_normalize_event(raw, index) for index, raw in enumerate(raw_events, start=1)]
+    events = [
+        _normalize_event(raw, index)
+        for index, raw in enumerate(raw_events, start=1)
+        if not (isinstance(raw, dict) and raw.get("kind") in _NON_DIALOGUE_KINDS)
+    ]
     return sorted((event for event in events if event is not None), key=lambda event: (event.start, event.end))
 
 

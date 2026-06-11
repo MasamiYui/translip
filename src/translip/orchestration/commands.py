@@ -418,13 +418,21 @@ def build_task_e_command(
 
 def build_asr_ocr_correction_command(request: PipelineRequest) -> list[str]:
     config = request.transcription_correction
+    # The classified events file (when classification ran) annotates each event
+    # with `kind`; the correction loader drops non-dialogue kinds.
+    classified = request.output_root / "ocr-detect" / "ocr_events.classified.json"
+    events_path = (
+        classified
+        if getattr(request, "ocr_classify_text", False) and classified.exists()
+        else request.output_root / "ocr-detect" / "ocr_events.json"
+    )
     command = [
         *_cli_prefix(),
         "correct-asr-with-ocr",
         "--segments",
         str(task_a_segments_path(request)),
         "--ocr-events",
-        str(request.output_root / "ocr-detect" / "ocr_events.json"),
+        str(events_path),
         "--output-dir",
         str(request.output_root / "asr-ocr-correct"),
         "--preset",

@@ -38,10 +38,14 @@ def prepare_subtitle_erase_detection(
     lead_frames: int,
     trail_frames: int,
     video_path: Path | None = None,
+    classified_events_path: Path | None = None,
 ) -> Path:
     payload = json.loads(source_path.read_text(encoding="utf-8"))
+    filtered = payload
+    if classified_events_path is not None and classified_events_path.exists():
+        filtered = filter_detection_by_classification(payload, classified_events_path)
     expanded = expand_detection_payload(
-        payload,
+        filtered,
         lead_frames=lead_frames,
         trail_frames=trail_frames,
         source_path=source_path,
@@ -62,6 +66,62 @@ def prepare_subtitle_erase_detection(
             encoding="utf-8",
         )
     return output_path
+
+
+# Vision classification kinds that must NOT be erased: scene text belongs to
+# the picture (signs, plates, screens). Watermarks/title cards stay erasable —
+# wiping a station logo or a burned-in title card is desirable, not a defect.
+_NON_ERASABLE_KINDS = {"scene_text"}
+
+
+def filter_detection_by_classification(
+    payload: dict[str, Any],
+    classified_events_path: Path,
+) -> dict[str, Any]:
+    """Drop detection events whose vision classification says "scene text".
+
+    Both detection.json and ocr_events.json are written from the same loop in
+    ``translip.ocr.extract`` and share the per-event ``index``, so events map
+    1:1 by index (event_id is just ``evt-{index:04d}``). Events without an
+    index match or without a kind annotation are kept — unclassified means
+    "behave like before", never "silently skip erasure".
+    """
+    try:
+        classified = json.loads(classified_events_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return payload
+    kinds_by_index: dict[int, str] = {}
+    for event in classified.get("events", []):
+        if not isinstance(event, dict):
+            continue
+        index = _optional_int(event.get("index"))
+        kind = event.get("kind")
+        if index is not None and isinstance(kind, str):
+            kinds_by_index[index] = kind
+
+    events = payload.get("events")
+    if not kinds_by_index or not isinstance(events, list):
+        return payload
+
+    kept: list[Any] = []
+    dropped = 0
+    for event in events:
+        if isinstance(event, dict):
+            index = _optional_int(event.get("index"))
+            if index is not None and kinds_by_index.get(index) in _NON_ERASABLE_KINDS:
+                dropped += 1
+                continue
+        kept.append(event)
+    if dropped == 0:
+        return payload
+
+    filtered = dict(payload)
+    filtered["events"] = kept
+    preprocess = dict(filtered.get("subtitle_erase_preprocess") or {})
+    preprocess["classification_dropped_events"] = dropped
+    preprocess["classified_events_path"] = str(classified_events_path)
+    filtered["subtitle_erase_preprocess"] = preprocess
+    return filtered
 
 
 def add_visual_fallback_events(
@@ -151,11 +211,17 @@ def expand_detection_payload(
         )
 
     expanded_payload["events"] = expanded_events
-    expanded_payload["subtitle_erase_preprocess"] = {
-        "lead_frames": lead,
-        "trail_frames": trail,
-        "source_path": str(source_path) if source_path is not None else None,
-    }
+    # Merge over any keys earlier preprocess steps recorded (e.g. the
+    # classification filter's dropped-event count).
+    preprocess = dict(expanded_payload.get("subtitle_erase_preprocess") or {})
+    preprocess.update(
+        {
+            "lead_frames": lead,
+            "trail_frames": trail,
+            "source_path": str(source_path) if source_path is not None else None,
+        }
+    )
+    expanded_payload["subtitle_erase_preprocess"] = preprocess
     return expanded_payload
 
 

@@ -91,13 +91,13 @@ The orchestrator holds no task logic: it resolves a node DAG, checks a cache, an
 - Separate dialogue and background audio from video or audio inputs.
 - Generate speaker-attributed transcripts with `FunASR / Paraformer-zh` (default) or `faster-whisper`; diarization via `ECAPA` or `pyannote 3.1`.
 - Build reusable speaker profiles and registries for later tasks.
-- Produce dubbing scripts with local `M2M100` or the `DeepSeek API`.
+- Produce dubbing scripts with local `M2M100` or the `DeepSeek API`; the optional `asr-dub+visual` template attaches a per-segment scene description from a local `Qwen3-VL` model, cutting pronoun/honorific/tone mistranslations.
 - Synthesize target-language speech locally with `MOSS-TTS-Nano ONNX` by default, with `Qwen3-TTS` and `VoxCPM2` also available.
 - Fit speech back to the original timeline (atempo / rubberband), sidechain-mix, and export preview/final outputs.
 
 **B. Standalone atomic tools** (upload → process → download independently; results can flow into the next tool in one click)
 
-- Dialogue/background separation, audio mixing, speech-to-text, transcript correction, text translation, text-to-speech, audio/video muxing, subtitle detection, subtitle erase, and media probe.
+- Dialogue/background separation, audio mixing, speech-to-text, transcript correction, text translation, text-to-speech, audio/video muxing, subtitle detection, subtitle erase, video content analysis (scene description / on-screen text triage / erase QC / free-form Q&A), and media probe.
 
 **C. Collaboration & assets**
 
@@ -112,6 +112,7 @@ The orchestrator holds no task logic: it resolves a node DAG, checks a cache, an
 | Template | Description |
 | --- | --- |
 | `asr-dub-basic` | Basic dubbing chain: Stage 1 → Task A/B/C/D/E → Task G. The default template. |
+| `asr-dub+visual` | Inserts a visual-perception node (local Qwen3-VL) into the basic chain: per-span scene descriptions are injected as translation context, reducing pronoun/honorific/tone mistranslations. Needs `--extra vision` or a local Ollama (see "Video content perception" below). |
 | `asr-dub+ocr-subs` | Adds OCR subtitle detection/translation on top of the basic chain and corrects the ASR transcript with the OCR result. |
 | `asr-dub+ocr-subs+erase` | Adds hard-subtitle erasure of the source video on top of the above. |
 
@@ -121,7 +122,7 @@ The UI is the primary day-to-day entry point. The left navigation is grouped int
 
 - **Dashboard**: unified counts and recent activity across pipeline tasks and atomic jobs (total / running / completed / failed).
 - **Task Center**: pipeline task list, new pipeline task (stepped wizard + grouped advanced config), task detail (stage DAG / progress / artifacts / rerun from any stage), the **Dubbing Editor**, and the speaker-review harness.
-- **Atomic Tools**: 10 standalone single-tool jobs (separation, mixing, transcription, correction, translation, synthesis, muxing, subtitle detect/erase, probe), each with its own upload + parameter panel; outputs can flow straight into the next tool.
+- **Atomic Tools**: 11 standalone single-tool jobs (separation, mixing, transcription, correction, translation, synthesis, muxing, subtitle detect/erase, video content analysis, probe), each with its own upload + parameter panel; outputs can flow straight into the next tool.
 - **Works / Character libraries**: cross-task works-and-episodes assets and the character→speaker ledger.
 - **Settings**: system info & cache cleanup, TMDB API, HuggingFace token, model status & one-click download, and task default parameters.
 
@@ -180,6 +181,25 @@ Every stage is both a node in `run-pipeline` orchestration and a CLI subcommand 
 
 > Default backends: ASR `funasr` (model `paraformer-zh`), separation `cdx23`, translation `local-m2m100`, TTS `moss-tts-nano-onnx`.
 
+### Video content perception (Qwen3-VL, optional)
+
+`translip analyze-video` analyzes video frames with a local vision-language model. It powers both the `visual-context` node of the `asr-dub+visual` template and the "Video Content Analysis" atomic tool:
+
+```bash
+# Scene descriptions (fixed-interval spans without --segments; the pipeline feeds the ASR timeline)
+uv run translip analyze-video --input video.mp4 --task scene-context --output-dir out-vision
+
+# Free-form Q&A
+uv run translip analyze-video --input video.mp4 --task freeform --question "What car appears in the video?"
+
+# On-screen text triage (subtitle vs scene text vs watermark vs title card; needs subtitle detection first)
+uv run translip analyze-video --input video.mp4 --task ocr-classify --detection ocr-detect/ocr_events.json
+```
+
+- **Tasks**: `scene-context` | `erase-qc` | `ocr-classify` | `speaker-visual` | `freeform`.
+- **Backends**: Apple Silicon defaults to MLX (`mlx-community/Qwen3-VL-4B-Instruct-4bit`, ~3.3 GB, auto-downloaded to `<cache>/vision_models`; install with `uv sync --extra vision`); other platforms can point at a local Ollama (`ollama pull qwen3-vl:4b-instruct`) with zero extra dependencies. Controlled via `--backend auto|mlx|ollama`.
+- **Fully local**: like OCR/erase, no cloud calls; translation degrades gracefully when the visual artifact is missing.
+
 ## Requirements
 
 - Python `3.11` to `3.12`
@@ -195,7 +215,11 @@ git clone https://github.com/MasamiYui/translip.git
 cd translip
 uv sync                 # runtime deps
 uv sync --extra dev     # add pytest etc. for tests / development
+uv sync --extra ocr     # in-tree PaddleOCR hard-subtitle detection
+uv sync --extra vision  # video content perception (Qwen3-VL; only needed on Apple Silicon — other platforms can use Ollama with no extra)
 ```
+
+> `uv sync --extra X` syncs the environment to *exactly* X, dropping other extras — combine flags to keep several, e.g. `uv sync --extra dev --extra ocr --extra vision`.
 
 Recommended: preload the separation model (or use the UI: Settings → Model status → one-click download):
 
@@ -289,8 +313,14 @@ uv run translip --help    # list all subcommands
 | `VOXCPM_ALLOW_MPS` | `0` | Allow `voxcpm2` to run on Apple Silicon MPS; defaults to CPU fallback |
 | `VOXCPM_INFERENCE_TIMESTEPS` | `10` | Inference steps for `voxcpm2` |
 | `VOXCPM_RETRY_BADCASE` | `1` | Enable VoxCPM internal bad-case retry |
+| `VISION_BACKEND` | `auto` | Video perception backend: `auto` / `mlx` / `ollama` |
+| `VISION_MODEL` | `mlx-community/Qwen3-VL-4B-Instruct-4bit` | HF model loaded by the MLX backend |
+| `VISION_OLLAMA_MODEL` | `qwen3-vl:4b-instruct` | Ollama model tag (avoid the bare `:4b` tag — it may resolve to the thinking variant) |
+| `VISION_OLLAMA_HOST` | `http://127.0.0.1:11434` | Ollama server address |
+| `VISION_HF_CACHE` | `<cache>/vision_models/hf` | Vision model weight cache (injected as `HF_HUB_CACHE`) |
+| `VISION_LOCAL_MODELS_ONLY` | `0` | Set `1` to forbid downloads; weights must be pre-placed |
 
-For more defaults, see [src/translip/config.py](src/translip/config.py).
+For more defaults, see [src/translip/config.py](src/translip/config.py); the remaining `VISION_*` knobs (frames/resolution/temperature) live in [src/translip/vision/config.py](src/translip/vision/config.py).
 
 ## Development
 

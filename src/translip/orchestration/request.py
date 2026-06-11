@@ -190,7 +190,7 @@ def _erase_overrides(merged: dict[str, Any]) -> dict[str, Any]:
 
 
 # Visual-context tunables, same pass-through pattern as erase.
-_VISION_KEYS = ("vision_backend", "vision_frames_per_unit", "vision_lang")
+_VISION_KEYS = ("vision_backend", "vision_frames_per_unit", "vision_lang", "ocr_classify_text")
 
 
 def _vision_overrides(merged: dict[str, Any]) -> dict[str, Any]:

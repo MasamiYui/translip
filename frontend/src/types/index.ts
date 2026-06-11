@@ -229,6 +229,10 @@ export interface TaskConfig {
   max_compress_ratio?: number
   output_sample_rate?: number
   preview_format?: string
+  vision_backend?: 'auto' | 'mlx' | 'ollama'
+  vision_frames_per_unit?: number
+  vision_lang?: 'zh' | 'en'
+  ocr_classify_text?: boolean
   erase_backend?: 'sttn' | 'lama'
   erase_device?: 'auto' | 'mps' | 'cuda' | 'cpu'
   erase_max_load?: number

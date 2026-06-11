@@ -607,6 +607,18 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["asr-dub-basic", "asr-dub+visual", "asr-dub+ocr-subs", "asr-dub+ocr-subs+erase"],
     )
     pipeline_parser.add_argument(
+        "--vision-backend",
+        default=None,
+        choices=["auto", "mlx", "ollama"],
+        help="Vision backend for visual-context / OCR classification (default auto)",
+    )
+    pipeline_parser.add_argument(
+        "--ocr-classify-text",
+        action="store_true",
+        default=None,
+        help="Classify OCR events with the vision model (subtitle vs scene text vs watermark); erase/subtitle-translate skip non-subtitle text",
+    )
+    pipeline_parser.add_argument(
         "--erase-backend",
         default=None,
         choices=["sttn", "lama"],

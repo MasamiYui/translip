@@ -91,13 +91,13 @@ flowchart LR
 - 输入视频或音频，自动分离人声与背景音。
 - 基于 `FunASR / Paraformer-zh`（默认）或 `faster-whisper` 生成带说话人标签的转写结果，diarization 支持 `ECAPA` 与 `pyannote 3.1`。
 - 为说话人建立 profile / registry，支持跨任务复用。
-- 使用本地 `M2M100` 或 `DeepSeek API` 生成目标语言配音脚本。
+- 使用本地 `M2M100` 或 `DeepSeek API` 生成目标语言配音脚本；可选 `asr-dub+visual` 模板用本地 `Qwen3-VL` 给每段台词附带画面描述，显著减少称谓/指代/语气误译。
 - 默认基于 `MOSS-TTS-Nano ONNX` 在本地合成目标语言语音，也可切换到 `Qwen3-TTS` 或 `VoxCPM2`。
 - 将配音按原始时间轴回贴（atempo / rubberband），侧链混音，并导出预览版与最终成片。
 
 **B. 独立原子工具**（可单独上传 → 处理 → 下载，结果可一键转入下一个工具）
 
-- 人声/背景分离、音频混合、语音转文字、台词校正、文本翻译、语音合成、音视频合并、字幕识别、字幕擦除、媒体信息探测。
+- 人声/背景分离、音频混合、语音转文字、台词校正、文本翻译、语音合成、音视频合并、字幕识别、字幕擦除、视频内容分析（场景描述/画面文字分类/擦除质检/自由问答）、媒体信息探测。
 
 **C. 协作与资产**
 
@@ -113,6 +113,7 @@ flowchart LR
 | 模板 | 说明 |
 | --- | --- |
 | `asr-dub-basic` | 基础配音链路：Stage 1 → Task A/B/C/D/E → Task G。默认模板。 |
+| `asr-dub+visual` | 在基础链路上插入「画面感知」节点（本地 Qwen3-VL）：按时间段生成场景描述并注入翻译上下文，减少称谓/指代/语气误译。需 `--extra vision` 或本地 Ollama（见下文「视频画面感知」）。 |
 | `asr-dub+ocr-subs` | 在基础链路上增加 OCR 字幕检测/翻译，并用 OCR 结果校正 ASR 文稿。 |
 | `asr-dub+ocr-subs+erase` | 在上面的基础上再增加原片硬字幕擦除。 |
 
@@ -122,7 +123,7 @@ flowchart LR
 
 - **仪表盘**：统一展示流水线任务与原子任务的总数、运行中/完成/失败统计与最近任务。
 - **任务中心**：流水线任务列表、新建流水线任务（分步向导 + 分组高级配置）、任务详情（阶段 DAG / 进度 / 产物 / 从任意阶段重跑）、**配音编辑台**、说话人复核工作台。
-- **原子工具集**：10 个独立单工具任务（分离、混合、转写、校正、翻译、合成、合并、字幕识别/擦除、探测），各自有上传与参数面板，处理完成后产物可一键转入下一个工具。
+- **原子工具集**：11 个独立单工具任务（分离、混合、转写、校正、翻译、合成、合并、字幕识别/擦除、视频内容分析、探测），各自有上传与参数面板，处理完成后产物可一键转入下一个工具。
 - **作品库 / 角色库**：跨任务的作品-剧集资产与角色→说话人台账。
 - **全局设置**：系统信息与缓存清理、TMDB API、HuggingFace 令牌、模型状态与一键下载、任务默认参数。
 
@@ -181,6 +182,25 @@ uv run translip-server
 
 > 默认后端：ASR `funasr`（模型 `paraformer-zh`）、分离 `cdx23`、翻译 `local-m2m100`、TTS `moss-tts-nano-onnx`。
 
+### 视频画面感知（Qwen3-VL，可选）
+
+`translip analyze-video` 用本地视觉语言模型分析视频画面，是 `asr-dub+visual` 模板中 `visual-context` 节点与「视频内容分析」原子工具的共同底座：
+
+```bash
+# 场景描述（无 --segments 时按固定间隔切段；管线内自动用 ASR 时间轴）
+uv run translip analyze-video --input video.mp4 --task scene-context --output-dir out-vision
+
+# 自由问答
+uv run translip analyze-video --input video.mp4 --task freeform --question "视频里出现了什么车？"
+
+# 画面文字分类（区分对白字幕/场景文字/水印/标题，需先跑字幕识别）
+uv run translip analyze-video --input video.mp4 --task ocr-classify --detection ocr-detect/ocr_events.json
+```
+
+- **任务**：`scene-context`（场景描述）｜ `erase-qc`（擦除质检）｜ `ocr-classify`（画面文字分类）｜ `speaker-visual`（说话人视觉线索）｜ `freeform`（自由问答）。
+- **后端**：Apple Silicon 默认 MLX（`mlx-community/Qwen3-VL-4B-Instruct-4bit`，约 3.3 GB，首次自动下载到 `<缓存目录>/vision_models`）；其余平台可指向本地 Ollama（`ollama pull qwen3-vl:4b-instruct`），无需安装任何 extra。`--backend auto|mlx|ollama` 控制。
+- **完全本地**：与 OCR/擦除一致，不调用云端服务；翻译阶段在视觉产物缺失时静默降级，不会因此失败。
+
 ## 环境要求
 
 - Python `3.11` 到 `3.12`
@@ -197,9 +217,10 @@ cd translip
 uv sync                 # 安装运行时依赖
 uv sync --extra dev     # 如需运行测试 / 参与开发
 uv sync --extra ocr     # 如需 OCR 硬字幕识别（内置 PaddleOCR，约数百 MB）
+uv sync --extra vision  # 如需视频画面感知（Qwen3-VL，仅 Apple Silicon 需要装；其余平台可用 Ollama 零依赖）
 ```
 
-> `uv sync --extra X` 会把环境**精确**同步到 X 并移除其它 extra；要同时保留测试与 OCR，请用 `uv sync --extra dev --extra ocr`。OCR 字幕识别为**完全本地**实现（内置 PaddleOCR，不调用任何外部服务）；PP-OCRv5 模型权重默认放在 `<缓存目录>/paddleocr_models`，可用 `PADDLEOCR_MODELS_BASE_DIR` 覆盖。
+> `uv sync --extra X` 会把环境**精确**同步到 X 并移除其它 extra；要同时保留多个能力，请组合使用，如 `uv sync --extra dev --extra ocr --extra vision`。OCR 字幕识别为**完全本地**实现（内置 PaddleOCR，不调用任何外部服务）；PP-OCRv5 模型权重默认放在 `<缓存目录>/paddleocr_models`，可用 `PADDLEOCR_MODELS_BASE_DIR` 覆盖。
 
 推荐提前下载分离模型（也可在管理界面「全局设置 → 模型状态」一键下载）：
 
@@ -298,8 +319,14 @@ uv run translip --help    # 查看全部子命令
 | `VOXCPM_ALLOW_MPS` | `0` | 允许 `voxcpm2` 在 Apple Silicon MPS 上运行；默认回退 CPU |
 | `VOXCPM_INFERENCE_TIMESTEPS` | `10` | `voxcpm2` 推理步数 |
 | `VOXCPM_RETRY_BADCASE` | `1` | 是否启用 VoxCPM 内部坏例重试 |
+| `VISION_BACKEND` | `auto` | 画面感知后端：`auto` / `mlx` / `ollama` |
+| `VISION_MODEL` | `mlx-community/Qwen3-VL-4B-Instruct-4bit` | MLX 后端加载的 HF 模型 |
+| `VISION_OLLAMA_MODEL` | `qwen3-vl:4b-instruct` | Ollama 后端模型 tag（勿用裸 `:4b`，可能解析到 thinking 变体） |
+| `VISION_OLLAMA_HOST` | `http://127.0.0.1:11434` | Ollama 服务地址 |
+| `VISION_HF_CACHE` | `<cache>/vision_models/hf` | 视觉模型权重缓存目录（注入 `HF_HUB_CACHE`） |
+| `VISION_LOCAL_MODELS_ONLY` | `0` | 置 `1` 禁止下载，权重必须已在本地 |
 
-更细的默认参数见 [src/translip/config.py](src/translip/config.py)。
+更细的默认参数见 [src/translip/config.py](src/translip/config.py)；其余 `VISION_*` 旋钮（帧数/分辨率/温度等）见 [src/translip/vision/config.py](src/translip/vision/config.py)。
 
 ## 开发
 

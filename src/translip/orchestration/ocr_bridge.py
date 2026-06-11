@@ -43,6 +43,24 @@ def ocr_detect_manifest_path(request: PipelineRequest) -> Path:
     return request.output_root / "ocr-detect" / "ocr-detect-manifest.json"
 
 
+def ocr_classified_events_path(request: PipelineRequest) -> Path:
+    return request.output_root / "ocr-detect" / "ocr_events.classified.json"
+
+
+def effective_ocr_events_path(request: PipelineRequest) -> Path:
+    """OCR events file downstream consumers should read.
+
+    The classified variant (each event annotated with kind: subtitle /
+    scene_text / watermark / title_card) only applies when the user opted into
+    classification AND the file exists — a stale classified file from an
+    earlier run must not leak into a flag-off run.
+    """
+    classified = ocr_classified_events_path(request)
+    if getattr(request, "ocr_classify_text", False) and classified.exists():
+        return classified
+    return ocr_events_path(request)
+
+
 def build_ocr_detect_command(request: PipelineRequest) -> list[str]:
     # Run the in-tree extractor in an isolated subprocess (translip's own
     # interpreter, which carries the optional `ocr` extra). Keeping it as a
@@ -101,6 +119,53 @@ def _build_progress_handler(
     return _handle
 
 
+def build_ocr_classify_command(request: PipelineRequest) -> list[str]:
+    # Vision-based post-classification of OCR events (subtitle vs scene_text vs
+    # watermark vs title_card). Same in-tree extractor as the visual-context
+    # node; writes ocr_events.classified.json next to ocr_events.json.
+    return [
+        sys.executable,
+        "-m",
+        "translip.vision.extract",
+        "--input",
+        str(request.input_path),
+        "--task",
+        "ocr-classify",
+        "--detection",
+        str(ocr_events_path(request)),
+        "--output-dir",
+        str(request.output_root / "ocr-detect"),
+        "--backend",
+        str(request.vision_backend),
+        "--lang",
+        str(request.vision_lang),
+    ]
+
+
+def _build_classify_progress_handler(
+    monitor: "PipelineMonitor | None",
+) -> Callable[[str], None] | None:
+    if monitor is None:
+        return None
+    # Vision progress lines use a different prefix; map the classify run onto
+    # the tail (90-99%) of the ocr-detect stage band.
+    vision_prefix = "__VISION_PROGRESS__"
+
+    def _handle(line: str) -> None:
+        if not line.startswith(vision_prefix + "\t"):
+            return
+        parts = line.split("\t", 2)
+        try:
+            percent = float(parts[1])
+        except (IndexError, ValueError):
+            return
+        mapped = 90.0 + 9.0 * max(0.0, min(100.0, percent)) / 100.0
+        message = parts[2] if len(parts) > 2 else "classifying on-screen text"
+        monitor.update_stage_progress("ocr-detect", mapped, message)
+
+    return _handle
+
+
 def run_ocr_detect(
     request: PipelineRequest,
     *,
@@ -114,12 +179,23 @@ def run_ocr_detect(
         on_stdout_line=_build_progress_handler(monitor),
         should_cancel=should_cancel,
     )
+    artifact_paths = [
+        str(ocr_events_path(request)),
+        str(ocr_detection_path(request)),
+        str(ocr_source_srt_path(request)),
+    ]
+    if getattr(request, "ocr_classify_text", False):
+        if monitor is not None:
+            monitor.update_stage_progress("ocr-detect", 90.0, "classifying on-screen text")
+        run_stage_command(
+            build_ocr_classify_command(request),
+            log_path=log_path,
+            on_stdout_line=_build_classify_progress_handler(monitor),
+            should_cancel=should_cancel,
+        )
+        artifact_paths.append(str(ocr_classified_events_path(request)))
     return {
         "manifest_path": str(ocr_detect_manifest_path(request)),
-        "artifact_paths": [
-            str(ocr_events_path(request)),
-            str(ocr_detection_path(request)),
-            str(ocr_source_srt_path(request)),
-        ],
+        "artifact_paths": artifact_paths,
         "log_path": str(log_path),
     }

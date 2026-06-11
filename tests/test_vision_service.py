@@ -46,12 +46,18 @@ def _write_video_stub(tmp_path: Path) -> Path:
 
 
 def _patch_frames(monkeypatch, tmp_path: Path) -> None:
-    def fake_extract(video_path, timestamp, output_path, *, max_edge=768):
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_bytes(b"jpg")
-        return output_path
+    def fake_extract_batch(video_path, timestamps, output_paths, *, max_edge=768):
+        for path in output_paths:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b"jpg")
+        return list(output_paths)
 
-    monkeypatch.setattr("translip.vision.services.vision_service.extract_frame", fake_extract)
+    monkeypatch.setattr(
+        "translip.vision.services.vision_service.extract_frames_batch", fake_extract_batch
+    )
+    # Identical stub bytes would make every frame "similar"; disable scene-skip
+    # by default so existing call-count assertions stay meaningful.
+    monkeypatch.setenv("VISION_SCENE_SKIP_THRESHOLD", "0")
     monkeypatch.setattr(
         "translip.vision.services.vision_service.video_duration_sec", lambda _p: 30.0
     )
@@ -310,3 +316,83 @@ def test_missing_input_rejected(tmp_path) -> None:
             AnalyzeRequest(input_path=tmp_path / "nope.mp4", output_dir=tmp_path / "out"),
             backend_override=FakeBackend(),
         )
+
+
+def test_scene_skip_reuses_previous_result_for_similar_frames(tmp_path, monkeypatch) -> None:
+    _patch_frames(monkeypatch, tmp_path)
+    monkeypatch.setenv("VISION_SCENE_SKIP_THRESHOLD", "4.0")
+    # All stub frames identical -> signature distance 0 -> every unit after the
+    # first reuses its payload without calling the backend.
+    monkeypatch.setattr(
+        "translip.vision.services.vision_service.frame_signature",
+        lambda _path, grid=16: [128] * (16 * 16),
+    )
+    video = _write_video_stub(tmp_path)
+    backend = FakeBackend(responses=['{"scene": "同一场景", "people_visible": 2, "confidence": 0.9}'])
+    result = analyze_video(
+        AnalyzeRequest(
+            input_path=video,
+            output_dir=tmp_path / "out",
+            task="scene-context",
+            sample_interval_sec=10.0,  # 30s duration -> 3 units
+        ),
+        backend_override=backend,
+    )
+    assert len(backend.calls) == 1  # only the first unit hit the model
+    assert result.manifest["skipped_similar_count"] == 2
+    payload = json.loads(result.artifact_path.read_text(encoding="utf-8"))
+    assert all(unit["scene"] == "同一场景" for unit in payload["units"])
+    assert payload["units"][1]["reused_previous"] is True
+    # Reused rows keep their own time spans.
+    assert payload["units"][1]["start"] == 10.0
+
+
+def test_scene_skip_disabled_for_other_tasks(tmp_path, monkeypatch) -> None:
+    _patch_frames(monkeypatch, tmp_path)
+    monkeypatch.setenv("VISION_SCENE_SKIP_THRESHOLD", "4.0")
+    monkeypatch.setattr(
+        "translip.vision.services.vision_service.frame_signature",
+        lambda _path, grid=16: [128] * (16 * 16),
+    )
+    video = _write_video_stub(tmp_path)
+    detection = tmp_path / "d.json"
+    detection.write_text(
+        json.dumps(
+            {
+                "events": [
+                    {"event_id": "evt-0001", "start": 1.0, "end": 2.0, "text": "a"},
+                    {"event_id": "evt-0002", "start": 3.0, "end": 4.0, "text": "b"},
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    backend = FakeBackend(responses=['{"kind": "subtitle", "confidence": 0.9}'])
+    result = analyze_video(
+        AnalyzeRequest(
+            input_path=video, output_dir=tmp_path / "out", task="ocr-classify", detection_path=detection
+        ),
+        backend_override=backend,
+    )
+    assert len(backend.calls) == 2  # classification never skips
+    assert result.manifest["skipped_similar_count"] == 0
+
+
+def test_scene_skip_tolerates_missing_pillow(tmp_path, monkeypatch) -> None:
+    _patch_frames(monkeypatch, tmp_path)
+    monkeypatch.setenv("VISION_SCENE_SKIP_THRESHOLD", "4.0")
+    # frame_signature returns None when Pillow is unavailable -> no skipping,
+    # but also no crash.
+    monkeypatch.setattr(
+        "translip.vision.services.vision_service.frame_signature", lambda _path, grid=16: None
+    )
+    video = _write_video_stub(tmp_path)
+    backend = FakeBackend()
+    result = analyze_video(
+        AnalyzeRequest(
+            input_path=video, output_dir=tmp_path / "out", task="scene-context", sample_interval_sec=10.0
+        ),
+        backend_override=backend,
+    )
+    assert len(backend.calls) == 3
+    assert result.manifest["skipped_similar_count"] == 0

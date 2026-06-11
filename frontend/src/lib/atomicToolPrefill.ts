@@ -6,6 +6,9 @@ export interface AtomicToolPrefillFile {
 export interface AtomicToolPrefill {
   files?: Record<string, AtomicToolPrefillFile>
   text?: string
+  // Initial parameter overrides merged over the target tool's defaults
+  // (e.g. preselecting task=ocr-classify when handing OCR events to video-analyze).
+  params?: Record<string, string | number | boolean>
 }
 
 const PREFIX = 'translip.atomic-tools.prefill'

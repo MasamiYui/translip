@@ -62,6 +62,10 @@ class VisionSettings:
     # Per-request timeout for the ollama HTTP backend only; mlx runs in-process
     # and cannot be interrupted mid-inference (the parent kills the subprocess).
     timeout_sec: int = 120
+    # Scene-skip: when the mid frames of two consecutive units differ by less
+    # than this mean-luma distance (0-255), reuse the previous unit's result
+    # instead of running inference again. 0 disables the optimization.
+    scene_skip_threshold: float = 4.0
 
 
 def load_settings() -> VisionSettings:
@@ -78,6 +82,7 @@ def load_settings() -> VisionSettings:
         max_new_tokens=_env_int("VISION_MAX_NEW_TOKENS", 256),
         temperature=_env_float("VISION_TEMPERATURE", 0.2),
         timeout_sec=_env_int("VISION_TIMEOUT_SEC", 120),
+        scene_skip_threshold=max(0.0, _env_float("VISION_SCENE_SKIP_THRESHOLD", 4.0)),
     )
 
 

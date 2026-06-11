@@ -22,6 +22,8 @@ from .erase_bridge import run_subtitle_erase
 from .graph import resolve_template_plan
 from .nodes import NODE_REGISTRY
 from .ocr_bridge import (
+    effective_ocr_events_path,
+    ocr_classified_events_path,
     ocr_detect_manifest_path,
     ocr_detection_path,
     ocr_events_path,
@@ -208,7 +210,14 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
             }
         )
     elif stage_name == "asr-ocr-correct":
-        common.update({"transcription_correction": dict(request.transcription_correction)})
+        common.update(
+            {
+                "transcription_correction": dict(request.transcription_correction),
+                # Correction aligns against OCR events; classification changes
+                # which events participate (scene_text/watermark are dropped).
+                "ocr_events": _file_fingerprint(effective_ocr_events_path(request)),
+            }
+        )
     elif stage_name == "task-b":
         common.update(
             {
@@ -277,6 +286,20 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "ocr_sample_interval": request.ocr_sample_interval,
                 "ocr_position_mode": request.ocr_position_mode,
                 "ocr_extraction_mode": request.ocr_extraction_mode,
+                # Classification runs as a post-step of this node, so toggling
+                # it (or switching the vision backend) must recompute.
+                "ocr_classify_text": bool(request.ocr_classify_text),
+                "ocr_classify_backend": (
+                    _resolved_vision_backend(request) if request.ocr_classify_text else None
+                ),
+            }
+        )
+    elif stage_name == "ocr-translate":
+        common.update(
+            {
+                # Classification drops scene_text/watermark events from the
+                # translation input set, so the effective events file is the input.
+                "ocr_events": _file_fingerprint(effective_ocr_events_path(request)),
             }
         )
     elif stage_name == "visual-context":
@@ -305,6 +328,11 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "erase_max_load": request.erase_max_load,
                 "erase_regions": request.erase_regions,
                 "detection": _file_fingerprint(ocr_detection_path(request)),
+                # Classified events filter scene_text/watermark boxes out of the
+                # erase masks — toggling or re-classifying must recompute.
+                "classified_events": _file_fingerprint(effective_ocr_events_path(request))
+                if request.ocr_classify_text
+                else None,
             }
         )
     return common
@@ -394,6 +422,8 @@ def _node_cache_spec(
     elif stage_name == "ocr-detect":
         manifest_path = ocr_detect_manifest_path(request)
         artifact_paths = [ocr_events_path(request), ocr_detection_path(request), ocr_source_srt_path(request)]
+        if request.ocr_classify_text:
+            artifact_paths.append(ocr_classified_events_path(request))
     elif stage_name == "ocr-translate":
         output_tag = output_tag_for_language(request.target_lang)
         manifest_path = request.output_root / "ocr-translate" / "ocr-translate-manifest.json"
@@ -856,7 +886,9 @@ def execute_node(
             )
 
         result = translate_ocr_events(
-            events_path=ocr_events_path(request),
+            # Classified variant when classification ran: scene_text/watermark/
+            # title_card events are skipped (not dialogue, must not be subtitled).
+            events_path=effective_ocr_events_path(request),
             output_dir=request.output_root / "ocr-translate",
             target_lang=request.target_lang,
             backend_name=request.translation_backend,

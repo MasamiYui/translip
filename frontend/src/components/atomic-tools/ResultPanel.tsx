@@ -156,6 +156,7 @@ function buildArtifactActions(
     toMuxing: string
     toSubtitleErase: string
     toTranscriptCorrection: string
+    toVideoAnalyze: string
   },
 ) {
   const fileId = artifact.file_id ?? undefined
@@ -228,6 +229,20 @@ function buildArtifactActions(
   }
 
   if (toolId === 'subtitle-detect' && /ocr_events\.json$/i.test(artifact.filename)) {
+    return [
+      buildArtifactAction(labels.toTranscriptCorrection, 'transcript-correction', {
+        files: { ocr_events_file: { file_id: fileId, filename: artifact.filename } },
+      }),
+      // Vision triage of the detected text (subtitle vs scene text vs watermark).
+      buildArtifactAction(labels.toVideoAnalyze, 'video-analyze', {
+        files: { detection_file: { file_id: fileId, filename: artifact.filename } },
+        params: { task: 'ocr-classify' },
+      }),
+    ]
+  }
+
+  if (toolId === 'video-analyze' && /ocr_events\.classified\.json$/i.test(artifact.filename)) {
+    // Classified events drive transcript correction with non-dialogue text excluded.
     return [
       buildArtifactAction(labels.toTranscriptCorrection, 'transcript-correction', {
         files: { ocr_events_file: { file_id: fileId, filename: artifact.filename } },

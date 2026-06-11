@@ -18,10 +18,12 @@ from ..backends.base import VisionBackend
 from ..config import VALID_LANGS, VALID_TASKS, VisionSettings, load_settings
 from ..frames import (
     AnalysisUnit,
-    extract_frame,
+    extract_frames_batch,
+    frame_signature,
     frame_times_for_unit,
     load_detection_events,
     load_segments_file,
+    signature_distance,
     units_from_events,
     units_from_interval,
     units_from_segments,
@@ -132,15 +134,12 @@ def _frames_for_unit(
     else:
         frames_per_unit = request.frames_per_unit or settings.frames_per_unit
     times = frame_times_for_unit(unit, frames_per_unit=frames_per_unit)
-    paths = [
-        extract_frame(
-            request.input_path,
-            timestamp,
-            frames_dir / f"{unit.unit_id}_{index:02d}.jpg",
-            max_edge=settings.frame_max_edge,
-        )
-        for index, timestamp in enumerate(times)
-    ]
+    paths = extract_frames_batch(
+        request.input_path,
+        times,
+        [frames_dir / f"{unit.unit_id}_{index:02d}.jpg" for index in range(len(times))],
+        max_edge=settings.frame_max_edge,
+    )
     return paths, times
 
 
@@ -183,8 +182,15 @@ def analyze_video(
     unit_rows: list[dict[str, Any]] = []
     error_count = 0
     consecutive_failures = 0
+    skipped_similar = 0
     aborted_reason: str | None = None
     total = len(units)
+    # Scene-skip state: signature of the previous unit's mid frame + its parsed
+    # payload. Only for scene-context — descriptions are scene-level, so a
+    # near-identical frame means the same answer; QC/classify/Q&A must not skip.
+    scene_skip_enabled = request.task == "scene-context" and settings.scene_skip_threshold > 0
+    previous_signature: list[int] | None = None
+    previous_payload: dict[str, Any] | None = None
     try:
         for index, unit in enumerate(units):
             percent = 5.0 + (90.0 * index / total) if total else 95.0
@@ -200,6 +206,25 @@ def analyze_video(
                     request, unit, settings=settings, frames_dir=frames_dir
                 )
                 row["frames_sampled"] = frame_times
+
+                if scene_skip_enabled:
+                    signature = frame_signature(frame_paths[len(frame_paths) // 2])
+                    if (
+                        signature is not None
+                        and previous_signature is not None
+                        and previous_payload is not None
+                        and signature_distance(signature, previous_signature)
+                        < settings.scene_skip_threshold
+                    ):
+                        row.update(previous_payload)
+                        row["reused_previous"] = True
+                        unit_rows.append(row)
+                        skipped_similar += 1
+                        previous_signature = signature
+                        continue
+                else:
+                    signature = None
+
                 prompt = _unit_prompt(request, unit, events_by_id)
                 output_text = backend.chat(frame_paths, prompt)
             except Exception as exc:  # backend/extraction failure: record + continue
@@ -218,6 +243,11 @@ def analyze_video(
             payload = parse_unit_output(request.task, output_text)
             if "error" in payload:
                 error_count += 1
+                previous_signature = None
+                previous_payload = None
+            elif scene_skip_enabled:
+                previous_signature = signature
+                previous_payload = dict(payload)
             row.update(payload)
             unit_rows.append(row)
     finally:
@@ -245,6 +275,7 @@ def analyze_video(
         "unit_count": len(unit_rows),
         "planned_unit_count": total,
         "dropped_unit_count": dropped,
+        "skipped_similar_count": skipped_similar,
         "error_count": error_count,
         "artifacts": {
             "result_json": str(artifact_path),

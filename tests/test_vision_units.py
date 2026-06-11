@@ -99,3 +99,38 @@ def test_frame_times_clamps_frames_per_unit() -> None:
 def test_frame_times_count_matches_request(frames_per_unit: int) -> None:
     unit = AnalysisUnit(unit_id="vis-0001", start=0.0, end=60.0)
     assert len(frame_times_for_unit(unit, frames_per_unit=frames_per_unit)) == frames_per_unit
+
+
+def test_signature_distance_behaviour() -> None:
+    from translip.vision.frames import signature_distance
+
+    a = [100] * 256
+    assert signature_distance(a, list(a)) == 0.0
+    assert signature_distance(a, [110] * 256) == 10.0
+    # length mismatch / empty -> max distance (never treated as similar)
+    assert signature_distance(a, [100] * 128) == 255.0
+    assert signature_distance([], []) == 255.0
+
+
+def test_frame_signature_reads_jpeg(tmp_path) -> None:
+    pytest.importorskip("PIL")
+    from PIL import Image
+
+    from translip.vision.frames import frame_signature
+
+    path = tmp_path / "f.jpg"
+    Image.new("RGB", (64, 32), color=(200, 100, 50)).save(path)
+    sig = frame_signature(path)
+    assert sig is not None and len(sig) == 256
+    # Unreadable file degrades to None, not an exception.
+    bad = tmp_path / "bad.jpg"
+    bad.write_bytes(b"not an image")
+    assert frame_signature(bad) is None
+
+
+def test_extract_frames_batch_validates_lengths(tmp_path) -> None:
+    from translip.vision.frames import extract_frames_batch
+
+    with pytest.raises(ValueError):
+        extract_frames_batch(tmp_path / "v.mp4", [1.0, 2.0], [tmp_path / "a.jpg"])
+    assert extract_frames_batch(tmp_path / "v.mp4", [], []) == []

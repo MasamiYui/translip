@@ -133,6 +133,11 @@ class PipelineRequest:
     vision_backend: str = "auto"  # auto | mlx | ollama
     vision_frames_per_unit: int = 4
     vision_lang: str = "zh"
+    # Classify OCR events with the vision model after ocr-detect (subtitle vs
+    # scene_text vs watermark vs title_card). Default off: it changes erase /
+    # ocr-translate / asr-ocr-correct behavior, so it is opt-in until the
+    # misclassification rate is validated on real footage.
+    ocr_classify_text: bool = False
     # Hard-subtitle erasure (subtitle-erase node) — in-tree inpainting.
     erase_backend: str = "sttn"  # sttn | lama
     erase_device: str = "auto"  # auto | mps | cuda | cpu
