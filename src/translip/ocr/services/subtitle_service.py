@@ -526,6 +526,8 @@ class SubtitleService:
             processed_frames = 0
             prefilter_skipped_regions = 0
             reused_regions = 0
+            empty_skipped_regions = 0
+            secondary_skipped_regions = 0
             last_reported_progress = 50
 
             tracker_states = [self._create_tracker_state() for _ in anchors]
@@ -581,6 +583,16 @@ class SubtitleService:
                         all_detections.append(reused_detection)
                         continue
 
+                    if self._maybe_skip_confirmed_empty_region(tracker_state, region_signature):
+                        empty_skipped_regions += 1
+                        self._register_tracker_miss(
+                            tracker_state,
+                            timestamp=timestamp,
+                            signature=region_signature,
+                            clear_pending=tracker_state.get("pending_candidate") is None,
+                        )
+                        continue
+
                     # OCR recognition
                     ocr_lang = None
                     if anchor.language != Language.AUTO:
@@ -598,24 +610,35 @@ class SubtitleService:
                         timestamp=timestamp,
                     )
                     if not localized:
+                        confirmed_empty = not self._clean_text_detections(coarse_detections)
                         self._register_tracker_miss(
                             tracker_state,
                             timestamp=timestamp,
                             signature=region_signature,
                             clear_pending=tracker_state.get("pending_candidate") is None,
                         )
+                        if confirmed_empty and tracker_state.get("pending_candidate") is None:
+                            self._arm_empty_region_skip(tracker_state, region_signature)
                         continue
 
                     recognition_region = localized["recognition_region"]
-                    final_detections = self.ocr_engine.recognize_in_region(
-                        frame,
-                        recognition_region,
-                        ocr_lang,
+                    secondary_pass_skipped = self._should_skip_secondary_recognition(
+                        localized,
+                        search_region,
                     )
-                    final_detections = self._filter_detections_to_focus_box(
-                        final_detections,
-                        tuple(int(v) for v in localized["debug"]["tight_box"]),
-                    )
+                    if secondary_pass_skipped:
+                        secondary_skipped_regions += 1
+                        final_detections = localized["selected_detections"]
+                    else:
+                        final_detections = self.ocr_engine.recognize_in_region(
+                            frame,
+                            recognition_region,
+                            ocr_lang,
+                        )
+                        final_detections = self._filter_detections_to_focus_box(
+                            final_detections,
+                            tuple(int(v) for v in localized["debug"]["tight_box"]),
+                        )
                     final_detections = self._filter_variety_recall_frame_detections(
                         final_detections,
                         frame.shape,
@@ -650,6 +673,7 @@ class SubtitleService:
                         "localization": localized["debug"],
                         "coarse_detection_count": len(coarse_detections),
                         "final_detection_count": len(final_detections),
+                        "secondary_pass_skipped": secondary_pass_skipped,
                         "ocr_options": {
                             "use_angle_cls": self.ocr_engine.use_angle_cls,
                             "det_db_thresh": round(float(self.ocr_engine.det_db_thresh), 4),
@@ -698,12 +722,14 @@ class SubtitleService:
                         timestamp,
                     )
             logger.info(
-                "subtitle main detection done task_id=%s processed_frames=%s detections=%s prefilter_skipped_regions=%s reused_regions=%s",
+                "subtitle main detection done task_id=%s processed_frames=%s detections=%s prefilter_skipped_regions=%s reused_regions=%s empty_skipped_regions=%s secondary_skipped_regions=%s",
                 task_label,
                 processed_frames,
                 len(all_detections),
                 prefilter_skipped_regions,
                 reused_regions,
+                empty_skipped_regions,
+                secondary_skipped_regions,
             )
             localization_failure_debug = self._collect_localization_failure_debug(tracker_states, anchors)
             self._emit_progress(
@@ -715,6 +741,8 @@ class SubtitleService:
                     "detections": len(all_detections),
                     "reused_regions": reused_regions,
                     "prefilter_skipped_regions": prefilter_skipped_regions,
+                    "empty_skipped_regions": empty_skipped_regions,
+                    "secondary_skipped_regions": secondary_skipped_regions,
                 },
             )
 
@@ -1083,7 +1111,7 @@ class SubtitleService:
         all_polygons = []
         for line in lines:
             line = sorted(line, key=lambda d: d['box'][0])
-            line_text = self._join_texts([d['text'] for d in line])
+            line_text = self._join_line_texts(line)
             if line_text:
                 line_texts.append(line_text)
                 all_boxes.extend([d['box'] for d in line])
@@ -2805,6 +2833,45 @@ class SubtitleService:
         merged = re.sub(r'\s+', ' ', merged).strip()
         return merged
 
+    def _join_line_texts(self, line: List[dict]) -> str:
+        """Join same-line detections, keeping only *visual* gaps as spaces.
+
+        PaddleOCR recognition drops spaces inside CJK text, so the box gap is
+        the only remaining signal. A gap comparable to a glyph width is an
+        intentional separator (speaker change / phrase pause); anything
+        smaller is detector fragmentation of a continuous phrase and must be
+        concatenated without inventing a space. Latin/digit boundaries always
+        get a space so English words don't fuse.
+        """
+        ordered = sorted(
+            (det for det in line if (det.get('text') or '').strip()),
+            key=lambda det: det['box'][0],
+        )
+        if not ordered:
+            return ""
+
+        merged = ordered[0]['text'].strip()
+        prev_box = ordered[0]['box']
+        for det in ordered[1:]:
+            right = det['text'].strip()
+            box = det['box']
+            gap = float(box[0]) - float(prev_box[2])
+            glyph_height = max(1.0, float(min(prev_box[3] - prev_box[1], box[3] - box[1])))
+            has_visual_gap = gap >= max(6.0, glyph_height * 0.45)
+            left_char = merged[-1] if merged else ""
+            ascii_boundary = (
+                bool(left_char)
+                and left_char.isascii() and left_char.isalnum()
+                and right[0].isascii() and right[0].isalnum()
+            )
+            if merged and (has_visual_gap or ascii_boundary):
+                merged += " " + right
+            else:
+                merged += right
+            prev_box = box
+
+        return re.sub(r'\s+', ' ', merged).strip()
+
     def _needs_space(self, left_char: str, right_char: str) -> bool:
         return left_char.isalnum() and right_char.isalnum()
 
@@ -3994,6 +4061,8 @@ class SubtitleService:
             "last_success_timestamp": None,
             "consecutive_misses": 0,
             "transient_reset_done": False,
+            "empty_region_signature": None,
+            "empty_skip_streak": 0,
         }
 
     def _reset_tracker_transient_state(
@@ -4019,6 +4088,8 @@ class SubtitleService:
         tracker_state["history"] = []
         tracker_state["overlay_tracks"] = []
         tracker_state["subtitle_style"] = None
+        tracker_state["empty_region_signature"] = None
+        tracker_state["empty_skip_streak"] = 0
 
     def _register_tracker_success(
         self,
@@ -4077,6 +4148,89 @@ class SubtitleService:
             signature=signature,
             clear_pending=clear_pending,
         )
+
+    def _should_skip_secondary_recognition(
+        self,
+        localized: Dict[str, Any],
+        search_region: Tuple[int, int, int, int],
+    ) -> bool:
+        """Decide if the tight-region second OCR pass adds nothing.
+
+        The second pass exists to recover text that the coarse pass clipped at
+        the search-region border or fragmented. When the coarse pass already
+        produced a single confident line whose box sits well inside the search
+        region, re-running OCR on the padded tight box returns the same text;
+        skipping it halves the per-frame OCR cost on stable dialogue scenes.
+        """
+        if not settings.SUBTITLE_SECONDARY_RECOGNITION_SKIP_ENABLED:
+            return False
+        if self.variety_recall_enabled:
+            return False
+
+        debug = localized.get("debug") or {}
+        selected_indices = debug.get("selected_line_indices") or []
+        if len(selected_indices) != 1:
+            return False
+        selected = localized.get("selected_detections") or []
+        if not selected:
+            return False
+        min_confidence = float(settings.SUBTITLE_SECONDARY_RECOGNITION_SKIP_MIN_CONFIDENCE)
+        if any(float(det.get("confidence") or 0.0) < min_confidence for det in selected):
+            return False
+
+        tight_box = debug.get("tight_box")
+        if not tight_box or len(tight_box) != 4:
+            return False
+        sx1, sy1, sx2, sy2 = [int(v) for v in search_region]
+        tx1, ty1, tx2, ty2 = [int(v) for v in tight_box]
+        height = max(1, ty2 - ty1)
+        # Border contact means the coarse crop may have clipped glyphs - re-read.
+        margin = max(4, int(height * 0.25))
+        if tx1 - sx1 < margin or sx2 - tx2 < margin:
+            return False
+        if ty1 - sy1 < margin or sy2 - ty2 < margin:
+            return False
+        return True
+
+    def _arm_empty_region_skip(
+        self,
+        tracker_state: Dict[str, Any],
+        signature: Optional[np.ndarray],
+    ) -> None:
+        if not settings.SUBTITLE_EMPTY_REGION_SKIP_ENABLED or signature is None:
+            return
+        tracker_state["empty_region_signature"] = signature
+        tracker_state["empty_skip_streak"] = 0
+
+    def _maybe_skip_confirmed_empty_region(
+        self,
+        tracker_state: Dict[str, Any],
+        signature: Optional[np.ndarray],
+    ) -> bool:
+        """Skip OCR while the region stays identical to a confirmed-empty frame.
+
+        Mirrors the positive-reuse path: once OCR confirmed a region has no
+        text, near-identical follow-up frames (static scenes between dialogue
+        lines) cannot have gained text. Re-verified every MAX_CONSECUTIVE
+        frames so a slow fade-in is caught at most a few samples late.
+        """
+        if not settings.SUBTITLE_EMPTY_REGION_SKIP_ENABLED or signature is None:
+            return False
+        empty_signature = tracker_state.get("empty_region_signature")
+        if empty_signature is None:
+            return False
+        streak = int(tracker_state.get("empty_skip_streak", 0))
+        if streak >= int(settings.SUBTITLE_EMPTY_REGION_SKIP_MAX_CONSECUTIVE):
+            tracker_state["empty_region_signature"] = None
+            tracker_state["empty_skip_streak"] = 0
+            return False
+        mean_diff = float(np.mean(np.abs(signature - empty_signature)))
+        if mean_diff > settings.SUBTITLE_FRAME_REUSE_MAX_MEAN_DIFF:
+            tracker_state["empty_region_signature"] = None
+            tracker_state["empty_skip_streak"] = 0
+            return False
+        tracker_state["empty_skip_streak"] = streak + 1
+        return True
 
     def _compute_region_signature(self, region_view: np.ndarray) -> Optional[np.ndarray]:
         if region_view is None or region_view.size == 0:
@@ -4159,6 +4313,8 @@ class SubtitleService:
             self._update_subtitle_style_profile(tracker_state, box, timestamp=timestamp)
         tracker_state["pending_candidate"] = None
         tracker_state["reuse_streak"] = 0
+        tracker_state["empty_region_signature"] = None
+        tracker_state["empty_skip_streak"] = 0
         self._register_tracker_success(tracker_state, timestamp)
 
     def _clear_tracker_reuse_candidate(

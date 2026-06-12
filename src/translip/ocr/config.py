@@ -113,6 +113,14 @@ class Settings(BaseSettings):
     SUBTITLE_FRAME_REUSE_MAX_MEAN_DIFF: float = 0.018
     SUBTITLE_FRAME_REUSE_MIN_CONFIDENCE: float = 0.82
     SUBTITLE_FRAME_REUSE_MAX_CONSECUTIVE: int = 3
+    # Skip the tight-region re-recognition pass when the coarse pass already
+    # produced a single confident line (the fallback path uses the same data).
+    SUBTITLE_SECONDARY_RECOGNITION_SKIP_ENABLED: bool = True
+    SUBTITLE_SECONDARY_RECOGNITION_SKIP_MIN_CONFIDENCE: float = 0.93
+    # Skip OCR entirely while the search region stays pixel-identical to a frame
+    # that was already confirmed empty (bounded by MAX_CONSECUTIVE re-verification).
+    SUBTITLE_EMPTY_REGION_SKIP_ENABLED: bool = True
+    SUBTITLE_EMPTY_REGION_SKIP_MAX_CONSECUTIVE: int = 3
     SUBTITLE_TRACKER_TRANSIENT_RESET_MISSES: int = 10
     SUBTITLE_TRACKER_TRANSIENT_RESET_GAP_SECONDS: float = 6.0
     SUBTITLE_TRACKER_CONTEXT_RESET_MISSES: int = 18
