@@ -622,7 +622,7 @@ export function TopNav({ height = 60, layoutMode = 'top', onToggleLayoutMode }: 
 
       <div
         ref={itemsContainerRef}
-        className="relative flex flex-1 items-center gap-0.5 min-w-0 overflow-hidden"
+        className="relative flex flex-1 items-center gap-0.5 min-w-0 overflow-x-clip overflow-y-visible"
       >
         {/* Live (visible) row */}
         {inlineSlots.map((slot) => renderSlot(slot))}
