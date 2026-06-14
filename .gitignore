@@ -26,3 +26,6 @@ playwright-report/
 frontend/test-results/
 frontend/playwright-report/
 frontend/public/help/
+
+# Leaked shell-sandbox artifacts (e.g. ZDOTDIR temp dirs)
+BASH_SYNTAX_OK*

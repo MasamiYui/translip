@@ -605,6 +605,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Checkpoint set to download",
     )
     download_parser.add_argument("--force", action="store_true", help="Redownload weights")
+    download_parser.add_argument(
+        "--missing",
+        action="store_true",
+        help=(
+            "Download ALL auto-downloadable missing models at once "
+            "(same as the UI's 'download all missing'); ignores --backend. "
+            "Use --backend cdx23 for the separation model, which downloads separately."
+        ),
+    )
 
     doctor_parser = subparsers.add_parser(
         "doctor",
@@ -903,6 +912,20 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "download-models":
+        if args.missing:
+            try:
+                job = model_download_manager.start_missing(run_in_thread=False)
+            except ModelDownloadError as exc:
+                parser.error(str(exc))
+                return 2
+            if not job.items:
+                print("All auto-downloadable models already present.")
+                return 0
+            for item in job.items.values():
+                print(f"{item.key}: {item.state}")
+                if item.error:
+                    print(f"{item.key}: {item.error}")
+            return 0 if job.state == "succeeded" else 1
         if args.backend == "cdx23":
             separator = Cdx23DialogueSeparator(quality=args.quality, device="cpu")
             downloaded = separator.ensure_weights(force=args.force)

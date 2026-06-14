@@ -339,6 +339,33 @@ def test_cli_download_models_accepts_voxcpm2() -> None:
     assert args.backend == "voxcpm2"
 
 
+def test_cli_download_models_missing_flag() -> None:
+    parser = build_parser()
+    args = parser.parse_args(["download-models", "--missing"])
+    assert args.missing is True
+    # Default (no flag) leaves --missing off so the per-backend path is unchanged.
+    assert parser.parse_args(["download-models", "--backend", "cdx23"]).missing is False
+
+
+def test_cli_download_models_missing_routes_to_start_missing(monkeypatch) -> None:
+    """`--missing` fetches ALL missing models (only_keys=None), run synchronously."""
+    import translip.cli as cli_mod
+
+    calls: dict = {}
+
+    def fake_start_missing(*, run_in_thread=True, only_keys=None):
+        calls["run_in_thread"] = run_in_thread
+        calls["only_keys"] = only_keys
+        item = SimpleNamespace(key="erase_lama", state="succeeded", error=None)
+        return SimpleNamespace(items={"erase_lama": item}, state="succeeded")
+
+    monkeypatch.setattr(cli_mod.model_download_manager, "start_missing", fake_start_missing)
+
+    assert cli_mod.main(["download-models", "--missing"]) == 0
+    assert calls["only_keys"] is None
+    assert calls["run_in_thread"] is False
+
+
 def test_cli_render_dub_parser() -> None:
     parser = build_parser()
     args = parser.parse_args(
