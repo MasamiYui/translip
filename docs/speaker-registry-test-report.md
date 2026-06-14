@@ -53,21 +53,21 @@ uv run pytest
 
 ```bash
 uv run translip build-speaker-registry \
-  --segments ./output-task-a/voice/segments.zh.json \
+  --segments ./output-transcription/voice/segments.zh.json \
   --audio ./output/我在迪拜等你/voice.mp3 \
   --output-dir ./output-task-b \
-  --registry ./output-task-b/registry/speaker_registry.json \
+  --registry ./output-speaker-registry/registry/speaker_registry.json \
   --update-registry \
   --keep-intermediate
 ```
 
 正式产物:
 
-- Profiles: [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-b/voice/speaker_profiles.json)
-- Matches: [speaker_matches.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-b/voice/speaker_matches.json)
-- Registry snapshot: [speaker_registry.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-b/voice/speaker_registry.json)
-- Manifest: [task-b-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-b/voice/task-b-manifest.json)
-- Registry file: [speaker_registry.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-b/registry/speaker_registry.json)
+- Profiles: [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-speaker-registry/voice/speaker_profiles.json)
+- Matches: [speaker_matches.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-speaker-registry/voice/speaker_matches.json)
+- Registry snapshot: [speaker_registry.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-speaker-registry/voice/speaker_registry.json)
+- Manifest: [speaker-registry-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-speaker-registry/voice/speaker-registry-manifest.json)
+- Registry file: [speaker_registry.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-speaker-registry/registry/speaker_registry.json)
 
 结果摘要:
 

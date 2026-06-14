@@ -5,8 +5,8 @@
 - 创建日期: 2026-04-14
 - 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-aware-dubbing-task-breakdown.md)
 - 前置依赖:
-  - [task-e-timeline-fitting-and-mixing.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-e-timeline-fitting-and-mixing.md)
-  - [task-f-pipeline-and-engineering-orchestration.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-f-pipeline-and-engineering-orchestration.md)
+  - [timeline-fitting-and-mixing.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/timeline-fitting-and-mixing.md)
+  - [pipeline-and-engineering-orchestration.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/pipeline-and-engineering-orchestration.md)
 
 ## 1. 目标
 
@@ -133,7 +133,7 @@
 
 ```text
 <pipeline-output-root>/
-  task-g/
+  delivery/
     delivery/
       final_preview.en.mp4
       final_dub.en.mp4

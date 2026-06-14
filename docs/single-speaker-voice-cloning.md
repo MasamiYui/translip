@@ -5,9 +5,9 @@
 - 创建日期: 2026-04-14
 - 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-aware-dubbing-task-breakdown.md)
 - 前置依赖:
-  - [task-b-speaker-registry-and-retrieval.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-b-speaker-registry-and-retrieval.md)
-  - [task-c-dubbing-script-generation.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-c-dubbing-script-generation.md)
-  - [task-e-timeline-fitting-and-mixing.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-e-timeline-fitting-and-mixing.md)
+  - [speaker-registry-and-retrieval.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-registry-and-retrieval.md)
+  - [dubbing-script-generation.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/dubbing-script-generation.md)
+  - [timeline-fitting-and-mixing.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/timeline-fitting-and-mixing.md)
 
 ## 1. 文档目的
 
@@ -89,7 +89,7 @@
 
 而不是现在唯一的主 TTS 引擎。
 
-当前阶段先把一个完整的 `text -> english speech -> quality gate -> task-e` 路线做稳，更重要。
+当前阶段先把一个完整的 `text -> english speech -> quality gate -> render` 路线做稳，更重要。
 
 ## 3. 任务目标
 
@@ -176,7 +176,7 @@
 - `segments/<segment_id>.wav`
 - `speaker_segments.en.json`
 - `speaker_demo.en.wav`
-- `task-d-manifest.json`
+- `synthesis-manifest.json`
 
 其中 `speaker_segments.en.json` 仍然是任务 E 的直接输入之一。
 

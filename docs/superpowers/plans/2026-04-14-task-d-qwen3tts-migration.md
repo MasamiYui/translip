@@ -124,8 +124,8 @@ git commit -m "refactor: migrate task d runner to qwen3tts"
 **Files:**
 - Modify: `pyproject.toml`
 - Modify: `README.md`
-- Modify: `docs/task-d-test-report.md`
-- Modify: `docs/task-e-test-report.md`
+- Modify: `docs/synthesis-test-report.md`
+- Modify: `docs/render-test-report.md`
 - Modify: `docs/speaker-aware-dubbing-plan.md`
 
 - [ ] **Step 1: Write the failing dependency/documentation assertions**
@@ -152,7 +152,7 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add pyproject.toml README.md docs/task-d-test-report.md docs/task-e-test-report.md docs/speaker-aware-dubbing-plan.md tests/test_cli.py
+git add pyproject.toml README.md docs/synthesis-test-report.md docs/render-test-report.md docs/speaker-aware-dubbing-plan.md tests/test_cli.py
 git commit -m "chore: remove legacy task d backend references"
 ```
 

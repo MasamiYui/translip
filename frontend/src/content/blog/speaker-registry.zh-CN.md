@@ -12,7 +12,7 @@ readingTime: 14
 
 # 从临时工号到稳定身份——声纹画像与说话人注册表
 
-> 这是 **幕后 · 博客** 的第三篇。[上一篇](/blog/speaker-attributed-transcription) 我们让每句话都带上了 `SPEAKER_00` / `SPEAKER_01` 的标注；这一篇顺着这些标号往下走，到流水线的第三站：**说话人注册表**（`task-b` / CLI 的 `build-speaker-registry`）。
+> 这是 **幕后 · 博客** 的第三篇。[上一篇](/blog/speaker-attributed-transcription) 我们让每句话都带上了 `SPEAKER_00` / `SPEAKER_01` 的标注；这一篇顺着这些标号往下走，到流水线的第三站：**说话人注册表**（`speaker-registry` / CLI 的 `build-speaker-registry`）。
 
 ## 临时工号的问题
 
@@ -157,7 +157,7 @@ output-speakers/example/
 ├── speaker_matches.json     # 每个画像 → matched / review / new_speaker
 ├── speaker_registry.json    # 注册表快照（认领/更新后的状态）
 ├── reference_clips/         # 抠出的参考语音 WAV（profile_XXXX/clip_YYYY.wav）
-└── task-b-manifest.json     # 后端 / 设备 / 画像数 / 注册表人数 / 各判决计数
+└── speaker-registry-manifest.json     # 后端 / 设备 / 画像数 / 注册表人数 / 各判决计数
 ```
 
 一个最小调用（吃上两站的产物，并写回一本"这部剧"的注册表）：
@@ -165,7 +165,7 @@ output-speakers/example/
 ```bash
 uv run translip build-speaker-registry \
   --segments ./output-transcribe/example/segments.zh.json \
-  --audio ./output-stage1/example/voice.wav \
+  --audio ./output-separation/example/voice.wav \
   --registry ./my-show/speaker_registry.json \
   --update-registry --top-k 3 \
   --output-dir ./output-speakers

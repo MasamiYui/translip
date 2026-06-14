@@ -12,7 +12,7 @@ readingTime: 12
 
 # 把声音拆成两半——人声 / 背景分离
 
-> 这是 **幕后 · 博客** 的第一篇。我们不讲怎么用，而是聊聊每个环节背后的设计、取舍和算法。第一站，自然从流水线的第一站说起：**音频分离**（`stage1` / CLI 的 `translip run`）。
+> 这是 **幕后 · 博客** 的第一篇。我们不讲怎么用，而是聊聊每个环节背后的设计、取舍和算法。第一站，自然从流水线的第一站说起：**音频分离**（`separation` / CLI 的 `translip run`）。
 
 ## 为什么"分离"是第一步
 
@@ -149,7 +149,7 @@ background = music + effect      # 背景 = 配乐 + 音效
 最终落到磁盘上的，是一份稳定的**产物契约**：
 
 ```text
-output-stage1/example/
+output-separation/example/
 ├── voice.wav           # 人声轨 → 喂给下游转写
 ├── background.wav      # 背景轨 → 留到最后混音回贴
 └── manifest.json       # 路由 / 分数 / 后端 / 计时 / 产物
@@ -163,7 +163,7 @@ output-stage1/example/
 uv run translip run \
   --input ./test_video/example.mp4 \
   --mode auto --quality balanced \
-  --output-dir ./output-stage1
+  --output-dir ./output-separation
 ```
 
 ## 几个"为什么这么做"

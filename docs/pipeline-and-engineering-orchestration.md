@@ -6,11 +6,11 @@
 - 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-aware-dubbing-task-breakdown.md)
 - 前置依赖:
   - [technical-design.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/technical-design.md)
-  - [task-a-speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-a-speaker-attributed-transcription.md)
-  - [task-b-speaker-registry-and-retrieval.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-b-speaker-registry-and-retrieval.md)
-  - [task-c-dubbing-script-generation.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-c-dubbing-script-generation.md)
-  - [task-d-single-speaker-voice-cloning.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-d-single-speaker-voice-cloning.md)
-  - [task-e-timeline-fitting-and-mixing.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-e-timeline-fitting-and-mixing.md)
+  - [speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-attributed-transcription.md)
+  - [speaker-registry-and-retrieval.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-registry-and-retrieval.md)
+  - [dubbing-script-generation.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/dubbing-script-generation.md)
+  - [single-speaker-voice-cloning.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/single-speaker-voice-cloning.md)
+  - [timeline-fitting-and-mixing.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/timeline-fitting-and-mixing.md)
 
 ## 1. 目标
 
@@ -192,7 +192,7 @@
 3. `logs/`
    每个阶段独立日志
 4. 标准化阶段目录
-   `stage1/`, `task-a/`, `task-b/`, `task-c/`, `task-d/`, `task-e/`
+   `separation/`, `transcription/`, `speaker-registry/`, `translation/`, `synthesis/`, `render/`
 5. `request.json`
    本次流水线归一化后的请求参数快照
 6. `cache-index.json`
@@ -208,47 +208,47 @@
 <output-root>/
   source/
     input.json
-  stage1/
+  separation/
     <bundle>/
       voice.mp3
       background.mp3
       manifest.json
-  task-a/
+  transcription/
     voice/
       segments.zh.json
       segments.zh.srt
-      task-a-manifest.json
-  task-b/
+      transcription-manifest.json
+  speaker-registry/
     voice/
       speaker_profiles.json
       speaker_matches.json
       speaker_registry.json
-      task-b-manifest.json
-  task-c/
+      speaker-registry-manifest.json
+  translation/
     voice/
       translation.en.json
       translation.en.editable.json
       translation.en.srt
-      task-c-manifest.json
-  task-d/
+      translation-manifest.json
+  synthesis/
     voice/
       spk_0001/
       spk_0003/
       ...
-  task-e/
+  render/
     voice/
       dub_voice.en.wav
       preview_mix.en.wav
       timeline.en.json
       mix_report.en.json
-      task-e-manifest.json
+      render-manifest.json
   logs/
-    stage1.log
-    task-a.log
-    task-b.log
-    task-c.log
-    task-d.log
-    task-e.log
+    separation.log
+    transcription.log
+    speaker-registry.log
+    translation.log
+    synthesis.log
+    render.log
   pipeline-manifest.json
   pipeline-report.json
   pipeline-status.json
@@ -266,12 +266,12 @@
 
 任务 F 首发只调度以下阶段:
 
-1. `stage1`
-2. `task-a`
-3. `task-b`
-4. `task-c`
-5. `task-d`
-6. `task-e`
+1. `separation`
+2. `transcription`
+3. `speaker-registry`
+4. `translation`
+5. `synthesis`
+6. `render`
 
 每个阶段都应具备统一元数据:
 
@@ -312,22 +312,22 @@
 
 ```text
 source input
-  -> stage1
-  -> task-a
-  -> task-b
-  -> task-c
-  -> task-d
-  -> task-e
+  -> separation
+  -> transcription
+  -> speaker-registry
+  -> translation
+  -> synthesis
+  -> render
 ```
 
 依赖关系建议明确写死:
 
-- `stage1` 依赖原始输入视频或音频
-- `task-a` 依赖 `stage1/voice`
-- `task-b` 依赖 `task-a/segments + stage1/voice`
-- `task-c` 依赖 `task-a/segments + task-b/profiles`
-- `task-d` 依赖 `task-c/translation + task-b/profiles`
-- `task-e` 依赖 `stage1/background + task-a/segments + task-c/translation + task-d/reports`
+- `separation` 依赖原始输入视频或音频
+- `transcription` 依赖 `separation/voice`
+- `speaker-registry` 依赖 `transcription/segments + separation/voice`
+- `translation` 依赖 `transcription/segments + speaker-registry/profiles`
+- `synthesis` 依赖 `translation/translation + speaker-registry/profiles`
+- `render` 依赖 `separation/background + transcription/segments + translation/translation + synthesis/reports`
 
 这张图在任务 F 首发里不做动态 DAG，自定义节点顺序不是目标。
 
@@ -417,8 +417,8 @@ source input
   "translation_backend": "local-m2m100",
   "tts_backend": "qwen3tts",
   "device": "auto",
-  "run_from_stage": "stage1",
-  "run_to_stage": "task-e",
+  "run_from_stage": "separation",
+  "run_to_stage": "render",
   "resume": true,
   "force_stages": [],
   "reuse_existing": true
@@ -602,7 +602,7 @@ uv run translip run-pipeline \
   --target-lang en \
   --translation-backend local-m2m100 \
   --tts-backend qwen3tts \
-  --run-to-stage task-e \
+  --run-to-stage render \
   --resume
 ```
 
@@ -643,7 +643,7 @@ uv run translip run-pipeline \
 
 ```text
 [pipeline] status=running overall=42%
-[stage:task-d] status=running progress=31% message="speaker spk_0003 12/39"
+[stage:synthesis] status=running progress=31% message="speaker spk_0003 12/39"
 ```
 
 ### 方式 B: 只读状态命令
@@ -710,12 +710,12 @@ uv run translip pipeline-status \
 
 每个阶段再加自己的关键字段:
 
-- `stage1`: `mode`, `quality`, `audio_stream_index`
-- `task-a`: `language`, `asr_model`
-- `task-b`: `registry_path`, `top_k`, `update_registry`
-- `task-c`: `glossary_path`, `translation_backend`
-- `task-d`: `tts_backend`, speaker selection strategy
-- `task-e`: `fit_policy`, `fit_backend`, `mix_profile`, `ducking_mode`, `preview_format`
+- `separation`: `mode`, `quality`, `audio_stream_index`
+- `transcription`: `language`, `asr_model`
+- `speaker-registry`: `registry_path`, `top_k`, `update_registry`
+- `translation`: `glossary_path`, `translation_backend`
+- `synthesis`: `tts_backend`, speaker selection strategy
+- `render`: `fit_policy`, `fit_backend`, `mix_profile`, `ducking_mode`, `preview_format`
 
 这部分建议在实现时封装成单独模块，不散落在各阶段 runner 中。
 
@@ -725,17 +725,17 @@ uv run translip pipeline-status \
 
 建议权重可先写死为:
 
-- `stage1 = 0.10`
-- `task-a = 0.10`
-- `task-b = 0.10`
-- `task-c = 0.15`
-- `task-d = 0.35`
-- `task-e = 0.20`
+- `separation = 0.10`
+- `transcription = 0.10`
+- `speaker-registry = 0.10`
+- `translation = 0.15`
+- `synthesis = 0.35`
+- `render = 0.20`
 
 原因:
 
 - 这更贴近当前本地运行真实耗时结构
-- `task-d` 明显比其他阶段重
+- `synthesis` 明显比其他阶段重
 - 简单权重法已经足够支持首发监控
 
 整体进度计算:
@@ -750,14 +750,14 @@ uv run translip pipeline-status \
 
 建议:
 
-- `stage1`: 按固定阶段状态，直接用 `0 / 100`
-- `task-a`: 按主流程阶段点，粗粒度 `0 / 50 / 100`
-- `task-b`: 按流程阶段点，粗粒度 `0 / 50 / 100`
-- `task-c`: 按 unit 批次进度估算
-- `task-d`: 按 `speaker_count` 与 `segment_count` 组合进度估算
-- `task-e`: 按 `candidate -> fit -> overlap -> render -> export` 五段估算
+- `separation`: 按固定阶段状态，直接用 `0 / 100`
+- `transcription`: 按主流程阶段点，粗粒度 `0 / 50 / 100`
+- `speaker-registry`: 按流程阶段点，粗粒度 `0 / 50 / 100`
+- `translation`: 按 unit 批次进度估算
+- `synthesis`: 按 `speaker_count` 与 `segment_count` 组合进度估算
+- `render`: 按 `candidate -> fit -> overlap -> render -> export` 五段估算
 
-其中 `task-d` 是最值得细化的，因为它通常耗时最长。
+其中 `synthesis` 是最值得细化的，因为它通常耗时最长。
 
 ## 19.5 状态文件设计
 
@@ -770,18 +770,18 @@ uv run translip pipeline-status \
   "job_id": "pipeline-20260414-120000",
   "status": "running",
   "overall_progress_percent": 42.3,
-  "current_stage": "task-d",
+  "current_stage": "synthesis",
   "updated_at": "2026-04-14T12:34:56Z",
   "stages": [
     {
-      "stage_name": "task-c",
+      "stage_name": "translation",
       "status": "succeeded",
       "progress_percent": 100.0,
       "current_step": "completed",
       "updated_at": "..."
     },
     {
-      "stage_name": "task-d",
+      "stage_name": "synthesis",
       "status": "running",
       "progress_percent": 31.4,
       "current_step": "speaker spk_0003 12/39",
@@ -866,10 +866,10 @@ uv run translip pipeline-status \
 1. **直接已知的阶段级进度**
    例如 orchestrator 自己知道某阶段开始/结束
 2. **可从子进程结构推导的进度**
-   例如 task-d 已知 speaker 数和 segment 数
+   例如 synthesis 已知 speaker 数和 segment 数
 3. **子进程标准输出中的结构化进度行**
    例如:
-   `PROGRESS task-d 31.4 speaker spk_0003 12/39`
+   `PROGRESS synthesis 31.4 speaker spk_0003 12/39`
 
 首发不建议:
 
@@ -890,7 +890,7 @@ uv run translip pipeline-status \
   "request": {},
   "stages": [
     {
-      "stage_name": "stage1",
+      "stage_name": "separation",
       "status": "cached",
       "cache_hit": true,
       "manifest_path": "...",
@@ -1051,14 +1051,14 @@ uv run translip pipeline-status \
 
 ### 26.2 集成测试
 
-- 用一个短样本跑通 `stage1 -> task-e`
+- 用一个短样本跑通 `separation -> render`
 - 中途故意删除某个阶段产物，再验证 resume 行为
-- 在已有产物基础上只重跑 `task-e`
+- 在已有产物基础上只重跑 `render`
 
 ### 26.3 真实验证
 
 - 使用 `test_video` 中的真实视频
-- 至少做 1 次完整 `stage1 -> task-e`
+- 至少做 1 次完整 `separation -> render`
 - 至少做 1 次“命中缓存的重跑”
 - 至少做 1 次“强制重跑某个阶段”
 
@@ -1066,7 +1066,7 @@ uv run translip pipeline-status \
 
 任务 F 可以视为完成，需要同时满足:
 
-1. 能通过一个统一 CLI 跑通 `stage1 -> task-e`
+1. 能通过一个统一 CLI 跑通 `separation -> render`
 2. 能稳定生成 `pipeline-manifest.json` 和 `pipeline-report.json`
 3. 同一输入第二次运行时，上游阶段能正确命中缓存
 4. 支持从中间阶段恢复

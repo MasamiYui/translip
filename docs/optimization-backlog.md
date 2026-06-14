@@ -51,7 +51,7 @@
 | ID | 标题 | 工作量 |
 |---|---|---|
 | TRA-1 | 时长预算注入翻译 + 默认重译/condense ✅ | S–M |
-| TTS-1 | 长度/语速目标传 MOSS/VoxCPM + task-e 前 micro-fit | S–M |
+| TTS-1 | 长度/语速目标传 MOSS/VoxCPM + render 前 micro-fit | S–M |
 | REP-1 | repair 改写换成 LLM 长度目标重译（删硬编码字典） | M |
 | UI-1 | 修 Preview 音频 A/B（只切字幕的 bug）✅ | M |
 | UI-5 | 阶段日志在 UI 可见 | M |
@@ -65,8 +65,8 @@
 | ASR-3 | 聚类阈值/`expected_speakers` 可调且入缓存 | M |
 | ASR-5 | 词级时间戳 + Paraformer 默认（治 SenseVoice 伪造时间）✅ | M |
 | ASR-6 | ASR 幻觉/置信度处理 | S–M |
-| SPK-1 | task-b 存 gender/F0 → 同性别参考 + 双峰拆簇 | M–L |
-| REN-1 | task-e 两遍/全局时间轴拟合 | M–L |
+| SPK-1 | speaker-registry 存 gender/F0 → 同性别参考 + 双峰拆簇 | M–L |
+| REN-1 | render 两遍/全局时间轴拟合 | M–L |
 | REN-3 | 切尾级联 + 上游"需更短译文"反馈 | M |
 | QA-1 | `perceptual_score`（切尾惩罚 + 最终混音 ASR 往返） | M |
 | QA-2 | autofix 升级阶梯（换参考/换 backend） | M |
@@ -75,7 +75,7 @@
 | ID | 标题 | 工作量 |
 |---|---|---|
 | ARCH-1 | DAG 并行调度（独立分支并发） | M |
-| ARCH-2 | task-d 多说话人批处理/并行 | M |
+| ARCH-2 | synthesis 多说话人批处理/并行 | M |
 | ARCH-3 | 流水线并发队列 + admission control | M |
 | SUB-1 | 翻译字幕 CPS/折行/可读性引擎 | M |
 | SUB-2 | OCR cue 时间吸附真实帧 | M |
@@ -98,13 +98,13 @@
 ### ARCH-1 — DAG 并行调度，独立分支并发 ｜ TODO ｜ 主线 — ｜ M ｜ ◻待确认
 - **现状**：`orchestration/runner.py:810` 是拓扑拍平后的裸 `for`，完全串行；`graph.py` 有真依赖图但 `plan.dependencies` 不参与调度。`+ocr-subs` 模板里 OCR 检测（数分钟）排在音频主线后串行，明明独立。
 - **方案**：用 `plan.dependencies` 做 ready-set 调度器，依赖满足的节点并发启动，受 VRAM/device 信号量约束（勿同时调度两个 GPU 阶段）。每个节点已是独立子进程，主要是调度改动。
-- **验收**：`asr-dub+ocr-subs` 模板 OCR 与 stage1→task-a 并发；端到端产物与串行一致；墙钟下降。
+- **验收**：`asr-dub+ocr-subs` 模板 OCR 与 separation→transcription 并发；端到端产物与串行一致；墙钟下降。
 - **测试**：`tests/test_orchestration.py` 加并发调度单测（mock 子进程）；真实 `+ocr-subs` 跑批对比墙钟。
 
-### ARCH-2 — task-d 多说话人批处理/并行 ｜ TODO ｜ C/性能 ｜ M ｜ ◻待确认
-- **现状**：`runner.py:460` 逐说话人一个 `synthesize-speaker` 子进程＝N 人 N 次模型冷加载；`dubbing_workers` 只并行单说话人内的段。task-d 权重 0.35（`stages.py:23`）最长。
+### ARCH-2 — synthesis 多说话人批处理/并行 ｜ TODO ｜ C/性能 ｜ M ｜ ◻待确认
+- **现状**：`runner.py:460` 逐说话人一个 `synthesize-speaker` 子进程＝N 人 N 次模型冷加载；`dubbing_workers` 只并行单说话人内的段。synthesis 权重 0.35（`stages.py:23`）最长。
 - **方案**：优先做"多说话人批模式"（一进程跑全部选定说话人，摊销模型加载）；或退而求其次用 VRAM 限制的进程池跑若干说话人。注意保持子进程隔离带来的 ML 模型清理/崩溃隔离优势的权衡。
-- **验收**：多说话人任务 task-d 墙钟显著下降，产物逐段一致。
+- **验收**：多说话人任务 synthesis 墙钟显著下降，产物逐段一致。
 - **测试**：`tests/` 加批模式单测；真实多说话人跑批计时。
 
 ### ARCH-3 — 流水线并发队列 + admission control ｜ TODO ｜ 健壮性 ｜ M ｜ ◻待确认
@@ -114,10 +114,10 @@
 - **测试**：单测队列闸；手动连提验证。
 
 ### ARCH-4 — 缓存键补上游产物指纹 ｜ DONE ｜ D/正确性 ｜ S ｜ ◻待确认
-> 已修：task-a 缓存 payload 加 `voice` = `_file_fingerprint(stage1_voice_path)`；task-d 加 `translation`/`profiles`/`voice_bank` 三个上游指纹。原先这两段只含标量参数，上游产物变了但参数 hash 不变会 false hit。缓存键在节点循环里、上游已完成后计算，故指纹有效。加 2 回归测试（改 stage1 voice → task-a 键变；改 task-c/task-b → task-d 键变）。后端 511 passed。
-> 🔎 **ARCH-4c 审计补漏**（2026-06）：程序化比对每个 stage 的 `build_X_command` 用的 `request.*` 参数 vs 其缓存 payload 参数，抓到 **task-c 命令用 `--batch-size` 但缓存 payload 缺 `translation_batch_size`**——改 batch size 不重算 task-c（batch 影响 LLM prompt 分组→可变译文）。已补入 task-c payload。其余 stage（含 task-d）审计无缺失。加回归测试（batch 4↔8 → task-c 键变）。全量 655 passed。
-- **现状**：`_stage_cache_payload`（`runner.py:120`）对 task-b/c/e、subtitle-erase 有上游指纹，但 **task-a 键不含 stage1 `voice.*` 指纹**，task-d 键不含 task-c/task-b 指纹（只有标量）。上游文件变了但参数 hash 不变 → false hit on stale。
-- **方案**：用已存在的 `_file_fingerprint` 给 task-a（←stage1 voice）、task-d（←translation+profiles+voice_bank）补指纹。
+> 已修：transcription 缓存 payload 加 `voice` = `_file_fingerprint(stage1_voice_path)`；synthesis 加 `translation`/`profiles`/`voice_bank` 三个上游指纹。原先这两段只含标量参数，上游产物变了但参数 hash 不变会 false hit。缓存键在节点循环里、上游已完成后计算，故指纹有效。加 2 回归测试（改 separation voice → transcription 键变；改 translation/speaker-registry → synthesis 键变）。后端 511 passed。
+> 🔎 **ARCH-4c 审计补漏**（2026-06）：程序化比对每个 stage 的 `build_X_command` 用的 `request.*` 参数 vs 其缓存 payload 参数，抓到 **translation 命令用 `--batch-size` 但缓存 payload 缺 `translation_batch_size`**——改 batch size 不重算 translation（batch 影响 LLM prompt 分组→可变译文）。已补入 translation payload。其余 stage（含 synthesis）审计无缺失。加回归测试（batch 4↔8 → translation 键变）。全量 655 passed。
+- **现状**：`_stage_cache_payload`（`runner.py:120`）对 speaker-registry/c/e、subtitle-erase 有上游指纹，但 **transcription 键不含 separation `voice.*` 指纹**，synthesis 键不含 translation/speaker-registry 指纹（只有标量）。上游文件变了但参数 hash 不变 → false hit on stale。
+- **方案**：用已存在的 `_file_fingerprint` 给 transcription（←separation voice）、synthesis（←translation+profiles+voice_bank）补指纹。
 - **验收**：替换上游产物后对应阶段必重算。
 - **测试**：`tests/` 缓存命中/失效单测覆盖新指纹。
 
@@ -129,9 +129,9 @@
 - **测试**：单测 epoch 改变导致 miss。
 
 ### ARCH-6 — 阶段内续跑（per-speaker 缓存）｜ DONE ｜ 健壮性/性能 ｜ M ｜ ✅已核实
-> 已修：task-d 循环对每个说话人先查 `speaker_segments.<lang>.json`——若已有**可渲染**(≥1 dict segment)report 则复用、跳过重合成（`_task_d_speaker_already_rendered` helper）。**安全闸**：仅当 `resume_ok` 为真才跳过——`resume_ok = cache_spec.cache_key == previous_cache_key`（即同参数的崩溃续跑；tts/翻译/profiles 等参数一变 cache key 变→`resume_ok=False`→全员重合成，绝不复用 stale 报告）。signal 经 `run_pipeline → execute_node → execute_stage` 三级透传（均加 `resume_ok` 参数，默认 False）。加 `_task_d_speaker_already_rendered` 单测（4 case 决策矩阵：resume 关→不跳、缺报告→不跳、空报告→不跳、可渲染+resume→跳）。全量 627 passed。
-- **现状（原）**：缓存粒度是整节点；task-d 跑到 5/6 崩了全部重来。
-- **方案**：task-d 按说话人缓存（`speaker_segments.<lang>.json` 已是离散产物，`commands.py:128`），跳过已有非空 report 的说话人。与 ARCH-2 配套。
+> 已修：synthesis 循环对每个说话人先查 `speaker_segments.<lang>.json`——若已有**可渲染**(≥1 dict segment)report 则复用、跳过重合成（`_task_d_speaker_already_rendered` helper）。**安全闸**：仅当 `resume_ok` 为真才跳过——`resume_ok = cache_spec.cache_key == previous_cache_key`（即同参数的崩溃续跑；tts/翻译/profiles 等参数一变 cache key 变→`resume_ok=False`→全员重合成，绝不复用 stale 报告）。signal 经 `run_pipeline → execute_node → execute_stage` 三级透传（均加 `resume_ok` 参数，默认 False）。加 `_task_d_speaker_already_rendered` 单测（4 case 决策矩阵：resume 关→不跳、缺报告→不跳、空报告→不跳、可渲染+resume→跳）。全量 627 passed。
+- **现状（原）**：缓存粒度是整节点；synthesis 跑到 5/6 崩了全部重来。
+- **方案**：synthesis 按说话人缓存（`speaker_segments.<lang>.json` 已是离散产物，`commands.py:128`），跳过已有非空 report 的说话人。与 ARCH-2 配套。
 - **验收**：崩溃重跑只补未完成说话人。
 - **测试**：单测 per-speaker 跳过逻辑。
 
@@ -227,36 +227,36 @@
 - **测试**：单测 CORS/鉴权中间件。
 
 ### SEC-3 — argv 输入轻量校验 ｜ DONE ｜ 安全 ｜ S ｜ ✅已核实
-> 已修：新增 `orchestration/argv_safety.py`（白名单校验器 `validate_lang/url/model/path_identifier`），在 argv 构造**前**拦截两类真实风险——① **参数注入**（`-` 前缀值被子进程 argparse 当 flag）；② **路径穿越**（`speaker_id` 直接作目录组件 `task_d_voice_dir/speaker_id`，拒 `..`/分隔符）。接入 `commands.py`：task-a 校验 `transcription_language`，task-c 校验 `target_lang`/`api_model`/`api_base_url`，task-d 校验 `speaker_id`+每个 `segment_id`，task-e 校验 `target_lang`。校验器接受 Unicode 词字符（CJK persona 名不误伤），`asr_model` 故意不校验（可为含 `/` 的 HF 路径）。加 `tests/test_argv_safety.py`（50 例）。全量 576 passed。
+> 已修：新增 `orchestration/argv_safety.py`（白名单校验器 `validate_lang/url/model/path_identifier`），在 argv 构造**前**拦截两类真实风险——① **参数注入**（`-` 前缀值被子进程 argparse 当 flag）；② **路径穿越**（`speaker_id` 直接作目录组件 `task_d_voice_dir/speaker_id`，拒 `..`/分隔符）。接入 `commands.py`：transcription 校验 `transcription_language`，translation 校验 `target_lang`/`api_model`/`api_base_url`，synthesis 校验 `speaker_id`+每个 `segment_id`，render 校验 `target_lang`。校验器接受 Unicode 词字符（CJK persona 名不误伤），`asr_model` 故意不校验（可为含 `/` 的 HF 路径）。加 `tests/test_argv_safety.py`（50 例）。全量 576 passed。
 - **现状（原）**：argv 列表传参（shell=False）**不可注入**，但 `speaker_id`/`api_base_url`/`target_lang` 等无校验流入 argv。
 - **方案**：加 charset/enum 校验（白名单字符、枚举值）。
 
 ---
 
-## stage1 — 分离（SEP）
+## separation — 分离（SEP）
 
-### SEP-1 — 内部 task-a 供给改无损 ｜ TODO ｜ B/算法 ｜ S ｜ ◻待确认
+### SEP-1 — 内部 transcription 供给改无损 ｜ TODO ｜ B/算法 ｜ S ｜ ◻待确认
 - **现状**：`stage1_output_format="mp3"`（`types/pipeline.py`），有损 stem 直喂 ASR + ECAPA（`commands.py:168`、`transcription/runner.py:106,123`），丢掉 ECAPA 依赖的高频音色。
 - **方案**：内部供给改 FLAC/WAV（用户可见产物可保留 mp3）。
-- **验收**：task-a 读到无损 stem；与 ASR-1 配合评估 diarization 改善。
+- **验收**：transcription 读到无损 stem；与 ASR-1 配合评估 diarization 改善。
 - **测试**：跑批对比 cross-speaker 相似度分布。
 
 ### SEP-2 — 分离质量/SNR 度量 ｜ DONE（核心度量；VAD 覆盖率留子项）｜ A/算法 ｜ M ｜ ✅已核实
-> 已修（UI-3 HOLD 的替补）：新增纯 numpy 模块 `pipeline/separation_quality.py`——`separation_metrics(voice,bg,mix)` 算 `voice_rms`/`background_rms`/`voice_to_background_db` + 残差重构比 `‖mix−(voice+bg)‖/‖mix‖` → `separation_confidence∈[0,1]`（同采样率才报残差）；`compute_separation_metrics` 读三个 WAV。`pipeline/runner.py` 在分离后用无损中间件算度量（**try/except 包裹——绝不因可选度量拖垮分离**），写入 stage1 manifest 新增 `quality` 字段（`build_manifest` 加可选 `quality` 参数）。低置信分离从此可被发现/驱动质量升级。加 `tests/test_separation_quality.py`（完美重构→conf>0.99、坏样本→conf<0.5、异采样率跳残差、空信号→{}、文件往返）。全量 607 passed。
+> 已修（UI-3 HOLD 的替补）：新增纯 numpy 模块 `pipeline/separation_quality.py`——`separation_metrics(voice,bg,mix)` 算 `voice_rms`/`background_rms`/`voice_to_background_db` + 残差重构比 `‖mix−(voice+bg)‖/‖mix‖` → `separation_confidence∈[0,1]`（同采样率才报残差）；`compute_separation_metrics` 读三个 WAV。`pipeline/runner.py` 在分离后用无损中间件算度量（**try/except 包裹——绝不因可选度量拖垮分离**），写入 separation manifest 新增 `quality` 字段（`build_manifest` 加可选 `quality` 参数）。低置信分离从此可被发现/驱动质量升级。加 `tests/test_separation_quality.py`（完美重构→conf>0.99、坏样本→conf<0.5、异采样率跳残差、空信号→{}、文件往返）。全量 607 passed。
 > ⏸ **余项**：VAD 覆盖率指标 + 低置信自动告警/触发 SEP 升级——框架（manifest.quality）已就位，按需追加。
 - **现状（原）**：分离只写 timing/route，无任何输出质量度量（grep `snr|si-sdr|leakage` 0 命中）。
-- **方案**：算 voice/bg RMS 比、残差 `‖mix−(voice+bg)‖`、VAD 覆盖率 → `separation_confidence` 写入 stage1 manifest，低置信告警 / 触发 SEP/质量升级。
+- **方案**：算 voice/bg RMS 比、残差 `‖mix−(voice+bg)‖`、VAD 覆盖率 → `separation_confidence` 写入 separation manifest，低置信告警 / 触发 SEP/质量升级。
 - **验收**：manifest 含置信度；低质能被发现。
 - **测试**：单测度量计算；坏样本验证告警。
 
 ### SEP-3 — `enhance_voice` 死代码处理 ｜ DONE（诚实占位）｜ D ｜ S/M ｜ ✅已核实
-> 选"诚实占位"路径（真 denoise 需真实合成 A/B，本地不可验）：① `pipeline/runner.py` 启用 `enhance_voice` 时把误导的 `logger.info("Enhancing voice track.")` 改为 **WARNING**——明说"无真实增强 backend，原样拷贝、未降噪/去混响"；② `NoOpVoiceEnhancer` 加 docstring 明确是 passthrough 占位、勿当增强音；③ 修文档去"假能力"——CLAUDE.md/README/README.en 的 stage1 backend 列表把 `clearervoice` 改注为"`--enhance-voice` 为空操作占位，无真实降噪"。加 `tests/test_voice_enhancer.py`（passthrough 字节相等 + 是 VoiceEnhancer 子类）。真 denoise 集成仍挂 SEP-3 待真实合成验证。
+> 选"诚实占位"路径（真 denoise 需真实合成 A/B，本地不可验）：① `pipeline/runner.py` 启用 `enhance_voice` 时把误导的 `logger.info("Enhancing voice track.")` 改为 **WARNING**——明说"无真实增强 backend，原样拷贝、未降噪/去混响"；② `NoOpVoiceEnhancer` 加 docstring 明确是 passthrough 占位、勿当增强音；③ 修文档去"假能力"——CLAUDE.md/README/README.en 的 separation backend 列表把 `clearervoice` 改注为"`--enhance-voice` 为空操作占位，无真实降噪"。加 `tests/test_voice_enhancer.py`（passthrough 字节相等 + 是 VoiceEnhancer 子类）。真 denoise 集成仍挂 SEP-3 待真实合成验证。
 - **现状（原）**：`NoOpVoiceEnhancer` 字节拷贝（`models/clearervoice.py:8`），仅 `separate` CLI 接线、流水线未用，但 CLAUDE.md 列其为真 backend。
 - **方案**：要么实现真 denoise/dereverb（ClearerVoice/DeepFilterNet）放 ASR/diarization 前，要么删死代码 + 文档。
 
 ---
 
-## task-a — 转写 + 说话人分离（ASR）
+## transcription — 转写 + 说话人分离（ASR）
 
 ### ASR-1 — diarization 用非降质音源 ｜ TODO ｜ B/算法 ｜ M ｜ ◻待确认
 - **现状**：ECAPA 与 ASR 共用降质 mp3 stem（`transcription/runner.py:123`），继承分离 artifact，cross-speaker 相似度被抬到 ≥0.81（已知问题）。
@@ -271,8 +271,8 @@
 - **测试**：用已知双峰 F0 的同一角色片段验证不拆。
 
 ### ASR-3 — 聚类阈值/`expected_speakers` 可调入缓存 ｜ DONE(expected_speakers) ｜ 算法/产品 ｜ M ｜ ◻待确认
-> 已做 `expected_speakers`(0=auto) 端到端：`_cluster_embeddings` 在 >0 时强制 `n_clusters=k`(跳过单说话人塌缩+启发式 cap，治降质音频上的过度合并/塌缩)；ecapa+pyannote 两个 `assign_speaker_labels` 都接受该 kwarg(pyannote 用原生 `num_speakers`)；`_run_diarization`/`transcribe_file` 传递；plumbing 镜像 ASR-8(PipelineRequest/TranscriptionRequest 字段+normalized、transcribe/pipeline CLI、build_task_a_command、task-a 缓存、request.py/task_manager)。加 2 测试(聚类按 k 出簇 + 命令含 flag+缓存键随其变)。后端 524 passed。⏳ `same_speaker_similarity` 阈值暴露 + 自适应切点(silhouette/eigengap) 留作后续。
-- **现状**：`DEFAULT_SAME_SPEAKER_SIMILARITY=0.62`/`SINGLE_SPEAKER_FLOOR=0.52` 是模块常量（`speaker.py:21`），无 `min/max/expected_speakers`，不在 Request/CLI/task-a 缓存键。
+> 已做 `expected_speakers`(0=auto) 端到端：`_cluster_embeddings` 在 >0 时强制 `n_clusters=k`(跳过单说话人塌缩+启发式 cap，治降质音频上的过度合并/塌缩)；ecapa+pyannote 两个 `assign_speaker_labels` 都接受该 kwarg(pyannote 用原生 `num_speakers`)；`_run_diarization`/`transcribe_file` 传递；plumbing 镜像 ASR-8(PipelineRequest/TranscriptionRequest 字段+normalized、transcribe/pipeline CLI、build_task_a_command、transcription 缓存、request.py/task_manager)。加 2 测试(聚类按 k 出簇 + 命令含 flag+缓存键随其变)。后端 524 passed。⏳ `same_speaker_similarity` 阈值暴露 + 自适应切点(silhouette/eigengap) 留作后续。
+- **现状**：`DEFAULT_SAME_SPEAKER_SIMILARITY=0.62`/`SINGLE_SPEAKER_FLOOR=0.52` 是模块常量（`speaker.py:21`），无 `min/max/expected_speakers`，不在 Request/CLI/transcription 缓存键。
 - **方案**：暴露 `same_speaker_similarity`/`expected_speakers`/`min/max` 到 Request+CLI+缓存；已知 k 用 `n_clusters=k`；考虑 silhouette/eigengap 自适应切点。
 - **验收**：用户能指定说话人数；改阈值触发重算。
 - **测试**：单测 k 指定路径；缓存键含新参数。
@@ -284,7 +284,7 @@
 - **测试**：构造高相似度多说话人样本验证不塌缩。
 
 ### ASR-5 — 词级时间戳 + Paraformer 默认 ｜ TODO ｜ B/算法 ｜ M ｜ ✅已核实
-- **现状**：`word_timestamps` 全代码库 0 命中；默认 ASR backend=`funasr`（`config.py:19`），SenseVoice **按字数比例伪造句内时间**（`funasr_backend.py:165`）；这些 start/end 正是 task-e 时间轴拟合的依据。
+- **现状**：`word_timestamps` 全代码库 0 命中；默认 ASR backend=`funasr`（`config.py:19`），SenseVoice **按字数比例伪造句内时间**（`funasr_backend.py:165`）；这些 start/end 正是 render 时间轴拟合的依据。
 - **方案**：faster-whisper 开 `word_timestamps=True` 并把段边界吸附到词边、收紧首尾静音；默认切到产真实时间的 Paraformer（`sentence_info`）；或加轻量强制对齐替代比例估计。
 - **验收**：时间戳精度提升，配音同步改善。
 - **测试**：对齐误差度量；端到端听感同步。
@@ -297,35 +297,35 @@
 
 ### ASR-7 — glossary → ASR 偏置 ｜ DONE（机制；glossary 自动喂+质量验证留子项）｜ A/算法/产品 ｜ S–M ｜ ✅机制已核实
 > 已修 hotword 机制（标准加性特征，只帮专名识别、不回退其他）：`AsrOptions` 加 `hotwords: tuple[str,...]`（+ metadata 序列化为 list）+ 纯 helper `hotword_string`（join/strip/去空）；**faster-whisper** 把 `hotwords=` 加进 transcribe_kwargs，**funasr** Paraformer(`hotword=`,默认路径)+SenseVoice(`_run_asr_on_chunk` kwargs) 两路都接（非 contextual 模型忽略，无害）；`TranscriptionRequest.hotwords` + `transcribe` runner 透传；CLI `--hotwords`(逗号分隔)+`_parse_hotwords`。加 5 测试（hotword_string/_parse_hotwords/AsrOptions.metadata/faster-whisper 经 fake model 验证 hotwords 真传入/空时不传）。全量 638 passed。
-> ✅ **glossary 自动喂已补齐**（ASR-7b）：`build_task_a_command` 用 `glossary_hotwords(request)` 从 pipeline glossary 提取 source_variants（去重、跳含逗号项、cap 64）自动作 `--hotwords` 喂 task-a；并把派生 hotwords 加进 **task-a 缓存键**（`_stage_cache_payload`），改 glossary→重算 task-a（防 stale ASR，ARCH-4 同理）。加 6 测试（提取/去重/跳逗号/缺文件容错/build_task_a 含 --hotwords/缓存键随 glossary 变）。全量 654 passed。
+> ✅ **glossary 自动喂已补齐**（ASR-7b）：`build_task_a_command` 用 `glossary_hotwords(request)` 从 pipeline glossary 提取 source_variants（去重、跳含逗号项、cap 64）自动作 `--hotwords` 喂 transcription；并把派生 hotwords 加进 **transcription 缓存键**（`_stage_cache_payload`），改 glossary→重算 transcription（防 stale ASR，ARCH-4 同理）。加 6 测试（提取/去重/跳逗号/缺文件容错/build_task_a 含 --hotwords/缓存键随 glossary 变）。全量 654 passed。
 > ⏸ **唯一余项**：**质量收益**（专名识别率↑）需真实音频 + 真实 SeACo/whisper 模型验证（本机不可验，机制本身是 ASR 既有标准能力）。
-- **现状**：`glossary_path` 仅 task-c 用；SeACo Paraformer 是 contextual 模型却没传 `hotword`（`funasr_backend.py:360`）。
-- **方案**：把人名/术语作 faster-whisper `initial_prompt/hotwords`、SeACo `hotword=` 传入 task-a。
+- **现状**：`glossary_path` 仅 translation 用；SeACo Paraformer 是 contextual 模型却没传 `hotword`（`funasr_backend.py:360`）。
+- **方案**：把人名/术语作 faster-whisper `initial_prompt/hotwords`、SeACo `hotword=` 传入 transcription。
 - **验收**：专名识别率提升。
 - **测试**：含专名样本对比识别正确率。
 
 ### ASR-8 — `vad_max_segment_sec` 接线 ｜ DONE ｜ 算法 ｜ S ｜ ◻待确认
-> 已修：镜像 `vad_min_silence_duration_ms` 的端到端 wiring 把 `vad_max_segment_sec`(default 30.0 保持现状、可调) 接通——`PipelineRequest` 字段+normalized、transcribe/pipeline CLI flag、`build_task_a_command` argv、task-a 缓存键、`request.py`/`task_manager` 两个构造器。原先固定 30s 够不着。加测试(命令含 flag + 缓存键随其变)。后端 518 passed。默认仍 30(不改行为)；配音降到 12–15 属需真验证的默认变更，未改。
+> 已修：镜像 `vad_min_silence_duration_ms` 的端到端 wiring 把 `vad_max_segment_sec`(default 30.0 保持现状、可调) 接通——`PipelineRequest` 字段+normalized、transcribe/pipeline CLI flag、`build_task_a_command` argv、transcription 缓存键、`request.py`/`task_manager` 两个构造器。原先固定 30s 够不着。加测试(命令含 flag + 缓存键随其变)。后端 518 passed。默认仍 30(不改行为)；配音降到 12–15 属需真验证的默认变更，未改。
 - **现状**：`AsrOptions.vad_max_segment_sec` 两 backend 都支持，但 `PipelineRequest` 无此字段、CLI 无此 flag、不在缓存键 → 固定 30s（对 TTS 拟合/diarization 都太长）。
 - **方案**：加进 `PipelineRequest`+CLI+`build_task_a_command`+缓存键；配音默认降到 12–15s；长独白按词间停顿切（接 ASR-5）。
 - **验收**：长段被合理切分。
 - **测试**：长独白样本验证切分。
 
 ### ASR-9 — `diarization_report` 输出 ｜ DONE（部分，余项见下）｜ A/产品 ｜ S ｜ ✅已核实
-> 已修：`speaker_review/diagnostics.py` 加薄封装 `build_diarization_report(payload, diarization_metadata, source_path)`——复用既有 `build_speaker_diagnostics`（相似度矩阵、per-speaker 风险、similar_peers），再折入 diarizer 运行 metadata（backend/device、采用的 same-speaker 阈值、expected/observed speaker 数、group_count/valid_embeddings）+ 增强 summary（建议合并对数）。`transcription/runner.py` 在写完 segments 后即产 `task-a/voice/diarization_report.json`（try/except 包裹——辅助产物绝不拖垮 task-a），加入 `TranscriptionArtifacts.diarization_report_path`。ECAPA `speaker.py` metadata 廉价补上 `same_speaker_similarity`(0.62)+`expected_speakers` 以便报告显示采用阈值。加 2 测试（折入 metadata / 缺 metadata 回退）。全量 584 passed。
+> 已修：`speaker_review/diagnostics.py` 加薄封装 `build_diarization_report(payload, diarization_metadata, source_path)`——复用既有 `build_speaker_diagnostics`（相似度矩阵、per-speaker 风险、similar_peers），再折入 diarizer 运行 metadata（backend/device、采用的 same-speaker 阈值、expected/observed speaker 数、group_count/valid_embeddings）+ 增强 summary（建议合并对数）。`transcription/runner.py` 在写完 segments 后即产 `transcription/voice/diarization_report.json`（try/except 包裹——辅助产物绝不拖垮 transcription），加入 `TranscriptionArtifacts.diarization_report_path`。ECAPA `speaker.py` metadata 廉价补上 `same_speaker_similarity`(0.62)+`expected_speakers` 以便报告显示采用阈值。加 2 测试（折入 metadata / 缺 metadata 回退）。全量 584 passed。
 > ⏸ **余项**（需更深内部，留 TODO）：强制贴标/低 margin 段数需改聚类内部暴露每段 margin；ASR 置信度依赖 **ASR-6**（未做）。
-- **现状（原）**：task-a 输出无相似度矩阵/阈值/强制贴标数/ASR 置信度；`speaker_review/diagnostics.py` 有计算但是事后独立工具。
-- **方案**：task-a 时即产 `diarization_report`（相似度矩阵、簇内凝聚、采用阈值、强制贴标/低 margin 段数、+ASR-6 置信度），让 `speaker_review` 诊断默认在 task-a 输出上跑。
-- **验收**：用户能在 task-a 后看到 diarization 证据。
+- **现状（原）**：transcription 输出无相似度矩阵/阈值/强制贴标数/ASR 置信度；`speaker_review/diagnostics.py` 有计算但是事后独立工具。
+- **方案**：transcription 时即产 `diarization_report`（相似度矩阵、簇内凝聚、采用阈值、强制贴标/低 margin 段数、+ASR-6 置信度），让 `speaker_review` 诊断默认在 transcription 输出上跑。
+- **验收**：用户能在 transcription 后看到 diarization 证据。
 - **测试**：单测报告生成。
 
 ---
 
-## task-b — 说话人库（SPK）
+## speaker-registry — 说话人库（SPK）
 
 ### SPK-1 — 存 gender/F0 → 同性别参考 + 双峰拆簇 ｜ TODO ｜ A/算法/产品 ｜ M–L ｜ ◻待确认
-- **现状**：gender/F0 基础设施（`quality/audio_signature.py`）只接事后诊断（`characters/ledger.py:180`）；task-b profile/registry **不存** gender/F0；`_prototype_from_embeddings`（`profile.py:15`）只 cos≥0.6 过滤 → M+F 混簇作单一原型存活；参考选择无性别意识。
-- **方案**：(1) task-b 计算 per-clip F0 + 性别估计存 profile/clip；(2) 簇内 F0 双峰则拆簇（治合并的 M+F）；(3) 参考选择按主性别下调/排除异性别 clip（**严格上游选择，非 R4 回退的 pitch-centrality**）。
+- **现状**：gender/F0 基础设施（`quality/audio_signature.py`）只接事后诊断（`characters/ledger.py:180`）；speaker-registry profile/registry **不存** gender/F0；`_prototype_from_embeddings`（`profile.py:15`）只 cos≥0.6 过滤 → M+F 混簇作单一原型存活；参考选择无性别意识。
+- **方案**：(1) speaker-registry 计算 per-clip F0 + 性别估计存 profile/clip；(2) 簇内 F0 双峰则拆簇（治合并的 M+F）；(3) 参考选择按主性别下调/排除异性别 clip（**严格上游选择，非 R4 回退的 pitch-centrality**）。
 - **验收**：男声不再漂向女声；同性别参考被选。
 - **测试**：⚠ 鉴于 R4 教训，**必须真实 CPU 合成验证**（离线指标会骗人）；在混性别簇样本上验证拆簇正确。
 - **关联**：R4 负结果、`SPK-2`。
@@ -344,7 +344,7 @@
 
 ---
 
-## task-c — 翻译（TRA）
+## translation — 翻译（TRA）
 
 ### TRA-1 — 时长预算注入翻译 + 默认重译/condense ｜ DONE ｜ A/产品/算法 ｜ S–M ｜ ✅已核实
 > 已修，两部分：
@@ -352,7 +352,7 @@
 > - **Part A（总阀门）**：默认 `condense_mode` "off"→"smart"，启用既有的 duration-aware 修正回路（deepseek `_condense_once` 用 max_chars 重写 risky 段 / m2m100 走 rule-based）。跨 9 处默认源统一（config/types×2/schemas/task_manager/routes-config/前端×2），task_manager 用常量。
 > 加 3 测试（target_char_budget / deepseek prompt 含预算 / 默认 smart）。后端 514 passed，前端 build+页面单测通过。
 > ⚠️ **行为变更**：① condense 默认开——deepseek 会对 risky 段增加 condense API 调用，m2m100 走 rule-based(仅英文、无成本)；② deepseek 翻译 prompt 现带长度预算。**默认 backend 是 m2m100（无法 prompt、condense 弱），所以 "默认配置 overflow 下降" 的收益主要在 deepseek 路径**。
-> ✅ **真实 A/B 已核实**（deepseek-v4-pro，迪拜 `voxcpm-dubai-rerun-20260531/task-a/voice/segments.zh.json` 前 60 段，2026-06）：
+> ✅ **真实 A/B 已核实**（deepseek-v4-pro，迪拜 `voxcpm-dubai-rerun-20260531/transcription/voice/segments.zh.json` 前 60 段，2026-06）：
 >
 > | 条件 | fit | review | risky | 预估溢出 | overall_ratio |
 > |---|---|---|---|---|---|
@@ -364,7 +364,7 @@
 - **现状**：deepseek prompt 仅软指令"简洁"（`deepseek_backend.py:88`），预算翻译**后**才算；默认 backend `local-m2m100`（`supports_condensation=False`）+ `DEFAULT_CONDENSE_MODE="off"`（`config.py:31,36`）= **默认完全不控文长**。overflow/切尾的根因。
 - **方案**：(1) 用 `duration.py:estimate_tts_duration` 系数算 `max_chars=source_dur×chars_per_sec` 注入 prompt；(2) `fit_level=="risky"` 默认重译 1 次再降级 condense；(3) LLM 系默认 `condense_mode="smart"`。
 - **验收**：默认配置下 overflow/severe/切尾段数下降。
-- **测试**：在 `output-pipeline/voxcpm-dubai-*` 上跑 task-c→task-e，对比 `qa_summary.timeline`（overflow/`cut_audio_sec`）。
+- **测试**：在 `output-pipeline/voxcpm-dubai-*` 上跑 translation→render，对比 `qa_summary.timeline`（overflow/`cut_audio_sec`）。
 
 ### TRA-2 — glossary 自动抽取 + 去硬编码哪吒 ｜ DONE（去硬编码+可配默认；抽取器留子项）｜ 产品/算法 ｜ M ｜ ✅已核实
 > 已修去硬编码核心：`BUILTIN_DUBBING_GLOSSARY` 清空为 `()`（默认不再把《哪吒》专名强加到每个 zh→en 任务上——之前会把无关内容里的"哪吒"等错改）。7 条电影专名挪到**样例资产** `examples/glossary.zh-en.sample.json`（`--glossary` 加载格式）。`built_in_dubbing_glossary` 改为：空 builtin + 可选 `TRANSLIP_DEFAULT_GLOSSARY` env 指向的默认 glossary（去硬编码后给用户**可配置默认**而非纯删除；加载失败 WARN 跳过）。测试：原 builtin 测试改为显式 `--glossary` 验证机制 + 新增"默认 builtin 为空 + 样例资产可加载" + "env 默认生效"。全量 615 passed。
@@ -395,31 +395,31 @@
 
 ---
 
-## task-d — TTS（TTS）
+## synthesis — TTS（TTS）
 
 ### TTS-1 — 长度/语速目标传 MOSS/VoxCPM + micro-fit ｜ HOLD ｜ A/产品/算法 ｜ S–M ｜ ◻待确认
 > 2026-06 推迟：改的是 TTS 生成行为，但本机 **MOSS CLI 缺失、VoxCPM 太慢**，无法真合成验证；MOSS `max_new_frames` 的 frame→秒 映射未知，盲缩会截断语音（比现状差）。memory 红线「长度/音色必须真合成验证，离线指标会骗我」(R4)。待有可用 TTS 环境再做；届时优先做"安全上界"式 frame 缩放（只增不减、留 headroom）+ best-take 时长 tiebreaker（纯逻辑可单测）。
-- **现状**：`SynthSegmentInput.duration_budget_sec` 只有 Qwen 消费（单边 `max_new_tokens`）；MOSS 固定 `max_new_frames=375`（`moss_tts_nano_backend.py:291`）；VoxCPM 无时长信号；拟合全推给 task-e atempo。
-- **方案**：MOSS frames 按预算缩放；task-d 选最佳 take 时若 `duration_ratio>1.3` 选更短候选或在 task-e 前触发改写；可支持的 backend 暴露 speed/rate 作锦标赛候选轴。
-- **验收**：进 task-e 前 duration_ratio 收敛，atempo 拉伸减少。
+- **现状**：`SynthSegmentInput.duration_budget_sec` 只有 Qwen 消费（单边 `max_new_tokens`）；MOSS 固定 `max_new_frames=375`（`moss_tts_nano_backend.py:291`）；VoxCPM 无时长信号；拟合全推给 render atempo。
+- **方案**：MOSS frames 按预算缩放；synthesis 选最佳 take 时若 `duration_ratio>1.3` 选更短候选或在 render 前触发改写；可支持的 backend 暴露 speed/rate 作锦标赛候选轴。
+- **验收**：进 render 前 duration_ratio 收敛，atempo 拉伸减少。
 - **测试**：真实合成对比 duration_ratio 分布。
 
 ### TTS-2 — 修复死键 `estimated_target_sec` ｜ DONE ｜ D/算法 ｜ S ｜ ✅已核实
 > 已修：生产代码（`translation/duration.py`）只写 `estimated_tts_duration_sec`、从不写 `estimated_target_sec`；但 `dubbing/runner.py` 两处消费端先读 `estimated_target_sec` 再回退——而 17 处测试 fixture 又只给 `estimated_target_sec`，使两边各走一支、掩盖了不一致。改为消费端只读真实键 `estimated_tts_duration_sec`，并把测试 fixtures 的键对齐（生产行为不变）。后端 509 passed。选了"删死键"而非"校准产出"（后者属 length-control，归 TTS-1/Wave-1）。
 - **现状**：`dubbing/runner.py:551,575` 先读 `duration_budget["estimated_target_sec"]` 再 fallback，但全树**无 producer**（只 `estimated_tts_duration_sec`），故 Qwen 长度上限/预算永远用粗估。
-- **方案**：要么删死键查找；要么真产出——用该说话人自身参考/历史 take 的实测语速（task-d report 已收 `generated_duration_sec`、`voice_bank` 聚合 `avg_duration_ratio`）校准 `estimated_target_sec`。
+- **方案**：要么删死键查找；要么真产出——用该说话人自身参考/历史 take 的实测语速（synthesis report 已收 `generated_duration_sec`、`voice_bank` 聚合 `avg_duration_ratio`）校准 `estimated_target_sec`。
 - **验收**：Qwen 长度上限匹配实际语速。
 - **测试**：单测校准；真实合成验证。
 
 ---
 
-## task-e — 渲染（REN）
+## render — 渲染（REN）
 
 ### REN-1 — 两遍/全局时间轴拟合 ｜ TODO ｜ C/算法 ｜ M–L ｜ ◻待确认
 - **现状**：`_assign_available_durations`（`runner.py:550`）只给本地预算（本段 slot 或到下一句的间隙），`_apply_fit_strategy` 逐段独立拟合，`_placement_start_for_item` 永远锚定 `anchor_start`——只往后溢出、不借前停顿、不移锚。
 - **方案**：按 speech island（被真静音隔开的最大连续段）做全局：最小化 `Σ wᵢ|log tempoᵢ|` s.t. 不重叠，placement 起点可在 `[prev_end, anchor_start]` 自由；至少先做两遍贪心（后向=现状，前向借前间隙 + 容差内微调锚点）。
 - **验收**：chipmunk 与切尾段数下降。
-- **测试**：用 `/tmp/dub_lab` 式重跑 task-e 出 scorecard（overflow/trim/ratio）对比。
+- **测试**：用 `/tmp/dub_lab` 式重跑 render 出 scorecard（overflow/trim/ratio）对比。
 
 ### REN-2 — 视频变速选项 ｜ TODO ｜ 算法/产品 ｜ L ｜ ◻待确认
 - **现状**：所有 fit 策略只 `compress_audio`，视频从不动（`utils/ffmpeg.py:220`）。
@@ -429,7 +429,7 @@
 
 ### REN-3 — 切尾级联 + 上游反馈 ｜ TODO ｜ C/产品/算法 ｜ M ｜ ◻待确认
 - **现状**：`overflow_unfitted` 压到 `max_compress_ratio` 仍超则 `_trim_audio_inplace`（`runner.py:1103`）切尾，QA 仅报 `cut_audio_sec`，render 时最终定案，无上游回路。
-- **方案**：(a) 切尾改级联：前向借用(REN-1)→视频微慢(REN-2)→才切，且切在词边界；(b) 切尾/触顶时写 `needs_shorter_translation`（秒→目标字数）回 task-c/repair。
+- **方案**：(a) 切尾改级联：前向借用(REN-1)→视频微慢(REN-2)→才切，且切在词边界；(b) 切尾/触顶时写 `needs_shorter_translation`（秒→目标字数）回 translation/repair。
 - **验收**：切尾总秒数下降；触发上游重译。
 - **测试**：端到端验证切尾减少 + 信号产生。
 
@@ -462,7 +462,7 @@
 
 ---
 
-## task-g — 交付（DEL）
+## delivery — 交付（DEL）
 
 ### DEL-1 — 软字幕 + 多音轨 + CRF/语言元数据 ｜ DONE（核心+CLI+直连API）｜ 产品 ｜ M ｜ ✅已核实
 > 已修：**ffmpeg 层**新增纯 arg-builder `build_soft_subtitle_mux_args`（可单测、不跑 ffmpeg）+ `mux_with_soft_subtitle` 包装——`-c:v copy` **免重编码**、dub 为默认轨、可选 `-map 0:a:0?` 原声第二轨、`-c:s mov_text`(mp4)/`srt`(mkv) **软字幕流**、per-stream 语言标签(`iso639_2` en→eng/zh→zho/…)+disposition、`-filter:a:0` 只对 dub 做 loudnorm；`mux_video_with_audio`/`burn_subtitle_and_mux` 加 `audio_language` 元数据，burn 暴露 `crf`/`preset`。**请求**：`ExportVideoRequest` 加 `subtitle_delivery`(burn/soft 默认 burn)/`embed_original_audio`/`crf`/`preset`，`SubtitleDeliveryMode` 字面量。**runner** `_export_video_variant` soft 分支走新 muxer，burn 透传 crf/preset/语言。**接线** CLI(`--subtitle-delivery/--embed-original-audio/--crf/--preset`) + server 直连 `/export-video` 路由。
@@ -499,7 +499,7 @@
 - **测试**：单测改进闸。
 
 ### REP-3 — ECAPA 一致性闸 ｜ TODO ｜ 算法 ｜ M ｜ ◻待确认
-- **现状**：声线一致性用 3 桶 pitch class（`executor.py:617`，同性别不同人蒙混）；`dub_embeddings` 算了 per-段 ECAPA cos 但权威 `speaker_similarity` 是 task-d 对参考的值，最终混音从不重嵌入。
+- **现状**：声线一致性用 3 桶 pitch class（`executor.py:617`，同性别不同人蒙混）；`dub_embeddings` 算了 per-段 ECAPA cos 但权威 `speaker_similarity` 是 synthesis 对参考的值，最终混音从不重嵌入。
 - **方案**：用 `dub_embeddings` 的 ECAPA cos 对说话人 centroid 做一致性闸（pitch class 留作廉价预筛）；加整片说话人相似度检查。
 - **验收**：音色不一致被捕获。
 - **测试**：换音色样本验证被拒。

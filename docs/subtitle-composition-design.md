@@ -21,7 +21,7 @@
 
 所以建议：
 
-- **正式成品出口**：继续增强 `translip export-video` / pipeline 的 `task-g`
+- **正式成品出口**：继续增强 `translip export-video` / pipeline 的 `delivery`
 - **调样式工具**：新增 `translip preview-subtitles`
 
 ## 当前代码落点
@@ -40,7 +40,7 @@
 - OCR 翻译英文字幕：`src/translip/subtitles/runner.py`
   - `ocr-translate/ocr_subtitles.<lang>.srt`
 - ASR 翻译英文字幕：`src/translip/translation/export.py`
-  - `task-c/translation.<lang>.srt`
+  - `translation/translation.<lang>.srt`
 
 ### 擦字幕能力
 - `src/translip/orchestration/erase_bridge.py`

@@ -47,8 +47,8 @@ uv run translip run-pipeline \
 Observed result:
 
 - `pipeline status`: `succeeded`
-- `task-e placed_count`: `90`
-- `task-e skipped_count`: `74`
+- `render placed_count`: `90`
+- `render skipped_count`: `74`
 
 ### Step 2: Task G export
 
@@ -61,10 +61,10 @@ uv run translip export-video \
 
 Observed outputs:
 
-- `task-g/delivery/final-preview/final_preview.en.mp4`
-- `task-g/delivery/final-dub/final_dub.en.mp4`
-- `task-g/delivery/delivery-manifest.json`
-- `task-g/delivery/delivery-report.json`
+- `delivery/delivery/final-preview/final_preview.en.mp4`
+- `delivery/delivery/final-dub/final_dub.en.mp4`
+- `delivery/delivery/delivery-manifest.json`
+- `delivery/delivery/delivery-report.json`
 
 Observed result:
 

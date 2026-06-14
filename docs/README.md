@@ -29,30 +29,30 @@
 
 | 任务 | 设计文档 | 说明 |
 | --- | --- | --- |
-| Task A | [task-a-speaker-attributed-transcription.md](./task-a-speaker-attributed-transcription.md) | 说话人归因转写 |
-| Task B | [task-b-speaker-registry-and-retrieval.md](./task-b-speaker-registry-and-retrieval.md) | 说话人建档与检索 |
-| Task C | [task-c-dubbing-script-generation.md](./task-c-dubbing-script-generation.md) | 面向配音的翻译脚本生成 |
-| Task D | [task-d-single-speaker-voice-cloning.md](./task-d-single-speaker-voice-cloning.md) | 单说话人声音克隆与合成 |
-| Task E | [task-e-timeline-fitting-and-mixing.md](./task-e-timeline-fitting-and-mixing.md) | 时间轴拟合与混音 |
-| Task F | [task-f-pipeline-and-engineering-orchestration.md](./task-f-pipeline-and-engineering-orchestration.md) | 编排、缓存与状态跟踪 |
-| Task G | [task-g-final-video-delivery.md](./task-g-final-video-delivery.md) | 最终视频交付与导出 |
+| transcription | [speaker-attributed-transcription.md](./speaker-attributed-transcription.md) | 说话人归因转写 |
+| speaker-registry | [speaker-registry-and-retrieval.md](./speaker-registry-and-retrieval.md) | 说话人建档与检索 |
+| translation | [dubbing-script-generation.md](./dubbing-script-generation.md) | 面向配音的翻译脚本生成 |
+| synthesis | [single-speaker-voice-cloning.md](./single-speaker-voice-cloning.md) | 单说话人声音克隆与合成 |
+| render | [timeline-fitting-and-mixing.md](./timeline-fitting-and-mixing.md) | 时间轴拟合与混音 |
+| orchestration | [pipeline-and-engineering-orchestration.md](./pipeline-and-engineering-orchestration.md) | 编排、缓存与状态跟踪 |
+| delivery | [final-video-delivery.md](./final-video-delivery.md) | 最终视频交付与导出 |
 
 ## 测试与验证报告
 
 | 任务 | 测试报告 | 说明 |
 | --- | --- | --- |
-| Task A | [task-a-test-report.md](./task-a-test-report.md) | 转写链路验证 |
-| Task B | [task-b-test-report.md](./task-b-test-report.md) | 声纹建档与匹配验证 |
-| Task C | [task-c-test-report.md](./task-c-test-report.md) | 本地和 API 翻译后端验证 |
-| Task D | [task-d-test-report.md](./task-d-test-report.md) | Qwen3-TTS 合成验证 |
-| Task E | [task-e-test-report.md](./task-e-test-report.md) | 时间贴合与混音验证 |
-| Task F | [task-f-test-report.md](./task-f-test-report.md) | 编排、缓存和状态验证 |
-| Task G | [task-g-test-report.md](./task-g-test-report.md) | 视频交付验证 |
+| transcription | [transcription-test-report.md](./transcription-test-report.md) | 转写链路验证 |
+| speaker-registry | [speaker-registry-test-report.md](./speaker-registry-test-report.md) | 声纹建档与匹配验证 |
+| translation | [translation-test-report.md](./translation-test-report.md) | 本地和 API 翻译后端验证 |
+| synthesis | [synthesis-test-report.md](./synthesis-test-report.md) | Qwen3-TTS 合成验证 |
+| render | [render-test-report.md](./render-test-report.md) | 时间贴合与混音验证 |
+| orchestration | [orchestration-test-report.md](./orchestration-test-report.md) | 编排、缓存和状态验证 |
+| delivery | [delivery-test-report.md](./delivery-test-report.md) | 视频交付验证 |
 
 说明：
 
 - 大部分设计文档为中文
-- `task-e-test-report.md`、`task-f-test-report.md`、`task-g-test-report.md` 当前为英文验证记录
+- `render-test-report.md`、`orchestration-test-report.md`、`delivery-test-report.md` 当前为英文验证记录
 
 ## 辅助资源
 

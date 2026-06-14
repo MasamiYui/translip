@@ -53,18 +53,18 @@
 
 ```mermaid
 flowchart LR
-    Input["Input Media<br/>Video / Audio"] --> Stage1["Stage 1<br/>Audio Separation"]
-    Stage1 --> TaskA["Task A<br/>Speaker-attributed Transcription"]
-    TaskA --> TaskB["Task B<br/>Speaker Profiles / Registry"]
-    TaskB --> TaskC["Task C<br/>Dubbing Script Translation"]
-    TaskC --> TaskD["Task D<br/>Per-speaker TTS"]
-    TaskD --> TaskE["Task E<br/>Timeline Fit And Mix"]
-    TaskE --> TaskG["Task G<br/>Final Video Delivery"]
+    Input["Input Media<br/>Video / Audio"] --> Separation["separation<br/>Audio Separation"]
+    Separation --> Transcription["transcription<br/>Speaker-attributed Transcription"]
+    Transcription --> SpeakerRegistry["speaker-registry<br/>Speaker Profiles / Registry"]
+    SpeakerRegistry --> Translation["translation<br/>Dubbing Script Translation"]
+    Translation --> Synthesis["synthesis<br/>Per-speaker TTS"]
+    Synthesis --> Render["render<br/>Timeline Fit And Mix"]
+    Render --> DeliveryStage["delivery<br/>Final Video Delivery"]
 
-    TaskA -. "+OCR subs template" .-> OCR["OCR subtitle detect/translate<br/>+ subtitle erase"]
-    OCR -.-> TaskG
-    TaskA -. "+visual template" .-> Visual["Qwen3-VL visual perception<br/>scene descriptions"]
-    Visual -. "inject translation context" .-> TaskC
+    Transcription -. "+OCR subs template" .-> OCR["OCR subtitle detect/translate<br/>+ subtitle erase"]
+    OCR -.-> DeliveryStage
+    Transcription -. "+visual template" .-> Visual["Qwen3-VL visual perception<br/>scene descriptions"]
+    Visual -. "inject translation context" .-> Translation
 
     subgraph ControlPlane["Control Plane (FastAPI + React)"]
         UI["React Management UI"]
@@ -78,10 +78,10 @@ flowchart LR
     API <--> DB
     API <--> Orchestrator
     API <--> Atomic
-    Orchestrator --> Stage1 & TaskA & TaskB & TaskC & TaskD & TaskE & TaskG
+    Orchestrator --> Separation & Transcription & SpeakerRegistry & Translation & Synthesis & Render & DeliveryStage
 
-    TaskE --> Preview["Preview Mix / Dub Audio"]
-    TaskG --> Delivery["Final MP4 Delivery"]
+    Render --> Preview["Preview Mix / Dub Audio"]
+    DeliveryStage --> Delivery["Final MP4 Delivery"]
 ```
 
 The orchestrator holds no task logic: it resolves a node DAG, checks a cache, and shells out to each stage as an **isolated subprocess** (the same code path as the CLI subcommands). Heavy ML models are freed on exit and a single stage crash cannot poison the orchestrator. The atomic-tools subsystem is orthogonal to the pipeline: a standalone single-tool job queue that handles uploads, concurrency, cancellation, and artifact registration.
@@ -114,7 +114,7 @@ The orchestrator holds no task logic: it resolves a node DAG, checks a cache, an
 
 | Template | Description |
 | --- | --- |
-| `asr-dub-basic` | Basic dubbing chain: Stage 1 → Task A/B/C/D/E → Task G. The default template. |
+| `asr-dub-basic` | Basic dubbing chain: separation → transcription → speaker-registry → translation → synthesis → render → delivery. The default template. |
 | `asr-dub+visual` | Inserts a visual-perception node (local Qwen3-VL) into the basic chain: per-span scene descriptions are injected as translation context, reducing pronoun/honorific/tone mistranslations. Needs `--extra vision` or a local Ollama (see "Video content perception" below). |
 | `asr-dub+ocr-subs` | Adds OCR subtitle detection/translation on top of the basic chain and corrects the ASR transcript with the OCR result. |
 | `asr-dub+ocr-subs+erase` | Adds hard-subtitle erasure of the source video on top of the above. |
@@ -124,7 +124,7 @@ The orchestrator holds no task logic: it resolves a node DAG, checks a cache, an
 The UI is the primary day-to-day entry point. The left navigation is grouped into:
 
 - **Dashboard**: unified counts and recent activity across pipeline tasks and atomic jobs (total / running / completed / failed).
-- **Task Center**: pipeline task list, new pipeline task (stepped wizard + grouped advanced config), task detail (stage DAG / progress / artifacts / rerun from any stage), the **Dubbing Editor**, and the speaker-review harness.
+- **translationenter**: pipeline task list, new pipeline task (stepped wizard + grouped advanced config), task detail (stage DAG / progress / artifacts / rerun from any stage), the **Dubbing Editor**, and the speaker-review harness.
 - **Atomic Tools**: 11 standalone single-tool jobs (separation, mixing, transcription, correction, translation, synthesis, muxing, subtitle detect/erase, video content analysis, probe), each with its own upload + parameter panel; outputs can flow straight into the next tool.
 - **Works / Character libraries**: cross-task works-and-episodes assets and the character→speaker ledger.
 - **Settings**: system info & cache cleanup, TMDB API, HuggingFace token, model status & download (all missing / one at a time), and task default parameters.
@@ -173,14 +173,14 @@ Every stage is both a node in `run-pipeline` orchestration and a CLI subcommand 
 
 | Stage | Command | Purpose | Main Outputs |
 | --- | --- | --- | --- |
-| Stage 1 | `translip run` | Audio separation (demucs / cdx23; `--enhance-voice` is a no-op placeholder, no real denoise yet) | `voice.*`, `background.*` |
-| Task A | `translip transcribe` | Speaker-attributed transcription (FunASR/faster-whisper + diarization) | `segments.zh.json`, `segments.zh.srt` |
-| Task B | `translip build-speaker-registry` | Speaker profile / registry | `speaker_profiles.json`, `speaker_registry.json` |
-| Task C | `translip translate-script` | Script translation | `translation.<lang>.json`, `translation.<lang>.srt` |
-| Task D | `translip synthesize-speaker` | Single-speaker dubbing synthesis | `speaker_segments.<lang>.json`, `speaker_demo.<lang>.wav` |
-| Task E | `translip render-dub` | Timeline fitting and mixdown | `dub_voice.<lang>.wav`, `preview_mix.<lang>.wav` |
-| Task F | `translip run-pipeline` | Orchestrate Stage 1 to Task E | `pipeline-manifest.json`, `pipeline-status.json` |
-| Task G | `translip export-video` | Final video export | `final_preview.<lang>.mp4`, `final_dub.<lang>.mp4` |
+| separation | `translip run` | Audio separation (demucs / cdx23; `--enhance-voice` is a no-op placeholder, no real denoise yet) | `voice.*`, `background.*` |
+| transcription | `translip transcribe` | Speaker-attributed transcription (FunASR/faster-whisper + diarization) | `segments.zh.json`, `segments.zh.srt` |
+| speaker-registry | `translip build-speaker-registry` | Speaker profile / registry | `speaker_profiles.json`, `speaker_registry.json` |
+| translation | `translip translate-script` | Script translation | `translation.<lang>.json`, `translation.<lang>.srt` |
+| synthesis | `translip synthesize-speaker` | Single-speaker dubbing synthesis | `speaker_segments.<lang>.json`, `speaker_demo.<lang>.wav` |
+| render | `translip render-dub` | Timeline fitting and mixdown | `dub_voice.<lang>.wav`, `preview_mix.<lang>.wav` |
+| (orchestration) | `translip run-pipeline` | Orchestrate separation to render | `pipeline-manifest.json`, `pipeline-status.json` |
+| delivery | `translip export-video` | Final video export | `final_preview.<lang>.mp4`, `final_dub.<lang>.mp4` |
 
 > Default backends: ASR `funasr` (model `paraformer-zh`), separation `cdx23`, translation `local-m2m100`, TTS `moss-tts-nano-onnx`.
 
@@ -252,7 +252,7 @@ uv run translip doctor          # human-readable report (missing items include a
 
 ## Quick Start
 
-`run-pipeline` stops at `task-e` by default (dub audio + preview mix); final video delivery is a separate `export-video` step.
+`run-pipeline` stops at `render` by default (dub audio + preview mix); final video delivery is a separate `export-video` step.
 
 ```bash
 uv run translip run-pipeline \
@@ -273,40 +273,40 @@ output-pipeline/
 ├── pipeline-report.json
 ├── pipeline-status.json
 ├── logs/
-├── stage1/example/
-├── task-a/voice/
-├── task-b/voice/
-├── task-c/voice/
-├── task-d/voice/<speaker-id>/
-├── task-e/voice/
-└── task-g/delivery/
+├── separation/example/
+├── transcription/voice/
+├── speaker-registry/voice/
+├── translation/voice/
+├── synthesis/voice/<speaker-id>/
+├── render/voice/
+└── delivery/delivery/
 ```
 
 Final videos are typically written to:
 
-- `output-pipeline/task-g/delivery/final-preview/final_preview.en.mp4`
-- `output-pipeline/task-g/delivery/final-dub/final_dub.en.mp4`
+- `output-pipeline/delivery/delivery/final-preview/final_preview.en.mp4`
+- `output-pipeline/delivery/delivery/final-dub/final_dub.en.mp4`
 
 ### Running stages individually
 
 Each stage can be invoked on its own for debugging or swapping out a single step. The most common ones are below; see the per-stage docs for the full flag set.
 
 ```bash
-# Stage 1: audio separation
-uv run translip run --input ./test_video/example.mp4 --mode auto --quality balanced --output-dir ./output-stage1
+# separation: audio separation
+uv run translip run --input ./test_video/example.mp4 --mode auto --quality balanced --output-dir ./output-separation
 
-# Task A: transcription
-uv run translip transcribe --input ./output-stage1/example/voice.wav --output-dir ./output-task-a
+# transcription: transcription
+uv run translip transcribe --input ./output-separation/example/voice.wav --output-dir ./output-transcription
 
-# Task C: translation (local M2M100 / DeepSeek)
-uv run translip translate-script --segments ./output-task-a/voice/segments.zh.json \
-  --profiles ./output-task-b/voice/speaker_profiles.json --target-lang en \
-  --backend local-m2m100 --output-dir ./output-task-c
+# translation: translation (local M2M100 / DeepSeek)
+uv run translip translate-script --segments ./output-transcription/voice/segments.zh.json \
+  --profiles ./output-speaker-registry/voice/speaker_profiles.json --target-lang en \
+  --backend local-m2m100 --output-dir ./output-translation
 
-# Task D: single-speaker synthesis (default moss-tts-nano-onnx; switch to qwen3tts / voxcpm2)
-uv run translip synthesize-speaker --translation ./output-task-c/voice/translation.en.json \
-  --profiles ./output-task-b/voice/speaker_profiles.json --speaker-id spk_0000 \
-  --backend moss-tts-nano-onnx --output-dir ./output-task-d --device auto
+# synthesis: single-speaker synthesis (default moss-tts-nano-onnx; switch to qwen3tts / voxcpm2)
+uv run translip synthesize-speaker --translation ./output-translation/voice/translation.en.json \
+  --profiles ./output-speaker-registry/voice/speaker_profiles.json --speaker-id spk_0000 \
+  --backend moss-tts-nano-onnx --output-dir ./output-synthesis --device auto
 
 # Dub evaluation: per-segment QC of finished pipeline output (missing dub / voice / dropped words / rhythm / translation)
 uv run translip evaluate-dub --pipeline-root ./output-pipeline/<task_id> --target-lang en \
@@ -319,7 +319,7 @@ uv run translip probe --input ./test_video/example.mp4
 uv run translip --help    # list all subcommands
 ```
 
-> `moss-tts-nano-onnx` is the default TTS backend and requires the `moss-tts-nano` CLI from OpenMOSS/MOSS-TTS-Nano installed first; Task D reports a clear dependency error when it is missing. `voxcpm2` uses `openbmb/VoxCPM2` and falls back to CPU on Apple Silicon — set `VOXCPM_ALLOW_MPS=1` to attempt MPS.
+> `moss-tts-nano-onnx` is the default TTS backend and requires the `moss-tts-nano` CLI from OpenMOSS/MOSS-TTS-Nano installed first; synthesis reports a clear dependency error when it is missing. `voxcpm2` uses `openbmb/VoxCPM2` and falls back to CPU on Apple Silicon — set `VOXCPM_ALLOW_MPS=1` to attempt MPS.
 
 ## Configuration And Environment Variables
 
@@ -374,8 +374,8 @@ End-to-end Playwright tests live at the repo root (`tests/e2e/*.spec.ts`); start
 
 - [docs/README.md](docs/README.md): documentation index
 - [docs/speaker-aware-dubbing-plan.md](docs/speaker-aware-dubbing-plan.md): high-level plan and technical route
-- [docs/task-f-pipeline-and-engineering-orchestration.md](docs/task-f-pipeline-and-engineering-orchestration.md): orchestration and cache design
-- [docs/task-g-final-video-delivery.md](docs/task-g-final-video-delivery.md): final video delivery design
+- [docs/pipeline-and-engineering-orchestration.md](docs/pipeline-and-engineering-orchestration.md): orchestration and cache design
+- [docs/final-video-delivery.md](docs/final-video-delivery.md): final video delivery design
 - [docs/frontend-management-system-design.md](docs/frontend-management-system-design.md): management UI design
 - [frontend/README.md](frontend/README.md): frontend directory guide
 

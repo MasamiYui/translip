@@ -206,7 +206,7 @@ src/translip/
     "device": "auto",
     "translation_backend": "local-m2m100",
     "tts_backend": "qwen3tts",
-    "run_to_stage": "task-g",
+    "run_to_stage": "delivery",
     "fit_policy": "conservative",
     "mix_profile": "preview"
   }
@@ -229,16 +229,16 @@ src/translip/
 
 ```
 event: stage_start
-data: {"stage": "stage1", "step": "separating audio", "overall_percent": 0}
+data: {"stage": "separation", "step": "separating audio", "overall_percent": 0}
 
 event: stage_progress
-data: {"stage": "stage1", "percent": 45, "step": "running demucs", "overall_percent": 4.5}
+data: {"stage": "separation", "percent": 45, "step": "running demucs", "overall_percent": 4.5}
 
 event: stage_complete
-data: {"stage": "stage1", "status": "succeeded", "overall_percent": 10}
+data: {"stage": "separation", "status": "succeeded", "overall_percent": 10}
 
 event: stage_start
-data: {"stage": "task-a", "step": "loading ASR model", "overall_percent": 10}
+data: {"stage": "transcription", "step": "loading ASR model", "overall_percent": 10}
 
 event: pipeline_complete
 data: {"status": "succeeded", "overall_percent": 100, "elapsed_sec": 1247.5}
@@ -369,7 +369,7 @@ class TaskStage(SQLModel, table=True):
 
     id: Optional[int] = Field(default=None, primary_key=True)
     task_id: str = Field(index=True)            # 关联 Task.id
-    stage_name: str                             # stage1 / task-a / ... / task-g
+    stage_name: str                             # separation / transcription / ... / delivery
     status: str = Field(default="pending")      # pending / running / succeeded / cached / failed / skipped
     progress_percent: float = Field(default=0.0)
     current_step: Optional[str] = Field(default=None)
@@ -583,14 +583,14 @@ async def _sync_progress_to_db(task_id: str, status_path: Path):
 │  │ 迪拜旅拍配音                           整体 45%    │    │
 │  │ ████████████░░░░░░░░░░░░░░░░░░░░░░░░░          │    │
 │  │                                                 │    │
-│  │ stage1 ──→ task-a ──→ task-b ──→ [task-c] → ·· │    │
+│  │ separation ──→ transcription ──→ speaker-registry ──→ [translation] → ·· │    │
 │  │   ✓         ✓         ✓       ⟳ 67%            │    │
 │  └─────────────────────────────────────────────────┘    │
 │  ┌─────────────────────────────────────────────────┐    │
 │  │ 会议录制英文版                         整体 12%    │    │
 │  │ ████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░          │    │
 │  │                                                 │    │
-│  │ [stage1] ──→ task-a → ···                       │    │
+│  │ [separation] ──→ transcription → ···                       │    │
 │  │  ⟳ 78%                                          │    │
 │  └─────────────────────────────────────────────────┘    │
 │                                                         │
@@ -687,7 +687,7 @@ async def _sync_progress_to_db(task_id: str, status_path: Path):
 ┌─────────────────────────────────────────────────────────┐
 │  步骤 2: 节点配置                                        │
 │                                                         │
-│  执行范围  从 [stage1 ▾]  到 [task-g ▾]                  │
+│  执行范围  从 [separation ▾]  到 [delivery ▾]                  │
 │                                                         │
 │  ┌──── Stage 1: 音频分离 ──────────────────────────┐    │
 │  │  模式           [ auto           ▾ ]             │    │
@@ -760,7 +760,7 @@ async def _sync_progress_to_db(task_id: str, status_path: Path):
 │  │  任务名称:    迪拜旅拍配音                        │    │
 │  │  输入视频:    我在迪拜等你.mp4 (08:54, 1080p)     │    │
 │  │  语言方向:    zh → en                            │    │
-│  │  执行范围:    stage1 → task-g (全部)              │    │
+│  │  执行范围:    separation → delivery (全部)              │    │
 │  │  翻译后端:    local-m2m100                       │    │
 │  │  TTS 后端:    qwen3tts                           │    │
 │  │  设备:        auto                               │    │
@@ -838,7 +838,7 @@ async def _sync_progress_to_db(task_id: str, status_path: Path):
 │  │  │ 📄 translation.en.json          下载 👁   │   │    │
 │  │  │ 📄 translation.en.editable.json 下载 👁   │   │    │
 │  │  │ 📄 translation.en.srt           下载 👁   │   │    │
-│  │  │ 📄 task-c-manifest.json         下载 👁   │   │    │
+│  │  │ 📄 translation-manifest.json         下载 👁   │   │    │
 │  │  └──────────────────────────────────────────┘   │    │
 │  │                                                 │    │
 │  │  Manifest 预览:                                  │    │
@@ -1042,12 +1042,12 @@ function useTaskProgress(taskId: string) {
 
 ```typescript
 const STAGE_WEIGHTS: Record<string, number> = {
-  "stage1": 0.10,
-  "task-a": 0.10,
-  "task-b": 0.10,
-  "task-c": 0.15,
-  "task-d": 0.35,  // 最耗时
-  "task-e": 0.20,
+  "separation": 0.10,
+  "transcription": 0.10,
+  "speaker-registry": 0.10,
+  "translation": 0.15,
+  "synthesis": 0.35,  // 最耗时
+  "render": 0.20,
 };
 
 // 整体进度 = Σ (已完成阶段权重 × 100) + (当前阶段权重 × 当前阶段进度)
@@ -1062,7 +1062,7 @@ const STAGE_WEIGHTS: Record<string, number> = {
 
 type StageStatus = "pending" | "running" | "succeeded" | "cached" | "failed" | "skipped";
 type TaskStatus = "pending" | "running" | "succeeded" | "failed";
-type PipelineStageName = "stage1" | "task-a" | "task-b" | "task-c" | "task-d" | "task-e" | "task-g";
+type PipelineStageName = "separation" | "transcription" | "speaker-registry" | "translation" | "synthesis" | "render" | "delivery";
 
 interface StageProgress {
   stage_name: PipelineStageName;

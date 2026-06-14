@@ -4,7 +4,7 @@
 - 文档状态: Draft v1
 - 创建日期: 2026-04-11
 - 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-aware-dubbing-task-breakdown.md)
-- 前置依赖: [task-a-speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-a-speaker-attributed-transcription.md)
+- 前置依赖: [speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-attributed-transcription.md)
 
 ## 1. 目标
 
@@ -59,7 +59,7 @@
 
 例如:
 
-- [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-a/voice/segments.zh.json)
+- [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-transcription/voice/segments.zh.json)
 
 任务 B 要在此基础上增加一层稳定身份:
 
@@ -398,7 +398,7 @@ registry 不应该被自动写乱。
 
 ```bash
 uv run translip build-speaker-registry \
-  --segments ./output-task-a/voice/segments.zh.json \
+  --segments ./output-transcription/voice/segments.zh.json \
   --audio ./output/我在迪拜等你/voice.mp3 \
   --output-dir ./output-task-b \
   --registry ./registry/speaker_registry.json

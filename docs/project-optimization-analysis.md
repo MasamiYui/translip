@@ -295,7 +295,7 @@
 
 但还可以更进一步：
 - 不选 OCR 模板时，不展示 OCR 相关字段
-- 不导出 task-g 时，不展示 delivery 相关字段
+- 不导出 delivery 时，不展示 delivery 相关字段
 - 选择本地 backend 时，不展示远程模型配置
 
 #### 价值
@@ -502,10 +502,10 @@
 为失败或 partial success 场景加入恢复向导：
 
 - 本次失败发生在：
-  - stage1 / task-a / task-c / task-d / task-e / task-g
+  - separation / transcription / translation / synthesis / render / delivery
 - 推荐重跑起点：
-  - 从 task-c 重跑
-  - 从 task-d 重跑
+  - 从 translation 重跑
+  - 从 synthesis 重跑
 - 推荐调整项：
   - 降低 `speaker_limit`
   - 切换 translation backend

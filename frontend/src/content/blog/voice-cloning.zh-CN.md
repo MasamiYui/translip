@@ -261,22 +261,22 @@ def _should_synthesize_as_unit(rows) -> bool:
 落到磁盘上的产物契约：
 
 ```text
-output-task-d/voice/spk_0000/
+output-synthesis/voice/spk_0000/
 ├── speaker_segments.en.json   # 每句：音频路径 + 音色/可懂度/时长三轴评估 + 所有尝试
 ├── speaker_demo.en.wav        # 把这个人的句子拼一段，方便你直接试听
 ├── segments/<segment_id>.wav  # 一句一段的配音音频（下一站的直接输入）
-└── task-d-manifest.json       # 后端 / 设备 / 参考选择 / 各状态计数
+└── synthesis-manifest.json       # 后端 / 设备 / 参考选择 / 各状态计数
 ```
 
 一个最小调用（吃上 Task B 的画像和 Task C 的译文，给某个 `speaker_id` 逐句配音）：
 
 ```bash
 uv run translip synthesize-speaker \
-  --translation ./output-task-c/voice/translation.en.json \
-  --profiles    ./output-task-b/voice/speaker_profiles.json \
+  --translation ./output-translation/voice/translation.en.json \
+  --profiles    ./output-speaker-registry/voice/speaker_profiles.json \
   --speaker-id  spk_0000 \
   --backend     moss-tts-nano-onnx \
-  --output-dir  ./output-task-d --device auto
+  --output-dir  ./output-synthesis --device auto
 ```
 
 挑谁来配、配哪几句，也都是可解释的：`planning.py` 只挑**可克隆**的说话人（手动标了 `non_cloneable` 的——比如那其实是背景人声——一律跳过，尊重[说话人复核里](/blog/speaker-registry)那个"人在环中"的决定），段落则优先 **1–6 秒**、不带"源句过短"标记的，把最稳的句子先配上。

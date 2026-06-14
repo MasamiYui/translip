@@ -6,10 +6,10 @@
 - 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-aware-dubbing-task-breakdown.md)
 - 前置依赖:
   - [technical-design.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/technical-design.md)
-  - [task-a-speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-a-speaker-attributed-transcription.md)
-  - [task-c-dubbing-script-generation.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-c-dubbing-script-generation.md)
-  - [task-d-single-speaker-voice-cloning.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-d-single-speaker-voice-cloning.md)
-  - [task-d-test-report.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-d-test-report.md)
+  - [speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-attributed-transcription.md)
+  - [dubbing-script-generation.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/dubbing-script-generation.md)
+  - [single-speaker-voice-cloning.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/single-speaker-voice-cloning.md)
+  - [synthesis-test-report.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/synthesis-test-report.md)
 
 ## 1. 目标
 
@@ -183,7 +183,7 @@
    最终放入时间线的 segment 排布结果
 4. `mix_report.<target_tag>.json`
    跳过、回退、重叠、时长调整等决策报告
-5. `task-e-manifest.json`
+5. `render-manifest.json`
    任务 E 的执行摘要
 
 可选产物:
@@ -652,10 +652,10 @@
 
 ```bash
 uv run translip render-dub \
-  --background ./stage1/output/background.mp3 \
-  --segments ./task-a/voice/segments.zh.json \
-  --translation ./task-c/voice/translation.en.json \
-  --task-d-report ./task-d/voice/spk_0001/speaker_segments.en.json \
+  --background ./separation/output/background.mp3 \
+  --segments ./transcription/voice/segments.zh.json \
+  --translation ./translation/voice/translation.en.json \
+  --task-d-report ./synthesis/voice/spk_0001/speaker_segments.en.json \
   --output-dir ./output-task-e \
   --target-lang en
 ```

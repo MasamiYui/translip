@@ -27,7 +27,7 @@
 
 - `segments.zh.json`
 - 可选 `segments.zh.srt`
-- `task-a-manifest.json`
+- `transcription-manifest.json`
 
 `segments.zh.json` 的目标结构:
 

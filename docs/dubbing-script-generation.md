@@ -4,10 +4,10 @@
 - 文档状态: Implemented v1
 - 创建日期: 2026-04-12
 - 对应任务: [speaker-aware-dubbing-task-breakdown.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-aware-dubbing-task-breakdown.md)
-- 对应测试报告: [task-c-test-report.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-c-test-report.md)
+- 对应测试报告: [translation-test-report.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/translation-test-report.md)
 - 前置依赖:
-  - [task-a-speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-a-speaker-attributed-transcription.md)
-  - [task-b-speaker-registry-and-retrieval.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/task-b-speaker-registry-and-retrieval.md)
+  - [speaker-attributed-transcription.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-attributed-transcription.md)
+  - [speaker-registry-and-retrieval.md](/Users/masamiyui/OpenSoureProjects/Forks/translip/docs/speaker-registry-and-retrieval.md)
 
 ## 1. 目标
 
@@ -267,7 +267,7 @@
 1. `translation.<target_tag>.json`
 2. `translation.<target_tag>.editable.json`
 3. `translation.<target_tag>.srt`
-4. `task-c-manifest.json`
+4. `translation-manifest.json`
 
 其中 `target_tag` 例如:
 
@@ -359,7 +359,7 @@
 
 用于快速检查译文节奏和内容，不作为权威数据源。
 
-### `task-c-manifest.json`
+### `translation-manifest.json`
 
 记录:
 
@@ -594,8 +594,8 @@ V1 建议输出 4 类判断字段:
 
 ```bash
 uv run translip translate-script \
-  --segments ./output-task-a/voice/segments.zh.json \
-  --profiles ./output-task-b/voice/speaker_profiles.json \
+  --segments ./output-transcription/voice/segments.zh.json \
+  --profiles ./output-speaker-registry/voice/speaker_profiles.json \
   --target-lang eng_Latn \
   --backend local-m2m100 \
   --output-dir ./output-task-c \
@@ -606,8 +606,8 @@ API 模式示例:
 
 ```bash
 DEEPSEEK_API_KEY=... uv run translip translate-script \
-  --segments ./output-task-a/voice/segments.zh.json \
-  --profiles ./output-task-b/voice/speaker_profiles.json \
+  --segments ./output-transcription/voice/segments.zh.json \
+  --profiles ./output-speaker-registry/voice/speaker_profiles.json \
   --target-lang eng_Latn \
   --backend deepseek \
   --api-model deepseek-v4-pro \
@@ -621,7 +621,7 @@ DEEPSEEK_API_KEY=... uv run translip translate-script \
 3. 生成 `translation.<target_tag>.json`
 4. 生成 `translation.<target_tag>.editable.json`
 5. 生成 `translation.<target_tag>.srt`
-6. 输出 `task-c-manifest.json`
+6. 输出 `translation-manifest.json`
 
 ## 11. 任务 C 的实现顺序
 
@@ -660,8 +660,8 @@ DEEPSEEK_API_KEY=... uv run translip translate-script \
 
 任务 C 真实测试建议直接用当前仓库已经完成的任务 A/B 产物:
 
-- [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-a/voice/segments.zh.json)
-- [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-b/voice/speaker_profiles.json)
+- [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-transcription/voice/segments.zh.json)
+- [speaker_profiles.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-speaker-registry/voice/speaker_profiles.json)
 
 测试方式分两轮:
 

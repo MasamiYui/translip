@@ -459,7 +459,7 @@
       <tr><th>字段</th><th>含义</th></tr>
     </thead>
     <tbody>
-      <tr><td>seg-xxxx</td><td>片段 ID，与 task-c 翻译结果一一对应</td></tr>
+      <tr><td>seg-xxxx</td><td>片段 ID，与 translation 翻译结果一一对应</td></tr>
       <tr><td>CLIP 状态</td><td>placed = 已安置；overflow_unfitted = 溢出未完全压缩</td></tr>
       <tr><td>Fit 策略</td><td>compress = 压缩速率以适配时间；overflow_unfitted = 合成后仍超时</td></tr>
       <tr><td>Pitch</td><td>角色音高等级（low / mid / high）及具体 Hz 值</td></tr>
@@ -781,7 +781,7 @@
 
   <div class="callout danger">
     <span class="callout-icon"></span>
-    <div>导出操作会直接使用流水线已生成的 task-e 混音结果。若修改了配音稿文本，需重跑 Task D（语音合成）和 Task E（混音）后再导出，否则导出内容不含文本修改。</div>
+    <div>导出操作会直接使用流水线已生成的 render 混音结果。若修改了配音稿文本，需重跑 Task D（语音合成）和 Task E（混音）后再导出，否则导出内容不含文本修改。</div>
   </div>
 
   <hr />
@@ -794,9 +794,9 @@
     <tbody>
       <tr><td>页面显示「加载失败，请重试」</td><td>后端服务可能未启动，运行 <code>uv run uvicorn translip.server.app:app --port 8765</code></td></tr>
       <tr><td>Render Range 点击无反应</td><td>确认已选中一个片段（顶部 Current Line 有内容）</td></tr>
-      <tr><td>Original Dialogue 波形不显示</td><td>检查 stage1 目录下是否有 voice.mp3 或 voice.wav 文件</td></tr>
+      <tr><td>Original Dialogue 波形不显示</td><td>检查 separation 目录下是否有 voice.mp3 或 voice.wav 文件</td></tr>
       <tr><td>批准后刷新状态丢失</td><td>操作日志写入本地 JSONL 文件，刷新后需等待数据重载（约 1s）</td></tr>
-      <tr><td>Speaker failed 百分比很高</td><td>该角色声线质量较低，建议在 task-b 中更换参考音频后重跑流水线</td></tr>
+      <tr><td>Speaker failed 百分比很高</td><td>该角色声线质量较低，建议在 speaker-registry 中更换参考音频后重跑流水线</td></tr>
     </tbody>
   </table>
 </section>

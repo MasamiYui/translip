@@ -12,7 +12,7 @@ readingTime: 15
 
 # 听懂，还要分清是谁说的——ASR + 说话人分离
 
-> 这是 **幕后 · 博客** 的第二篇。[上一篇](/blog/voice-background-separation) 我们把一锅声音拆成了人声和背景两条轨；这一篇顺着那条 `voice.wav` 往下走，到流水线的第二站：**说话人归因转写**（`task-a` / CLI 的 `translip transcribe`）。
+> 这是 **幕后 · 博客** 的第二篇。[上一篇](/blog/voice-background-separation) 我们把一锅声音拆成了人声和背景两条轨；这一篇顺着那条 `voice.wav` 往下走，到流水线的第二站：**说话人归因转写**（`transcription` / CLI 的 `translip transcribe`）。
 
 ## 这一站要交出什么
 
@@ -275,7 +275,7 @@ def _is_faithful(candidate, *sources):
 2. **ASR**：FunASR（默认）或 faster-whisper，吐出一串 `AsrSegment`（时间 + 文字）。
 3. **说话人分离**：ECAPA 聚类（默认）或 pyannote，给每段配一个 `speaker_label`；关掉时全归 `SPEAKER_00`。
 4. **缝合**：`zip(strict=True)` 把文字和说话人严格对齐成 `TranscriptionSegment`。
-5. **写产物**：`segments.zh.json` + 可选 `segments.zh.srt` + `task-a-manifest.json`（记后端、设备、检测语种、段数、说话人数、计时）。
+5. **写产物**：`segments.zh.json` + 可选 `segments.zh.srt` + `transcription-manifest.json`（记后端、设备、检测语种、段数、说话人数、计时）。
 6. **（可选）OCR 反哺**：若上游有 `ocr-detect`，再产出 `segments.zh.corrected.json`。
 
 落到磁盘上的产物契约：
@@ -284,14 +284,14 @@ def _is_faithful(candidate, *sources):
 output-transcribe/example/
 ├── segments.zh.json        # 逐句：时间 + 文字 + 说话人  → 喂给下游翻译/配音
 ├── segments.zh.srt         # 带 [SPEAKER_xx] 前缀的字幕，方便人工核对
-└── task-a-manifest.json    # 后端 / 设备 / 语种 / 段数 / 说话人数 / 计时
+└── transcription-manifest.json    # 后端 / 设备 / 语种 / 段数 / 说话人数 / 计时
 ```
 
 一个最小调用（吃上一站分出来的人声轨）：
 
 ```bash
 uv run translip transcribe \
-  --input ./output-stage1/example/voice.wav \
+  --input ./output-separation/example/voice.wav \
   --asr-backend funasr --asr-model paraformer-zh \
   --enable-diarization --diarizer-backend ecapa \
   --output-dir ./output-transcribe

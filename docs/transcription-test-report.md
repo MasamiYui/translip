@@ -61,10 +61,10 @@ uv run translip transcribe \
 
 ## 5. 产物路径
 
-- JSON: [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-a/voice/segments.zh.json)
-- SRT: [segments.zh.srt](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-a/voice/segments.zh.srt)
-- Manifest: [task-a-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-a/voice/task-a-manifest.json)
-- 中间音频: [transcription_input.wav](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-task-a/voice/intermediate/transcription_input.wav)
+- JSON: [segments.zh.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-transcription/voice/segments.zh.json)
+- SRT: [segments.zh.srt](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-transcription/voice/segments.zh.srt)
+- Manifest: [transcription-manifest.json](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-transcription/voice/transcription-manifest.json)
+- 中间音频: [transcription_input.wav](/Users/masamiyui/OpenSoureProjects/Forks/translip/output-transcription/voice/intermediate/transcription_input.wav)
 
 ## 6. 测试结果
 
