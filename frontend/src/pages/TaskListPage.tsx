@@ -29,7 +29,7 @@ export function TaskListPage() {
   const [bulkBanner, setBulkBanner] = useState<BulkBanner | null>(null)
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['tasks', statusFilter, search, page, pageSize],
     queryFn: () =>
       tasksApi.list({
@@ -38,7 +38,12 @@ export function TaskListPage() {
         page,
         size: pageSize,
       }),
-    refetchInterval: 5000,
+    // Only poll while something is in flight; an all-terminal list (or an error)
+    // stops hitting the API every 5s.
+    refetchInterval: query => {
+      const items = query.state.data?.items ?? []
+      return items.some(it => it.status === 'running' || it.status === 'pending') ? 5000 : false
+    },
   })
 
   const deleteMutation = useMutation({
@@ -169,6 +174,17 @@ export function TaskListPage() {
       <div className="overflow-x-auto rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]">
         {isLoading ? (
           <div className="py-16 text-center text-[#9ca3af] text-sm">{t.tasks.loading}</div>
+        ) : isError ? (
+          <div className="py-16 text-center text-sm">
+            <p className="text-rose-600">{t.common.loadFailed}</p>
+            <button
+              type="button"
+              onClick={() => refetch()}
+              className="mt-3 inline-flex items-center rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
+            >
+              {t.common.retry}
+            </button>
+          </div>
         ) : items.length === 0 ? (
           <div className="py-16 text-center text-[#9ca3af] text-sm">{t.tasks.noMatches}</div>
         ) : (

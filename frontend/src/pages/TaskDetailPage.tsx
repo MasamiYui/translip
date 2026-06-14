@@ -191,6 +191,13 @@ export function TaskDetailPage() {
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null | undefined>(undefined)
   const [rerunStage, setRerunStage] = useState<string | undefined>(undefined)
+  // Surfaces failures from stop/delete/rerun (otherwise the buttons just silently
+  // re-enable). Cleared on a subsequent success or when the user dismisses it.
+  const [actionError, setActionError] = useState<string | null>(null)
+  const describeError = (err: unknown): string => {
+    const detail = (err as { response?: { data?: { detail?: string } }; message?: string })
+    return detail?.response?.data?.detail || detail?.message || t.taskDetail.actionFailed
+  }
   const [isExportDrawerOpen, setExportDrawerOpen] = useState(false)
   const [showProfileOverrides, setShowProfileOverrides] = useState(false)
   const [exportProfile, setExportProfile] = useState<TaskExportProfile>('dub_no_subtitles')
@@ -207,7 +214,7 @@ export function TaskDetailPage() {
   const [previewDurationSec, setPreviewDurationSec] = useState(10)
   const initializedDeliveryTaskIdRef = useRef<string | null>(null)
 
-  const { data: task, refetch } = useQuery({
+  const { data: task, refetch, isError: taskIsError, error: taskQueryError } = useQuery({
     queryKey: ['task', id],
     queryFn: () => tasksApi.get(id!),
     enabled: Boolean(id),
@@ -255,9 +262,14 @@ export function TaskDetailPage() {
     setSpeakerReviewUserClosed(true)
   }
 
+  // Depend on the primitive running-flag, not the whole `task` object: the task
+  // query returns a fresh object every 3s poll, so depending on `task` here tore
+  // down and reopened the EventSource on every poll. Now the stream opens once
+  // per run.
+  const taskIsRunning = task?.status === 'running'
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (!id || !task || task.status !== 'running') {
+    if (!id || !taskIsRunning) {
       return
     }
     const unsubscribe = subscribeToProgress(id, event => {
@@ -268,24 +280,31 @@ export function TaskDetailPage() {
       }
     })
     return unsubscribe
-  }, [id, queryClient, refetch, task])
+  }, [id, taskIsRunning, queryClient, refetch])
 
   const stopMutation = useMutation({
     mutationFn: () => tasksApi.stop(id!),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['task', id] }),
+    onSuccess: () => {
+      setActionError(null)
+      queryClient.invalidateQueries({ queryKey: ['task', id] })
+    },
+    onError: err => setActionError(describeError(err)),
   })
 
   const deleteMutation = useMutation({
     mutationFn: () => tasksApi.delete(id!),
     onSuccess: () => navigate('/tasks'),
+    onError: err => setActionError(describeError(err)),
   })
 
   const rerunMutation = useMutation({
     mutationFn: (fromStage: string) => tasksApi.rerun(id!, fromStage),
     onSuccess: newTask => {
+      setActionError(null)
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
       navigate(`/tasks/${newTask.id}`)
     },
+    onError: err => setActionError(describeError(err)),
   })
 
   const previewMutation = useMutation({
@@ -376,6 +395,33 @@ export function TaskDetailPage() {
   const exportFiles = task?.last_export_summary.files ?? []
 
   if (!task) {
+    if (taskIsError) {
+      const status = (taskQueryError as { response?: { status?: number } } | null)?.response?.status
+      const notFound = status === 404
+      return (
+        <PageContainer className="max-w-4xl py-20 text-center">
+          <div className="text-lg text-slate-700">{notFound ? t.taskDetail.notFound : t.common.loadFailed}</div>
+          <div className="mt-5 flex items-center justify-center gap-3">
+            {!notFound && (
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="inline-flex items-center rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                {t.common.retry}
+              </button>
+            )}
+            <Link
+              to="/tasks"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+            >
+              <ArrowLeft size={14} />
+              {t.taskDetail.backToList}
+            </Link>
+          </div>
+        </PageContainer>
+      )
+    }
     return (
       <PageContainer className="max-w-4xl py-20 text-center text-slate-400">
         <div className="text-lg">{t.taskDetail.loading}</div>
@@ -547,6 +593,19 @@ export function TaskDetailPage() {
 
           {/* 运行控制：图下方横排一行 */}
           <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-4">
+            {actionError && (
+              <div className="flex w-full items-start justify-between gap-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                <span className="break-all">{actionError}</span>
+                <button
+                  type="button"
+                  onClick={() => setActionError(null)}
+                  aria-label={t.common.close}
+                  className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-black/5"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <span className="text-xs text-slate-400">重跑起点</span>
               <select

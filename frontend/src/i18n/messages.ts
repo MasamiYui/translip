@@ -15,6 +15,7 @@ const zhMessages = {
     cancel: '取消',
     close: '关闭',
     retry: '重试',
+    loadFailed: '加载失败',
     notAvailable: '—',
     totalCount: (count: number) => `共 ${count} 条`,
     prevPage: '上一页',
@@ -653,6 +654,8 @@ const zhMessages = {
   taskDetail: {
     loading: '加载中...',
     backToList: '返回列表',
+    notFound: '任务不存在或已被删除',
+    actionFailed: '操作失败',
     overallProgress: '整体进度',
     runningFor: (duration: string) => `已运行 ${duration}`,
     currentStage: (stage: string) => `当前阶段: ${stage}`,
@@ -1900,6 +1903,7 @@ const enMessages: LocaleMessages = {
     cancel: 'Cancel',
     close: 'Close',
     retry: 'Retry',
+    loadFailed: 'Failed to load',
     notAvailable: '—',
     totalCount: (count: number) => `Total ${count}`,
     prevPage: 'Previous',
@@ -2539,6 +2543,8 @@ const enMessages: LocaleMessages = {
   taskDetail: {
     loading: 'Loading...',
     backToList: 'Back to tasks',
+    notFound: 'Task not found or has been deleted',
+    actionFailed: 'Action failed',
     overallProgress: 'Overall Progress',
     runningFor: (duration: string) => `Running for ${duration}`,
     currentStage: (stage: string) => `Current stage: ${stage}`,
