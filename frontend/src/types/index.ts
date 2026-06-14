@@ -275,12 +275,16 @@ export interface SystemInfo {
   cache_dir: string
   cache_size_bytes: number
   models: Array<{
+    // Registry key (e.g. 'erase_sttn') — used to download this model alone.
+    key: string
     name: string
     // 'needs_extra' = an optional Python extra (e.g. `ocr`) isn't installed, so
     // the one-click downloader can't make it available — surfaced as a hint.
     status: 'available' | 'missing' | 'needs_extra'
     // Stable code (e.g. 'ocr_extra_missing') the UI maps to a localized hint.
     detail?: string
+    // Whether the one-click downloader has a source for this key.
+    auto_downloadable: boolean
   }>
 }
 

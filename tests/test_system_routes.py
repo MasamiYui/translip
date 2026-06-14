@@ -146,6 +146,117 @@ def _clear_hf_tokens(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     )
 
 
+def test_collect_model_statuses_includes_key_and_auto_downloadable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Every model row carries its registry key + downloadability for the UI."""
+    from translip.server.routes import system
+
+    models = system.collect_model_statuses(
+        cache_root=tmp_path / "c",
+        huggingface_cache_root=tmp_path / "hf",
+    )
+    assert all("key" in m and "auto_downloadable" in m for m in models)
+    by_key = {m["key"]: m for m in models}
+    assert by_key["faster_whisper_small"]["auto_downloadable"] is True
+    # CDX23 has no auto-download source -> no per-model download button.
+    assert by_key["cdx23"]["auto_downloadable"] is False
+
+
+def test_erase_weights_registered_and_detected(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from translip.server import cache_manager
+    from translip.server.routes import system
+
+    monkeypatch.delenv("SUBTITLE_ERASE_MODELS_DIR", raising=False)
+    cache_root = tmp_path / "c"
+    hf = tmp_path / "hf"
+
+    by_key = {m["key"]: m for m in system.collect_model_statuses(cache_root=cache_root, huggingface_cache_root=hf)}
+    assert by_key["erase_sttn"]["status"] == "missing"
+    assert by_key["erase_lama"]["status"] == "missing"
+    assert cache_manager.is_auto_downloadable("erase_sttn")
+    assert cache_manager.is_auto_downloadable("erase_lama")
+
+    erase_dir = cache_root / "erase_models"
+    erase_dir.mkdir(parents=True)
+    (erase_dir / "sttn.pth").write_bytes(b"weights")
+
+    by_key = {m["key"]: m for m in system.collect_model_statuses(cache_root=cache_root, huggingface_cache_root=hf)}
+    assert by_key["erase_sttn"]["status"] == "available"
+    assert by_key["erase_lama"]["status"] == "missing"
+
+
+def test_vision_mlx_needs_extra_when_mlx_absent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from translip.server import cache_manager
+    from translip.server.routes import system
+
+    monkeypatch.setenv("VISION_HF_CACHE", str(tmp_path / "vh"))
+    orig = cache_manager._module_available
+    monkeypatch.setattr(
+        cache_manager, "_module_available", lambda n: False if n == "mlx_vlm" else orig(n)
+    )
+    cache_root = tmp_path / "c"
+    hf = tmp_path / "hf"
+
+    by_key = {m["key"]: m for m in system.collect_model_statuses(cache_root=cache_root, huggingface_cache_root=hf)}
+    v = by_key["vision_qwen3vl_mlx"]
+    assert v["status"] == "needs_extra"
+    assert v["detail"] == "vision_extra_missing"
+    # needs_extra rows are excluded from the one-click downloader's missing set.
+    assert "vision_qwen3vl_mlx" not in cache_manager.list_missing_model_keys(
+        cache_root=cache_root, huggingface_cache_root=hf
+    )
+
+
+def test_vision_mlx_missing_when_extra_present_without_weights(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from translip.server import cache_manager
+    from translip.server.routes import system
+
+    monkeypatch.setenv("VISION_HF_CACHE", str(tmp_path / "vh"))
+    orig = cache_manager._module_available
+    monkeypatch.setattr(
+        cache_manager, "_module_available", lambda n: True if n == "mlx_vlm" else orig(n)
+    )
+    by_key = {
+        m["key"]: m
+        for m in system.collect_model_statuses(cache_root=tmp_path / "c", huggingface_cache_root=tmp_path / "hf")
+    }
+    assert by_key["vision_qwen3vl_mlx"]["status"] == "missing"
+
+
+def test_custom_downloaders_dispatch_erase_and_vision(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """erase keys -> ensure_weight; vision key -> HF snapshot into the vision cache."""
+    import translip.erase.utils.weights as erase_weights
+    from translip.server import cache_manager
+
+    _clear_hf_tokens(monkeypatch, tmp_path)
+    monkeypatch.setenv("VISION_HF_CACHE", str(tmp_path / "vh"))
+
+    calls: list[tuple] = []
+    monkeypatch.setattr(erase_weights, "ensure_weight", lambda key, **kw: calls.append(("erase", key)))
+    monkeypatch.setattr(cache_manager, "_hf_snapshot_download", lambda **kw: calls.append(("hf", kw["repo_id"])))
+
+    cache_manager.model_download_manager.reset()
+    job = cache_manager.model_download_manager.start_missing(
+        only_keys=["erase_sttn", "erase_lama", "vision_qwen3vl_mlx"],
+        run_in_thread=False,
+    )
+
+    assert job.state == "succeeded"
+    assert all(it.state == "succeeded" for it in job.items.values())
+    assert ("erase", "sttn") in calls
+    assert ("erase", "lama") in calls
+    assert ("hf", "mlx-community/Qwen3-VL-4B-Instruct-4bit") in calls
+
+
 def test_auto_downloadable_includes_funasr_modelscope_keys(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:

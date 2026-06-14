@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import type { ReactNode } from 'react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { configApi } from '../../api/config'
+import { configApi, modelsApi, systemApi } from '../../api/config'
 import { worksApi } from '../../api/works'
 import { I18nProvider } from '../../i18n/I18nProvider'
 import { SettingsPage } from '../SettingsPage'
@@ -291,5 +291,54 @@ describe('SettingsPage global and advanced settings', () => {
     // Switching to the local backend removes the DeepSeek-only field.
     fireEvent.change(screen.getByLabelText('翻译后端'), { target: { value: 'local-m2m100' } })
     expect(screen.queryByLabelText('DeepSeek 模型')).not.toBeInTheDocument()
+  })
+})
+
+describe('SettingsPage model downloads', () => {
+  it('downloads a single missing model via its per-row button', async () => {
+    // mockResolvedValueOnce so this override doesn't leak into other tests
+    // (afterEach's clearAllMocks keeps implementations set via mockResolvedValue).
+    vi.mocked(systemApi.getInfo).mockResolvedValueOnce({
+      python_version: '3.11',
+      platform: 'macOS',
+      device: 'cpu',
+      cache_dir: '/tmp/cache',
+      cache_size_bytes: 0,
+      models: [
+        { key: 'erase_sttn', name: 'Subtitle-erase STTN', status: 'missing', auto_downloadable: true },
+      ],
+    })
+    vi.mocked(modelsApi.downloadMissing).mockResolvedValue({
+      job_id: 'j1',
+      state: 'running',
+      status: 'running',
+      current_key: 'erase_sttn',
+      error: null,
+      started_at: null,
+      finished_at: null,
+      items: [],
+      summary: { total: 1, succeeded: 0, failed: 0, skipped: 0 },
+    } as never)
+    vi.mocked(modelsApi.getJob).mockResolvedValue({
+      job_id: 'j1',
+      state: 'running',
+      status: 'running',
+      current_key: 'erase_sttn',
+      error: null,
+      started_at: null,
+      finished_at: null,
+      items: [],
+      summary: { total: 1, succeeded: 0, failed: 0, skipped: 0 },
+    } as never)
+
+    render(<SettingsPage />, { wrapper: createWrapper() })
+    fireEvent.click(await screen.findByRole('button', { name: '模型状态' }))
+
+    const downloadButton = await screen.findByRole('button', { name: '下载' })
+    fireEvent.click(downloadButton)
+
+    await waitFor(() =>
+      expect(modelsApi.downloadMissing).toHaveBeenCalledWith(['erase_sttn']),
+    )
   })
 })

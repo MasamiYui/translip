@@ -61,6 +61,7 @@ from .types import (
     TranslationRequest,
 )
 from .utils.banner import banner_text, print_startup_banner
+from .utils.doctor import print_environment_summary, run_doctor
 from .utils.logging import configure_logging
 
 
@@ -605,6 +606,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     download_parser.add_argument("--force", action="store_true", help="Redownload weights")
 
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Check the local environment: ffmpeg, device, extras, API keys, model weights",
+    )
+    doctor_parser.add_argument(
+        "--json",
+        dest="as_json",
+        action="store_true",
+        help="Emit the report as JSON on stdout (for CI/scripts)",
+    )
+
     pipeline_parser = subparsers.add_parser(
         "run-pipeline",
         help="Run stage 1 through task-e with cache-aware orchestration",
@@ -814,8 +826,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command is None:
-        # Bare `translip`: show the banner (via the parser description) + help.
+        # Bare `translip`: banner (via the parser description) + help, then a
+        # cheap environment summary so users see what's ready at a glance.
         parser.print_help()
+        print_environment_summary(enabled=not args.no_banner)
         return 0
     print_startup_banner(enabled=not args.no_banner)
     configure_logging(verbose=args.verbose)
@@ -908,6 +922,9 @@ def main(argv: list[str] | None = None) -> int:
             if item.error:
                 print(f"{item.key}: {item.error}")
         return 0 if job.state == "succeeded" else 1
+
+    if args.command == "doctor":
+        return run_doctor(as_json=args.as_json)
 
     if args.command == "run":
         request = SeparationRequest(

@@ -110,6 +110,7 @@ def apply_active_cache_root() -> Path:
 
 
 PathsProvider = Callable[[Path, Path], list[Path]]
+TriStateProvider = Callable[[Path, Path], Literal["available", "missing", "needs_extra"]]
 
 
 @dataclass(frozen=True)
@@ -120,6 +121,15 @@ class CacheGroup:
     paths: PathsProvider
     removable: bool = True
     detection_extra: Callable[[Path, Path], bool] | None = None
+    # Tri-state readiness for models whose availability depends on an optional
+    # Python extra being installed (download alone can't make them usable).
+    # When set it overrides ``detection_extra``/path-existence in both
+    # ``collect_model_statuses`` and ``list_missing_model_keys``. ``needs_extra``
+    # rows are surfaced as a hint and excluded from the one-click downloader.
+    status_extra: TriStateProvider | None = None
+    # Stable code (e.g. "ocr_extra_missing") the UI maps to a localized hint
+    # when ``status_extra`` returns "needs_extra".
+    needs_extra_detail: str | None = None
 
 
 def _huggingface_cache_root() -> Path:
@@ -231,6 +241,67 @@ def _paddleocr_download_specs() -> list[tuple[str, Path]]:
     for model_name in _paddleocr_required_models():
         specs.append((f"PaddlePaddle/{model_name}", target_root / model_name))
     return specs
+
+
+# Registry keys for the in-tree subtitle-erase and vision weights.
+_ERASE_STTN_KEY = "erase_sttn"
+_ERASE_LAMA_KEY = "erase_lama"
+_VISION_MLX_KEY = "vision_qwen3vl_mlx"
+
+
+def _module_available(name: str) -> bool:
+    """True if ``name`` is importable, without importing it (find_spec only)."""
+    try:
+        import importlib.util
+
+        return importlib.util.find_spec(name) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def _erase_models_dir(cache_root: Path) -> Path:
+    """Resolve the subtitle-erase weights dir WITHOUT importing erase.config.
+
+    erase.config is pydantic-settings (the optional `erase` extra), so reading
+    the env var directly keeps status detection working on a base install.
+    Mirrors ``Settings.SUBTITLE_ERASE_MODELS_DIR`` (default ``<cache>/erase_models``).
+    """
+    env = os.environ.get("SUBTITLE_ERASE_MODELS_DIR")
+    return Path(env).expanduser() if env else cache_root / "erase_models"
+
+
+def _vision_settings():
+    """Load the stdlib-only vision settings (safe without any extra)."""
+    from translip.vision.config import load_settings
+
+    return load_settings()
+
+
+def _vision_mlx_paths(cache_root: Path) -> list[Path]:
+    """HF snapshot dir(s) for the resolved mlx vision model under its own cache."""
+    try:
+        settings = _vision_settings()
+    except Exception:
+        return [cache_root / "vision_models" / "hf"]
+    hf_cache = Path(settings.hf_cache).expanduser()
+    repo_dir = "models--" + settings.model.replace("/", "--")
+    return [*_glob_dirs(hf_cache, repo_dir), hf_cache / repo_dir]
+
+
+def _vision_mlx_status(cache_root: Path, hf_root: Path) -> Literal["available", "missing", "needs_extra"]:
+    """Tri-state readiness for the mlx Qwen3-VL weights.
+
+    The mlx weights are only loadable with the optional ``vision`` extra
+    (``mlx-vlm``); without it, downloading multiple GB can't make them usable
+    (and on non-Apple hosts mlx-vlm can't even install). So gate on the extra
+    exactly like PaddleOCR — ``needs_extra`` rather than a perpetual "missing".
+    """
+    if not _module_available("mlx_vlm"):
+        return "needs_extra"
+    for path in _vision_mlx_paths(cache_root):
+        if path.is_dir() and any(path.iterdir()):
+            return "available"
+    return "missing"
 
 
 CACHE_REGISTRY: list[CacheGroup] = [
@@ -358,12 +429,35 @@ CACHE_REGISTRY: list[CacheGroup] = [
         key="paddleocr_models",
         label="PaddleOCR (hard-subtitle OCR)",
         group="model",
-        # Readiness needs the `ocr` extra installed too, so it's decided by
-        # detection_extra rather than mere path existence. Not removable: the
-        # weights aren't re-fetchable via the one-click downloader yet.
+        # Readiness needs the `ocr` extra installed too, so it's decided by a
+        # tri-state status_extra rather than mere path existence. Not removable:
+        # the weights aren't re-fetchable via the one-click downloader yet.
         paths=lambda r, _h: [r / "paddleocr_models"],
         removable=False,
         detection_extra=_paddleocr_ready,
+        status_extra=_paddleocr_status,
+        needs_extra_detail="ocr_extra_missing",
+    ),
+    CacheGroup(
+        key=_ERASE_STTN_KEY,
+        label="Subtitle-erase STTN",
+        group="model",
+        paths=lambda r, _h: [_erase_models_dir(r) / "sttn.pth"],
+    ),
+    CacheGroup(
+        key=_ERASE_LAMA_KEY,
+        label="Subtitle-erase LaMa",
+        group="model",
+        paths=lambda r, _h: [_erase_models_dir(r) / "big-lama.pt"],
+    ),
+    CacheGroup(
+        key=_VISION_MLX_KEY,
+        label="Qwen3-VL (mlx)",
+        group="model",
+        # Gated on the `vision` extra (mlx-vlm); see _vision_mlx_status.
+        paths=lambda r, _h: _vision_mlx_paths(r),
+        status_extra=_vision_mlx_status,
+        needs_extra_detail="vision_extra_missing",
     ),
     CacheGroup(
         key="hf_hub",
@@ -645,7 +739,7 @@ def collect_model_statuses(
     *,
     cache_root: Path | None = None,
     huggingface_cache_root: Path | None = None,
-) -> list[dict[str, str]]:
+) -> list[dict[str, Any]]:
     """Backwards-compatible wrapper used by GET /api/system/info."""
     cache_root = cache_root or resolve_active_cache_root()
     hf_root = huggingface_cache_root or _huggingface_cache_root()
@@ -663,14 +757,19 @@ def collect_model_statuses(
         if group.group != "model":
             continue
         paths = _resolve_group_paths(group, cache_root, hf_root)
-        # PaddleOCR has a third state ("needs_extra") that a download can't fix;
-        # surface it (plus a stable detail code the UI localizes) so the row is
-        # honest rather than perpetually "missing".
-        if group.key == _PADDLEOCR_KEY:
-            status = _paddleocr_status(cache_root, hf_root)
-            entry: dict[str, str] = {"name": group.label, "status": status}
-            if status == "needs_extra":
-                entry["detail"] = "ocr_extra_missing"
+        entry: dict[str, str] = {
+            "key": group.key,
+            "name": group.label,
+            "auto_downloadable": is_auto_downloadable(group.key),
+        }
+        # status_extra groups expose a third state ("needs_extra") that a
+        # download can't fix; surface it (plus a stable detail code the UI
+        # localizes) so the row is honest rather than perpetually "missing".
+        if group.status_extra is not None:
+            status = group.status_extra(cache_root, hf_root)
+            entry["status"] = status
+            if status == "needs_extra" and group.needs_extra_detail:
+                entry["detail"] = group.needs_extra_detail
             results.append(entry)
             continue
         if group.detection_extra is not None:
@@ -679,7 +778,8 @@ def collect_model_statuses(
             available = _has_cdx23(paths)
         else:
             available = any(p.exists() for p in paths)
-        results.append({"name": group.label, "status": "available" if available else "missing"})
+        entry["status"] = "available" if available else "missing"
+        results.append(entry)
     return results
 
 
@@ -1141,6 +1241,45 @@ _MODEL_MS_REPOS: dict[str, list[str]] = {
 }
 
 
+# Custom (non-HF/non-ModelScope) downloaders. Each callback fetches the weights
+# for one registry key into the active cache. Signature: (cancel_event,
+# on_progress) -> None; raising marks the entry failed in the download job.
+#  - erase weights: GitHub raw + sha256 via the in-tree, stdlib-only
+#    erase.utils.weights.ensure_weight (importable without the `erase` extra).
+#  - vision mlx weights: an HF snapshot into the vision module's OWN cache
+#    (VISION_HF_CACHE), not the shared HF hub cache, so mlx-vlm loads them offline.
+CustomDownloader = Callable[[threading.Event, Callable[[str], None]], None]
+
+
+def _make_erase_downloader(weight_key: str) -> CustomDownloader:
+    def _download(cancel_event: threading.Event, on_progress: Callable[[str], None]) -> None:
+        from translip.erase.utils.weights import ensure_weight
+
+        models_dir = _erase_models_dir(resolve_active_cache_root())
+        ensure_weight(weight_key, models_dir=models_dir, local_only=False, on_progress=on_progress)
+
+    return _download
+
+
+def _download_vision_mlx(cancel_event: threading.Event, on_progress: Callable[[str], None]) -> None:
+    settings = _vision_settings()
+    on_progress(f"downloading {settings.model}")
+    ensure_directory(Path(settings.hf_cache).expanduser())
+    _hf_snapshot_download(
+        repo_id=settings.model,
+        cache_dir=str(Path(settings.hf_cache).expanduser()),
+        local_files_only=False,
+        resume_download=True,
+    )
+
+
+_MODEL_CUSTOM_DOWNLOADERS: dict[str, CustomDownloader] = {
+    _ERASE_STTN_KEY: _make_erase_downloader("sttn"),
+    _ERASE_LAMA_KEY: _make_erase_downloader("lama"),
+    _VISION_MLX_KEY: _download_vision_mlx,
+}
+
+
 _HF_TOKEN_ENV_NAMES = ("HF_TOKEN", "HUGGINGFACE_HUB_TOKEN", "PYANNOTE_AUTH_TOKEN")
 
 
@@ -1305,6 +1444,8 @@ def _auto_downloadable_keys() -> set[str]:
     # PaddleOCR weights are public (Apache-2.0) and fetched into a custom local
     # layout rather than the HF hub cache; see _paddleocr_download_specs.
     keys.add(_PADDLEOCR_KEY)
+    # erase (GitHub+sha256) and vision-mlx (HF→own cache) use custom downloaders.
+    keys |= set(_MODEL_CUSTOM_DOWNLOADERS.keys())
     if _resolve_hf_token():
         keys |= set(_MODEL_HF_REPOS_GATED.keys())
     return keys
@@ -1345,8 +1486,10 @@ def list_missing_model_keys(
         # special case: when the `ocr` extra is absent (needs_extra) the
         # downloader can't help, so it's deliberately NOT listed here (the status
         # panel surfaces that state via collect_model_statuses instead).
-        if group.key == _PADDLEOCR_KEY:
-            present = _paddleocr_status(cache_root, hf_root) != "missing"
+        if group.status_extra is not None:
+            # needs_extra / available both count as "not downloadable-missing":
+            # the one-click downloader can only resolve a plain "missing".
+            present = group.status_extra(cache_root, hf_root) != "missing"
         elif group.detection_extra is not None:
             present = group.detection_extra(cache_root, hf_root)
         elif group.key == "cdx23":
@@ -1543,7 +1686,8 @@ class ModelDownloadManager:
                 # PaddleOCR weights download into a custom local layout, not the
                 # HF hub cache; resolve their (repo_id, target_dir) specs here.
                 local_dir_specs = _paddleocr_download_specs() if key == _PADDLEOCR_KEY else []
-                if not hf_repos and not ms_repos and not local_dir_specs:
+                custom_downloader = _MODEL_CUSTOM_DOWNLOADERS.get(key)
+                if not hf_repos and not ms_repos and not local_dir_specs and not custom_downloader:
                     entry.state = "skipped"
                     entry.error = "no_auto_download_source"
                     entry.finished_at = time.time()
@@ -1579,6 +1723,8 @@ class ModelDownloadManager:
                             model_id=model_id,
                             cache_dir=str(ms_root),
                         )
+                    if custom_downloader and not job.cancel_event.is_set():
+                        custom_downloader(job.cancel_event, lambda _msg: None)
                     if job.cancel_event.is_set():
                         entry.state = "failed"
                         entry.error = "cancelled"

@@ -284,7 +284,7 @@ export function SettingsPage() {
     sysInfo?.models.filter(m => m.status === 'missing').length ?? 0
 
   const downloadMutation = useMutation({
-    mutationFn: () => modelsApi.downloadMissing(),
+    mutationFn: (keys?: string[]) => modelsApi.downloadMissing(keys),
     onSuccess: job => {
       setStartError(null)
       setDownloadJobId(job.job_id)
@@ -725,7 +725,7 @@ export function SettingsPage() {
               {missingModelCount > 0 ? (
                 <button
                   type="button"
-                  onClick={() => downloadMutation.mutate()}
+                  onClick={() => downloadMutation.mutate(undefined)}
                   disabled={downloadMutation.isPending || jobIsRunning}
                   className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
@@ -764,7 +764,7 @@ export function SettingsPage() {
                 job={job}
                 jobIsRunning={jobIsRunning}
                 onCancel={() => cancelMutation.mutate(job.job_id)}
-                onRetry={() => downloadMutation.mutate()}
+                onRetry={() => downloadMutation.mutate(undefined)}
                 cancelling={cancelMutation.isPending}
                 t={t}
               />
@@ -788,15 +788,26 @@ export function SettingsPage() {
                       ) : m.status === 'needs_extra' ? (
                         <span
                           className="flex items-center gap-1.5 text-amber-600"
-                          title={t.settings.models.needsExtraHint}
+                          title={t.settings.models.needsExtraHint(m.detail)}
                         >
                           <AlertTriangle size={14} />
-                          <span>{t.settings.models.needsExtra}</span>
+                          <span>{t.settings.models.needsExtra(m.detail)}</span>
                         </span>
                       ) : (
                         <>
                           <XCircle size={14} className="text-slate-400" />
                           <span className="text-slate-400">{t.settings.models.missing}</span>
+                          {m.auto_downloadable && (
+                            <button
+                              type="button"
+                              onClick={() => downloadMutation.mutate([m.key])}
+                              disabled={downloadMutation.isPending || jobIsRunning}
+                              className="ml-1.5 flex items-center gap-1 rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              <Download size={12} />
+                              <span>{t.settings.models.singleDownload}</span>
+                            </button>
+                          )}
                         </>
                       )}
                     </div>
