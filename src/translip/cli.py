@@ -60,6 +60,7 @@ from .types import (
     TranscriptionRequest,
     TranslationRequest,
 )
+from .utils.banner import banner_text, print_startup_banner
 from .utils.logging import configure_logging
 
 
@@ -71,9 +72,19 @@ def _parse_hotwords(raw: str | None) -> list[str]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="translip")
+    parser = argparse.ArgumentParser(
+        prog="translip",
+        description=banner_text() + "\n  local-first multi-speaker video dubbing pipeline",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    parser.add_argument(
+        "--no-banner",
+        action="store_true",
+        help="Suppress the startup banner (also via TRANSLIP_NO_BANNER=1)",
+    )
+    # Not required: a bare `translip` prints the banner + help (see main()).
+    subparsers = parser.add_subparsers(dest="command")
 
     run_parser = subparsers.add_parser("run", help="Separate a media file")
     run_parser.add_argument("--input", required=True, help="Input media file path")
@@ -802,6 +813,11 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.command is None:
+        # Bare `translip`: show the banner (via the parser description) + help.
+        parser.print_help()
+        return 0
+    print_startup_banner(enabled=not args.no_banner)
     configure_logging(verbose=args.verbose)
 
     if args.command == "probe":

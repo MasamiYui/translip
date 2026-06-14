@@ -102,8 +102,15 @@ if _FRONTEND_DIST.exists():
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8765) -> None:
+    import sys
+
     import uvicorn
 
+    from ..utils.banner import print_startup_banner
+
+    print_startup_banner()
+    if sys.stderr.isatty():
+        sys.stderr.write(f"  \033[2mserving on\033[0m http://{host}:{port}\n\n")
     logging.basicConfig(level=logging.INFO)
     uvicorn.run("translip.server.app:app", host=host, port=port, reload=False)
 
