@@ -29,7 +29,7 @@
 - **多说话人感知**：不仅输出文本，还围绕说话人 profile / registry 建立可复用资产，并通过角色库把「角色 → 说话人」沉淀为跨任务台账。
 - **可视化配音校对**：内置「配音编辑台」，以问题队列驱动逐段复核，支持实时时长预测、试听倍速、单段重新合成。
 - **缓存感知的可重跑编排**：每个阶段是独立子进程，产物落盘 + manifest，改一个后端/模型只会选择性重算，可从任意阶段重跑。
-- **本地优先 + 一键模型管理**：模型默认在本地运行，管理界面可配置 HuggingFace 令牌（门控模型）并一键检测、下载缺失模型。
+- **本地优先 + 模型管理**：模型默认在本地运行；管理界面可配置 HuggingFace 令牌（门控模型），检测并下载缺失模型——既能一键下载全部，也能逐个下载（含字幕擦除、视觉模型权重）。
 
 ## 界面预览
 
@@ -63,6 +63,8 @@ flowchart LR
 
     TaskA -. "+OCR 字幕模板" .-> OCR["OCR 字幕检测/翻译<br/>+ 字幕擦除"]
     OCR -.-> TaskG
+    TaskA -. "+visual 模板" .-> Visual["Qwen3-VL 画面感知<br/>场景描述"]
+    Visual -. "注入翻译上下文" .-> TaskC
 
     subgraph ControlPlane["控制平面 (FastAPI + React)"]
         UI["React 管理界面"]
@@ -89,7 +91,7 @@ flowchart LR
 **A. 端到端配音流水线**
 
 - 输入视频或音频，自动分离人声与背景音。
-- 基于 `FunASR / Paraformer-zh`（默认）或 `faster-whisper` 生成带说话人标签的转写结果，diarization 支持 `ECAPA` 与 `pyannote 3.1`。
+- 基于 `FunASR / Paraformer-zh`（默认）或 `faster-whisper` 生成转写结果；说话人分离（diarization）为可选项（默认关闭，需显式开启），支持 `ECAPA` 与 `pyannote 3.1`。
 - 为说话人建立 profile / registry，支持跨任务复用。
 - 使用本地 `M2M100` 或 `DeepSeek API` 生成目标语言配音脚本；可选 `asr-dub+visual` 模板用本地 `Qwen3-VL` 给每段台词附带画面描述，显著减少称谓/指代/语气误译。
 - 默认基于 `MOSS-TTS-Nano ONNX` 在本地合成目标语言语音，也可切换到 `Qwen3-TTS` 或 `VoxCPM2`。
@@ -104,7 +106,7 @@ flowchart LR
 - **配音编辑台**：问题队列（静音、音色不匹配、时长拉伸、翻译可信度等）+ 检视面板 + 实时时长预测 + 单段重新合成。
 - **配音评测 / 实验分析**：对完成的配音任务做逐段质检——自动定位「漏配 / 音色不符 / 漏词吞字 / 节奏异常 / 听不清 / 翻译差」，给出综合评分与质量门；菜单栏「配音评测」页可逐段对比原声 vs 配音、查看译文漏词高亮，并可选用 DeepSeek LLM 给译文打分。
 - **作品库 / 角色库**：把任务挂到「作品 → 剧集」，并维护「角色 → 说话人」台账，支持全局 persona 复用。
-- **模型与令牌管理**：在设置页配置 HuggingFace 令牌（解锁 pyannote 等门控模型）、查看模型状态并一键下载缺失模型。
+- **模型与令牌管理**：在设置页配置 HuggingFace 令牌（解锁 pyannote 等门控模型）、查看模型状态，一键下载全部缺失模型或逐个下载（字幕擦除 `sttn`/`big-lama`、视觉 `Qwen3-VL` 等权重均已纳入模型面板）。
 
 ## 工作流模板
 
@@ -198,8 +200,17 @@ uv run translip analyze-video --input video.mp4 --task ocr-classify --detection 
 ```
 
 - **任务**：`scene-context`（场景描述）｜ `erase-qc`（擦除质检）｜ `ocr-classify`（画面文字分类）｜ `speaker-visual`（说话人视觉线索）｜ `freeform`（自由问答）。
-- **后端**：Apple Silicon 默认 MLX（`mlx-community/Qwen3-VL-4B-Instruct-4bit`，约 3.3 GB，首次自动下载到 `<缓存目录>/vision_models`）；其余平台可指向本地 Ollama（`ollama pull qwen3-vl:4b-instruct`），无需安装任何 extra。`--backend auto|mlx|ollama` 控制。
+- **后端**：Apple Silicon 默认 MLX（`mlx-community/Qwen3-VL-4B-Instruct-4bit`，约 3.3 GB，首次自动下载到 `<缓存目录>/vision_models/hf`，需 `uv sync --extra vision`）；其余平台可指向本地 Ollama（`ollama pull qwen3-vl:4b-instruct`），无需安装任何 extra。`--backend auto|mlx|ollama` 控制。
 - **完全本地**：与 OCR/擦除一致，不调用云端服务；翻译阶段在视觉产物缺失时静默降级，不会因此失败。
+
+### 硬字幕擦除（可选）
+
+`asr-dub+ocr-subs+erase` 模板与「字幕擦除」原子工具会复用 OCR 的检测框，对原片硬字幕逐帧修复后重新封装音轨——不另跑检测器，擦除范围以检测框为界：
+
+- **后端**：`sttn`（默认，时空 Transformer 视频修复，时间一致性更好）｜ `lama`（big-LaMa 单帧修复，静帧/动画更锐利）。
+- **安装**：`uv sync --extra erase`（cv2 / pydantic-settings；torch 为基础依赖，无需单独装）。
+- **权重**：`sttn.pth`（约 63 MB）与 `big-lama.pt`（约 196 MB）首次使用时从上游 GitHub 自动下载并校验 sha256，缓存于 `<缓存目录>/erase_models`（`SUBTITLE_ERASE_MODELS_DIR` 可覆盖；`SUBTITLE_ERASE_LOCAL_MODELS_ONLY=1` 禁止下载，需预先放好权重）。也可在设置页「模型状态」逐个下载。
+- **完全本地**：仅修复字幕帧后重新封装原始音轨，不调用云端服务。
 
 ## 环境要求
 
@@ -217,10 +228,11 @@ cd translip
 uv sync                 # 安装运行时依赖
 uv sync --extra dev     # 如需运行测试 / 参与开发
 uv sync --extra ocr     # 如需 OCR 硬字幕识别（内置 PaddleOCR，约数百 MB）
+uv sync --extra erase   # 如需硬字幕擦除（STTN / big-LaMa 视频修复；权重约 63MB / 196MB 首次自动下载）
 uv sync --extra vision  # 如需视频画面感知（Qwen3-VL，仅 Apple Silicon 需要装；其余平台可用 Ollama 零依赖）
 ```
 
-> `uv sync --extra X` 会把环境**精确**同步到 X 并移除其它 extra；要同时保留多个能力，请组合使用，如 `uv sync --extra dev --extra ocr --extra vision`。OCR 字幕识别为**完全本地**实现（内置 PaddleOCR，不调用任何外部服务）；PP-OCRv5 模型权重默认放在 `<缓存目录>/paddleocr_models`，可用 `PADDLEOCR_MODELS_BASE_DIR` 覆盖。
+> `uv sync --extra X` 会把环境**精确**同步到 X 并移除其它 extra；要同时保留多个能力，请组合使用，如 `uv sync --extra dev --extra ocr --extra erase --extra vision`。OCR 字幕识别为**完全本地**实现（内置 PaddleOCR，不调用任何外部服务）；PP-OCRv5 模型权重默认放在 `<缓存目录>/paddleocr_models`，可用 `PADDLEOCR_MODELS_BASE_DIR` 覆盖。
 
 推荐提前下载分离模型（也可在管理界面「全局设置 → 模型状态」一键下载）：
 
@@ -228,7 +240,15 @@ uv sync --extra vision  # 如需视频画面感知（Qwen3-VL，仅 Apple Silico
 uv run translip download-models --backend cdx23 --quality balanced
 ```
 
+> `--backend` 也接受其它可下载键，如 `erase_sttn` / `erase_lama` / `vision_qwen3vl_mlx` / `faster_whisper_small` / `funasr_*`；`translip doctor` 会列出当前缺失项及对应下载命令。
+
 如需使用门控模型（如 `pyannote` 说话人分离），先在 HuggingFace 接受模型许可，再提供 read 权限的访问令牌——可在设置页填写，或通过环境变量 `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN` 提供。DeepSeek 翻译后端、台词校正 LLM 仲裁、翻译质量打分则需要 `DEEPSEEK_API_KEY`。
+
+安装完成后可运行环境自检，一眼确认 FFmpeg、推理设备（CUDA/MPS/CPU）、可选 extra、外部 CLI、API 密钥与各模型权重是否就绪：
+
+```bash
+uv run translip doctor          # 人类可读报告（缺失项附下载命令）；加 --json 供 CI / 脚本
+```
 
 ## 快速开始
 
@@ -293,7 +313,8 @@ uv run translip evaluate-dub --pipeline-root ./output-pipeline/<task_id> --targe
   --output-dir ./output-pipeline/<task_id>/analysis/dub-qa
 #   加 --translation-judge 用 DeepSeek LLM 给译文打分（需 DEEPSEEK_API_KEY）
 
-# 其它：probe（媒体信息）、download-models（预下载模型）
+# 其它：doctor（环境自检）、probe（媒体信息）、download-models（预下载模型）
+uv run translip doctor
 uv run translip probe --input ./test_video/example.mp4
 uv run translip --help    # 查看全部子命令
 ```
@@ -325,8 +346,12 @@ uv run translip --help    # 查看全部子命令
 | `VISION_OLLAMA_HOST` | `http://127.0.0.1:11434` | Ollama 服务地址 |
 | `VISION_HF_CACHE` | `<cache>/vision_models/hf` | 视觉模型权重缓存目录（注入 `HF_HUB_CACHE`） |
 | `VISION_LOCAL_MODELS_ONLY` | `0` | 置 `1` 禁止下载，权重必须已在本地 |
+| `SUBTITLE_ERASE_MODELS_DIR` | `<cache>/erase_models` | 字幕擦除权重（`sttn.pth` / `big-lama.pt`）缓存目录 |
+| `SUBTITLE_ERASE_LOCAL_MODELS_ONLY` | `0` | 置 `1` 禁止下载擦除权重，权重必须已在本地 |
+| `PADDLEOCR_MODELS_BASE_DIR` | `<cache>/paddleocr_models` | 本地 PP-OCRv5 字幕识别模型目录 |
+| `TRANSLIP_NO_BANNER` | 无 | 置任意值禁用启动 banner 与环境摘要（等价于 `--no-banner`） |
 
-更细的默认参数见 [src/translip/config.py](src/translip/config.py)；其余 `VISION_*` 旋钮（帧数/分辨率/温度等）见 [src/translip/vision/config.py](src/translip/vision/config.py)。
+更细的默认参数见 [src/translip/config.py](src/translip/config.py)；其余 `VISION_*` 旋钮（帧数/分辨率/温度等）见 [src/translip/vision/config.py](src/translip/vision/config.py)，`ERASE_*` / `PADDLEOCR_*` 见 [src/translip/erase/config.py](src/translip/erase/config.py) 与 [src/translip/ocr/config.py](src/translip/ocr/config.py)。
 
 ## 开发
 

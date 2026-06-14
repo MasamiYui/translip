@@ -29,7 +29,7 @@
 - **Speaker-aware by default**: outputs are built around speaker profiles and a reusable registry, with a character library that records the "character → speaker" mapping across tasks.
 - **Visual dubbing review**: the built-in Dubbing Editor drives segment-by-segment review from an issue queue, with live duration prediction, preview playback rate, and per-segment re-synthesis.
 - **Cache-aware, re-runnable orchestration**: each stage is an isolated subprocess that writes artifacts + a manifest; changing one backend/model only recomputes what is needed, and you can re-run from any stage.
-- **Local-first with one-click model management**: models run locally by default; the UI configures a HuggingFace token (for gated models) and detects/downloads missing models in one click.
+- **Local-first with built-in model management**: models run locally by default; the UI configures a HuggingFace token (for gated models) and detects/downloads missing models — all at once, or one at a time (subtitle-erase and vision weights included).
 
 ## UI Preview
 
@@ -63,6 +63,8 @@ flowchart LR
 
     TaskA -. "+OCR subs template" .-> OCR["OCR subtitle detect/translate<br/>+ subtitle erase"]
     OCR -.-> TaskG
+    TaskA -. "+visual template" .-> Visual["Qwen3-VL visual perception<br/>scene descriptions"]
+    Visual -. "inject translation context" .-> TaskC
 
     subgraph ControlPlane["Control Plane (FastAPI + React)"]
         UI["React Management UI"]
@@ -89,7 +91,7 @@ The orchestrator holds no task logic: it resolves a node DAG, checks a cache, an
 **A. End-to-end dubbing pipeline**
 
 - Separate dialogue and background audio from video or audio inputs.
-- Generate speaker-attributed transcripts with `FunASR / Paraformer-zh` (default) or `faster-whisper`; diarization via `ECAPA` or `pyannote 3.1`.
+- Generate transcripts with `FunASR / Paraformer-zh` (default) or `faster-whisper`; speaker diarization is optional (off by default, enable explicitly) via `ECAPA` or `pyannote 3.1`.
 - Build reusable speaker profiles and registries for later tasks.
 - Produce dubbing scripts with local `M2M100` or the `DeepSeek API`; the optional `asr-dub+visual` template attaches a per-segment scene description from a local `Qwen3-VL` model, cutting pronoun/honorific/tone mistranslations.
 - Synthesize target-language speech locally with `MOSS-TTS-Nano ONNX` by default, with `Qwen3-TTS` and `VoxCPM2` also available.
@@ -102,8 +104,9 @@ The orchestrator holds no task logic: it resolves a node DAG, checks a cache, an
 **C. Collaboration & assets**
 
 - **Dubbing Editor**: an issue queue (silence, voice mismatch, duration stretch, low translation confidence, etc.) + inspector + live duration prediction + per-segment re-synthesis.
+- **Dub evaluation / experiment analysis**: per-segment QC of a finished dub — automatically flags missing dub / voice mismatch / dropped words / off-rhythm / unintelligible / poor translation, with an overall score and a quality gate; the "Dub Evaluation" page compares source vs dub segment by segment, highlights dropped words in the translation, and can optionally score translations with a DeepSeek LLM.
 - **Works / Character libraries**: attach tasks to a "work → episode" and maintain a "character → speaker" ledger, with reusable global personas.
-- **Model & token management**: configure the HuggingFace token (to unlock gated models such as pyannote), inspect model status, and download missing models in one click.
+- **Model & token management**: configure the HuggingFace token (to unlock gated models such as pyannote), inspect model status, and download all missing models at once or one at a time (subtitle-erase `sttn`/`big-lama` and vision `Qwen3-VL` weights are included in the panel).
 
 ## Workflow Templates
 
@@ -124,7 +127,7 @@ The UI is the primary day-to-day entry point. The left navigation is grouped int
 - **Task Center**: pipeline task list, new pipeline task (stepped wizard + grouped advanced config), task detail (stage DAG / progress / artifacts / rerun from any stage), the **Dubbing Editor**, and the speaker-review harness.
 - **Atomic Tools**: 11 standalone single-tool jobs (separation, mixing, transcription, correction, translation, synthesis, muxing, subtitle detect/erase, video content analysis, probe), each with its own upload + parameter panel; outputs can flow straight into the next tool.
 - **Works / Character libraries**: cross-task works-and-episodes assets and the character→speaker ledger.
-- **Settings**: system info & cache cleanup, TMDB API, HuggingFace token, model status & one-click download, and task default parameters.
+- **Settings**: system info & cache cleanup, TMDB API, HuggingFace token, model status & download (all missing / one at a time), and task default parameters.
 
 ### Development Mode
 
@@ -197,8 +200,17 @@ uv run translip analyze-video --input video.mp4 --task ocr-classify --detection 
 ```
 
 - **Tasks**: `scene-context` | `erase-qc` | `ocr-classify` | `speaker-visual` | `freeform`.
-- **Backends**: Apple Silicon defaults to MLX (`mlx-community/Qwen3-VL-4B-Instruct-4bit`, ~3.3 GB, auto-downloaded to `<cache>/vision_models`; install with `uv sync --extra vision`); other platforms can point at a local Ollama (`ollama pull qwen3-vl:4b-instruct`) with zero extra dependencies. Controlled via `--backend auto|mlx|ollama`.
+- **Backends**: Apple Silicon defaults to MLX (`mlx-community/Qwen3-VL-4B-Instruct-4bit`, ~3.3 GB, auto-downloaded to `<cache>/vision_models/hf`; install with `uv sync --extra vision`); other platforms can point at a local Ollama (`ollama pull qwen3-vl:4b-instruct`) with zero extra dependencies. Controlled via `--backend auto|mlx|ollama`.
 - **Fully local**: like OCR/erase, no cloud calls; translation degrades gracefully when the visual artifact is missing.
+
+### Hard-subtitle erasure (optional)
+
+The `asr-dub+ocr-subs+erase` template and the "Subtitle Erase" atomic tool reuse the OCR detection boxes to inpaint the source video's hard subtitles frame by frame, then re-mux the original audio — no second detector, and erasure is bounded by the detection boxes:
+
+- **Backends**: `sttn` (default — spatial-temporal transformer video inpainting, better temporal coherence) | `lama` (big-LaMa single-frame, sharper for stills/animation).
+- **Install**: `uv sync --extra erase` (cv2 / pydantic-settings; torch is a base dependency, no separate install).
+- **Weights**: `sttn.pth` (~63 MB) and `big-lama.pt` (~196 MB) auto-download from the upstream GitHub tree and are sha256-verified on first use, cached under `<cache>/erase_models` (override with `SUBTITLE_ERASE_MODELS_DIR`; `SUBTITLE_ERASE_LOCAL_MODELS_ONLY=1` forbids downloads — weights must be pre-placed). They can also be downloaded per-model from Settings → Model status.
+- **Fully local**: only subtitle frames are inpainted before re-muxing the original audio; no cloud calls.
 
 ## Requirements
 
@@ -216,10 +228,11 @@ cd translip
 uv sync                 # runtime deps
 uv sync --extra dev     # add pytest etc. for tests / development
 uv sync --extra ocr     # in-tree PaddleOCR hard-subtitle detection
+uv sync --extra erase   # hard-subtitle erasure (STTN / big-LaMa inpainting; ~63MB / ~196MB weights auto-download on first use)
 uv sync --extra vision  # video content perception (Qwen3-VL; only needed on Apple Silicon — other platforms can use Ollama with no extra)
 ```
 
-> `uv sync --extra X` syncs the environment to *exactly* X, dropping other extras — combine flags to keep several, e.g. `uv sync --extra dev --extra ocr --extra vision`.
+> `uv sync --extra X` syncs the environment to *exactly* X, dropping other extras — combine flags to keep several, e.g. `uv sync --extra dev --extra ocr --extra erase --extra vision`.
 
 Recommended: preload the separation model (or use the UI: Settings → Model status → one-click download):
 
@@ -227,7 +240,15 @@ Recommended: preload the separation model (or use the UI: Settings → Model sta
 uv run translip download-models --backend cdx23 --quality balanced
 ```
 
+> `--backend` also accepts other downloadable keys, e.g. `erase_sttn` / `erase_lama` / `vision_qwen3vl_mlx` / `faster_whisper_small` / `funasr_*`; `translip doctor` lists what is currently missing along with the matching download command.
+
 For gated models (e.g. `pyannote` diarization), accept the model license on HuggingFace, then provide a read-scoped access token — either in the Settings page or via `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN`. The DeepSeek translation backend, transcript-correction LLM arbitration, and translation quality scoring need `DEEPSEEK_API_KEY`.
+
+After installing, run the environment self-check to confirm FFmpeg, the inference device (CUDA/MPS/CPU), optional extras, external CLIs, API keys, and model weights are all ready:
+
+```bash
+uv run translip doctor          # human-readable report (missing items include a download command); add --json for CI / scripts
+```
 
 ## Quick Start
 
@@ -287,7 +308,13 @@ uv run translip synthesize-speaker --translation ./output-task-c/voice/translati
   --profiles ./output-task-b/voice/speaker_profiles.json --speaker-id spk_0000 \
   --backend moss-tts-nano-onnx --output-dir ./output-task-d --device auto
 
-# Misc: probe (media info), download-models (preload models)
+# Dub evaluation: per-segment QC of finished pipeline output (missing dub / voice / dropped words / rhythm / translation)
+uv run translip evaluate-dub --pipeline-root ./output-pipeline/<task_id> --target-lang en \
+  --output-dir ./output-pipeline/<task_id>/analysis/dub-qa
+#   add --translation-judge to score translations with a DeepSeek LLM (needs DEEPSEEK_API_KEY)
+
+# Misc: doctor (environment self-check), probe (media info), download-models (preload models)
+uv run translip doctor
 uv run translip probe --input ./test_video/example.mp4
 uv run translip --help    # list all subcommands
 ```
@@ -319,8 +346,12 @@ uv run translip --help    # list all subcommands
 | `VISION_OLLAMA_HOST` | `http://127.0.0.1:11434` | Ollama server address |
 | `VISION_HF_CACHE` | `<cache>/vision_models/hf` | Vision model weight cache (injected as `HF_HUB_CACHE`) |
 | `VISION_LOCAL_MODELS_ONLY` | `0` | Set `1` to forbid downloads; weights must be pre-placed |
+| `SUBTITLE_ERASE_MODELS_DIR` | `<cache>/erase_models` | Cache for subtitle-erase weights (`sttn.pth` / `big-lama.pt`) |
+| `SUBTITLE_ERASE_LOCAL_MODELS_ONLY` | `0` | Set `1` to forbid downloading erase weights; must be pre-placed |
+| `PADDLEOCR_MODELS_BASE_DIR` | `<cache>/paddleocr_models` | Local PP-OCRv5 subtitle-OCR model directory |
+| `TRANSLIP_NO_BANNER` | none | Set to any value to suppress the startup banner + env summary (same as `--no-banner`) |
 
-For more defaults, see [src/translip/config.py](src/translip/config.py); the remaining `VISION_*` knobs (frames/resolution/temperature) live in [src/translip/vision/config.py](src/translip/vision/config.py).
+For more defaults, see [src/translip/config.py](src/translip/config.py); the remaining `VISION_*` knobs (frames/resolution/temperature) live in [src/translip/vision/config.py](src/translip/vision/config.py), and `ERASE_*` / `PADDLEOCR_*` in [src/translip/erase/config.py](src/translip/erase/config.py) and [src/translip/ocr/config.py](src/translip/ocr/config.py).
 
 ## Development
 
