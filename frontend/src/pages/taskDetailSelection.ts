@@ -21,5 +21,5 @@ export function resolveRerunStage(
   currentStage: string | null | undefined,
   graph: WorkflowGraph | undefined,
 ) {
-  return userSelectedRerunStage ?? getAutoSelectedStageId(currentStage, graph) ?? 'stage1'
+  return userSelectedRerunStage ?? getAutoSelectedStageId(currentStage, graph) ?? 'separation'
 }

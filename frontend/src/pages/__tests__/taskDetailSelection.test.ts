@@ -9,7 +9,7 @@ const graph: WorkflowGraph = {
   },
   nodes: [
     {
-      id: 'stage1',
+      id: 'separation',
       label: 'Stage 1',
       status: 'pending',
       progress_percent: 0,
@@ -17,7 +17,7 @@ const graph: WorkflowGraph = {
       group: 'audio-spine',
     },
     {
-      id: 'task-a',
+      id: 'transcription',
       label: 'Task A',
       status: 'pending',
       progress_percent: 0,
@@ -30,18 +30,18 @@ const graph: WorkflowGraph = {
 
 describe('task detail selection helpers', () => {
   it('defaults to the current task stage when the user has not made a selection', () => {
-    expect(resolveActiveStageId(undefined, 'task-a', graph)).toBe('task-a')
+    expect(resolveActiveStageId(undefined, 'transcription', graph)).toBe('transcription')
   })
 
   it('falls back to the first workflow node when there is no current stage', () => {
-    expect(resolveActiveStageId(undefined, null, graph)).toBe('stage1')
+    expect(resolveActiveStageId(undefined, null, graph)).toBe('separation')
   })
 
   it('preserves an explicit close action instead of auto-selecting again', () => {
-    expect(resolveActiveStageId(null, 'task-a', graph)).toBeNull()
+    expect(resolveActiveStageId(null, 'transcription', graph)).toBeNull()
   })
 
   it('uses the effective selection as the default rerun stage', () => {
-    expect(resolveRerunStage(undefined, 'task-a', graph)).toBe('task-a')
+    expect(resolveRerunStage(undefined, 'transcription', graph)).toBe('transcription')
   })
 })

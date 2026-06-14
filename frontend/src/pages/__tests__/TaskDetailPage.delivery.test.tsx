@@ -80,12 +80,12 @@ function mockTask(id: string) {
         clean: { status: 'missing', path: null },
       },
       audio: {
-        preview: { status: 'available', path: 'task-e/voice/preview_mix.en.wav' },
-        dub: { status: 'available', path: 'task-e/voice/dub_voice.en.wav' },
+        preview: { status: 'available', path: 'render/voice/preview_mix.en.wav' },
+        dub: { status: 'available', path: 'render/voice/dub_voice.en.wav' },
       },
       subtitles: {
         ocr_translated: { status: 'missing', path: null },
-        asr_translated: { status: 'available', path: 'task-c/voice/translation.en.srt' },
+        asr_translated: { status: 'available', path: 'translation/voice/translation.en.srt' },
       },
       exports: {
         subtitle_preview: { status: 'missing', path: null },
@@ -106,10 +106,10 @@ function mockTask(id: string) {
       files: [],
     },
     overall_progress: 100,
-    current_stage: 'task-g',
+    current_stage: 'delivery',
     created_at: '2026-04-16T00:00:00Z',
     updated_at: '2026-04-16T00:00:00Z',
-    stages: [{ stage_name: 'task-g', status: 'succeeded', progress_percent: 100, cache_hit: false }],
+    stages: [{ stage_name: 'delivery', status: 'succeeded', progress_percent: 100, cache_hit: false }],
   }
 }
 
@@ -131,7 +131,7 @@ describe('TaskDetailPage export workflow', () => {
     vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
     vi.mocked(tasksApi.getGraph).mockResolvedValue({
       workflow: { template_id: 'asr-dub-basic', status: 'succeeded' },
-      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      nodes: [{ id: 'delivery', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
       edges: [],
     } as never)
     vi.mocked(tasksApi.getSpeakerReview).mockResolvedValue({ task_id: 'task-works-ui', status: 'missing' } as never)
@@ -181,7 +181,7 @@ describe('TaskDetailPage export workflow', () => {
     vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
     vi.mocked(tasksApi.getGraph).mockResolvedValue({
       workflow: { template_id: 'asr-dub-basic', status: 'succeeded' },
-      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      nodes: [{ id: 'delivery', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
       edges: [],
     } as never)
     vi.mocked(tasksApi.getSpeakerReview).mockResolvedValue({
@@ -314,12 +314,12 @@ describe('TaskDetailPage export workflow', () => {
           clean: { status: 'available', path: 'subtitle-erase/clean_video.mp4' },
         },
         audio: {
-          preview: { status: 'available', path: 'task-e/voice/preview_mix.en.wav' },
-          dub: { status: 'available', path: 'task-e/voice/dub_voice.en.wav' },
+          preview: { status: 'available', path: 'render/voice/preview_mix.en.wav' },
+          dub: { status: 'available', path: 'render/voice/dub_voice.en.wav' },
         },
         subtitles: {
           ocr_translated: { status: 'available', path: 'ocr-translate/ocr_subtitles.en.srt' },
-          asr_translated: { status: 'available', path: 'task-c/voice/translation.en.srt' },
+          asr_translated: { status: 'available', path: 'translation/voice/translation.en.srt' },
         },
         exports: {
           subtitle_preview: { status: 'missing', path: null },
@@ -349,16 +349,16 @@ describe('TaskDetailPage export workflow', () => {
         algorithm_version: 'ocr-guided-asr-correction-v1',
       },
       overall_progress: 100,
-      current_stage: 'task-g',
+      current_stage: 'delivery',
       created_at: '2026-04-16T00:00:00Z',
       updated_at: '2026-04-16T00:00:00Z',
-      stages: [{ stage_name: 'task-g', status: 'succeeded', progress_percent: 100, cache_hit: false }],
+      stages: [{ stage_name: 'delivery', status: 'succeeded', progress_percent: 100, cache_hit: false }],
     } as never)
 
     vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
     vi.mocked(tasksApi.getGraph).mockResolvedValue({
       workflow: { template_id: 'asr-dub+ocr-subs+erase', status: 'succeeded' },
-      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      nodes: [{ id: 'delivery', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
       edges: [],
     } as never)
 
@@ -386,7 +386,7 @@ describe('TaskDetailPage export workflow', () => {
     expect(screen.getByText('2. 确认素材来源')).toBeInTheDocument()
     const audioSourceCard = screen.getByText('音轨来源').closest('.rounded-xl') as HTMLElement
     expect(within(audioSourceCard).getByText('配音+背景混音音轨')).toBeInTheDocument()
-    expect(within(audioSourceCard).getByText('task-e/voice/preview_mix.en.wav')).toBeInTheDocument()
+    expect(within(audioSourceCard).getByText('render/voice/preview_mix.en.wav')).toBeInTheDocument()
     expect(screen.getByText('3. 选择字幕样式')).toBeInTheDocument()
     expect(screen.getByText('4. 预览并导出')).toBeInTheDocument()
     expect(screen.getByDisplayValue('Source Han Sans')).toBeInTheDocument()
@@ -420,8 +420,8 @@ describe('TaskDetailPage export workflow', () => {
           clean: { status: 'missing', path: null },
         },
         audio: {
-          preview: { status: 'available', path: 'task-e/voice/preview_mix.en.wav' },
-          dub: { status: 'available', path: 'task-e/voice/dub_voice.en.wav' },
+          preview: { status: 'available', path: 'render/voice/preview_mix.en.wav' },
+          dub: { status: 'available', path: 'render/voice/dub_voice.en.wav' },
         },
         subtitles: {
           ocr_translated: { status: 'available', path: 'ocr-translate/ocr_subtitles.en.srt' },
@@ -453,16 +453,16 @@ describe('TaskDetailPage export workflow', () => {
         files: [],
       },
       overall_progress: 100,
-      current_stage: 'task-g',
+      current_stage: 'delivery',
       created_at: '2026-04-16T00:00:00Z',
       updated_at: '2026-04-16T00:00:00Z',
-      stages: [{ stage_name: 'task-g', status: 'succeeded', progress_percent: 100, cache_hit: false }],
+      stages: [{ stage_name: 'delivery', status: 'succeeded', progress_percent: 100, cache_hit: false }],
     } as never)
 
     vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
     vi.mocked(tasksApi.getGraph).mockResolvedValue({
       workflow: { template_id: 'asr-dub+ocr-subs+erase', status: 'succeeded' },
-      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      nodes: [{ id: 'delivery', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
       edges: [],
     } as never)
 
@@ -477,7 +477,7 @@ describe('TaskDetailPage export workflow', () => {
     vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
     vi.mocked(tasksApi.getGraph).mockResolvedValue({
       workflow: { template_id: 'asr-dub-basic', status: 'succeeded' },
-      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      nodes: [{ id: 'delivery', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
       edges: [],
     } as never)
     vi.mocked(tasksApi.composeDelivery).mockResolvedValue({} as never)
@@ -520,8 +520,8 @@ describe('TaskDetailPage export workflow', () => {
           clean: { status: 'missing', path: null },
         },
         audio: {
-          preview: { status: 'available', path: 'task-e/voice/preview_mix.en.wav' },
-          dub: { status: 'available', path: 'task-e/voice/dub_voice.en.wav' },
+          preview: { status: 'available', path: 'render/voice/preview_mix.en.wav' },
+          dub: { status: 'available', path: 'render/voice/dub_voice.en.wav' },
         },
         subtitles: {
           ocr_translated: { status: 'available', path: 'ocr-translate/ocr_subtitles.en.srt' },
@@ -546,16 +546,16 @@ describe('TaskDetailPage export workflow', () => {
         files: [],
       },
       overall_progress: 100,
-      current_stage: 'task-g',
+      current_stage: 'delivery',
       created_at: '2026-04-16T00:00:00Z',
       updated_at: '2026-04-16T00:00:00Z',
-      stages: [{ stage_name: 'task-g', status: 'succeeded', progress_percent: 100, cache_hit: false }],
+      stages: [{ stage_name: 'delivery', status: 'succeeded', progress_percent: 100, cache_hit: false }],
     } as never)
 
     vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
     vi.mocked(tasksApi.getGraph).mockResolvedValue({
       workflow: { template_id: 'asr-dub+ocr-subs+erase', status: 'succeeded' },
-      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      nodes: [{ id: 'delivery', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
       edges: [],
     } as never)
 
@@ -566,11 +566,11 @@ describe('TaskDetailPage export workflow', () => {
 
     expect(screen.getByRole('link', { name: '下载纯配音音轨' })).toHaveAttribute(
       'href',
-      '/api/tasks/task-3/artifacts/task-e/voice/dub_voice.en.wav',
+      '/api/tasks/task-3/artifacts/render/voice/dub_voice.en.wav',
     )
     expect(screen.getByRole('link', { name: '下载预览混音音轨' })).toHaveAttribute(
       'href',
-      '/api/tasks/task-3/artifacts/task-e/voice/preview_mix.en.wav',
+      '/api/tasks/task-3/artifacts/render/voice/preview_mix.en.wav',
     )
     expect(screen.getByRole('link', { name: '下载OCR 英文字幕' })).toHaveAttribute(
       'href',
@@ -605,12 +605,12 @@ describe('TaskDetailPage export workflow', () => {
           clean: { status: 'missing', path: null },
         },
         audio: {
-          preview: { status: 'available', path: 'task-e/voice/preview_mix.en.wav' },
-          dub: { status: 'available', path: 'task-e/voice/dub_voice.en.wav' },
+          preview: { status: 'available', path: 'render/voice/preview_mix.en.wav' },
+          dub: { status: 'available', path: 'render/voice/dub_voice.en.wav' },
         },
         subtitles: {
           ocr_translated: { status: 'available', path: 'ocr-translate/ocr_subtitles.en.srt' },
-          asr_translated: { status: 'available', path: 'task-c/voice/translation.en.srt' },
+          asr_translated: { status: 'available', path: 'translation/voice/translation.en.srt' },
         },
         exports: {
           subtitle_preview: { status: 'missing', path: null },
@@ -631,16 +631,16 @@ describe('TaskDetailPage export workflow', () => {
         files: [],
       },
       overall_progress: 100,
-      current_stage: 'task-g',
+      current_stage: 'delivery',
       created_at: '2026-04-16T00:00:00Z',
       updated_at: '2026-04-16T00:00:00Z',
-      stages: [{ stage_name: 'task-g', status: 'succeeded', progress_percent: 100, cache_hit: false }],
+      stages: [{ stage_name: 'delivery', status: 'succeeded', progress_percent: 100, cache_hit: false }],
     } as never)
 
     vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
     vi.mocked(tasksApi.getGraph).mockResolvedValue({
       workflow: { template_id: 'asr-dub+ocr-subs', status: 'succeeded' },
-      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      nodes: [{ id: 'delivery', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
       edges: [],
     } as never)
     vi.mocked(tasksApi.composeDelivery).mockResolvedValue({} as never)
@@ -695,12 +695,12 @@ describe('TaskDetailPage export workflow', () => {
           clean: { status: 'available', path: 'subtitle-erase/clean_video.mp4' },
         },
         audio: {
-          preview: { status: 'available', path: 'task-e/voice/preview_mix.en.wav' },
-          dub: { status: 'available', path: 'task-e/voice/dub_voice.en.wav' },
+          preview: { status: 'available', path: 'render/voice/preview_mix.en.wav' },
+          dub: { status: 'available', path: 'render/voice/dub_voice.en.wav' },
         },
         subtitles: {
           ocr_translated: { status: 'available', path: 'ocr-translate/ocr_subtitles.en.srt' },
-          asr_translated: { status: 'available', path: 'task-c/voice/translation.en.srt' },
+          asr_translated: { status: 'available', path: 'translation/voice/translation.en.srt' },
         },
         exports: {
           subtitle_preview: { status: 'missing', path: null },
@@ -721,16 +721,16 @@ describe('TaskDetailPage export workflow', () => {
         files: [],
       },
       overall_progress: 100,
-      current_stage: 'task-g',
+      current_stage: 'delivery',
       created_at: '2026-04-16T00:00:00Z',
       updated_at: '2026-04-16T00:00:00Z',
-      stages: [{ stage_name: 'task-g', status: 'succeeded', progress_percent: 100, cache_hit: false }],
+      stages: [{ stage_name: 'delivery', status: 'succeeded', progress_percent: 100, cache_hit: false }],
     } as never)
 
     vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
     vi.mocked(tasksApi.getGraph).mockResolvedValue({
       workflow: { template_id: 'asr-dub+ocr-subs+erase', status: 'succeeded' },
-      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      nodes: [{ id: 'delivery', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
       edges: [],
     } as never)
     vi.mocked(tasksApi.composeDelivery).mockResolvedValue({} as never)
@@ -781,12 +781,12 @@ describe('TaskDetailPage export workflow', () => {
           clean: { status: 'missing', path: null },
         },
         audio: {
-          preview: { status: 'available', path: 'task-e/voice/preview_mix.en.wav' },
-          dub: { status: 'available', path: 'task-e/voice/dub_voice.en.wav' },
+          preview: { status: 'available', path: 'render/voice/preview_mix.en.wav' },
+          dub: { status: 'available', path: 'render/voice/dub_voice.en.wav' },
         },
         subtitles: {
           ocr_translated: { status: 'available', path: 'ocr-translate/ocr_subtitles.en.srt' },
-          asr_translated: { status: 'available', path: 'task-c/voice/translation.en.srt' },
+          asr_translated: { status: 'available', path: 'translation/voice/translation.en.srt' },
         },
         exports: {
           subtitle_preview: { status: 'missing', path: null },
@@ -807,17 +807,17 @@ describe('TaskDetailPage export workflow', () => {
         files: [],
       },
       overall_progress: 100,
-      current_stage: 'task-g',
+      current_stage: 'delivery',
       created_at: '2026-04-16T00:00:00Z',
       updated_at: '2026-04-16T00:00:00Z',
-      stages: [{ stage_name: 'task-g', status: 'succeeded', progress_percent: 100, cache_hit: false }],
+      stages: [{ stage_name: 'delivery', status: 'succeeded', progress_percent: 100, cache_hit: false }],
     }
 
     vi.mocked(tasksApi.get).mockResolvedValue(task as never)
     vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
     vi.mocked(tasksApi.getGraph).mockResolvedValue({
       workflow: { template_id: 'asr-dub+ocr-subs', status: 'succeeded' },
-      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      nodes: [{ id: 'delivery', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
       edges: [],
     } as never)
     vi.mocked(tasksApi.createSubtitlePreview).mockResolvedValue({} as never)
@@ -836,7 +836,7 @@ describe('TaskDetailPage export workflow', () => {
       expect(tasksApi.createSubtitlePreview).toHaveBeenCalledWith(
         'task-1',
         expect.objectContaining({
-          subtitle_path: 'task-c/voice/translation.en.srt',
+          subtitle_path: 'translation/voice/translation.en.srt',
         }),
       )
     })
@@ -876,8 +876,8 @@ describe('TaskDetailPage export workflow', () => {
           clean: { status: 'missing', path: null },
         },
         audio: {
-          preview: { status: 'available', path: 'task-e/voice/preview_mix.en.wav' },
-          dub: { status: 'available', path: 'task-e/voice/dub_voice.en.wav' },
+          preview: { status: 'available', path: 'render/voice/preview_mix.en.wav' },
+          dub: { status: 'available', path: 'render/voice/dub_voice.en.wav' },
         },
         subtitles: {
           ocr_translated: { status: 'available', path: 'ocr-translate/ocr_subtitles.en.srt' },
@@ -885,8 +885,8 @@ describe('TaskDetailPage export workflow', () => {
         },
         exports: {
           subtitle_preview: { status: 'missing', path: null },
-          final_preview: { status: 'available', path: 'task-g/final-preview/final_preview.en.mp4' },
-          final_dub: { status: 'available', path: 'task-g/final-dub/final_dub.en.mp4' },
+          final_preview: { status: 'available', path: 'delivery/final-preview/final_preview.en.mp4' },
+          final_dub: { status: 'available', path: 'delivery/final-dub/final_dub.en.mp4' },
         },
       },
       export_readiness: {
@@ -900,21 +900,21 @@ describe('TaskDetailPage export workflow', () => {
         profile: 'english_subtitle_burned',
         updated_at: '2026-04-16T00:00:00Z',
         files: [
-          { kind: 'preview', label: '预览混音', path: 'task-g/final-preview/final_preview.en.mp4' },
-          { kind: 'dub', label: '纯配音成品', path: 'task-g/final-dub/final_dub.en.mp4' },
+          { kind: 'preview', label: '预览混音', path: 'delivery/final-preview/final_preview.en.mp4' },
+          { kind: 'dub', label: '纯配音成品', path: 'delivery/final-dub/final_dub.en.mp4' },
         ],
       },
       overall_progress: 100,
-      current_stage: 'task-g',
+      current_stage: 'delivery',
       created_at: '2026-04-16T00:00:00Z',
       updated_at: '2026-04-16T00:00:00Z',
-      stages: [{ stage_name: 'task-g', status: 'succeeded', progress_percent: 100, cache_hit: false }],
+      stages: [{ stage_name: 'delivery', status: 'succeeded', progress_percent: 100, cache_hit: false }],
     } as never)
 
     vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
     vi.mocked(tasksApi.getGraph).mockResolvedValue({
       workflow: { template_id: 'asr-dub+ocr-subs+erase', status: 'succeeded' },
-      nodes: [{ id: 'task-g', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
+      nodes: [{ id: 'delivery', label: 'Task G', group: 'delivery', required: true, status: 'succeeded', progress_percent: 100 }],
       edges: [],
     } as never)
 

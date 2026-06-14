@@ -15,7 +15,7 @@ describe('WorkflowNodeDrawer', () => {
       <I18nProvider>
         <WorkflowNodeDrawer
           node={{
-            id: 'task-e',
+            id: 'render',
             label: 'Task E',
             group: 'audio-spine',
             required: true,
@@ -38,14 +38,14 @@ describe('WorkflowNodeDrawer', () => {
       <I18nProvider>
         <WorkflowNodeDrawer
           node={{
-            id: 'task-d',
+            id: 'synthesis',
             label: 'Task D',
             group: 'audio-spine',
             required: true,
             status: 'succeeded',
             progress_percent: 100,
           }}
-          artifacts={[{ path: 'task-d/spk_0000/seg-0001.wav', size_bytes: 146_000, suffix: '.wav' }]}
+          artifacts={[{ path: 'synthesis/spk_0000/seg-0001.wav', size_bytes: 146_000, suffix: '.wav' }]}
           taskId="task-1"
           onClose={() => {}}
         />
@@ -57,7 +57,7 @@ describe('WorkflowNodeDrawer', () => {
     const audio = container.querySelector('audio')
     expect(audio).toBeInTheDocument()
     expect(audio).toHaveAttribute('controls')
-    expect(audio).toHaveAttribute('src', '/api/tasks/task-1/artifacts/task-d/spk_0000/seg-0001.wav?preview=1')
+    expect(audio).toHaveAttribute('src', '/api/tasks/task-1/artifacts/synthesis/spk_0000/seg-0001.wav?preview=1')
   })
 
   it('loads and formats a json artifact inline', async () => {
@@ -71,14 +71,14 @@ describe('WorkflowNodeDrawer', () => {
       <I18nProvider>
         <WorkflowNodeDrawer
           node={{
-            id: 'task-a',
+            id: 'transcription',
             label: 'Task A',
             group: 'audio-spine',
             required: true,
             status: 'succeeded',
             progress_percent: 100,
           }}
-          artifacts={[{ path: 'task-a/voice/segments.zh.json', size_bytes: 540, suffix: '.json' }]}
+          artifacts={[{ path: 'transcription/voice/segments.zh.json', size_bytes: 540, suffix: '.json' }]}
           taskId="task-1"
           onClose={() => {}}
         />
@@ -90,7 +90,7 @@ describe('WorkflowNodeDrawer', () => {
     await screen.findByText(/"segments":/)
     expect(screen.getByText(/"text": "hello"/)).toBeInTheDocument()
     await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith('/api/tasks/task-1/artifacts/task-a/voice/segments.zh.json?preview=1')
+      expect(fetchMock).toHaveBeenCalledWith('/api/tasks/task-1/artifacts/transcription/voice/segments.zh.json?preview=1')
     })
   })
 
@@ -105,14 +105,14 @@ describe('WorkflowNodeDrawer', () => {
       <I18nProvider>
         <WorkflowNodeDrawer
           node={{
-            id: 'task-a',
+            id: 'transcription',
             label: 'Task A',
             group: 'audio-spine',
             required: true,
             status: 'succeeded',
             progress_percent: 100,
           }}
-          artifacts={[{ path: 'task-a/voice/segments.zh.json', size_bytes: 540, suffix: '.json' }]}
+          artifacts={[{ path: 'transcription/voice/segments.zh.json', size_bytes: 540, suffix: '.json' }]}
           taskId="task-1"
           onClose={() => {}}
         />

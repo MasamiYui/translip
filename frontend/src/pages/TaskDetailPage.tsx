@@ -51,17 +51,17 @@ import type {
 } from '../types'
 
 const ARTIFACT_PREFIX: Record<string, string[]> = {
-  stage1: ['stage1/', 'voice/', 'background/'],
+  separation: ['separation/', 'voice/', 'background/'],
   'ocr-detect': ['ocr-detect/'],
-  'task-a': ['task-a/voice/', 'task-a/'],
+  'transcription': ['transcription/voice/', 'transcription/'],
   'asr-ocr-correct': ['asr-ocr-correct/voice/', 'asr-ocr-correct/'],
-  'task-b': ['task-b/voice/', 'task-b/'],
-  'task-c': ['task-c/voice/', 'task-c/'],
+  'speaker-registry': ['speaker-registry/voice/', 'speaker-registry/'],
+  'translation': ['translation/voice/', 'translation/'],
   'ocr-translate': ['ocr-translate/'],
-  'task-d': ['task-d/'],
-  'task-e': ['task-e/voice/', 'task-e/'],
+  'synthesis': ['synthesis/'],
+  'render': ['render/voice/', 'render/'],
   'subtitle-erase': ['subtitle-erase/'],
-  'task-g': ['task-g/', 'delivery/', 'preview/'],
+  'delivery': ['delivery/', 'delivery/', 'preview/'],
 }
 
 const DOWNLOAD_ICON_BUTTON_CLASS =
@@ -696,7 +696,7 @@ export function TaskDetailPage() {
             canOpenExportDrawer={canOpenExportDrawer}
             onOpenSpeakerReview={openSpeakerReview}
             onOpenExport={() => setExportDrawerOpen(true)}
-            onRerunFromTaskB={speakerReviewStatus.state === 'applied' ? () => rerunMutation.mutate('task-b') : undefined}
+            onRerunFromTaskB={speakerReviewStatus.state === 'applied' ? () => rerunMutation.mutate('speaker-registry') : undefined}
             isRerunPending={rerunMutation.isPending}
           />
 
@@ -893,7 +893,7 @@ export function TaskDetailPage() {
         onClose={closeSpeakerReview}
         onRerunFromTaskB={() => {
           closeSpeakerReview()
-          rerunMutation.mutate('task-b')
+          rerunMutation.mutate('speaker-registry')
         }}
       />
 
@@ -1308,9 +1308,9 @@ function blockerActionToStage(action: string, fallbackStage: string): string | n
     case 'rerun_subtitle_erase':
       return 'subtitle-erase'
     case 'rerun_subtitle_generation':
-      return 'task-c'
+      return 'translation'
     case 'rerun_audio_pipeline':
-      return 'task-e'
+      return 'render'
     case 'rerun_task':
       return fallbackStage
     default:

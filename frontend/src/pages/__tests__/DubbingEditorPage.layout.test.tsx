@@ -57,9 +57,9 @@ function mockProject(): DubbingEditorProject {
     status: 'ready',
     source_video_path: '/tmp/source.mp4',
     artifact_paths: {
-      final_dub: 'task-g/final-dub/final_dub.en.mp4',
-      dub_voice: 'task-e/voice/dub_voice.en.wav',
-      preview_mix: 'task-e/voice/preview_mix.en.wav',
+      final_dub: 'delivery/final-dub/final_dub.en.mp4',
+      dub_voice: 'render/voice/dub_voice.en.wav',
+      preview_mix: 'render/voice/preview_mix.en.wav',
     },
     quality_benchmark: {
       version: 'v1',
@@ -105,7 +105,7 @@ function mockProject(): DubbingEditorProject {
         current_clip: {
           clip_id: 'clip-1',
           audio_path: null,
-          audio_artifact_path: 'task-e/voice/clips/seg-0003.wav',
+          audio_artifact_path: 'render/voice/clips/seg-0003.wav',
           duration: 2.1,
           backend: 'qwen',
           mix_status: 'mixed',
@@ -277,7 +277,7 @@ describe('DubbingEditorPage resizable workbench layout', () => {
     const monitorAudio = screen.getByTestId('edit-monitor-audio')
     expect(monitorAudio).toHaveAttribute(
       'src',
-      '/api/tasks/task-layout/artifacts/task-e/voice/dub_voice.en.wav',
+      '/api/tasks/task-layout/artifacts/render/voice/dub_voice.en.wav',
     )
 
     fireEvent.click(screen.getByTestId('edit-monitor-play'))
@@ -290,7 +290,7 @@ describe('DubbingEditorPage resizable workbench layout', () => {
     vi.mocked(dubbingEditorApi.synthesizeUnit).mockResolvedValue({
       status: 'queued',
       unit_id: 'unit-1',
-      audio_artifact_path: 'task-e/voice/clips/seg-0003.wav',
+      audio_artifact_path: 'render/voice/clips/seg-0003.wav',
       synthesized_at: '2026-05-16T10:00:00.000Z',
       message: 'Re-synthesis queued.',
     })
@@ -309,7 +309,7 @@ describe('DubbingEditorPage resizable workbench layout', () => {
     const audio = screen.getByTestId('clip-preview-audio') as HTMLAudioElement
     expect(audio).not.toHaveAttribute('controls')
     expect(audio.getAttribute('src') ?? '').toContain(
-      '/api/tasks/task-layout/artifacts/task-e/voice/clips/seg-0003.wav',
+      '/api/tasks/task-layout/artifacts/render/voice/clips/seg-0003.wav',
     )
     expect(screen.getByTestId('clip-preview-player')).toBeInTheDocument()
     expect(screen.getByTestId('clip-preview-play')).toBeInTheDocument()
@@ -342,7 +342,7 @@ describe('DubbingEditorPage resizable workbench layout', () => {
     vi.mocked(dubbingEditorApi.synthesizeUnit).mockResolvedValue({
       status: 'synthesized',
       unit_id: 'unit-1',
-      audio_artifact_path: 'task-d/voice/spk_0001/segments/seg-0003.wav',
+      audio_artifact_path: 'synthesis/voice/spk_0001/segments/seg-0003.wav',
       synthesized_at: '2026-05-16T11:30:00.000Z',
       message: 'Re-synthesized.',
     })

@@ -8,7 +8,7 @@ describe('mergeWorkflowProgressEvent', () => {
       workflow: { template_id: 'asr-dub+ocr-subs', status: 'running' },
       nodes: [
         {
-          id: 'stage1',
+          id: 'separation',
           label: 'Stage 1',
           group: 'audio-spine',
           required: true,
@@ -24,7 +24,7 @@ describe('mergeWorkflowProgressEvent', () => {
           progress_percent: 25,
         },
       ],
-      edges: [{ from: 'stage1', to: 'ocr-detect', state: 'active' }],
+      edges: [{ from: 'separation', to: 'ocr-detect', state: 'active' }],
     }
 
     const next = mergeWorkflowProgressEvent(prev, {
@@ -41,7 +41,7 @@ describe('mergeWorkflowProgressEvent', () => {
       ],
     })
 
-    expect(next.nodes.map(node => node.id)).toEqual(['stage1', 'ocr-detect'])
+    expect(next.nodes.map(node => node.id)).toEqual(['separation', 'ocr-detect'])
     expect(next.nodes[1].progress_percent).toBe(55)
     expect(next.nodes[1].current_step).toBe('ocr step')
     expect(next.edges[0].state).toBe('active')

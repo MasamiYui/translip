@@ -71,7 +71,7 @@ function buildReport(): DubQaReport {
       {
         segment_id: 's1', speaker_id: 'SPK1', start: 0, end: 2, duration: 2,
         source_text: '你好世界', target_text: 'Hello world', backread_text: 'hello world',
-        dub_audio_path: 'task-d/voice/clip/s1.wav', placed: true, mix_status: 'placed',
+        dub_audio_path: 'synthesis/voice/clip/s1.wav', placed: true, mix_status: 'placed',
         fit_strategy: 'as_is', overall_status: 'passed', speaker_status: 'passed',
         intelligibility_status: 'passed', duration_status: 'passed',
         speaker_similarity: 0.7, text_similarity: 0.95, duration_ratio: 1.0, subtitle_coverage_ratio: 0.9,

@@ -17,19 +17,19 @@ export const WORKFLOW_LANES: Array<{ id: WorkflowGraphNode['group']; columnCount
 ]
 
 export const WORKFLOW_NODE_DEFINITIONS: Record<string, NodeDefinition> = {
-  stage1: { group: 'audio-spine', dependencies: [], column: 1 },
+  separation: { group: 'audio-spine', dependencies: [], column: 1 },
   'ocr-detect': { group: 'ocr-subtitles', dependencies: [], column: 2 },
-  'task-a': { group: 'audio-spine', dependencies: ['stage1'], column: 2 },
-  'asr-ocr-correct': { group: 'audio-spine', dependencies: ['task-a', 'ocr-detect'], column: 3 },
-  'task-b': { group: 'audio-spine', dependencies: ['task-a'], column: 4 },
-  'visual-context': { group: 'visual-perception', dependencies: ['task-a'], column: 4 },
-  'task-c': { group: 'audio-spine', dependencies: ['task-b'], column: 5 },
+  'transcription': { group: 'audio-spine', dependencies: ['separation'], column: 2 },
+  'asr-ocr-correct': { group: 'audio-spine', dependencies: ['transcription', 'ocr-detect'], column: 3 },
+  'speaker-registry': { group: 'audio-spine', dependencies: ['transcription'], column: 4 },
+  'visual-context': { group: 'visual-perception', dependencies: ['transcription'], column: 4 },
+  'translation': { group: 'audio-spine', dependencies: ['speaker-registry'], column: 5 },
   'ocr-translate': { group: 'ocr-subtitles', dependencies: ['ocr-detect'], column: 4 },
-  'task-d': { group: 'audio-spine', dependencies: ['task-c'], column: 6 },
-  'task-e': { group: 'audio-spine', dependencies: ['task-d'], column: 6 },
+  'synthesis': { group: 'audio-spine', dependencies: ['translation'], column: 6 },
+  'render': { group: 'audio-spine', dependencies: ['synthesis'], column: 6 },
   'subtitle-erase': { group: 'video-cleanup', dependencies: ['ocr-detect'], column: 5 },
   'erase-qc': { group: 'visual-perception', dependencies: ['subtitle-erase'], column: 6 },
-  'task-g': { group: 'delivery', dependencies: ['task-e', 'ocr-translate', 'subtitle-erase'], column: 7 },
+  'delivery': { group: 'delivery', dependencies: ['render', 'ocr-translate', 'subtitle-erase'], column: 7 },
 }
 
 const TEMPLATE_DEFINITIONS: Record<
@@ -37,22 +37,22 @@ const TEMPLATE_DEFINITIONS: Record<
   { nodeIds: readonly string[]; requiredIds: readonly string[]; dependencyOverrides?: Record<string, readonly string[]> }
 > = {
   'asr-dub-basic': {
-    nodeIds: ['stage1', 'task-a', 'task-b', 'task-c', 'task-d', 'task-e', 'task-g'],
-    requiredIds: ['stage1', 'task-a', 'task-b', 'task-c', 'task-d', 'task-e', 'task-g'],
+    nodeIds: ['separation', 'transcription', 'speaker-registry', 'translation', 'synthesis', 'render', 'delivery'],
+    requiredIds: ['separation', 'transcription', 'speaker-registry', 'translation', 'synthesis', 'render', 'delivery'],
   },
   'asr-dub+visual': {
-    nodeIds: ['stage1', 'task-a', 'task-b', 'visual-context', 'task-c', 'task-d', 'task-e', 'task-g'],
-    requiredIds: ['stage1', 'task-a', 'task-b', 'task-c', 'task-d', 'task-e', 'task-g'],
+    nodeIds: ['separation', 'transcription', 'speaker-registry', 'visual-context', 'translation', 'synthesis', 'render', 'delivery'],
+    requiredIds: ['separation', 'transcription', 'speaker-registry', 'translation', 'synthesis', 'render', 'delivery'],
   },
   'asr-dub+ocr-subs': {
-    nodeIds: ['stage1', 'ocr-detect', 'task-a', 'asr-ocr-correct', 'task-b', 'task-c', 'ocr-translate', 'task-d', 'task-e', 'task-g'],
-    requiredIds: ['stage1', 'ocr-detect', 'task-a', 'asr-ocr-correct', 'task-b', 'task-c', 'ocr-translate', 'task-d', 'task-e', 'task-g'],
-    dependencyOverrides: { 'task-b': ['asr-ocr-correct'] },
+    nodeIds: ['separation', 'ocr-detect', 'transcription', 'asr-ocr-correct', 'speaker-registry', 'translation', 'ocr-translate', 'synthesis', 'render', 'delivery'],
+    requiredIds: ['separation', 'ocr-detect', 'transcription', 'asr-ocr-correct', 'speaker-registry', 'translation', 'ocr-translate', 'synthesis', 'render', 'delivery'],
+    dependencyOverrides: { 'speaker-registry': ['asr-ocr-correct'] },
   },
   'asr-dub+ocr-subs+erase': {
-    nodeIds: ['stage1', 'ocr-detect', 'task-a', 'asr-ocr-correct', 'task-b', 'task-c', 'ocr-translate', 'task-d', 'task-e', 'subtitle-erase', 'task-g'],
-    requiredIds: ['stage1', 'ocr-detect', 'task-a', 'asr-ocr-correct', 'task-b', 'task-c', 'task-d', 'task-e', 'task-g'],
-    dependencyOverrides: { 'task-b': ['asr-ocr-correct'] },
+    nodeIds: ['separation', 'ocr-detect', 'transcription', 'asr-ocr-correct', 'speaker-registry', 'translation', 'ocr-translate', 'synthesis', 'render', 'subtitle-erase', 'delivery'],
+    requiredIds: ['separation', 'ocr-detect', 'transcription', 'asr-ocr-correct', 'speaker-registry', 'translation', 'synthesis', 'render', 'delivery'],
+    dependencyOverrides: { 'speaker-registry': ['asr-ocr-correct'] },
   },
 }
 

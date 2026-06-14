@@ -40,45 +40,45 @@ import type {
 import { WorkflowLegend } from './WorkflowLegend'
 
 const NODE_ICON: Record<string, LucideIcon> = {
-  stage1: Scissors,
+  separation: Scissors,
   'ocr-detect': ScanText,
-  'task-a': MicVocal,
+  'transcription': MicVocal,
   'asr-ocr-correct': ScanText,
-  'task-b': Users,
-  'task-c': Languages,
+  'speaker-registry': Users,
+  'translation': Languages,
   'ocr-translate': FileOutput,
-  'task-d': Headphones,
-  'task-e': Clapperboard,
+  'synthesis': Headphones,
+  'render': Clapperboard,
   'subtitle-erase': Eraser,
-  'task-g': Film,
+  'delivery': Film,
 }
 
 const NODE_CODE: Record<string, string> = {
-  stage1: 'S1',
+  separation: 'S1',
   'ocr-detect': 'O1',
-  'task-a': 'A1',
+  'transcription': 'A1',
   'asr-ocr-correct': 'A2',
-  'task-b': 'B1',
-  'task-c': 'C1',
+  'speaker-registry': 'B1',
+  'translation': 'C1',
   'ocr-translate': 'O2',
-  'task-d': 'D1',
-  'task-e': 'E1',
+  'synthesis': 'D1',
+  'render': 'E1',
   'subtitle-erase': 'V1',
-  'task-g': 'G1',
+  'delivery': 'G1',
 }
 
 const PREVIEW_HINTS: Record<string, { zh: string; en: string }> = {
-  stage1: { zh: '拆分人声与背景轨。', en: 'Separate dialogue and background.' },
+  separation: { zh: '拆分人声与背景轨。', en: 'Separate dialogue and background.' },
   'ocr-detect': { zh: '定位画面硬字幕。', en: 'Detect hard subtitles on frame.' },
-  'task-a': { zh: '生成时间对齐转写。', en: 'Create aligned transcript segments.' },
+  'transcription': { zh: '生成时间对齐转写。', en: 'Create aligned transcript segments.' },
   'asr-ocr-correct': { zh: '用 OCR 字幕校正 ASR 文稿。', en: 'Correct ASR transcript text with OCR subtitles.' },
-  'task-b': { zh: '补全说话人身份。', en: 'Register and reconcile speakers.' },
-  'task-c': { zh: '翻译配音文本。', en: 'Translate dubbing text.' },
+  'speaker-registry': { zh: '补全说话人身份。', en: 'Register and reconcile speakers.' },
+  'translation': { zh: '翻译配音文本。', en: 'Translate dubbing text.' },
   'ocr-translate': { zh: '翻译展示字幕。', en: 'Translate display subtitles.' },
-  'task-d': { zh: '合成目标语音轨。', en: 'Synthesize the target voice track.' },
-  'task-e': { zh: '回贴时间线并混音。', en: 'Fit the dub back to timeline.' },
+  'synthesis': { zh: '合成目标语音轨。', en: 'Synthesize the target voice track.' },
+  'render': { zh: '回贴时间线并混音。', en: 'Fit the dub back to timeline.' },
   'subtitle-erase': { zh: '清理原字幕画面。', en: 'Remove subtitles from video.' },
-  'task-g': { zh: '汇总支线并导出。', en: 'Package branch outputs for delivery.' },
+  'delivery': { zh: '汇总支线并导出。', en: 'Package branch outputs for delivery.' },
 }
 
 const STATUS_STYLES: Record<WorkflowGraphNode['status'], string> = {
@@ -172,7 +172,7 @@ const ANCHOR_HEIGHT = 52
 const HANDLE_STYLE = { width: 8, height: 8, opacity: 0, pointerEvents: 'none' as const }
 const START_NODE_ID = '__dag-start__'
 const END_NODE_ID = '__dag-end__'
-const MAINLINE_NODE_IDS = ['stage1', 'task-a', 'asr-ocr-correct', 'task-b', 'task-c', 'task-d', 'task-e', 'task-g'] as const
+const MAINLINE_NODE_IDS = ['separation', 'transcription', 'asr-ocr-correct', 'speaker-registry', 'translation', 'synthesis', 'render', 'delivery'] as const
 
 interface CompactNodeChromeProps {
   node: WorkflowGraphNode
@@ -419,7 +419,7 @@ function buildCompactDagLayout(graph: WorkflowGraphPayload, previewOnly: boolean
   const positions: Record<string, { x: number; y: number }> = {}
   const presentNodeIds = new Set(graph.nodes.map(node => node.id))
   const mainlineNodeIds = hasBranchNodes
-    ? MAINLINE_NODE_IDS.filter(nodeId => nodeId !== 'task-g')
+    ? MAINLINE_NODE_IDS.filter(nodeId => nodeId !== 'delivery')
     : [...MAINLINE_NODE_IDS]
 
   let cursorX = firstNodeX
@@ -434,16 +434,16 @@ function buildCompactDagLayout(graph: WorkflowGraphPayload, previewOnly: boolean
   if (presentNodeIds.has('ocr-detect')) {
     positions['ocr-detect'] = {
       x:
-        positions['stage1']?.x != null
-          ? positions['stage1'].x + Math.round((nodeWidth + gapX) * 0.52)
-          : positions['task-a']?.x ?? firstNodeX + nodeWidth + gapX,
+        positions['separation']?.x != null
+          ? positions['separation'].x + Math.round((nodeWidth + gapX) * 0.52)
+          : positions['transcription']?.x ?? firstNodeX + nodeWidth + gapX,
       y: branchY,
     }
   }
 
   if (presentNodeIds.has('ocr-translate')) {
     positions['ocr-translate'] = {
-      x: positions['task-c']?.x ?? positions['ocr-detect']?.x ?? firstNodeX + (nodeWidth + gapX) * 2,
+      x: positions['translation']?.x ?? positions['ocr-detect']?.x ?? firstNodeX + (nodeWidth + gapX) * 2,
       y: branchY,
     }
   }
@@ -451,8 +451,8 @@ function buildCompactDagLayout(graph: WorkflowGraphPayload, previewOnly: boolean
   if (presentNodeIds.has('subtitle-erase')) {
     positions['subtitle-erase'] = {
       x:
-        positions['task-e']?.x
-        ?? positions['task-d']?.x
+        positions['render']?.x
+        ?? positions['synthesis']?.x
         ?? positions['ocr-translate']?.x
         ?? positions['ocr-detect']?.x
         ?? firstNodeX + (nodeWidth + gapX) * 3,
@@ -460,21 +460,21 @@ function buildCompactDagLayout(graph: WorkflowGraphPayload, previewOnly: boolean
     }
   }
 
-  if (presentNodeIds.has('task-g')) {
+  if (presentNodeIds.has('delivery')) {
     if (hasBranchNodes) {
-      positions['task-g'] = {
-        x: (positions['task-e']?.x ?? cursorX) + nodeWidth + gapX + (previewOnly ? 4 : 8),
+      positions['delivery'] = {
+        x: (positions['render']?.x ?? cursorX) + nodeWidth + gapX + (previewOnly ? 4 : 8),
         y: mainlineY + Math.round((branchY - mainlineY) * 0.58),
       }
-      cursorX = positions['task-g'].x + nodeWidth
-    } else if (!positions['task-g']) {
-      positions['task-g'] = { x: cursorX, y: mainlineY }
+      cursorX = positions['delivery'].x + nodeWidth
+    } else if (!positions['delivery']) {
+      positions['delivery'] = { x: cursorX, y: mainlineY }
       cursorX += nodeWidth + gapX
     }
   }
 
   const startAnchorY = mainlineY + nodeHeight / 2 - ANCHOR_HEIGHT / 2
-  const endAnchorTargetY = positions['task-g']?.y ?? mainlineY
+  const endAnchorTargetY = positions['delivery']?.y ?? mainlineY
   const endAnchorY = endAnchorTargetY + nodeHeight / 2 - ANCHOR_HEIGHT / 2
   positions[START_NODE_ID] = { x: startX, y: startAnchorY }
   positions[END_NODE_ID] = { x: cursorX + 20, y: endAnchorY }
@@ -699,13 +699,13 @@ export function WorkflowCompactCardGraph({
 
     const syntheticPreviewEdges: Edge[] = []
 
-    if (previewOnly && nodesById.has('stage1') && roots.some(root => root.id === 'ocr-detect')) {
+    if (previewOnly && nodesById.has('separation') && roots.some(root => root.id === 'ocr-detect')) {
       previewBranchRoots.add('ocr-detect')
-      const handles = resolveHandles('stage1', 'ocr-detect', previewOnly, layout.positions)
+      const handles = resolveHandles('separation', 'ocr-detect', previewOnly, layout.positions)
 
       syntheticPreviewEdges.push({
-        id: 'stage1--ocr-detect--preview',
-        source: 'stage1',
+        id: 'separation--ocr-detect--preview',
+        source: 'separation',
         target: 'ocr-detect',
         type: 'default',
         sourceHandle: handles.sourceHandle,

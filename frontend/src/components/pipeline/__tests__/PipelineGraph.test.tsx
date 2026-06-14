@@ -8,7 +8,7 @@ const graph: WorkflowGraphPayload = {
   workflow: { template_id: 'asr-dub+ocr-subs', status: 'running' },
   nodes: [
     {
-      id: 'stage1',
+      id: 'separation',
       label: 'Stage 1',
       group: 'audio-spine',
       required: true,
@@ -16,7 +16,7 @@ const graph: WorkflowGraphPayload = {
       progress_percent: 100,
     },
     {
-      id: 'task-a',
+      id: 'transcription',
       label: 'Task A',
       group: 'audio-spine',
       required: true,
@@ -25,7 +25,7 @@ const graph: WorkflowGraphPayload = {
       current_step: '正在对齐语音片段',
     },
     {
-      id: 'task-g',
+      id: 'delivery',
       label: 'Task G',
       group: 'delivery',
       required: true,
@@ -34,8 +34,8 @@ const graph: WorkflowGraphPayload = {
     },
   ],
   edges: [
-    { from: 'stage1', to: 'task-a', state: 'completed' },
-    { from: 'task-a', to: 'task-g', state: 'active' },
+    { from: 'separation', to: 'transcription', state: 'completed' },
+    { from: 'transcription', to: 'delivery', state: 'active' },
   ],
 }
 
@@ -43,7 +43,7 @@ const previewGraph: WorkflowGraphPayload = {
   workflow: { template_id: 'asr-dub+ocr-subs', status: 'pending' },
   nodes: [
     {
-      id: 'stage1',
+      id: 'separation',
       label: 'Stage 1',
       group: 'audio-spine',
       required: true,
@@ -51,7 +51,7 @@ const previewGraph: WorkflowGraphPayload = {
       progress_percent: 0,
     },
     {
-      id: 'task-a',
+      id: 'transcription',
       label: 'Task A',
       group: 'audio-spine',
       required: true,
@@ -59,7 +59,7 @@ const previewGraph: WorkflowGraphPayload = {
       progress_percent: 0,
     },
     {
-      id: 'task-g',
+      id: 'delivery',
       label: 'Task G',
       group: 'delivery',
       required: true,
@@ -68,8 +68,8 @@ const previewGraph: WorkflowGraphPayload = {
     },
   ],
   edges: [
-    { from: 'stage1', to: 'task-a', state: 'inactive' },
-    { from: 'task-a', to: 'task-g', state: 'inactive' },
+    { from: 'separation', to: 'transcription', state: 'inactive' },
+    { from: 'transcription', to: 'delivery', state: 'inactive' },
   ],
 }
 
@@ -77,7 +77,7 @@ const previewGraphWithCorrection: WorkflowGraphPayload = {
   workflow: { template_id: 'asr-dub+ocr-subs', status: 'pending' },
   nodes: [
     {
-      id: 'stage1',
+      id: 'separation',
       label: 'Stage 1',
       group: 'audio-spine',
       required: true,
@@ -93,7 +93,7 @@ const previewGraphWithCorrection: WorkflowGraphPayload = {
       progress_percent: 0,
     },
     {
-      id: 'task-a',
+      id: 'transcription',
       label: 'Task A',
       group: 'audio-spine',
       required: true,
@@ -109,7 +109,7 @@ const previewGraphWithCorrection: WorkflowGraphPayload = {
       progress_percent: 0,
     },
     {
-      id: 'task-b',
+      id: 'speaker-registry',
       label: 'Task B',
       group: 'audio-spine',
       required: true,
@@ -117,7 +117,7 @@ const previewGraphWithCorrection: WorkflowGraphPayload = {
       progress_percent: 0,
     },
     {
-      id: 'task-g',
+      id: 'delivery',
       label: 'Task G',
       group: 'delivery',
       required: true,
@@ -126,11 +126,11 @@ const previewGraphWithCorrection: WorkflowGraphPayload = {
     },
   ],
   edges: [
-    { from: 'stage1', to: 'task-a', state: 'inactive' },
+    { from: 'separation', to: 'transcription', state: 'inactive' },
     { from: 'ocr-detect', to: 'asr-ocr-correct', state: 'inactive' },
-    { from: 'task-a', to: 'asr-ocr-correct', state: 'inactive' },
-    { from: 'asr-ocr-correct', to: 'task-b', state: 'inactive' },
-    { from: 'task-b', to: 'task-g', state: 'inactive' },
+    { from: 'transcription', to: 'asr-ocr-correct', state: 'inactive' },
+    { from: 'asr-ocr-correct', to: 'speaker-registry', state: 'inactive' },
+    { from: 'speaker-registry', to: 'delivery', state: 'inactive' },
   ],
 }
 
@@ -190,7 +190,7 @@ describe('PipelineGraph', () => {
   it('shows lane headers and stage detail text in compact preview mode', () => {
     render(
       <I18nProvider>
-        <PipelineGraph graph={graph} compact activeStage="task-a" />
+        <PipelineGraph graph={graph} compact activeStage="transcription" />
       </I18nProvider>,
     )
 
@@ -221,7 +221,7 @@ describe('PipelineGraph', () => {
   it('renders runtime graphs with the unified dag layout in full mode', () => {
     render(
       <I18nProvider>
-        <PipelineGraph graph={graph} activeStage="task-a" showLegend />
+        <PipelineGraph graph={graph} activeStage="transcription" showLegend />
       </I18nProvider>,
     )
 

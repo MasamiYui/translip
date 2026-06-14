@@ -52,15 +52,15 @@ describe('I18nProvider', () => {
     expect(formatDurationForLocale(65, 'en-US')).toBe('1m 5s')
     expect(getStatusLabel('running', 'zh-CN')).toBe('运行中')
     expect(getStatusLabel('running', 'en-US')).toBe('Running')
-    expect(getStageLabel('task-c', 'zh-CN')).toBe('翻译')
-    expect(getStageLabel('task-c', 'en-US')).toBe('Translation')
+    expect(getStageLabel('translation', 'zh-CN')).toBe('翻译')
+    expect(getStageLabel('translation', 'en-US')).toBe('Translation')
   })
 
   it('exposes locale-aware helper methods from the hook', () => {
     const { result } = renderHook(() => useI18n(), { wrapper })
 
     expect(result.current.getLanguageLabel('en')).toBe('英语')
-    expect(result.current.getStageLabel('task-d')).toBe('语音合成')
+    expect(result.current.getStageLabel('synthesis')).toBe('语音合成')
     expect(result.current.t.tasks.deleteConfirmOne).toBe('确定删除此任务及其产物？')
     expect(result.current.t.tasks.deleteConfirmMany(2)).toBe('确定删除 2 个任务及其产物？')
     expect(result.current.t.taskDetail.deleteConfirm).toBe('确定删除此任务及其产物？')

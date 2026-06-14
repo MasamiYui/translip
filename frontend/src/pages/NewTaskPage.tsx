@@ -26,8 +26,8 @@ const defaultConfig: Partial<TaskConfig> = {
   output_intent: 'dub_final',
   quality_preset: 'standard',
   template: 'asr-dub-basic',
-  run_from_stage: 'stage1',
-  run_to_stage: 'task-g',
+  run_from_stage: 'separation',
+  run_to_stage: 'delivery',
   use_cache: true,
   keep_intermediate: false,
   video_source: 'original',
@@ -1174,10 +1174,10 @@ export function NewTaskPage() {
                   />
                 </Field>
                 <Field label="从阶段">
-                  <Select value={config.run_from_stage ?? 'stage1'} onChange={value => patchConfig({ run_from_stage: value })} options={stageOptions} />
+                  <Select value={config.run_from_stage ?? 'separation'} onChange={value => patchConfig({ run_from_stage: value })} options={stageOptions} />
                 </Field>
                 <Field label="到阶段">
-                  <Select value={config.run_to_stage ?? 'task-g'} onChange={value => patchConfig({ run_to_stage: value })} options={stageOptions} />
+                  <Select value={config.run_to_stage ?? 'delivery'} onChange={value => patchConfig({ run_to_stage: value })} options={stageOptions} />
                 </Field>
                 <Field label="交付视频底板">
                   <Select
@@ -1441,7 +1441,7 @@ function getIntentDefaults(intent: TaskOutputIntent): Partial<TaskConfig> {
     case 'english_subtitle':
       return {
         template: 'asr-dub+ocr-subs+erase',
-        run_to_stage: 'task-g',
+        run_to_stage: 'delivery',
         video_source: 'clean_if_available',
         audio_source: 'both',
         subtitle_source: 'both',
@@ -1449,7 +1449,7 @@ function getIntentDefaults(intent: TaskOutputIntent): Partial<TaskConfig> {
     case 'bilingual_review':
       return {
         template: 'asr-dub+ocr-subs',
-        run_to_stage: 'task-g',
+        run_to_stage: 'delivery',
         video_source: 'original',
         audio_source: 'both',
         subtitle_source: 'both',
@@ -1457,7 +1457,7 @@ function getIntentDefaults(intent: TaskOutputIntent): Partial<TaskConfig> {
     case 'fast_validation':
       return {
         template: 'asr-dub-basic',
-        run_to_stage: 'task-g',
+        run_to_stage: 'delivery',
         video_source: 'original',
         audio_source: 'preview',
         subtitle_source: 'asr',
@@ -1465,7 +1465,7 @@ function getIntentDefaults(intent: TaskOutputIntent): Partial<TaskConfig> {
     default:
       return {
         template: 'asr-dub-basic',
-        run_to_stage: 'task-g',
+        run_to_stage: 'delivery',
         video_source: 'original',
         audio_source: 'both',
         subtitle_source: 'asr',
