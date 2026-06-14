@@ -292,7 +292,7 @@ def synthesize_speaker(
     )
     work_dir = work_directory(Path(normalized_request.output_dir))
     report_path = bundle_dir / f"speaker_segments.{translation_payload.get('backend', {}).get('output_tag', target_lang)}.json"
-    manifest_path = bundle_dir / "task-d-manifest.json"
+    manifest_path = bundle_dir / "synthesis-manifest.json"
 
     started_at = now_iso()
     started_monotonic = time.monotonic()

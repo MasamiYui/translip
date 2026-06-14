@@ -72,7 +72,7 @@ def test_parse_correct_asr_with_ocr_command() -> None:
         [
             "correct-asr-with-ocr",
             "--segments",
-            "task-a/voice/segments.zh.json",
+            "transcription/voice/segments.zh.json",
             "--ocr-events",
             "ocr-detect/ocr_events.json",
             "--output-dir",
@@ -83,7 +83,7 @@ def test_parse_correct_asr_with_ocr_command() -> None:
     )
 
     assert args.command == "correct-asr-with-ocr"
-    assert args.segments == "task-a/voice/segments.zh.json"
+    assert args.segments == "transcription/voice/segments.zh.json"
     assert args.ocr_events == "ocr-detect/ocr_events.json"
     assert args.output_dir == "asr-ocr-correct"
     assert args.preset == "standard"
@@ -140,9 +140,9 @@ def test_cli_build_voice_bank_parser() -> None:
             "--profiles",
             "speaker_profiles.json",
             "--output-dir",
-            "task-b/voice",
+            "speaker-registry/voice",
             "--task-d-report",
-            "task-d/voice/spk_0000/speaker_segments.en.json",
+            "synthesis/voice/spk_0000/speaker_segments.en.json",
             "--target-lang",
             "en",
             "--max-references-per-speaker",
@@ -152,8 +152,8 @@ def test_cli_build_voice_bank_parser() -> None:
     )
     assert args.command == "build-voice-bank"
     assert args.profiles == "speaker_profiles.json"
-    assert args.output_dir == "task-b/voice"
-    assert args.task_d_reports == ["task-d/voice/spk_0000/speaker_segments.en.json"]
+    assert args.output_dir == "speaker-registry/voice"
+    assert args.task_d_reports == ["synthesis/voice/spk_0000/speaker_segments.en.json"]
     assert args.max_references_per_speaker == 5
     assert args.no_composite is True
 

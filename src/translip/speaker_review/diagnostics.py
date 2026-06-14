@@ -111,7 +111,7 @@ def build_diarization_report(
     diarization_metadata: dict[str, Any] | None = None,
     source_path: str | None = None,
 ) -> dict[str, Any]:
-    """Diarization evidence report produced at task-a time (ASR-9).
+    """Diarization evidence report produced at transcription time (ASR-9).
 
     Reuses :func:`build_speaker_diagnostics` (similarity matrix, per-speaker risk,
     suggested merges) and folds in the diarizer run metadata (backend, adopted

@@ -364,7 +364,7 @@ def test_parallel_failure_in_one_segment_propagates_without_corrupting_others(
 
     # Manifest is written even on failure with a "failed" status. Path layout
     # follows ``output_dir / <translation parent dir name> / <speaker_id>``.
-    manifest_candidates = list((tmp_path / "output").rglob("task-d-manifest.json"))
+    manifest_candidates = list((tmp_path / "output").rglob("synthesis-manifest.json"))
     assert manifest_candidates, "expected at least one manifest file on failure"
     manifest = json.loads(manifest_candidates[0].read_text(encoding="utf-8"))
     assert manifest["status"] == "failed"
@@ -393,7 +393,7 @@ def test_parallel_actually_speeds_up_wall_time(tmp_path: Path, monkeypatch) -> N
             speaker_id="spk_0000",
         )
         synthesize_speaker(request, backend_override=backend)
-        manifest_candidates = list((root / "output").rglob("task-d-manifest.json"))
+        manifest_candidates = list((root / "output").rglob("synthesis-manifest.json"))
         assert manifest_candidates
         manifest = json.loads(manifest_candidates[0].read_text(encoding="utf-8"))
         return float(manifest["resolved"]["wall_time_sec"])

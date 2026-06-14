@@ -29,19 +29,19 @@ def test_task_read_exposes_intent_asset_summary_and_export_readiness(tmp_path: P
     SQLModel.metadata.create_all(engine)
 
     output_root = tmp_path / "output"
-    (output_root / "task-e" / "voice").mkdir(parents=True)
+    (output_root / "render" / "voice").mkdir(parents=True)
     (output_root / "subtitle-erase").mkdir(parents=True)
     (output_root / "ocr-detect").mkdir(parents=True)
     (output_root / "ocr-translate").mkdir(parents=True)
-    (output_root / "task-c" / "voice").mkdir(parents=True)
+    (output_root / "translation" / "voice").mkdir(parents=True)
 
     (tmp_path / "input.mp4").write_bytes(b"video")
-    (output_root / "task-e" / "voice" / "preview_mix.en.wav").write_bytes(b"preview")
-    (output_root / "task-e" / "voice" / "dub_voice.en.wav").write_bytes(b"dub")
+    (output_root / "render" / "voice" / "preview_mix.en.wav").write_bytes(b"preview")
+    (output_root / "render" / "voice" / "dub_voice.en.wav").write_bytes(b"dub")
     (output_root / "subtitle-erase" / "clean_video.mp4").write_bytes(b"clean")
     (output_root / "ocr-detect" / "ocr_subtitles.source.srt").write_text("1\n00:00:00,000 --> 00:00:01,000\n哪吒\n", encoding="utf-8")
     (output_root / "ocr-translate" / "ocr_subtitles.en.srt").write_text("1", encoding="utf-8")
-    (output_root / "task-c" / "voice" / "translation.en.srt").write_text("1", encoding="utf-8")
+    (output_root / "translation" / "voice" / "translation.en.srt").write_text("1", encoding="utf-8")
 
     with Session(engine) as session:
         session.add(
@@ -56,7 +56,7 @@ def test_task_read_exposes_intent_asset_summary_and_export_readiness(tmp_path: P
                 config={
                     "pipeline": {
                         "template": "asr-dub+ocr-subs+erase",
-                        "run_to_stage": "task-g",
+                        "run_to_stage": "delivery",
                         "video_source": "clean_if_available",
                         "audio_source": "both",
                         "subtitle_source": "both",
@@ -105,11 +105,11 @@ def test_task_read_marks_english_subtitle_as_blocked_without_clean_video(tmp_pat
     SQLModel.metadata.create_all(engine)
 
     output_root = tmp_path / "output"
-    (output_root / "task-e" / "voice").mkdir(parents=True)
+    (output_root / "render" / "voice").mkdir(parents=True)
     (output_root / "ocr-translate").mkdir(parents=True)
 
     (tmp_path / "input.mp4").write_bytes(b"video")
-    (output_root / "task-e" / "voice" / "dub_voice.en.wav").write_bytes(b"dub")
+    (output_root / "render" / "voice" / "dub_voice.en.wav").write_bytes(b"dub")
     (output_root / "ocr-translate" / "ocr_subtitles.en.srt").write_text("1", encoding="utf-8")
 
     with Session(engine) as session:
@@ -125,7 +125,7 @@ def test_task_read_marks_english_subtitle_as_blocked_without_clean_video(tmp_pat
                 config={
                     "pipeline": {
                         "template": "asr-dub+ocr-subs+erase",
-                        "run_to_stage": "task-g",
+                        "run_to_stage": "delivery",
                         "video_source": "clean_if_available",
                         "audio_source": "both",
                         "subtitle_source": "both",
@@ -167,14 +167,14 @@ def test_task_read_exposes_last_export_summary(tmp_path: Path) -> None:
     SQLModel.metadata.create_all(engine)
 
     output_root = tmp_path / "output"
-    delivery_dir = output_root / "task-g" / "delivery"
+    delivery_dir = output_root / "delivery" / "delivery"
     delivery_dir.mkdir(parents=True)
     exported = delivery_dir / "final_preview.en.mp4"
     exported.write_bytes(b"preview")
-    stale_dub = output_root / "task-g" / "final-dub" / "final_dub.en.mp4"
+    stale_dub = output_root / "delivery" / "final-dub" / "final_dub.en.mp4"
     stale_dub.parent.mkdir(parents=True)
     stale_dub.write_bytes(b"stale dub")
-    report_path = output_root / "task-g" / "delivery-report.json"
+    report_path = output_root / "delivery" / "delivery-report.json"
     report_path.write_text(
         json.dumps(
             {
@@ -206,7 +206,7 @@ def test_task_read_exposes_last_export_summary(tmp_path: Path) -> None:
                 config={
                     "pipeline": {
                         "template": "asr-dub-basic",
-                        "run_to_stage": "task-g",
+                        "run_to_stage": "delivery",
                         "video_source": "original",
                         "audio_source": "both",
                         "subtitle_source": "asr",

@@ -247,10 +247,10 @@ def test_task_e_command_passes_selected_repair_segments(tmp_path: Path) -> None:
     from translip.types import PipelineRequest
 
     request = PipelineRequest(input_path=tmp_path / "sample.mp4", output_root=tmp_path / "out")
-    selected_path = tmp_path / "out" / "task-d" / "voice" / "repair-run" / "selected_segments.en.json"
+    selected_path = tmp_path / "out" / "synthesis" / "voice" / "repair-run" / "selected_segments.en.json"
     command = build_task_e_command(
         request,
-        task_d_reports=[tmp_path / "out" / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"],
+        task_d_reports=[tmp_path / "out" / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"],
         selected_segments_path=selected_path,
     )
 
@@ -270,7 +270,7 @@ def test_task_e_cache_payload_includes_render_mix_controls(tmp_path: Path) -> No
         output_sample_rate=48000,
     )
 
-    payload = _stage_cache_payload(request, "task-e")
+    payload = _stage_cache_payload(request, "render")
 
     assert payload["background_gain_db"] == -12.0
     assert payload["window_ducking_db"] == -5.0
@@ -350,7 +350,7 @@ def test_task_a_cache_payload_includes_transcription_backend_controls(tmp_path: 
         generate_srt=False,
     )
 
-    payload = _stage_cache_payload(request, "task-a")
+    payload = _stage_cache_payload(request, "transcription")
 
     assert payload["asr_model"] == "medium"
     assert payload["asr_backend"] == "funasr"
@@ -360,7 +360,7 @@ def test_task_a_cache_payload_includes_transcription_backend_controls(tmp_path: 
 
 
 def test_task_a_cache_key_tracks_stage1_voice(tmp_path: Path) -> None:
-    """ARCH-4: task-a must recompute when the upstream stage1 voice stem changes."""
+    """ARCH-4: transcription must recompute when the upstream separation voice stem changes."""
     from translip.orchestration.cache import compute_cache_key
     from translip.orchestration.commands import stage1_voice_path
     from translip.orchestration.runner import _stage_cache_payload
@@ -370,14 +370,14 @@ def test_task_a_cache_key_tracks_stage1_voice(tmp_path: Path) -> None:
     voice = stage1_voice_path(request)
     voice.parent.mkdir(parents=True, exist_ok=True)
     voice.write_bytes(b"AAAA")
-    key_before = compute_cache_key(_stage_cache_payload(request, "task-a"))
+    key_before = compute_cache_key(_stage_cache_payload(request, "transcription"))
     voice.write_bytes(b"BBBB")
-    key_after = compute_cache_key(_stage_cache_payload(request, "task-a"))
+    key_after = compute_cache_key(_stage_cache_payload(request, "transcription"))
     assert key_before != key_after
 
 
 def test_task_d_cache_key_tracks_upstream_translation_and_profiles(tmp_path: Path) -> None:
-    """ARCH-4: task-d must recompute when task-c translation or task-b profiles change."""
+    """ARCH-4: synthesis must recompute when translation translation or speaker-registry profiles change."""
     from translip.orchestration.cache import compute_cache_key
     from translip.orchestration.commands import task_b_profiles_path, task_c_translation_path
     from translip.orchestration.runner import _stage_cache_payload
@@ -390,17 +390,17 @@ def test_task_d_cache_key_tracks_upstream_translation_and_profiles(tmp_path: Pat
     profiles.parent.mkdir(parents=True, exist_ok=True)
     translation.write_bytes(b"{}")
     profiles.write_bytes(b"{}")
-    key_before = compute_cache_key(_stage_cache_payload(request, "task-d"))
+    key_before = compute_cache_key(_stage_cache_payload(request, "synthesis"))
     translation.write_bytes(b'{"changed": 1}')
-    key_after_translation = compute_cache_key(_stage_cache_payload(request, "task-d"))
+    key_after_translation = compute_cache_key(_stage_cache_payload(request, "synthesis"))
     assert key_after_translation != key_before
     profiles.write_bytes(b'{"changed": 2}')
-    key_after_profiles = compute_cache_key(_stage_cache_payload(request, "task-d"))
+    key_after_profiles = compute_cache_key(_stage_cache_payload(request, "synthesis"))
     assert key_after_profiles != key_after_translation
 
 
 def test_task_c_cache_key_tracks_translation_batch_size(tmp_path: Path) -> None:
-    """ARCH-4: --batch-size flows into task-c's command, so it must affect the key."""
+    """ARCH-4: --batch-size flows into translation's command, so it must affect the key."""
     from translip.orchestration.cache import compute_cache_key
     from translip.orchestration.runner import _stage_cache_payload
     from translip.types import PipelineRequest
@@ -408,14 +408,14 @@ def test_task_c_cache_key_tracks_translation_batch_size(tmp_path: Path) -> None:
     request = PipelineRequest(
         input_path=tmp_path / "in.mp4", output_root=tmp_path / "out", translation_batch_size=4
     )
-    key_4 = compute_cache_key(_stage_cache_payload(request, "task-c"))
+    key_4 = compute_cache_key(_stage_cache_payload(request, "translation"))
     request.translation_batch_size = 8
-    key_8 = compute_cache_key(_stage_cache_payload(request, "task-c"))
+    key_8 = compute_cache_key(_stage_cache_payload(request, "translation"))
     assert key_4 != key_8
 
 
 def test_vad_max_segment_sec_is_plumbed_and_cached(tmp_path: Path) -> None:
-    """ASR-8: the tunable reaches task-a's argv and changing it busts the cache."""
+    """ASR-8: the tunable reaches transcription's argv and changing it busts the cache."""
     from translip.orchestration.cache import compute_cache_key
     from translip.orchestration.commands import build_task_a_command
     from translip.orchestration.runner import _stage_cache_payload
@@ -431,13 +431,13 @@ def test_vad_max_segment_sec_is_plumbed_and_cached(tmp_path: Path) -> None:
     other = PipelineRequest(
         input_path=tmp_path / "in.mp4", output_root=tmp_path / "out", vad_max_segment_sec=30.0
     )
-    assert compute_cache_key(_stage_cache_payload(request, "task-a")) != compute_cache_key(
-        _stage_cache_payload(other, "task-a")
+    assert compute_cache_key(_stage_cache_payload(request, "transcription")) != compute_cache_key(
+        _stage_cache_payload(other, "transcription")
     )
 
 
 def test_expected_speakers_is_plumbed_and_cached(tmp_path: Path) -> None:
-    """ASR-3: the expected-speakers hint reaches task-a's argv and busts the cache."""
+    """ASR-3: the expected-speakers hint reaches transcription's argv and busts the cache."""
     from translip.orchestration.cache import compute_cache_key
     from translip.orchestration.commands import build_task_a_command
     from translip.orchestration.runner import _stage_cache_payload
@@ -453,8 +453,8 @@ def test_expected_speakers_is_plumbed_and_cached(tmp_path: Path) -> None:
     other = PipelineRequest(
         input_path=tmp_path / "in.mp4", output_root=tmp_path / "out", expected_speakers=0
     )
-    assert compute_cache_key(_stage_cache_payload(request, "task-a")) != compute_cache_key(
-        _stage_cache_payload(other, "task-a")
+    assert compute_cache_key(_stage_cache_payload(request, "transcription")) != compute_cache_key(
+        _stage_cache_payload(other, "transcription")
     )
 
 
@@ -462,7 +462,7 @@ def test_cache_key_changes_with_cache_epoch(monkeypatch) -> None:
     """ARCH-5: bumping CACHE_EPOCH invalidates every cache key (release-level recompute)."""
     from translip.orchestration import cache
 
-    payload = {"stage": "task-a", "x": 1}
+    payload = {"stage": "transcription", "x": 1}
     monkeypatch.setattr(cache, "CACHE_EPOCH", 1)
     key_v1 = cache.compute_cache_key(payload)
     monkeypatch.setattr(cache, "CACHE_EPOCH", 2)
@@ -501,8 +501,8 @@ def test_execute_task_e_writes_character_ledger_and_dub_benchmark(tmp_path: Path
 
     request = PipelineRequest(input_path=tmp_path / "sample.mp4", output_root=tmp_path / "out")
     request.input_path.write_text("placeholder", encoding="utf-8")
-    profiles_path = request.output_root / "task-b" / "voice" / "speaker_profiles.json"
-    report_path = request.output_root / "task-d" / "voice" / "spk_0001" / "speaker_segments.en.json"
+    profiles_path = request.output_root / "speaker-registry" / "voice" / "speaker_profiles.json"
+    report_path = request.output_root / "synthesis" / "voice" / "spk_0001" / "speaker_segments.en.json"
     profiles_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.parent.mkdir(parents=True, exist_ok=True)
     profiles_path.write_text(
@@ -526,7 +526,7 @@ def test_execute_task_e_writes_character_ledger_and_dub_benchmark(tmp_path: Path
     manifest_path.write_text(json.dumps({"reports": [str(report_path)]}), encoding="utf-8")
 
     def fake_run_stage_command(_command, *, log_path, on_stdout_line=None, env_overrides=None, should_cancel=None):
-        mix_report_path = request.output_root / "task-e" / "voice" / "mix_report.en.json"
+        mix_report_path = request.output_root / "render" / "voice" / "mix_report.en.json"
         mix_report_path.parent.mkdir(parents=True, exist_ok=True)
         mix_report_path.write_text(
             json.dumps(
@@ -546,19 +546,19 @@ def test_execute_task_e_writes_character_ledger_and_dub_benchmark(tmp_path: Path
             ),
             encoding="utf-8",
         )
-        (request.output_root / "task-e" / "voice" / "dub_voice.en.wav").write_bytes(b"")
-        (request.output_root / "task-e" / "voice" / "preview_mix.en.wav").write_bytes(b"")
-        (request.output_root / "task-e" / "voice" / "timeline.en.json").write_text("{}", encoding="utf-8")
-        (request.output_root / "task-e" / "voice" / "task-e-manifest.json").write_text("{}", encoding="utf-8")
+        (request.output_root / "render" / "voice" / "dub_voice.en.wav").write_bytes(b"")
+        (request.output_root / "render" / "voice" / "preview_mix.en.wav").write_bytes(b"")
+        (request.output_root / "render" / "voice" / "timeline.en.json").write_text("{}", encoding="utf-8")
+        (request.output_root / "render" / "voice" / "render-manifest.json").write_text("{}", encoding="utf-8")
         log_path.parent.mkdir(parents=True, exist_ok=True)
         log_path.write_text("ok", encoding="utf-8")
 
     monkeypatch.setattr("translip.orchestration.runner.run_stage_command", fake_run_stage_command)
 
     monitor = PipelineMonitor(job_id="job-1", status_path=tmp_path / "status.json", write_status=False)
-    result = execute_stage("task-e", request, monitor=monitor)
+    result = execute_stage("render", request, monitor=monitor)
 
-    ledger_path = request.output_root / "task-d" / "voice" / "character-ledger" / "character_ledger.en.json"
+    ledger_path = request.output_root / "synthesis" / "voice" / "character-ledger" / "character_ledger.en.json"
     benchmark_path = request.output_root / "benchmark" / "voice" / "dub_benchmark.en.json"
     assert ledger_path.exists()
     assert benchmark_path.exists()
@@ -567,8 +567,8 @@ def test_execute_task_e_writes_character_ledger_and_dub_benchmark(tmp_path: Path
 
 
 def test_stage_sequence_respects_from_and_to() -> None:
-    stages = resolve_stage_sequence("task-b", "task-d")
-    assert stages == ["task-b", "task-c", "task-d"]
+    stages = resolve_stage_sequence("speaker-registry", "synthesis")
+    assert stages == ["speaker-registry", "translation", "synthesis"]
 
 
 def test_pipeline_status_snapshot_contains_overall_and_stage_progress(tmp_path: Path) -> None:
@@ -576,11 +576,11 @@ def test_pipeline_status_snapshot_contains_overall_and_stage_progress(tmp_path: 
 
     status_path = tmp_path / "pipeline-status.json"
     monitor = PipelineMonitor(job_id="job-1", status_path=status_path, write_status=True)
-    monitor.start_stage("task-d", current_step="speaker spk_0001 0/10")
-    monitor.update_stage_progress("task-d", 25.0, "speaker spk_0001 2/10")
+    monitor.start_stage("synthesis", current_step="speaker spk_0001 0/10")
+    monitor.update_stage_progress("synthesis", 25.0, "speaker spk_0001 2/10")
     payload = json.loads(status_path.read_text(encoding="utf-8"))
     assert payload["status"] == "running"
-    assert payload["current_stage"] == "task-d"
+    assert payload["current_stage"] == "synthesis"
     assert payload["overall_progress_percent"] > 0
     assert payload["stages"][0]["progress_percent"] == 25.0
 
@@ -588,12 +588,12 @@ def test_pipeline_status_snapshot_contains_overall_and_stage_progress(tmp_path: 
 def test_stage_cache_hits_when_manifest_and_artifacts_exist(tmp_path: Path) -> None:
     from translip.orchestration.cache import StageCacheSpec, is_stage_cache_hit
 
-    manifest_path = tmp_path / "task-a-manifest.json"
+    manifest_path = tmp_path / "transcription-manifest.json"
     artifact_path = tmp_path / "segments.zh.json"
     manifest_path.write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
     artifact_path.write_text("{}", encoding="utf-8")
     stage = StageCacheSpec(
-        stage_name="task-a",
+        stage_name="transcription",
         manifest_path=manifest_path,
         artifact_paths=[artifact_path],
         cache_key="abc",
@@ -685,8 +685,8 @@ def test_run_pipeline_aborts_when_should_cancel_returns_true(tmp_path: Path) -> 
     request = PipelineRequest(
         input_path=input_path,
         output_root=tmp_path / "out",
-        run_from_stage="stage1",
-        run_to_stage="task-e",
+        run_from_stage="separation",
+        run_to_stage="render",
         reuse_existing=False,
     )
 
@@ -760,7 +760,7 @@ def test_run_pipeline_writes_manifest_report_and_status(tmp_path: Path, monkeypa
     request = PipelineRequest(
         input_path=tmp_path / "sample.mp4",
         output_root=tmp_path / "pipeline-out",
-        run_to_stage="task-c",
+        run_to_stage="translation",
         write_status=True,
     )
     request.input_path.write_text("placeholder", encoding="utf-8")
@@ -779,7 +779,7 @@ def test_run_pipeline_writes_manifest_report_and_status(tmp_path: Path, monkeypa
 
     result = run_pipeline(request)
 
-    assert calls == ["stage1", "task-a", "task-b", "task-c"]
+    assert calls == ["separation", "transcription", "speaker-registry", "translation"]
     assert result.manifest_path.exists()
     assert result.report_path.exists()
     assert result.status_path.exists()
@@ -792,16 +792,16 @@ def test_pipeline_runner_marks_cached_stage_when_manifest_reusable(tmp_path: Pat
     input_path = tmp_path / "sample.mp4"
     input_path.write_text("placeholder", encoding="utf-8")
     output_root = tmp_path / "pipeline-out"
-    manifest_path = output_root / "task-a" / "voice" / "task-a-manifest.json"
+    manifest_path = output_root / "transcription" / "voice" / "transcription-manifest.json"
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
-    artifact_path = output_root / "task-a" / "voice" / "segments.zh.json"
+    artifact_path = output_root / "transcription" / "voice" / "segments.zh.json"
     artifact_path.write_text("{}", encoding="utf-8")
     request = PipelineRequest(
         input_path=input_path,
         output_root=output_root,
-        run_from_stage="task-a",
-        run_to_stage="task-a",
+        run_from_stage="transcription",
+        run_to_stage="transcription",
     )
 
     executed: list[str] = []
@@ -826,7 +826,7 @@ def test_task_g_cache_requires_requested_delivery_outputs(tmp_path: Path, monkey
     input_path = tmp_path / "sample.mp4"
     input_path.write_text("placeholder", encoding="utf-8")
     output_root = tmp_path / "pipeline-out"
-    task_g_dir = output_root / "task-g"
+    task_g_dir = output_root / "delivery"
     task_g_dir.mkdir(parents=True)
     (task_g_dir / "delivery-manifest.json").write_text(
         json.dumps({"status": "succeeded", "request": {"export_preview": True, "export_dub": False}}),
@@ -837,8 +837,8 @@ def test_task_g_cache_requires_requested_delivery_outputs(tmp_path: Path, monkey
     request = PipelineRequest(
         input_path=input_path,
         output_root=output_root,
-        run_from_stage="task-g",
-        run_to_stage="task-g",
+        run_from_stage="delivery",
+        run_to_stage="delivery",
         delivery_policy={"video_source": "original", "audio_source": "both", "subtitle_source": "asr"},
     )
 
@@ -849,8 +849,8 @@ def test_task_g_cache_requires_requested_delivery_outputs(tmp_path: Path, monkey
             (),
             {
                 "template_id": template_id,
-                "node_order": ["task-g"],
-                "nodes": {"task-g": type("Node", (), {"required": True})()},
+                "node_order": ["delivery"],
+                "nodes": {"delivery": type("Node", (), {"required": True})()},
             },
         )(),
     )
@@ -871,7 +871,7 @@ def test_task_g_cache_requires_requested_delivery_outputs(tmp_path: Path, monkey
 
     result = run_pipeline(request)
 
-    assert executed == ["task-g"]
+    assert executed == ["delivery"]
     payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert payload["stages"][0]["status"] == "succeeded"
     assert payload["stages"][0]["cache_hit"] is False
@@ -884,7 +884,7 @@ def test_task_g_cache_treats_preview_audio_source_as_preview_mix(tmp_path: Path,
     input_path = tmp_path / "sample.mp4"
     input_path.write_text("placeholder", encoding="utf-8")
     output_root = tmp_path / "pipeline-out"
-    task_g_dir = output_root / "task-g"
+    task_g_dir = output_root / "delivery"
     task_g_dir.mkdir(parents=True)
     (task_g_dir / "delivery-manifest.json").write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
     (task_g_dir / "delivery-report.json").write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
@@ -892,8 +892,8 @@ def test_task_g_cache_treats_preview_audio_source_as_preview_mix(tmp_path: Path,
     request = PipelineRequest(
         input_path=input_path,
         output_root=output_root,
-        run_from_stage="task-g",
-        run_to_stage="task-g",
+        run_from_stage="delivery",
+        run_to_stage="delivery",
         delivery_policy={"video_source": "original", "audio_source": "preview", "subtitle_source": "asr"},
     )
 
@@ -904,8 +904,8 @@ def test_task_g_cache_treats_preview_audio_source_as_preview_mix(tmp_path: Path,
             (),
             {
                 "template_id": template_id,
-                "node_order": ["task-g"],
-                "nodes": {"task-g": type("Node", (), {"required": True})()},
+                "node_order": ["delivery"],
+                "nodes": {"delivery": type("Node", (), {"required": True})()},
             },
         )(),
     )
@@ -926,7 +926,7 @@ def test_task_g_cache_treats_preview_audio_source_as_preview_mix(tmp_path: Path,
 
     result = run_pipeline(request)
 
-    assert executed == ["task-g"]
+    assert executed == ["delivery"]
     payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert payload["stages"][0]["status"] == "succeeded"
     assert payload["stages"][0]["cache_hit"] is False
@@ -939,7 +939,7 @@ def test_task_g_cache_rejects_manifest_that_omits_requested_dub_export(tmp_path:
     input_path = tmp_path / "sample.mp4"
     input_path.write_text("placeholder", encoding="utf-8")
     output_root = tmp_path / "pipeline-out"
-    task_g_dir = output_root / "task-g"
+    task_g_dir = output_root / "delivery"
     task_g_dir.mkdir(parents=True)
     final_preview = task_g_dir / "final-preview" / "final_preview.en.mp4"
     final_preview.parent.mkdir(parents=True)
@@ -962,8 +962,8 @@ def test_task_g_cache_rejects_manifest_that_omits_requested_dub_export(tmp_path:
     request = PipelineRequest(
         input_path=input_path,
         output_root=output_root,
-        run_from_stage="task-g",
-        run_to_stage="task-g",
+        run_from_stage="delivery",
+        run_to_stage="delivery",
         delivery_policy={"video_source": "original", "audio_source": "both", "subtitle_source": "asr"},
     )
 
@@ -974,8 +974,8 @@ def test_task_g_cache_rejects_manifest_that_omits_requested_dub_export(tmp_path:
             (),
             {
                 "template_id": template_id,
-                "node_order": ["task-g"],
-                "nodes": {"task-g": type("Node", (), {"required": True})()},
+                "node_order": ["delivery"],
+                "nodes": {"delivery": type("Node", (), {"required": True})()},
             },
         )(),
     )
@@ -993,7 +993,7 @@ def test_task_g_cache_rejects_manifest_that_omits_requested_dub_export(tmp_path:
 
     result = run_pipeline(request)
 
-    assert executed == ["task-g"]
+    assert executed == ["delivery"]
     payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert payload["stages"][0]["status"] == "succeeded"
     assert payload["stages"][0]["cache_hit"] is False
@@ -1018,11 +1018,11 @@ def test_run_pipeline_executes_nodes_from_template_plan(tmp_path: Path, monkeypa
             (),
             {
                 "template_id": template_id,
-                "node_order": ["stage1", "task-a", "task-b"],
+                "node_order": ["separation", "transcription", "speaker-registry"],
                 "nodes": {
-                    "stage1": type("Node", (), {"required": True})(),
-                    "task-a": type("Node", (), {"required": True})(),
-                    "task-b": type("Node", (), {"required": True})(),
+                    "separation": type("Node", (), {"required": True})(),
+                    "transcription": type("Node", (), {"required": True})(),
+                    "speaker-registry": type("Node", (), {"required": True})(),
                 },
             },
         )(),
@@ -1042,7 +1042,7 @@ def test_run_pipeline_executes_nodes_from_template_plan(tmp_path: Path, monkeypa
 
     result = run_pipeline(request)
 
-    assert calls == ["stage1", "task-a", "task-b"]
+    assert calls == ["separation", "transcription", "speaker-registry"]
     payload = json.loads(result.report_path.read_text(encoding="utf-8"))
     assert payload["status"] == "succeeded"
 
@@ -1057,7 +1057,7 @@ def test_run_pipeline_executes_asr_ocr_correction_before_task_b(tmp_path: Path, 
         input_path=input_path,
         output_root=tmp_path / "workflow-out",
         template_id="asr-dub+ocr-subs",
-        run_to_stage="task-b",
+        run_to_stage="speaker-registry",
     )
 
     calls: list[str] = []
@@ -1074,7 +1074,7 @@ def test_run_pipeline_executes_asr_ocr_correction_before_task_b(tmp_path: Path, 
 
     run_pipeline(request)
 
-    assert calls == ["stage1", "ocr-detect", "task-a", "asr-ocr-correct", "task-b"]
+    assert calls == ["separation", "ocr-detect", "transcription", "asr-ocr-correct", "speaker-registry"]
 
 
 def test_run_pipeline_marks_partial_success_when_optional_node_fails(tmp_path: Path, monkeypatch) -> None:
@@ -1087,7 +1087,7 @@ def test_run_pipeline_marks_partial_success_when_optional_node_fails(tmp_path: P
         input_path=input_path,
         output_root=tmp_path / "workflow-out",
         template_id="asr-dub+ocr-subs+erase",
-        run_to_stage="task-g",
+        run_to_stage="delivery",
     )
 
     monkeypatch.setattr(
@@ -1097,12 +1097,12 @@ def test_run_pipeline_marks_partial_success_when_optional_node_fails(tmp_path: P
             (),
             {
                 "template_id": "asr-dub+ocr-subs+erase",
-                "node_order": ["stage1", "ocr-detect", "subtitle-erase", "task-g"],
+                "node_order": ["separation", "ocr-detect", "subtitle-erase", "delivery"],
                 "nodes": {
-                    "stage1": type("Node", (), {"required": True})(),
+                    "separation": type("Node", (), {"required": True})(),
                     "ocr-detect": type("Node", (), {"required": True})(),
                     "subtitle-erase": type("Node", (), {"required": False})(),
-                    "task-g": type("Node", (), {"required": True})(),
+                    "delivery": type("Node", (), {"required": True})(),
                 },
             },
         )(),

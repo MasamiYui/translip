@@ -142,7 +142,7 @@ def test_speaker_review_audio_uses_nested_stage1_mp3(tmp_path: Path) -> None:
     engine = _test_engine(tmp_path, "speaker-review-audio.db")
     output_root = tmp_path / "output"
     _write_segments_fixture(output_root)
-    voice_path = output_root / "stage1" / "input" / "voice.mp3"
+    voice_path = output_root / "separation" / "input" / "voice.mp3"
     voice_path.parent.mkdir(parents=True, exist_ok=True)
     voice_path.write_bytes(b"real-mp3-bytes")
     _insert_task(engine, output_root)
@@ -163,7 +163,7 @@ def test_speaker_review_audio_uses_nested_stage1_mp3(tmp_path: Path) -> None:
 
     assert audio.status_code == 200
     assert audio.headers.get("content-type", "").startswith("audio/mpeg")
-    assert audio.headers.get("x-audio-path") == "stage1/input/voice.mp3"
+    assert audio.headers.get("x-audio-path") == "separation/input/voice.mp3"
     assert audio.headers.get("x-audio-source") != "synthesized-silence"
     assert audio.content == b"real-mp3-bytes"
 
@@ -172,7 +172,7 @@ def test_speaker_review_audio_header_handles_non_ascii_stage1_path(tmp_path: Pat
     engine = _test_engine(tmp_path, "speaker-review-unicode-audio.db")
     output_root = tmp_path / "output"
     _write_segments_fixture(output_root)
-    voice_path = output_root / "stage1" / "哪吒预告片" / "voice.mp3"
+    voice_path = output_root / "separation" / "哪吒预告片" / "voice.mp3"
     voice_path.parent.mkdir(parents=True, exist_ok=True)
     voice_path.write_bytes(b"real-mp3-bytes")
     _insert_task(engine, output_root)
@@ -194,7 +194,7 @@ def test_speaker_review_audio_header_handles_non_ascii_stage1_path(tmp_path: Pat
 
     assert audio.status_code == 206
     assert audio.headers.get("content-type", "").startswith("audio/mpeg")
-    assert audio.headers.get("x-audio-path") == "stage1/%E5%93%AA%E5%90%92%E9%A2%84%E5%91%8A%E7%89%87/voice.mp3"
+    assert audio.headers.get("x-audio-path") == "separation/%E5%93%AA%E5%90%92%E9%A2%84%E5%91%8A%E7%89%87/voice.mp3"
     assert audio.content == b"real"
 
 

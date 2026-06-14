@@ -57,7 +57,7 @@ def translate_script(
     )
     started_at = now_iso()
     started_monotonic = time.monotonic()
-    manifest_path = bundle_dir / "task-c-manifest.json"
+    manifest_path = bundle_dir / "translation-manifest.json"
 
     try:
         segments_payload = json.loads(Path(normalized_request.segments_path).read_text(encoding="utf-8"))

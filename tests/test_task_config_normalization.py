@@ -113,7 +113,7 @@ def test_normalize_task_storage_splits_legacy_flat_config() -> None:
     storage = normalize_task_storage(
         {
             "template": "asr-dub+ocr-subs+erase",
-            "run_to_stage": "task-e",
+            "run_to_stage": "render",
             "video_source": "original",
             "audio_source": "both",
             "subtitle_source": "asr",
@@ -124,7 +124,7 @@ def test_normalize_task_storage_splits_legacy_flat_config() -> None:
     )
 
     assert storage["pipeline"]["template"] == "asr-dub+ocr-subs+erase"
-    assert storage["pipeline"]["run_to_stage"] == "task-g"
+    assert storage["pipeline"]["run_to_stage"] == "delivery"
     assert storage["pipeline"]["video_source"] == "clean_if_available"
     assert storage["pipeline"]["audio_source"] == "both"
     assert storage["delivery"]["subtitle_mode"] == "bilingual"
@@ -148,7 +148,7 @@ def test_build_pipeline_request_upgrades_legacy_erase_defaults(tmp_path: Path) -
       config={
           "pipeline": {
               "template": "asr-dub+ocr-subs+erase",
-              "run_to_stage": "task-e",
+              "run_to_stage": "render",
               "video_source": "original",
               "audio_source": "both",
               "subtitle_source": "asr",
@@ -166,7 +166,7 @@ def test_build_pipeline_request_upgrades_legacy_erase_defaults(tmp_path: Path) -
 
     request = _build_pipeline_request(task)
 
-    assert request.run_to_stage == "task-g"
+    assert request.run_to_stage == "delivery"
     assert request.delivery_policy["video_source"] == "clean_if_available"
     assert request.subtitle_mode == "english_only"
     assert request.subtitle_source == "asr"
@@ -400,7 +400,7 @@ def test_task_manager_create_task_normalizes_legacy_erase_defaults(
         target_lang="en",
         config=TaskConfigInput(
             template="asr-dub+ocr-subs+erase",
-            run_to_stage="task-e",
+            run_to_stage="render",
             video_source="original",
             audio_source="both",
             subtitle_source="asr",
@@ -417,11 +417,11 @@ def test_task_manager_create_task_normalizes_legacy_erase_defaults(
             ).all()
         ]
 
-    assert task.config["pipeline"]["run_to_stage"] == "task-g"
+    assert task.config["pipeline"]["run_to_stage"] == "delivery"
     assert task.config["pipeline"]["video_source"] == "clean_if_available"
     assert task.config["delivery"]["subtitle_mode"] == "none"
     assert "subtitle-erase" in stage_names
-    assert "task-g" in stage_names
+    assert "delivery" in stage_names
 
 
 def test_rerun_task_upgrades_legacy_erase_defaults(tmp_path: Path, monkeypatch) -> None:
@@ -455,7 +455,7 @@ def test_rerun_task_upgrades_legacy_erase_defaults(tmp_path: Path, monkeypatch) 
         target_lang="en",
         config={
             "template": "asr-dub+ocr-subs+erase",
-            "run_to_stage": "task-e",
+            "run_to_stage": "render",
             "video_source": "original",
             "audio_source": "both",
             "subtitle_source": "asr",
@@ -468,16 +468,16 @@ def test_rerun_task_upgrades_legacy_erase_defaults(tmp_path: Path, monkeypatch) 
         session.commit()
         rerun = rerun_task(
             original.id,
-            RerunTaskRequest(from_stage="task-c"),
+            RerunTaskRequest(from_stage="translation"),
             session,
         )
 
     assert rerun.parent_task_id == original_id
-    assert rerun.config["run_from_stage"] == "task-c"
-    assert rerun.config["run_to_stage"] == "task-g"
+    assert rerun.config["run_from_stage"] == "translation"
+    assert rerun.config["run_to_stage"] == "delivery"
     assert rerun.config["video_source"] == "clean_if_available"
     assert rerun.delivery_config["subtitle_mode"] == "english_only"
-    assert "task-g" in [stage.stage_name for stage in rerun.stages]
+    assert "delivery" in [stage.stage_name for stage in rerun.stages]
 
 
 def test_task_config_accepts_subtitle_erase_controls() -> None:

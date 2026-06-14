@@ -157,7 +157,7 @@ def test_get_node_log_returns_tail_and_blocks_traversal(tmp_path: Path) -> None:
 
     logs_dir = tmp_path / "out" / "logs"
     logs_dir.mkdir(parents=True)
-    (logs_dir / "stage1.log").write_text("line A\nline B\n", encoding="utf-8")
+    (logs_dir / "separation.log").write_text("line A\nline B\n", encoding="utf-8")
 
     engine = create_engine("sqlite://", connect_args={"check_same_thread": False})
     SQLModel.metadata.create_all(engine)
@@ -178,7 +178,7 @@ def test_get_node_log_returns_tail_and_blocks_traversal(tmp_path: Path) -> None:
         )
         session.commit()
 
-        existing = get_node_log("task-log", "stage1", max_bytes=65536, session=session)
+        existing = get_node_log("task-log", "separation", max_bytes=65536, session=session)
         assert existing["exists"] is True
         assert "line B" in existing["content"]
 
@@ -212,8 +212,8 @@ def test_list_tasks_paginates_in_sql_and_groups_stages(tmp_path: Path) -> None:
                     updated_at=datetime(2026, 1, 1, 0, i),
                 )
             )
-        session.add(TaskStage(task_id="t4", stage_name="stage1", status="succeeded"))
-        session.add(TaskStage(task_id="t4", stage_name="task-a", status="succeeded"))
+        session.add(TaskStage(task_id="t4", stage_name="separation", status="succeeded"))
+        session.add(TaskStage(task_id="t4", stage_name="transcription", status="succeeded"))
         session.commit()
 
         page1 = list_tasks(status=None, target_lang=None, search=None, page=1, size=2, session=session)
@@ -235,15 +235,15 @@ def test_build_workflow_graph_payload_returns_nodes_and_edges() -> None:
             "template_id": "asr-dub+ocr-subs",
             "status": "running",
             "nodes": [
-                {"node_name": "stage1", "status": "succeeded"},
-                {"node_name": "task-a", "status": "running"},
+                {"node_name": "separation", "status": "succeeded"},
+                {"node_name": "transcription", "status": "running"},
             ],
         }
     )
 
     assert payload["workflow"]["template_id"] == "asr-dub+ocr-subs"
-    assert payload["nodes"][2]["id"] == "task-a"
-    assert payload["edges"][0]["from"] == "stage1"
+    assert payload["nodes"][2]["id"] == "transcription"
+    assert payload["edges"][0]["from"] == "separation"
 
 
 def test_task_graph_endpoint_returns_nodes_and_edges(tmp_path: Path) -> None:
@@ -263,8 +263,8 @@ def test_task_graph_endpoint_returns_nodes_and_edges(tmp_path: Path) -> None:
                 "template_id": "asr-dub+ocr-subs",
                 "status": "running",
                 "nodes": [
-                    {"node_name": "stage1", "status": "succeeded"},
-                    {"node_name": "task-a", "status": "running"},
+                    {"node_name": "separation", "status": "succeeded"},
+                    {"node_name": "transcription", "status": "running"},
                 ],
             }
         ),
@@ -302,8 +302,8 @@ def test_task_graph_endpoint_returns_nodes_and_edges(tmp_path: Path) -> None:
     assert response.status_code == 200
     payload = response.json()
     assert payload["workflow"]["template_id"] == "asr-dub+ocr-subs"
-    assert payload["nodes"][2]["id"] == "task-a"
-    assert payload["edges"][0]["to"] == "task-a"
+    assert payload["nodes"][2]["id"] == "transcription"
+    assert payload["edges"][0]["to"] == "transcription"
 
 
 def test_task_graph_endpoint_falls_back_to_db_stages_while_running(tmp_path: Path) -> None:
@@ -333,8 +333,8 @@ def test_task_graph_endpoint_falls_back_to_db_stages_while_running(tmp_path: Pat
                 updated_at=datetime.now(),
             )
         )
-        session.add(TaskStage(task_id=task_id, stage_name="stage1", status="succeeded"))
-        session.add(TaskStage(task_id=task_id, stage_name="task-a", status="running", progress_percent=42.0))
+        session.add(TaskStage(task_id=task_id, stage_name="separation", status="succeeded"))
+        session.add(TaskStage(task_id=task_id, stage_name="transcription", status="running", progress_percent=42.0))
         session.commit()
 
     def override_session():

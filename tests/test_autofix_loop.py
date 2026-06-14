@@ -69,23 +69,23 @@ def test_merge_selected_segments_unions_by_id(tmp_path: Path) -> None:
 
 def _make_pipeline(output_root: Path) -> None:
     """Lay out the minimal artifacts the worker checks for existence."""
-    (output_root / "task-c" / "voice").mkdir(parents=True, exist_ok=True)
-    (output_root / "task-c" / "voice" / "translation.en.json").write_text("{}", encoding="utf-8")
-    (output_root / "task-b" / "voice").mkdir(parents=True, exist_ok=True)
-    (output_root / "task-b" / "voice" / "speaker_profiles.json").write_text("{}", encoding="utf-8")
-    (output_root / "task-a" / "voice").mkdir(parents=True, exist_ok=True)
-    (output_root / "task-a" / "voice" / "segments.zh.json").write_text("{}", encoding="utf-8")
-    td = output_root / "task-d" / "voice" / "spk_0001"
+    (output_root / "translation" / "voice").mkdir(parents=True, exist_ok=True)
+    (output_root / "translation" / "voice" / "translation.en.json").write_text("{}", encoding="utf-8")
+    (output_root / "speaker-registry" / "voice").mkdir(parents=True, exist_ok=True)
+    (output_root / "speaker-registry" / "voice" / "speaker_profiles.json").write_text("{}", encoding="utf-8")
+    (output_root / "transcription" / "voice").mkdir(parents=True, exist_ok=True)
+    (output_root / "transcription" / "voice" / "segments.zh.json").write_text("{}", encoding="utf-8")
+    td = output_root / "synthesis" / "voice" / "spk_0001"
     td.mkdir(parents=True, exist_ok=True)
     (td / "speaker_segments.en.json").write_text("{}", encoding="utf-8")
-    stage1 = output_root / "stage1" / "clip"
-    stage1.mkdir(parents=True, exist_ok=True)
-    (stage1 / "background.mp3").write_text("x", encoding="utf-8")
-    # Pre-existing task-e mix so snapshot/restore has something to copy.
-    voice = output_root / "task-e" / "voice"
+    separation = output_root / "separation" / "clip"
+    separation.mkdir(parents=True, exist_ok=True)
+    (separation / "background.mp3").write_text("x", encoding="utf-8")
+    # Pre-existing render mix so snapshot/restore has something to copy.
+    voice = output_root / "render" / "voice"
     voice.mkdir(parents=True, exist_ok=True)
     (voice / "mix_report.en.json").write_text(json.dumps({"marker": "original"}), encoding="utf-8")
-    (voice / "task-e-manifest.json").write_text("{}", encoding="utf-8")
+    (voice / "render-manifest.json").write_text("{}", encoding="utf-8")
     # Keep moss out of the picture; pin a non-moss backend + cpu device.
     (output_root / "request.json").write_text(
         json.dumps({"tts_backend": "qwen3tts", "device": "cpu"}), encoding="utf-8"
@@ -144,7 +144,7 @@ def _install_stubs(monkeypatch, engine, output_root: Path, eval_queue: list[dict
         head = str(args[0])
         if head == "run-dub-repair":
             seg_ids = [str(args[i + 1]) for i, a in enumerate(args) if a == "--segment-id"]
-            run_dir = output_root / "task-d" / "voice" / "repair-run"
+            run_dir = output_root / "synthesis" / "voice" / "repair-run"
             run_dir.mkdir(parents=True, exist_ok=True)
             (run_dir / "selected_segments.en.json").write_text(
                 json.dumps(
@@ -158,8 +158,8 @@ def _install_stubs(monkeypatch, engine, output_root: Path, eval_queue: list[dict
                 encoding="utf-8",
             )
         elif head == "render-dub":
-            # Simulate the render mutating task-e so rollback is observable.
-            (output_root / "task-e" / "voice" / "mix_report.en.json").write_text(
+            # Simulate the render mutating render so rollback is observable.
+            (output_root / "render" / "voice" / "mix_report.en.json").write_text(
                 json.dumps({"marker": "rendered"}), encoding="utf-8"
             )
 
@@ -245,7 +245,7 @@ def test_auto_fix_iterates_until_converged(tmp_path: Path, monkeypatch) -> None:
     # The cumulative selected set accumulated both rounds' repairs (s1..s4),
     # so the final render kept earlier fixes.
     cumulative = json.loads(
-        (output_root / "task-d" / "voice" / "repair-run" / "selected_segments.cumulative.en.json").read_text(
+        (output_root / "synthesis" / "voice" / "repair-run" / "selected_segments.cumulative.en.json").read_text(
             encoding="utf-8"
         )
     )
@@ -274,8 +274,8 @@ def test_auto_fix_rolls_back_a_regressing_round(tmp_path: Path, monkeypatch) -> 
     assert result["new_analysis_id"] is None
     assert job.report_path is None
 
-    # task-e was restored to the pre-round snapshot (render's mutation undone).
-    mix = json.loads((output_root / "task-e" / "voice" / "mix_report.en.json").read_text(encoding="utf-8"))
+    # render was restored to the pre-round snapshot (render's mutation undone).
+    mix = json.loads((output_root / "render" / "voice" / "mix_report.en.json").read_text(encoding="utf-8"))
     assert mix["marker"] == "original"
 
     # No extra dub-qa analysis was promoted (only the baseline remains).

@@ -39,7 +39,7 @@ def test_translation_adapter_builds_temp_payloads_and_outputs_translated_text(
                 translation_json_path=translation_json,
                 editable_json_path=editable_json,
                 srt_path=srt_path,
-                manifest_path=bundle_dir / "task-c-manifest.json",
+                manifest_path=bundle_dir / "translation-manifest.json",
             )
         )
 

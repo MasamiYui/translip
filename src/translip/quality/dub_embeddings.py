@@ -167,7 +167,7 @@ def _main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Backfill speaker embeddings into a dub-qa report.")
     parser.add_argument("report", type=Path, help="path to dub_qa_report.<lang>.json")
     parser.add_argument(
-        "pipeline_root", type=Path, help="task pipeline root (where task-a/b/c/... live)"
+        "pipeline_root", type=Path, help="task pipeline root (where transcription/b/c/... live)"
     )
     parser.add_argument("--device", default=_DEFAULT_DEVICE, help="speaker model device (cpu / cuda / mps)")
     parser.add_argument("--dry-run", action="store_true", help="don't write, just print summary")

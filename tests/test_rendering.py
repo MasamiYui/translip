@@ -30,7 +30,7 @@ def test_render_dub_writes_outputs_and_places_failed_segments_when_audio_exists(
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=4.0, frequency=110.0)
 
-    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.json"
+    segments_path = tmp_path / "transcription" / "voice" / "segments.zh.json"
     _write_json(
         segments_path,
         {
@@ -75,7 +75,7 @@ def test_render_dub_writes_outputs_and_places_failed_segments_when_audio_exists(
         },
     )
 
-    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
+    translation_path = tmp_path / "translation" / "voice" / "translation.en.json"
     _write_json(
         translation_path,
         {
@@ -128,16 +128,16 @@ def test_render_dub_writes_outputs_and_places_failed_segments_when_audio_exists(
         },
     )
 
-    seg1_audio = tmp_path / "task-d" / "spk_0000" / "segments" / "seg-0001.wav"
-    seg2_audio = tmp_path / "task-d" / "spk_0000" / "segments" / "seg-0002.wav"
-    seg3_audio = tmp_path / "task-d" / "spk_0001" / "segments" / "seg-0003.wav"
-    seg4_audio = tmp_path / "task-d" / "spk_0001" / "segments" / "seg-0004.wav"
+    seg1_audio = tmp_path / "synthesis" / "spk_0000" / "segments" / "seg-0001.wav"
+    seg2_audio = tmp_path / "synthesis" / "spk_0000" / "segments" / "seg-0002.wav"
+    seg3_audio = tmp_path / "synthesis" / "spk_0001" / "segments" / "seg-0003.wav"
+    seg4_audio = tmp_path / "synthesis" / "spk_0001" / "segments" / "seg-0004.wav"
     _write_tone(seg1_audio, duration_sec=0.95, frequency=220.0)
     _write_tone(seg2_audio, duration_sec=1.30, frequency=240.0)
     _write_tone(seg3_audio, duration_sec=1.05, frequency=260.0)
     _write_tone(seg4_audio, duration_sec=2.50, frequency=280.0)
 
-    report_a_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    report_a_path = tmp_path / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"
     _write_json(
         report_a_path,
         {
@@ -174,7 +174,7 @@ def test_render_dub_writes_outputs_and_places_failed_segments_when_audio_exists(
             ],
         },
     )
-    report_b_path = tmp_path / "task-d" / "voice" / "spk_0001" / "speaker_segments.en.json"
+    report_b_path = tmp_path / "synthesis" / "voice" / "spk_0001" / "speaker_segments.en.json"
     _write_json(
         report_b_path,
         {
@@ -305,7 +305,7 @@ def test_overflow_overcompresses_up_to_cap_before_trimming(tmp_path: Path) -> No
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=5.5, frequency=110.0)
 
-    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.json"
+    segments_path = tmp_path / "transcription" / "voice" / "segments.zh.json"
     _write_json(segments_path, {"segments": [
         {"id": "seg-oc", "start": 0.0, "end": 2.0, "duration": 2.0,
          "speaker_label": "SPEAKER_00", "text": "甲", "language": "zh"},
@@ -315,7 +315,7 @@ def test_overflow_overcompresses_up_to_cap_before_trimming(tmp_path: Path) -> No
          "speaker_label": "SPEAKER_00", "text": "丙", "language": "zh"},
     ]})
 
-    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
+    translation_path = tmp_path / "translation" / "voice" / "translation.en.json"
     _write_json(translation_path, {
         "backend": {"target_lang": "en", "output_tag": "en"},
         "segments": [
@@ -328,14 +328,14 @@ def test_overflow_overcompresses_up_to_cap_before_trimming(tmp_path: Path) -> No
         ],
     })
 
-    oc_audio = tmp_path / "task-d" / "spk_0000" / "segments" / "seg-oc.wav"
-    tr_audio = tmp_path / "task-d" / "spk_0000" / "segments" / "seg-tr.wav"
-    z_audio = tmp_path / "task-d" / "spk_0000" / "segments" / "seg-z.wav"
+    oc_audio = tmp_path / "synthesis" / "spk_0000" / "segments" / "seg-oc.wav"
+    tr_audio = tmp_path / "synthesis" / "spk_0000" / "segments" / "seg-tr.wav"
+    z_audio = tmp_path / "synthesis" / "spk_0000" / "segments" / "seg-z.wav"
     _write_tone(oc_audio, duration_sec=3.0, frequency=220.0)   # 3.0 / available 2.0 = 1.5x
     _write_tone(tr_audio, duration_sec=4.0, frequency=240.0)   # 4.0 / available 2.0 = 2.0x
     _write_tone(z_audio, duration_sec=0.9, frequency=260.0)
 
-    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    report_path = tmp_path / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"
 
     def seg(seg_id, source, generated, audio, status="review"):
         return {
@@ -388,7 +388,7 @@ def test_render_dub_ducks_background_where_source_voice_stem_is_active(tmp_path:
     duration_sec = 4.0
     sample_count = int(duration_sec * sample_rate)
     time_axis = np.linspace(0.0, duration_sec, sample_count, endpoint=False, dtype=np.float32)
-    stage1_dir = tmp_path / "stage1" / "demo"
+    stage1_dir = tmp_path / "separation" / "demo"
     background_path = stage1_dir / "background.wav"
     voice_path = stage1_dir / "voice.wav"
     background = (0.1 * np.sin(2 * np.pi * 110.0 * time_axis)).astype(np.float32)
@@ -399,7 +399,7 @@ def test_render_dub_ducks_background_where_source_voice_stem_is_active(tmp_path:
     _write_waveform(background_path, background, sample_rate=sample_rate)
     _write_waveform(voice_path, source_voice, sample_rate=sample_rate)
 
-    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.json"
+    segments_path = tmp_path / "transcription" / "voice" / "segments.zh.json"
     _write_json(
         segments_path,
         {
@@ -416,7 +416,7 @@ def test_render_dub_ducks_background_where_source_voice_stem_is_active(tmp_path:
             ]
         },
     )
-    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
+    translation_path = tmp_path / "translation" / "voice" / "translation.en.json"
     _write_json(
         translation_path,
         {
@@ -435,9 +435,9 @@ def test_render_dub_ducks_background_where_source_voice_stem_is_active(tmp_path:
             ],
         },
     )
-    seg_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    seg_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
     _write_tone(seg_audio, duration_sec=0.4, frequency=220.0)
-    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    report_path = tmp_path / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"
     _write_json(
         report_path,
         {
@@ -493,7 +493,7 @@ def test_render_dub_uses_selected_segments_override(tmp_path: Path) -> None:
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=2.0, frequency=110.0)
 
-    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.json"
+    segments_path = tmp_path / "transcription" / "voice" / "segments.zh.json"
     _write_json(
         segments_path,
         {
@@ -510,7 +510,7 @@ def test_render_dub_uses_selected_segments_override(tmp_path: Path) -> None:
             ]
         },
     )
-    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
+    translation_path = tmp_path / "translation" / "voice" / "translation.en.json"
     _write_json(
         translation_path,
         {
@@ -529,11 +529,11 @@ def test_render_dub_uses_selected_segments_override(tmp_path: Path) -> None:
             ],
         },
     )
-    original_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    original_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
     repaired_audio = tmp_path / "repair" / "seg-0001.wav"
     _write_tone(original_audio, duration_sec=2.4, frequency=220.0)
     _write_tone(repaired_audio, duration_sec=0.9, frequency=330.0)
-    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    report_path = tmp_path / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"
     _write_json(
         report_path,
         {
@@ -611,10 +611,10 @@ def test_render_dub_exports_optional_mp3_preview(tmp_path: Path) -> None:
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=2.0, frequency=100.0)
 
-    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.json"
-    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
-    segment_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
-    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    segments_path = tmp_path / "transcription" / "voice" / "segments.zh.json"
+    translation_path = tmp_path / "translation" / "voice" / "translation.en.json"
+    segment_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    report_path = tmp_path / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"
 
     _write_tone(segment_audio, duration_sec=1.0, frequency=200.0)
     _write_json(
@@ -693,10 +693,10 @@ def test_render_dub_uses_ocr_dubbing_window_and_reports_subtitle_coverage(tmp_pa
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=20.0, frequency=100.0)
 
-    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.corrected.json"
-    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
-    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
-    segment_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0006.wav"
+    segments_path = tmp_path / "transcription" / "voice" / "segments.zh.corrected.json"
+    translation_path = tmp_path / "translation" / "voice" / "translation.en.json"
+    report_path = tmp_path / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    segment_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0006.wav"
     _write_tone(segment_audio, duration_sec=2.46, frequency=220.0)
 
     _write_json(
@@ -803,10 +803,10 @@ def test_render_dub_blocks_content_quality_when_subtitle_window_has_no_dub_audio
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=5.0, frequency=100.0)
 
-    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.corrected.json"
-    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
-    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
-    segment_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    segments_path = tmp_path / "transcription" / "voice" / "segments.zh.corrected.json"
+    translation_path = tmp_path / "translation" / "voice" / "translation.en.json"
+    report_path = tmp_path / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    segment_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
     _write_tone(segment_audio, duration_sec=1.0, frequency=220.0)
 
     _write_json(
@@ -896,10 +896,10 @@ def test_render_dub_shifts_nearby_subtitle_window_start_to_preserve_coverage(tmp
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=3.0, frequency=100.0)
 
-    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.corrected.json"
-    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
-    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
-    segment_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    segments_path = tmp_path / "transcription" / "voice" / "segments.zh.corrected.json"
+    translation_path = tmp_path / "translation" / "voice" / "translation.en.json"
+    report_path = tmp_path / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    segment_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
     _write_tone(segment_audio, duration_sec=1.0, frequency=220.0)
 
     _write_json(
@@ -988,11 +988,11 @@ def test_render_dub_layers_subtitle_window_overlap_instead_of_silencing(tmp_path
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=3.0, frequency=100.0)
 
-    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.corrected.json"
-    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
-    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
-    seg1_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
-    seg2_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0002.wav"
+    segments_path = tmp_path / "transcription" / "voice" / "segments.zh.corrected.json"
+    translation_path = tmp_path / "translation" / "voice" / "translation.en.json"
+    report_path = tmp_path / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    seg1_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    seg2_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0002.wav"
     _write_tone(seg1_audio, duration_sec=2.0, frequency=220.0)
     _write_tone(seg2_audio, duration_sec=1.0, frequency=260.0)
 
@@ -1123,11 +1123,11 @@ def test_render_dub_preserves_subtitle_window_owner_when_later_split_overlaps(tm
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=4.0, frequency=100.0)
 
-    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.corrected.json"
-    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
-    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
-    seg1_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
-    seg2_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0002.wav"
+    segments_path = tmp_path / "transcription" / "voice" / "segments.zh.corrected.json"
+    translation_path = tmp_path / "translation" / "voice" / "translation.en.json"
+    report_path = tmp_path / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    seg1_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    seg2_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0002.wav"
     _write_tone(seg1_audio, duration_sec=2.0, frequency=220.0)
     _write_tone(seg2_audio, duration_sec=0.8, frequency=260.0)
 
@@ -1253,10 +1253,10 @@ def test_render_dub_stretches_short_underflow_when_subtitle_window_would_be_part
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=3.0, frequency=100.0)
 
-    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.corrected.json"
-    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
-    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
-    segment_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    segments_path = tmp_path / "transcription" / "voice" / "segments.zh.corrected.json"
+    translation_path = tmp_path / "translation" / "voice" / "translation.en.json"
+    report_path = tmp_path / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    segment_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
     _write_tone(segment_audio, duration_sec=0.64, frequency=220.0)
 
     _write_json(
@@ -1348,11 +1348,11 @@ def test_render_dub_compresses_small_overruns_to_preserve_adjacent_segments(tmp_
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=3.0, frequency=100.0)
 
-    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.json"
-    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
-    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
-    seg1_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
-    seg2_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0002.wav"
+    segments_path = tmp_path / "transcription" / "voice" / "segments.zh.json"
+    translation_path = tmp_path / "translation" / "voice" / "translation.en.json"
+    report_path = tmp_path / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    seg1_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0001.wav"
+    seg2_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0002.wav"
 
     _write_tone(seg1_audio, duration_sec=1.10, frequency=220.0)
     _write_tone(seg2_audio, duration_sec=1.12, frequency=260.0)
@@ -1481,11 +1481,11 @@ def test_render_dub_compresses_short_risky_overrun_instead_of_dropping_next_segm
     background_path = tmp_path / "background.wav"
     _write_tone(background_path, duration_sec=4.0, frequency=90.0)
 
-    segments_path = tmp_path / "task-a" / "voice" / "segments.zh.json"
-    translation_path = tmp_path / "task-c" / "voice" / "translation.en.json"
-    report_path = tmp_path / "task-d" / "voice" / "spk_0000" / "speaker_segments.en.json"
-    seg1_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0010.wav"
-    seg2_audio = tmp_path / "task-d" / "voice" / "spk_0000" / "segments" / "seg-0011.wav"
+    segments_path = tmp_path / "transcription" / "voice" / "segments.zh.json"
+    translation_path = tmp_path / "translation" / "voice" / "translation.en.json"
+    report_path = tmp_path / "synthesis" / "voice" / "spk_0000" / "speaker_segments.en.json"
+    seg1_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0010.wav"
+    seg2_audio = tmp_path / "synthesis" / "voice" / "spk_0000" / "segments" / "seg-0011.wav"
 
     _write_tone(seg1_audio, duration_sec=1.68, frequency=220.0)
     _write_tone(seg2_audio, duration_sec=1.68, frequency=260.0)

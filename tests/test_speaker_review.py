@@ -23,7 +23,7 @@ def test_build_diarization_report_folds_in_diarizer_metadata() -> None:
             "group_count": 4,
             "valid_embeddings": 4,
         },
-        source_path="task-a/voice/segments.zh.json",
+        source_path="transcription/voice/segments.zh.json",
     )
 
     assert report["version"] == 1

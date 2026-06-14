@@ -43,14 +43,14 @@ def build_asset_summary(task: Task) -> dict[str, dict[str, dict[str, str | None]
     root = Path(task.output_root)
     target_lang = task.target_lang
 
-    preview_audio = root / "task-e" / "voice" / f"preview_mix.{target_lang}.wav"
-    dub_audio = root / "task-e" / "voice" / f"dub_voice.{target_lang}.wav"
+    preview_audio = root / "render" / "voice" / f"preview_mix.{target_lang}.wav"
+    dub_audio = root / "render" / "voice" / f"dub_voice.{target_lang}.wav"
     clean_video = root / "subtitle-erase" / "clean_video.mp4"
     ocr_srt = root / "ocr-translate" / f"ocr_subtitles.{target_lang}.srt"
     asr_srt = _first_existing(
         [
-            root / "task-c" / "voice" / f"translation.{target_lang}.srt",
-            root / "task-c" / f"translation.{target_lang}.srt",
+            root / "translation" / "voice" / f"translation.{target_lang}.srt",
+            root / "translation" / f"translation.{target_lang}.srt",
         ]
     )
     preview_video = _first_glob(root, f"final_preview.{target_lang}.mp4")
@@ -356,8 +356,8 @@ def _last_export_files_from_report(
 
 def _latest_delivery_report_path(root: Path) -> Path | None:
     candidates = [
-        root / "task-g" / "delivery-report.json",
-        root / "task-g" / "delivery" / "delivery-report.json",
+        root / "delivery" / "delivery-report.json",
+        root / "delivery" / "delivery" / "delivery-report.json",
     ]
     existing = [path for path in candidates if path.exists()]
     if not existing:

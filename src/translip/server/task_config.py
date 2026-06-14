@@ -4,13 +4,13 @@ from typing import Any, Mapping
 
 _ERASE_TEMPLATE_ID = "asr-dub+ocr-subs+erase"
 _LEGACY_ERASE_DEFAULTS = {
-    "run_to_stage": "task-e",
+    "run_to_stage": "render",
     "video_source": "original",
     "audio_source": "both",
     "subtitle_source": "asr",
 }
 _UPGRADED_ERASE_DEFAULTS = {
-    "run_to_stage": "task-g",
+    "run_to_stage": "delivery",
     "video_source": "clean_if_available",
 }
 _DELIVERY_DEFAULTS = {

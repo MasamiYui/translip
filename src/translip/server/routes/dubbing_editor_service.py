@@ -46,15 +46,15 @@ _pending_lock = threading.Lock()
 # at each call site, so they are intentionally absent here.
 _TRACK_PATTERNS: dict[str, list[str]] = {
     "original": [
-        "stage1/voice/voice.wav",
-        "stage1/*/voice.wav",
-        "stage1/*/voice.mp3",
-        "stage1/voice/voice.mp3",
+        "separation/voice/voice.wav",
+        "separation/*/voice.wav",
+        "separation/*/voice.mp3",
+        "separation/voice/voice.mp3",
     ],
     "background": [
-        "stage1/background/background.wav",
-        "stage1/*/background.wav",
-        "stage1/*/background.mp3",
+        "separation/background/background.wav",
+        "separation/*/background.wav",
+        "separation/*/background.mp3",
     ],
 }
 
@@ -88,16 +88,16 @@ def _import_editor_project(task: Task) -> dict[str, Any]:
 
     # Artifact paths (relative)
     artifact_paths: dict[str, str] = {
-        "translation": f"task-c/voice/translation.{target_lang}.json",
-        "character_ledger": f"task-d/voice/character-ledger/character_ledger.{target_lang}.json",
+        "translation": f"translation/voice/translation.{target_lang}.json",
+        "character_ledger": f"synthesis/voice/character-ledger/character_ledger.{target_lang}.json",
         "benchmark": f"benchmark/voice/dub_benchmark.{target_lang}.json",
-        "mix_report": f"task-e/voice/mix_report.{target_lang}.json",
-        "timeline": f"task-e/voice/timeline.{target_lang}.json",
-        "speaker_profiles": "task-b/voice/speaker_profiles.json",
-        "preview_mix": f"task-e/voice/preview_mix.{target_lang}.wav",
-        "dub_voice": f"task-e/voice/dub_voice.{target_lang}.wav",
-        "final_preview": f"task-g/final-preview/final_preview.{target_lang}.mp4",
-        "final_dub": f"task-g/final-dub/final_dub.{target_lang}.mp4",
+        "mix_report": f"render/voice/mix_report.{target_lang}.json",
+        "timeline": f"render/voice/timeline.{target_lang}.json",
+        "speaker_profiles": "speaker-registry/voice/speaker_profiles.json",
+        "preview_mix": f"render/voice/preview_mix.{target_lang}.wav",
+        "dub_voice": f"render/voice/dub_voice.{target_lang}.wav",
+        "final_preview": f"delivery/final-preview/final_preview.{target_lang}.mp4",
+        "final_dub": f"delivery/final-dub/final_dub.{target_lang}.mp4",
         "editor_project": f"{_EDITOR_SUBDIR}/editor_project.json",
         "materialized": f"{_EDITOR_SUBDIR}/materialized.current.json",
         "operations": f"{_EDITOR_SUBDIR}/operations.jsonl",
@@ -196,8 +196,8 @@ def _pregenerate_waveforms_bg(output_root: Path, target_lang: str, editor_root: 
 
     track_patterns: dict[str, list[str]] = {
         **_TRACK_PATTERNS,
-        "dub": [f"task-e/voice/dub_voice.{target_lang}.wav"],
-        "preview_mix": [f"task-e/voice/preview_mix.{target_lang}.wav"],
+        "dub": [f"render/voice/dub_voice.{target_lang}.wav"],
+        "preview_mix": [f"render/voice/preview_mix.{target_lang}.wav"],
     }
 
     for track, patterns in track_patterns.items():
@@ -253,9 +253,9 @@ def _build_characters(
     persona_by_speaker: dict[str, dict] = {}
     if output_root is not None:
         try:
-            review_dir = output_root / "task-a" / "voice" / "speaker-review"
+            review_dir = output_root / "transcription" / "voice" / "speaker-review"
             if not review_dir.exists():
-                review_dir = output_root / "stage1" / "voice" / "speaker-review"
+                review_dir = output_root / "separation" / "voice" / "speaker-review"
             if review_dir.exists():
                 personas_payload = _load_personas(review_dir)
                 persona_by_speaker = _build_persona_by_speaker(personas_payload) or {}
@@ -436,8 +436,8 @@ def _build_units(
         char_id = seg.get("character_id") or seg_to_char.get(speaker_id, f"char_unknown")
 
         slot = clip_paths.get(seg_id, {})
-        # NOTE: prefer the permanent task-d ``audio_path`` over the transient
-        # ``fitted_audio_path`` (which lives under ``task-e/.work/<job>/fit/``
+        # NOTE: prefer the permanent synthesis ``audio_path`` over the transient
+        # ``fitted_audio_path`` (which lives under ``render/.work/<job>/fit/``
         # and is wiped after the pipeline run). This keeps the inspector
         # preview playable long after the pipeline finishes.
         audio_path = slot.get("audio_path") or slot.get("fitted_audio_path") or slot.get("clip_path")
@@ -510,11 +510,11 @@ def _resolve_existing_clip_audio(
 ) -> str | None:
     """Return a relative artifact path that actually exists on disk.
 
-    Older materialized projects stored ``task-e/.work/<job>/fit/<seg>.wav``
+    Older materialized projects stored ``render/.work/<job>/fit/<seg>.wav``
     (the transient *fitted* clip) which is wiped after the pipeline run, so
     the inspector preview ended up requesting a 404'd file. This helper
     tries the recorded paths first, then falls back to the permanent
-    per-segment wav under ``task-d/voice/<speaker>/segments/<unit_id>.wav``.
+    per-segment wav under ``synthesis/voice/<speaker>/segments/<unit_id>.wav``.
     """
     if not output_root:
         return None
@@ -537,16 +537,16 @@ def _resolve_existing_clip_audio(
         except OSError:
             continue
 
-    # Fallback 1: permanent task-d wav using known speaker_id.
+    # Fallback 1: permanent synthesis wav using known speaker_id.
     if unit_id and speaker_id:
-        td = output_root / "task-d" / "voice" / speaker_id / "segments" / f"{unit_id}.wav"
+        td = output_root / "synthesis" / "voice" / speaker_id / "segments" / f"{unit_id}.wav"
         if td.exists() and td.is_file():
             return _to_relative(str(td), output_root)
 
-    # Fallback 2: glob across all speakers under task-d.
+    # Fallback 2: glob across all speakers under synthesis.
     if unit_id:
         try:
-            for hit in (output_root / "task-d" / "voice").glob(f"*/segments/{unit_id}.wav"):
+            for hit in (output_root / "synthesis" / "voice").glob(f"*/segments/{unit_id}.wav"):
                 if hit.is_file():
                     return _to_relative(str(hit), output_root)
         except OSError:
@@ -564,7 +564,7 @@ def _resynthesize_segment_to_disk(
     duration_budget_sec: float | None,
     speed: float | None = None,
 ) -> tuple[Path | None, str | None]:
-    """Run the TTS backend for a single segment and overwrite the task-d wav.
+    """Run the TTS backend for a single segment and overwrite the synthesis wav.
 
     Returns ``(audio_path, error)``. ``audio_path`` is the final wav location
     (absolute) when synthesis succeeds, ``error`` carries a short reason when
@@ -575,7 +575,7 @@ def _resynthesize_segment_to_disk(
     if not speaker_id:
         return None, "missing_speaker_id"
 
-    speaker_dir = output_root / "task-d" / "voice" / speaker_id
+    speaker_dir = output_root / "synthesis" / "voice" / speaker_id
     speaker_segments_path = speaker_dir / f"speaker_segments.{target_lang}.json"
     if not speaker_segments_path.exists():
         # Fallback: glob in case target_lang differs.
@@ -1147,7 +1147,7 @@ def _render_range(
 
 def _patch_unit_audio_paths(project: dict[str, Any], output_root: Path) -> None:
     """Rewrite each unit's ``current_clip.audio_artifact_path`` to a path
-    that *currently exists on disk*, falling back to the permanent task-d
+    that *currently exists on disk*, falling back to the permanent synthesis
     wav when the recorded fitted-clip path has been cleaned up.
 
     This is applied at response time so older projects keep working without

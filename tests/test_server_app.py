@@ -39,7 +39,7 @@ def test_config_defaults_run_full_pipeline_to_task_g(tmp_path, monkeypatch) -> N
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["run_to_stage"] == "task-g"
+    assert payload["run_to_stage"] == "delivery"
     assert payload["tts_backend"] == "moss-tts-nano-onnx"
     assert payload["vad_filter"] is True
     assert payload["vad_min_silence_duration_ms"] == 400

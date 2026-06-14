@@ -3,7 +3,7 @@
 Reads the ``visual_context.json`` the visual-context node produced and matches
 its units to translation ContextUnits by **time overlap** — never by unit
 numbering, which is process-local on both sides (vision groups segments its own
-way; task-c regroups them independently). Missing/corrupt files degrade to "no
+way; translation regroups them independently). Missing/corrupt files degrade to "no
 context": translation must never fail because the vision stage did.
 """
 from __future__ import annotations

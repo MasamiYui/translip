@@ -23,8 +23,8 @@ CONFIG_PATH = CONFIG_DIR / "config.json"
 
 _DEFAULT_CONFIG = {
     "device": "auto",
-    "run_from_stage": "stage1",
-    "run_to_stage": "task-g",
+    "run_from_stage": "separation",
+    "run_to_stage": "delivery",
     "use_cache": True,
     "keep_intermediate": False,
     "separation_mode": "dialogue",
@@ -163,14 +163,14 @@ class GlobalConfigRequest(BaseModel):
     device: Optional[str] = Field(default=None, description="运行设备，如 auto/cpu/cuda/mps")
     use_cache: Optional[bool] = Field(default=None, description="是否复用各阶段的缓存产物")
     keep_intermediate: Optional[bool] = Field(default=None, description="是否保留流水线中间产物")
-    separation_mode: Optional[str] = Field(default=None, description="stage1 人声/背景分离模式，如 auto")
-    separation_quality: Optional[str] = Field(default=None, description="stage1 分离质量档位，如 balanced")
-    music_backend: Optional[str] = Field(default=None, description="stage1 背景音乐分离后端，如 demucs")
-    dialogue_backend: Optional[str] = Field(default=None, description="stage1 人声/对白分离后端，如 cdx23")
-    stage1_output_format: Optional[str] = Field(default=None, description="stage1 输出音频格式，如 mp3/wav")
+    separation_mode: Optional[str] = Field(default=None, description="separation 人声/背景分离模式，如 auto")
+    separation_quality: Optional[str] = Field(default=None, description="separation 分离质量档位，如 balanced")
+    music_backend: Optional[str] = Field(default=None, description="separation 背景音乐分离后端，如 demucs")
+    dialogue_backend: Optional[str] = Field(default=None, description="separation 人声/对白分离后端，如 cdx23")
+    stage1_output_format: Optional[str] = Field(default=None, description="separation 输出音频格式，如 mp3/wav")
     audio_stream_index: Optional[int] = Field(default=None, description="源视频中要处理的音轨索引，从 0 开始")
-    asr_model: Optional[str] = Field(default=None, description="task-a 转写所用 ASR 模型名，如 paraformer-zh")
-    asr_backend: Optional[str] = Field(default=None, description="task-a 转写后端，如 funasr/faster-whisper")
+    asr_model: Optional[str] = Field(default=None, description="transcription 转写所用 ASR 模型名，如 paraformer-zh")
+    asr_backend: Optional[str] = Field(default=None, description="transcription 转写后端，如 funasr/faster-whisper")
     diarizer_backend: Optional[str] = Field(default=None, description="说话人分离(diarization)后端，如 ecapa/pyannote")
     enable_diarization: Optional[bool] = Field(default=None, description="是否启用说话人分离(diarization)")
     generate_srt: Optional[bool] = Field(default=None, description="转写后是否生成 SRT 字幕文件")
@@ -184,12 +184,12 @@ class GlobalConfigRequest(BaseModel):
     ocr_sample_interval: Optional[float] = Field(default=None, description="字幕识别(OCR)抽帧采样间隔（秒）")
     ocr_position_mode: Optional[str] = Field(default=None, description="OCR 字幕区域定位模式，如 auto")
     ocr_extraction_mode: Optional[str] = Field(default=None, description="OCR 字幕提取模式，如 conservative")
-    translation_backend: Optional[str] = Field(default=None, description="task-c 翻译后端，如 local-m2m100/deepseek")
+    translation_backend: Optional[str] = Field(default=None, description="translation 翻译后端，如 local-m2m100/deepseek")
     translation_batch_size: Optional[int] = Field(default=None, description="翻译批处理大小，需大于 0")
     deepseek_model: Optional[str] = Field(default=None, description="deepseek 翻译后端使用的模型名")
     condense_mode: Optional[str] = Field(default=None, description="文本精简模式，如 off")
     transcription_correction: Optional[dict] = Field(default=None, description="转写纠错配置（启用开关、预设、OCR 仅报告策略、LLM 仲裁等）")
-    tts_backend: Optional[str] = Field(default=None, description="task-d 语音合成(TTS)后端，如 moss-tts-nano-onnx")
+    tts_backend: Optional[str] = Field(default=None, description="synthesis 语音合成(TTS)后端，如 moss-tts-nano-onnx")
     dubbing_quality_check: Optional[str] = Field(default=None, description="配音(dub)质量检查档位，如 standard")
     dubbing_workers: Optional[int] = Field(default=None, description="配音合成并发 worker 数，需大于 0")
     dub_repair_enabled: Optional[bool] = Field(default=None, description="是否启用配音修复（重合成失败片段）")
@@ -197,7 +197,7 @@ class GlobalConfigRequest(BaseModel):
     dub_repair_max_items: Optional[int] = Field(default=None, description="单次配音修复最多处理的片段数，需大于 0")
     dub_repair_attempts_per_item: Optional[int] = Field(default=None, description="每个片段的配音修复重试次数，需大于 0")
     dub_repair_include_risk: Optional[bool] = Field(default=None, description="配音修复是否纳入风险（疑似异常）片段")
-    fit_policy: Optional[str] = Field(default=None, description="task-e 时间轴重拟合策略，如 conservative")
+    fit_policy: Optional[str] = Field(default=None, description="render 时间轴重拟合策略，如 conservative")
     fit_backend: Optional[str] = Field(default=None, description="时间轴拟合后端，如 atempo/rubberband")
     mix_profile: Optional[str] = Field(default=None, description="混音档位，如 preview")
     ducking_mode: Optional[str] = Field(default=None, description="背景闪避(ducking)模式，如 static")
@@ -208,7 +208,7 @@ class GlobalConfigRequest(BaseModel):
     preview_format: Optional[str] = Field(default=None, description="预览音频格式，如 wav")
     export_preview: Optional[bool] = Field(default=None, description="是否导出预览音频")
     export_dub: Optional[bool] = Field(default=None, description="是否导出配音成品")
-    delivery_container: Optional[str] = Field(default=None, description="task-g 导出视频封装容器，如 mp4")
+    delivery_container: Optional[str] = Field(default=None, description="delivery 导出视频封装容器，如 mp4")
     delivery_video_codec: Optional[str] = Field(default=None, description="导出视频编码，如 copy 表示直接复制")
     delivery_audio_codec: Optional[str] = Field(default=None, description="导出音频编码，如 aac")
     subtitle_mode: Optional[str] = Field(default=None, description="导出字幕模式，如 none/不烧录")

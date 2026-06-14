@@ -81,7 +81,7 @@ def get_speaker_review(
 ) -> dict[str, Any]:
     """获取指定任务的说话人评审总览。
 
-    基于 task-a 转写结果实时构建说话人诊断与评审计划并写入工件，汇总各说话人、
+    基于 transcription 转写结果实时构建说话人诊断与评审计划并写入工件，汇总各说话人、
     说话人连续片段、片段、相似度矩阵、已有人工决策与人物画像信息。任务尚无转写
     片段时返回 status=missing 的空结构。
     """
@@ -1162,14 +1162,14 @@ def suggest_personas_from_global_route(
 def _resolve_audio_path(root: Path) -> Path | None:
     supported_exts = ("wav", "mp3", "flac", "aac", "opus")
     candidates = [
-        *(root / "stage1" / "voice" / f"voice.{ext}" for ext in supported_exts),
-        *(root / "task-a" / "voice" / f"voice.{ext}" for ext in supported_exts),
+        *(root / "separation" / "voice" / f"voice.{ext}" for ext in supported_exts),
+        *(root / "transcription" / "voice" / f"voice.{ext}" for ext in supported_exts),
     ]
     for candidate in candidates:
         if candidate.exists():
             return candidate
     for ext in supported_exts:
-        for candidate in sorted((root / "stage1").glob(f"*/voice.{ext}")):
+        for candidate in sorted((root / "separation").glob(f"*/voice.{ext}")):
             if candidate.exists():
                 return candidate
     return None
@@ -1222,7 +1222,7 @@ def _speaker_review_paths(root: Path) -> dict[str, Path]:
     review_dir = root / "asr-ocr-correct" / "voice"
     return {
         "review_dir": review_dir,
-        "raw_segments": root / "task-a" / "voice" / "segments.zh.json",
+        "raw_segments": root / "transcription" / "voice" / "segments.zh.json",
         "text_corrected_segments": review_dir / "segments.zh.corrected.json",
         "corrected_segments": review_dir / "segments.zh.speaker-corrected.json",
         "corrected_srt": review_dir / "segments.zh.speaker-corrected.srt",

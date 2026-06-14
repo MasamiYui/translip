@@ -628,7 +628,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     pipeline_parser = subparsers.add_parser(
         "run-pipeline",
-        help="Run stage 1 through task-e with cache-aware orchestration",
+        help="Run stage 1 through render with cache-aware orchestration",
     )
     pipeline_parser.add_argument("--config", default=None, help="Optional pipeline JSON config path")
     pipeline_parser.add_argument("--input", required=True, help="Input video or audio path")

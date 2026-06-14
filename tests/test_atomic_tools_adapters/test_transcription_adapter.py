@@ -31,7 +31,7 @@ def test_transcription_adapter_copies_artifacts_and_summarizes_segments(
             artifacts=SimpleNamespace(
                 segments_json_path=segments_path,
                 srt_path=srt_path,
-                manifest_path=bundle_dir / "task-a-manifest.json",
+                manifest_path=bundle_dir / "transcription-manifest.json",
             ),
         )
 
@@ -81,7 +81,7 @@ def test_transcription_adapter_uses_requested_language_in_artifact_names(
             artifacts=SimpleNamespace(
                 segments_json_path=segments_path,
                 srt_path=srt_path,
-                manifest_path=bundle_dir / "task-a-manifest.json",
+                manifest_path=bundle_dir / "transcription-manifest.json",
             ),
         )
 
@@ -127,7 +127,7 @@ def test_transcription_adapter_passes_advanced_asr_options(
             artifacts=SimpleNamespace(
                 segments_json_path=segments_path,
                 srt_path=None,
-                manifest_path=bundle_dir / "task-a-manifest.json",
+                manifest_path=bundle_dir / "transcription-manifest.json",
             ),
         )
 

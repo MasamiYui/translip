@@ -60,15 +60,15 @@ def test_build_task_a_command_omits_hotwords_without_glossary(tmp_path: Path) ->
 
 
 def test_task_a_cache_key_tracks_glossary_hotwords(tmp_path: Path) -> None:
-    # ARCH-4: changing the glossary changes the task-a hotwords, so the cache key
+    # ARCH-4: changing the glossary changes the transcription hotwords, so the cache key
     # must change too (otherwise stale ASR would be reused).
     from translip.orchestration.cache import compute_cache_key
     from translip.orchestration.runner import _stage_cache_payload
 
     request = _request(tmp_path)
-    key_without = compute_cache_key(_stage_cache_payload(request, "task-a"))
+    key_without = compute_cache_key(_stage_cache_payload(request, "transcription"))
 
     request.glossary_path = _glossary_file(tmp_path)
-    key_with = compute_cache_key(_stage_cache_payload(request, "task-a"))
+    key_with = compute_cache_key(_stage_cache_payload(request, "transcription"))
 
     assert key_without != key_with

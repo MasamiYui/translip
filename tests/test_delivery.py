@@ -25,7 +25,7 @@ def _build_task_e_fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
     input_video_path = tmp_path / "source.mp4"
     _touch(input_video_path)
 
-    task_e_dir = pipeline_root / "task-e" / "voice"
+    task_e_dir = pipeline_root / "render" / "voice"
     preview_mix_path = task_e_dir / "preview_mix.en.wav"
     dub_voice_path = task_e_dir / "dub_voice.en.wav"
     timeline_path = task_e_dir / "timeline.en.json"
@@ -34,7 +34,7 @@ def _build_task_e_fixture(tmp_path: Path) -> tuple[Path, Path, Path, Path]:
         _touch(path)
 
     _write_json(
-        task_e_dir / "task-e-manifest.json",
+        task_e_dir / "render-manifest.json",
         {
             "request": {"target_lang": "en"},
             "resolved": {"target_lang": "en"},
@@ -195,8 +195,8 @@ def test_export_video_infers_inputs_from_pipeline_root_and_writes_delivery_artif
     assert result.artifacts.report_path.exists()
 
     assert result.request.input_video_path == input_video_path.resolve()
-    assert result.request.task_e_dir == (pipeline_root / "task-e" / "voice").resolve()
-    assert result.request.output_dir == (pipeline_root / "task-g" / "delivery").resolve()
+    assert result.request.task_e_dir == (pipeline_root / "render" / "voice").resolve()
+    assert result.request.output_dir == (pipeline_root / "delivery" / "delivery").resolve()
 
     assert len(mux_calls) == 2
     assert mux_calls[0]["input_audio_path"] == preview_mix_path.resolve()
@@ -249,7 +249,7 @@ def test_export_video_can_export_preview_only(tmp_path: Path, monkeypatch) -> No
     result = export_video(
         ExportVideoRequest(
             input_video_path=input_video_path,
-            task_e_dir=pipeline_root / "task-e" / "voice",
+            task_e_dir=pipeline_root / "render" / "voice",
             output_dir=output_dir,
             target_lang="en",
             export_preview=True,
@@ -293,7 +293,7 @@ def test_export_video_soft_delivery_uses_soft_muxer_and_embeds_original(
     result = export_video(
         ExportVideoRequest(
             input_video_path=input_video_path,
-            task_e_dir=pipeline_root / "task-e" / "voice",
+            task_e_dir=pipeline_root / "render" / "voice",
             output_dir=output_dir,
             target_lang="en",
             export_preview=False,
@@ -346,7 +346,7 @@ def test_export_video_preview_only_removes_stale_final_dub_and_omits_dub_audio(
     result = export_video(
         ExportVideoRequest(
             input_video_path=input_video_path,
-            task_e_dir=pipeline_root / "task-e" / "voice",
+            task_e_dir=pipeline_root / "render" / "voice",
             output_dir=output_dir,
             target_lang="en",
             export_preview=True,
@@ -379,7 +379,7 @@ def test_export_video_requires_dub_voice_for_dub_export(tmp_path: Path, monkeypa
         export_video(
             ExportVideoRequest(
                 input_video_path=input_video_path,
-                task_e_dir=pipeline_root / "task-e" / "voice",
+                task_e_dir=pipeline_root / "render" / "voice",
                 output_dir=tmp_path / "delivery-dub-missing",
                 target_lang="en",
                 export_preview=False,
@@ -456,7 +456,7 @@ def test_bilingual_export_can_preserve_hard_subtitles_and_only_burn_english(
         ExportVideoRequest(
             input_video_path=input_video_path,
             pipeline_root=pipeline_root,
-            task_e_dir=pipeline_root / "task-e" / "voice",
+            task_e_dir=pipeline_root / "render" / "voice",
             output_dir=tmp_path / "delivery-preserve",
             target_lang="en",
             export_preview=False,

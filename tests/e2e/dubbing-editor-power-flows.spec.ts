@@ -3,7 +3,7 @@ import path from 'path'
 
 const TASK_ID = 'task-power-user-demo'
 const EDITOR_URL = `/tasks/${TASK_ID}/dubbing-editor`
-const CLIP_REL = 'task-e/voice/clips/seg-0042.wav'
+const CLIP_REL = 'render/voice/clips/seg-0042.wav'
 
 interface SynthBody {
   unit_id?: string

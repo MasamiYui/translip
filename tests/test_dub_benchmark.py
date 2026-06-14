@@ -12,7 +12,7 @@ def _write_json(path: Path, payload: dict) -> None:
 def test_dub_benchmark_blocks_when_subtitle_audio_is_missing(tmp_path: Path) -> None:
     root = tmp_path / "pipeline"
     _write_json(
-        root / "task-e" / "voice" / "mix_report.en.json",
+        root / "render" / "voice" / "mix_report.en.json",
         {
             "stats": {
                 "placed_count": 9,
@@ -53,7 +53,7 @@ def test_dub_benchmark_blocks_when_subtitle_audio_is_missing(tmp_path: Path) -> 
 def test_dub_benchmark_marks_review_for_character_and_repair_risks(tmp_path: Path) -> None:
     root = tmp_path / "pipeline"
     _write_json(
-        root / "task-e" / "voice" / "mix_report.en.json",
+        root / "render" / "voice" / "mix_report.en.json",
         {
             "stats": {
                 "placed_count": 20,
@@ -69,7 +69,7 @@ def test_dub_benchmark_marks_review_for_character_and_repair_risks(tmp_path: Pat
         },
     )
     _write_json(
-        root / "task-d" / "voice" / "character-ledger" / "character_ledger.en.json",
+        root / "synthesis" / "voice" / "character-ledger" / "character_ledger.en.json",
         {
             "stats": {
                 "character_count": 2,
@@ -84,7 +84,7 @@ def test_dub_benchmark_marks_review_for_character_and_repair_risks(tmp_path: Pat
         },
     )
     _write_json(
-        root / "task-d" / "voice" / "repair-run" / "repair-run-manifest.json",
+        root / "synthesis" / "voice" / "repair-run" / "repair-run-manifest.json",
         {
             "stats": {
                 "attempt_count": 8,

@@ -164,7 +164,7 @@ def transcribe_file(
 
         # Emit diarization evidence (similarity matrix, adopted threshold,
         # suggested merges) right after transcription (ASR-9). Auxiliary — never
-        # fail task-a because the report could not be built.
+        # fail transcription because the report could not be built.
         diarization_report_path: Path | None = bundle_dir / "diarization_report.json"
         try:
             report = build_diarization_report(
@@ -189,7 +189,7 @@ def transcribe_file(
                 bundle_dir / "intermediate" / working_audio.name,
             )
 
-        manifest_path = bundle_dir / "task-a-manifest.json"
+        manifest_path = bundle_dir / "transcription-manifest.json"
         manifest = build_transcription_manifest(
             request=normalized_request,
             media_info=media_info,
@@ -223,7 +223,7 @@ def transcribe_file(
     except Exception as exc:
         logger.exception("Speaker-attributed transcription failed.")
         bundle_dir.mkdir(parents=True, exist_ok=True)
-        manifest_path = bundle_dir / "task-a-manifest.json"
+        manifest_path = bundle_dir / "transcription-manifest.json"
         manifest = build_transcription_manifest(
             request=normalized_request,
             media_info=media_info,

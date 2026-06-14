@@ -180,7 +180,7 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
         "device": request.device,
         "delivery_policy": dict(request.delivery_policy),
     }
-    if stage_name == "stage1":
+    if stage_name == "separation":
         common.update(
             {
                 "mode": request.separation_mode,
@@ -189,7 +189,7 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "output_format": request.stage1_output_format,
             }
         )
-    elif stage_name == "task-a":
+    elif stage_name == "transcription":
         common.update(
             {
                 "voice": _file_fingerprint(stage1_voice_path(request)),
@@ -207,7 +207,7 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "best_of": request.best_of,
                 "temperature": request.temperature,
                 "condition_on_previous_text": request.condition_on_previous_text,
-                # task-a now feeds glossary terms as --hotwords, so the cache key
+                # transcription now feeds glossary terms as --hotwords, so the cache key
                 # must track them or a glossary change would reuse stale ASR (ASR-7).
                 "hotwords": glossary_hotwords(request),
             }
@@ -221,7 +221,7 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "ocr_events": _file_fingerprint(effective_ocr_events_path(request)),
             }
         )
-    elif stage_name == "task-b":
+    elif stage_name == "speaker-registry":
         common.update(
             {
                 "segments": _file_fingerprint(effective_task_a_segments_path(request)),
@@ -230,7 +230,7 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "update_registry": request.update_registry,
             }
         )
-    elif stage_name == "task-c":
+    elif stage_name == "translation":
         common.update(
             {
                 "segments": _file_fingerprint(effective_task_a_segments_path(request)),
@@ -243,12 +243,12 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 # which can change the translation — track it so it recomputes (ARCH-4).
                 "translation_batch_size": request.translation_batch_size,
                 # Visual scene context is injected into translation prompts when
-                # present, so its content must cascade into task-c's key. Missing
+                # present, so its content must cascade into translation's key. Missing
                 # file fingerprints to a stable {exists: False} (no-vision runs).
                 "visual_context": _file_fingerprint(visual_context_path(request)),
             }
         )
-    elif stage_name == "task-d":
+    elif stage_name == "synthesis":
         common.update(
             {
                 "translation": _file_fingerprint(task_c_translation_path(request)),
@@ -260,7 +260,7 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "dubbing_quality_check": request.dubbing_quality_check,
             }
         )
-    elif stage_name == "task-e":
+    elif stage_name == "render":
         common.update(
             {
                 "segments": _file_fingerprint(effective_task_a_segments_path(request)),
@@ -356,7 +356,7 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
 
 
 def _task_g_expected_artifact_paths(request: PipelineRequest) -> list[Path]:
-    task_g_dir = request.output_root / "task-g"
+    task_g_dir = request.output_root / "delivery"
     artifact_paths = [task_g_dir / "delivery-manifest.json", task_g_dir / "delivery-report.json"]
     audio_source = _delivery_audio_source(request)
     if audio_source in {"preview_mix", "both"}:
@@ -380,7 +380,7 @@ def _delivery_audio_source(request: PipelineRequest) -> str:
 def _is_node_cache_hit(cache_spec: StageCacheSpec) -> bool:
     if not is_stage_cache_hit(cache_spec):
         return False
-    if cache_spec.stage_name != "task-g":
+    if cache_spec.stage_name != "delivery":
         return True
     return _task_g_manifest_declares_expected_outputs(cache_spec)
 
@@ -407,10 +407,10 @@ def _node_cache_spec(
     stage_name: str,
     previous_cache_keys: dict[str, str],
 ) -> StageCacheSpec:
-    if stage_name == "stage1":
+    if stage_name == "separation":
         manifest_path = stage1_manifest_path(request)
         artifact_paths = [stage1_voice_path(request), stage1_background_path(request)]
-    elif stage_name == "task-a":
+    elif stage_name == "transcription":
         manifest_path = task_a_manifest_path(request)
         artifact_paths = [task_a_segments_path(request)]
     elif stage_name == "asr-ocr-correct":
@@ -421,20 +421,20 @@ def _node_cache_spec(
             task_a_correction_report_path(request),
             manifest_path,
         ]
-    elif stage_name == "task-b":
+    elif stage_name == "speaker-registry":
         manifest_path = task_b_manifest_path(request)
         artifact_paths = [task_b_profiles_path(request), task_b_matches_path(request), task_b_registry_path(request)]
-    elif stage_name == "task-c":
+    elif stage_name == "translation":
         manifest_path = task_c_manifest_path(request)
         artifact_paths = [task_c_translation_path(request)]
-    elif stage_name == "task-d":
+    elif stage_name == "synthesis":
         manifest_path = task_d_stage_manifest_path(request)
         artifact_paths = [manifest_path]
-    elif stage_name == "task-e":
+    elif stage_name == "render":
         manifest_path = task_e_manifest_path(request)
         artifact_paths = [task_e_dub_voice_path(request), task_e_preview_mix_path(request), task_e_mix_report_path(request)]
-    elif stage_name == "task-g":
-        manifest_path = request.output_root / "task-g" / "delivery-manifest.json"
+    elif stage_name == "delivery":
+        manifest_path = request.output_root / "delivery" / "delivery-manifest.json"
         artifact_paths = _task_g_expected_artifact_paths(request)
     elif stage_name == "ocr-detect":
         manifest_path = ocr_detect_manifest_path(request)
@@ -525,27 +525,27 @@ def execute_stage(
     resume_ok: bool = False,
 ) -> dict[str, Any]:
     stage = stage_name  # string for monkeypatch compatibility
-    if stage == "stage1":
+    if stage == "separation":
         monitor.update_stage_progress(stage, 5.0, "separating source audio")
-        run_stage_command(build_stage1_command(request), log_path=_stage_log_path(request, "stage1"), should_cancel=should_cancel)
+        run_stage_command(build_stage1_command(request), log_path=_stage_log_path(request, "separation"), should_cancel=should_cancel)
         return {
             "manifest_path": str(stage1_manifest_path(request)),
             "artifact_paths": [str(stage1_voice_path(request)), str(stage1_background_path(request))],
-            "log_path": str(_stage_log_path(request, "stage1")),
+            "log_path": str(_stage_log_path(request, "separation")),
         }
 
-    if stage == "task-a":
+    if stage == "transcription":
         monitor.update_stage_progress(stage, 5.0, "transcribing voice track")
-        run_stage_command(build_task_a_command(request), log_path=_stage_log_path(request, "task-a"), should_cancel=should_cancel)
+        run_stage_command(build_task_a_command(request), log_path=_stage_log_path(request, "transcription"), should_cancel=should_cancel)
         return {
             "manifest_path": str(task_a_manifest_path(request)),
             "artifact_paths": [str(task_a_segments_path(request))],
-            "log_path": str(_stage_log_path(request, "task-a")),
+            "log_path": str(_stage_log_path(request, "transcription")),
         }
 
-    if stage == "task-b":
+    if stage == "speaker-registry":
         monitor.update_stage_progress(stage, 5.0, "building speaker profiles")
-        run_stage_command(build_task_b_command(request), log_path=_stage_log_path(request, "task-b"), should_cancel=should_cancel)
+        run_stage_command(build_task_b_command(request), log_path=_stage_log_path(request, "speaker-registry"), should_cancel=should_cancel)
         return {
             "manifest_path": str(task_b_manifest_path(request)),
             "artifact_paths": [
@@ -553,19 +553,19 @@ def execute_stage(
                 str(task_b_matches_path(request)),
                 str(task_b_registry_path(request)),
             ],
-            "log_path": str(_stage_log_path(request, "task-b")),
+            "log_path": str(_stage_log_path(request, "speaker-registry")),
         }
 
-    if stage == "task-c":
+    if stage == "translation":
         monitor.update_stage_progress(stage, 5.0, "translating script")
-        run_stage_command(build_task_c_command(request), log_path=_stage_log_path(request, "task-c"), should_cancel=should_cancel)
+        run_stage_command(build_task_c_command(request), log_path=_stage_log_path(request, "translation"), should_cancel=should_cancel)
         return {
             "manifest_path": str(task_c_manifest_path(request)),
             "artifact_paths": [str(task_c_translation_path(request))],
-            "log_path": str(_stage_log_path(request, "task-c")),
+            "log_path": str(_stage_log_path(request, "translation")),
         }
 
-    if stage == "task-d":
+    if stage == "synthesis":
         profiles_payload = _load_json(task_b_profiles_path(request))
         translation_payload = _load_json(task_c_translation_path(request))
         if not task_b_voice_bank_path(request).exists():
@@ -617,7 +617,7 @@ def execute_stage(
                 continue
             run_stage_command(
                 build_task_d_command(request, speaker_id=speaker_id, segment_ids=selected_segment_ids),
-                log_path=_stage_log_path(request, "task-d"),
+                log_path=_stage_log_path(request, "synthesis"),
                 should_cancel=should_cancel,
             )
             if report_path.exists():
@@ -640,10 +640,10 @@ def execute_stage(
         return {
             "manifest_path": str(task_d_stage_manifest_path(request)),
             "artifact_paths": reports + [str(task_d_stage_manifest_path(request))],
-            "log_path": str(_stage_log_path(request, "task-d")),
+            "log_path": str(_stage_log_path(request, "synthesis")),
         }
 
-    if stage == "task-e":
+    if stage == "render":
         task_d_manifest = _load_json(task_d_stage_manifest_path(request))
         task_d_reports = [Path(path) for path in task_d_manifest.get("reports", [])]
         character_ledger_result = _build_character_ledger_for_task_e(
@@ -668,7 +668,7 @@ def execute_stage(
                 task_d_reports=task_d_reports,
                 selected_segments_path=selected_segments_path,
             ),
-            log_path=_stage_log_path(request, "task-e"),
+            log_path=_stage_log_path(request, "render"),
             should_cancel=should_cancel,
         )
         artifact_paths = [
@@ -698,7 +698,7 @@ def execute_stage(
         return {
             "manifest_path": str(task_e_manifest_path(request)),
             "artifact_paths": artifact_paths,
-            "log_path": str(_stage_log_path(request, "task-e")),
+            "log_path": str(_stage_log_path(request, "render")),
         }
 
     raise ValueError(f"Unsupported stage: {stage}")
@@ -713,12 +713,12 @@ def _build_character_ledger_for_task_e(
     if not task_d_reports:
         return None
     try:
-        monitor.update_stage_progress("task-e", 0.5, "building character ledger")
+        monitor.update_stage_progress("render", 0.5, "building character ledger")
         return build_character_ledger(
             CharacterLedgerRequest(
                 profiles_path=task_b_profiles_path(request),
                 task_d_report_paths=task_d_reports,
-                output_dir=request.output_root / "task-d" / "voice" / "character-ledger",
+                output_dir=request.output_root / "synthesis" / "voice" / "character-ledger",
                 target_lang=request.target_lang,
             )
         )
@@ -733,7 +733,7 @@ def _build_dub_benchmark_for_task_e(
     monitor: PipelineMonitor,
 ) -> DubBenchmarkResult | None:
     try:
-        monitor.update_stage_progress("task-e", 95.0, "building dub benchmark")
+        monitor.update_stage_progress("render", 95.0, "building dub benchmark")
         return build_dub_benchmark(
             DubBenchmarkRequest(
                 pipeline_root=request.output_root,
@@ -758,10 +758,10 @@ def _run_dub_repair_for_task_e(
     if not task_d_reports:
         return None
 
-    plan_dir = request.output_root / "task-d" / "voice" / "repair-plan"
-    run_dir = request.output_root / "task-d" / "voice" / "repair-run"
+    plan_dir = request.output_root / "synthesis" / "voice" / "repair-plan"
+    run_dir = request.output_root / "synthesis" / "voice" / "repair-run"
     try:
-        monitor.update_stage_progress("task-e", 1.0, "planning dub repair")
+        monitor.update_stage_progress("render", 1.0, "planning dub repair")
         plan_result = plan_dub_repair(
             RepairPlanRequest(
                 translation_path=task_c_translation_path(request),
@@ -779,7 +779,7 @@ def _run_dub_repair_for_task_e(
         if repair_count <= 0:
             return None
 
-        monitor.update_stage_progress("task-e", 3.0, f"running dub repair ({repair_count} candidates)")
+        monitor.update_stage_progress("render", 3.0, f"running dub repair ({repair_count} candidates)")
         run_result = run_dub_repair(
             RepairRunRequest(
                 repair_queue_path=plan_result.artifacts.repair_queue_path,
@@ -833,12 +833,12 @@ def execute_delivery_node(
     audio_source = _delivery_audio_source(request)
     export_preview = audio_source in {"preview_mix", "both"}
     export_dub = audio_source in {"dub_voice", "both"}
-    monitor.update_stage_progress("task-g", 5.0, "assembling delivery")
+    monitor.update_stage_progress("delivery", 5.0, "assembling delivery")
     result = export_video(
         ExportVideoRequest(
             input_video_path=delivery_inputs.video_path,
             pipeline_root=request.output_root,
-            output_dir=request.output_root / "task-g",
+            output_dir=request.output_root / "delivery",
             target_lang=request.target_lang,
             export_preview=export_preview,
             export_dub=export_dub,
@@ -862,7 +862,7 @@ def execute_delivery_node(
     return {
         "manifest_path": str(result.artifacts.manifest_path),
         "artifact_paths": artifact_paths,
-        "log_path": str(_node_log_path(request, "task-g")),
+        "log_path": str(_node_log_path(request, "delivery")),
     }
 
 
@@ -874,7 +874,7 @@ def execute_node(
     should_cancel: Callable[[], bool] | None = None,
     resume_ok: bool = False,
 ) -> dict[str, Any]:
-    if node_name in {"stage1", "task-a", "task-b", "task-c", "task-d", "task-e"}:
+    if node_name in {"separation", "transcription", "speaker-registry", "translation", "synthesis", "render"}:
         return execute_stage(
             node_name, request, monitor=monitor, should_cancel=should_cancel, resume_ok=resume_ok
         )
@@ -936,7 +936,7 @@ def execute_node(
     if node_name == "subtitle-erase":
         monitor.update_stage_progress(node_name, 5.0, "erasing hard subtitles")
         return run_subtitle_erase(request, log_path=_node_log_path(request, node_name), monitor=monitor, should_cancel=should_cancel)
-    if node_name == "task-g":
+    if node_name == "delivery":
         return execute_delivery_node(request, monitor=monitor)
     raise TranslipError(f"Unsupported workflow node: {node_name}")
 
@@ -1004,7 +1004,7 @@ def run_pipeline(
                         command=[f"node:{node_name}"],
                         log_path=Path(stage_row["log_path"]),
                     )
-                if stage_executor is not None and node_name in {"stage1", "task-a", "task-b", "task-c", "task-d", "task-e"}:
+                if stage_executor is not None and node_name in {"separation", "transcription", "speaker-registry", "translation", "synthesis", "render"}:
                     result = stage_executor(node_name, request, monitor=monitor)
                 else:
                     # ARCH-6: allow per-speaker resume only when re-running with an

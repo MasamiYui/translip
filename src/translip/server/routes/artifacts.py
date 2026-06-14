@@ -70,7 +70,7 @@ def get_artifact(
 @router.get("/{task_id}/logs/{node}", summary="获取节点阶段日志")
 def get_node_log(
     task_id: Annotated[str, PathParam(description="任务 ID")],
-    node: Annotated[str, PathParam(description="节点名，如 stage1 / task-a / ocr-detect")],
+    node: Annotated[str, PathParam(description="节点名，如 separation / transcription / ocr-detect")],
     max_bytes: int = Query(65536, gt=0, le=2_000_000, description="返回日志末尾最多字节数"),
     session: Session = Depends(get_session),
 ):

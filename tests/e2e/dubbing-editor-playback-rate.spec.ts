@@ -5,7 +5,7 @@ import fs from 'fs'
 const TASK_ID = 'task-playback-rate-demo'
 const EDITOR_URL = `/tasks/${TASK_ID}/dubbing-editor`
 const SCREENSHOTS_DIR = path.join(__dirname, '../../output/playwright')
-const CLIP_REL = 'task-e/voice/clips/seg-0007.wav'
+const CLIP_REL = 'render/voice/clips/seg-0007.wav'
 
 interface SynthRequestPayload {
   unit_id?: string
@@ -24,9 +24,9 @@ function buildProject(): Record<string, unknown> {
     status: 'ready',
     source_video_path: '/tmp/source.mp4',
     artifact_paths: {
-      final_dub: 'task-g/final-dub/final_dub.en.mp4',
-      dub_voice: 'task-e/voice/dub_voice.en.wav',
-      preview_mix: 'task-e/voice/preview_mix.en.wav',
+      final_dub: 'delivery/final-dub/final_dub.en.mp4',
+      dub_voice: 'render/voice/dub_voice.en.wav',
+      preview_mix: 'render/voice/preview_mix.en.wav',
     },
     quality_benchmark: {
       version: 'v1',

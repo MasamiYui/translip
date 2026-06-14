@@ -112,11 +112,11 @@ def build_dub_benchmark(request: DubBenchmarkRequest) -> DubBenchmarkResult:
 
 def _input_paths(root: Path, target_lang: str) -> dict[str, Path]:
     return {
-        "mix_report": root / "task-e" / "voice" / f"mix_report.{target_lang}.json",
-        "character_ledger": root / "task-d" / "voice" / "character-ledger" / f"character_ledger.{target_lang}.json",
-        "repair_manifest": root / "task-d" / "voice" / "repair-run" / "repair-run-manifest.json",
-        "repair_attempts": root / "task-d" / "voice" / "repair-run" / f"repair_attempts.{target_lang}.json",
-        "manual_review": root / "task-d" / "voice" / "repair-run" / f"manual_review.{target_lang}.json",
+        "mix_report": root / "render" / "voice" / f"mix_report.{target_lang}.json",
+        "character_ledger": root / "synthesis" / "voice" / "character-ledger" / f"character_ledger.{target_lang}.json",
+        "repair_manifest": root / "synthesis" / "voice" / "repair-run" / "repair-run-manifest.json",
+        "repair_attempts": root / "synthesis" / "voice" / "repair-run" / f"repair_attempts.{target_lang}.json",
+        "manual_review": root / "synthesis" / "voice" / "repair-run" / f"manual_review.{target_lang}.json",
     }
 
 

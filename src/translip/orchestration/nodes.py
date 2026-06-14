@@ -14,24 +14,24 @@ class WorkflowNodeDef:
 
 
 NODE_REGISTRY: dict[WorkflowNodeName, WorkflowNodeDef] = {
-    "stage1": WorkflowNodeDef("stage1", "audio-spine", (), 10),
+    "separation": WorkflowNodeDef("separation", "audio-spine", (), 10),
     "ocr-detect": WorkflowNodeDef("ocr-detect", "ocr-subtitles", (), 20),
-    "task-a": WorkflowNodeDef("task-a", "audio-spine", ("stage1",), 30),
-    "asr-ocr-correct": WorkflowNodeDef("asr-ocr-correct", "audio-spine", ("task-a", "ocr-detect"), 35),
-    "task-b": WorkflowNodeDef("task-b", "audio-spine", ("stage1", "task-a"), 40),
+    "transcription": WorkflowNodeDef("transcription", "audio-spine", ("separation",), 30),
+    "asr-ocr-correct": WorkflowNodeDef("asr-ocr-correct", "audio-spine", ("transcription", "ocr-detect"), 35),
+    "speaker-registry": WorkflowNodeDef("speaker-registry", "audio-spine", ("separation", "transcription"), 40),
     # Runs after asr-ocr-correct (35) in templates that include it, so it sees
-    # the corrected segments task-c will consume (matching by time overlap).
-    "visual-context": WorkflowNodeDef("visual-context", "visual-perception", ("task-a",), 45),
-    "task-c": WorkflowNodeDef("task-c", "audio-spine", ("task-a", "task-b"), 50),
+    # the corrected segments translation will consume (matching by time overlap).
+    "visual-context": WorkflowNodeDef("visual-context", "visual-perception", ("transcription",), 45),
+    "translation": WorkflowNodeDef("translation", "audio-spine", ("transcription", "speaker-registry"), 50),
     "ocr-translate": WorkflowNodeDef("ocr-translate", "ocr-subtitles", ("ocr-detect",), 60),
-    "task-d": WorkflowNodeDef("task-d", "audio-spine", ("task-b", "task-c"), 70),
-    "task-e": WorkflowNodeDef("task-e", "audio-spine", ("stage1", "task-a", "task-c", "task-d"), 80),
+    "synthesis": WorkflowNodeDef("synthesis", "audio-spine", ("speaker-registry", "translation"), 70),
+    "render": WorkflowNodeDef("render", "audio-spine", ("separation", "transcription", "translation", "synthesis"), 80),
     "subtitle-erase": WorkflowNodeDef("subtitle-erase", "video-cleanup", ("ocr-detect",), 90),
     # Vision QC of the erased video: samples the original subtitle spans on
     # clean_video.mp4 and reports leftover text / inpainting artifacts.
     # Pure report — never blocks the pipeline (optional in templates).
     "erase-qc": WorkflowNodeDef("erase-qc", "visual-perception", ("subtitle-erase",), 95),
-    "task-g": WorkflowNodeDef("task-g", "delivery", (), 100),
+    "delivery": WorkflowNodeDef("delivery", "delivery", (), 100),
 }
 
 

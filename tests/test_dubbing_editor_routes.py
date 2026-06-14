@@ -42,7 +42,7 @@ def test_dubbing_editor_import_reads_timeline_mix_report_and_character_ledger(tm
 
     first_unit = payload["units"][0]
     assert first_unit["current_clip"]["mix_status"] == "placed"
-    assert first_unit["current_clip"]["audio_artifact_path"] == "task-e/.work/job-1/fit/seg-0001.wav"
+    assert first_unit["current_clip"]["audio_artifact_path"] == "render/.work/job-1/fit/seg-0001.wav"
     assert first_unit["current_clip"]["duration"] == 1.1
 
     failed_unit = payload["units"][1]
@@ -87,15 +87,15 @@ def _task(output_root: Path) -> Task:
 
 
 def _write_editor_fixture(output_root: Path) -> None:
-    fitted_audio = output_root / "task-e" / ".work" / "job-1" / "fit" / "seg-0001.wav"
-    source_audio = output_root / "task-d" / "voice" / "spk_0001" / "segments" / "seg-0002.wav"
+    fitted_audio = output_root / "render" / ".work" / "job-1" / "fit" / "seg-0001.wav"
+    source_audio = output_root / "synthesis" / "voice" / "spk_0001" / "segments" / "seg-0002.wav"
     fitted_audio.parent.mkdir(parents=True, exist_ok=True)
     source_audio.parent.mkdir(parents=True, exist_ok=True)
     fitted_audio.write_bytes(b"fitted")
     source_audio.write_bytes(b"source")
 
     _write_json(
-        output_root / "task-c" / "voice" / "translation.en.json",
+        output_root / "translation" / "voice" / "translation.en.json",
         {
             "segments": [
                 {
@@ -129,7 +129,7 @@ def _write_editor_fixture(output_root: Path) -> None:
         },
     )
     _write_json(
-        output_root / "task-e" / "voice" / "timeline.en.json",
+        output_root / "render" / "voice" / "timeline.en.json",
         {
             "items": [
                 {
@@ -171,7 +171,7 @@ def _write_editor_fixture(output_root: Path) -> None:
         },
     )
     _write_json(
-        output_root / "task-e" / "voice" / "mix_report.en.json",
+        output_root / "render" / "voice" / "mix_report.en.json",
         {
             "placed_segments": [],
             "skipped_segments": [],
@@ -185,7 +185,7 @@ def _write_editor_fixture(output_root: Path) -> None:
         },
     )
     _write_json(
-        output_root / "task-d" / "voice" / "character-ledger" / "character_ledger.en.json",
+        output_root / "synthesis" / "voice" / "character-ledger" / "character_ledger.en.json",
         {
             "characters": [
                 {

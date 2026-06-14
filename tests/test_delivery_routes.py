@@ -134,12 +134,12 @@ def test_delivery_compose_updates_delivery_config_only(tmp_path: Path, monkeypat
 
     output_root = tmp_path / "output"
     output_root.mkdir()
-    report_path = output_root / "task-g" / "delivery-report.json"
+    report_path = output_root / "delivery" / "delivery-report.json"
     report_path.parent.mkdir(parents=True)
     report_path.write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
-    manifest_path = output_root / "task-g" / "delivery-manifest.json"
+    manifest_path = output_root / "delivery" / "delivery-manifest.json"
     manifest_path.write_text(json.dumps({"status": "succeeded"}), encoding="utf-8")
-    preview_path = output_root / "task-g" / "final-preview.mp4"
+    preview_path = output_root / "delivery" / "final-preview.mp4"
     preview_path.write_bytes(b"preview")
 
     def fake_export_video(request: ExportVideoRequest) -> ExportVideoResult:
@@ -171,7 +171,7 @@ def test_delivery_compose_updates_delivery_config_only(tmp_path: Path, monkeypat
                 config={
                     "pipeline": {
                         "template": "asr-dub+ocr-subs+erase",
-                        "run_to_stage": "task-g",
+                        "run_to_stage": "delivery",
                         "video_source": "clean_if_available",
                         "audio_source": "both",
                         "subtitle_source": "asr",
@@ -224,7 +224,7 @@ def test_delivery_compose_updates_delivery_config_only(tmp_path: Path, monkeypat
         task = session.get(Task, "task-compose-delivery")
         assert task is not None
         assert task.config["pipeline"]["video_source"] == "clean_if_available"
-        assert task.config["pipeline"]["run_to_stage"] == "task-g"
+        assert task.config["pipeline"]["run_to_stage"] == "delivery"
         assert task.config["delivery"]["subtitle_mode"] == "bilingual"
         assert task.config["delivery"]["subtitle_render_source"] == "asr"
         assert task.config["delivery"]["bilingual_export_strategy"] == "preserve_hard_subtitles_add_english"

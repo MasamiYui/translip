@@ -4,7 +4,7 @@ Takes the auto-fixable segments surfaced by the remediation plan and runs the
 real repair pipeline end-to-end, in a background thread, **for up to N rounds**:
 
     round r:  plan-dub-repair  ->  run-dub-repair (tournament, scoped to targets)
-                              ->  render-dub (--selected-segments, re-mix task-e)
+                              ->  render-dub (--selected-segments, re-mix render)
                               ->  re-evaluate (build_dub_qa)  ->  keep | rollback
 
 Each round targets the segments the *current* report still flags as
@@ -298,7 +298,7 @@ def _render_flags(output_root: Path, target_lang: str) -> list[str]:
     """Preserve the original mix style so the re-render only swaps in repaired audio."""
     try:
         cfg = json.loads(
-            (output_root / "task-e" / "voice" / f"mix_report.{target_lang}.json").read_text(encoding="utf-8")
+            (output_root / "render" / "voice" / f"mix_report.{target_lang}.json").read_text(encoding="utf-8")
         ).get("config", {})
     except Exception:  # noqa: BLE001
         cfg = {}
@@ -388,20 +388,20 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
     log_path = logs_dir / f"auto-fix-{job_id}.log"
 
     try:
-        translation = output_root / "task-c" / "voice" / f"translation.{target_lang}.json"
-        profiles = output_root / "task-b" / "voice" / "speaker_profiles.json"
-        segments = output_root / "task-a" / "voice" / "segments.zh.json"
-        task_d_reports = sorted((output_root / "task-d" / "voice").glob(f"*/speaker_segments.{target_lang}.json"))
-        backgrounds = sorted((output_root / "stage1").glob("*/background.*"))
-        ledger = output_root / "task-d" / "voice" / "character-ledger" / f"character_ledger.{target_lang}.json"
+        translation = output_root / "translation" / "voice" / f"translation.{target_lang}.json"
+        profiles = output_root / "speaker-registry" / "voice" / "speaker_profiles.json"
+        segments = output_root / "transcription" / "voice" / "segments.zh.json"
+        task_d_reports = sorted((output_root / "synthesis" / "voice").glob(f"*/speaker_segments.{target_lang}.json"))
+        backgrounds = sorted((output_root / "separation").glob("*/background.*"))
+        ledger = output_root / "synthesis" / "voice" / "character-ledger" / f"character_ledger.{target_lang}.json"
 
         for label, path in (("translation", translation), ("profiles", profiles), ("segments", segments)):
             if not path.exists():
                 raise RuntimeError(f"missing {label}: {path}")
         if not task_d_reports:
-            raise RuntimeError("no task-d speaker reports found (task not fully dubbed?)")
+            raise RuntimeError("no synthesis speaker reports found (task not fully dubbed?)")
         if not backgrounds:
-            raise RuntimeError("no stage1 background track found")
+            raise RuntimeError("no separation background track found")
         background = backgrounds[0]
 
         before_summary, before_report = _latest_dubqa_report(task_id, output_root)
@@ -412,15 +412,15 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
         for report in task_d_reports:
             td_flags += ["--task-d-report", report]
 
-        plan_dir = output_root / "task-d" / "voice" / "repair-plan"
-        run_dir = output_root / "task-d" / "voice" / "repair-run"
-        voice_dir = output_root / "task-e" / "voice"
+        plan_dir = output_root / "synthesis" / "voice" / "repair-plan"
+        run_dir = output_root / "synthesis" / "voice" / "repair-run"
+        voice_dir = output_root / "render" / "voice"
         snap_names = [
             f"dub_voice.{target_lang}.wav",
             f"preview_mix.{target_lang}.wav",
             f"mix_report.{target_lang}.json",
             f"timeline.{target_lang}.json",
-            "task-e-manifest.json",
+            "render-manifest.json",
         ]
         cumulative_selected = run_dir / f"selected_segments.cumulative.{target_lang}.json"
 
@@ -499,7 +499,7 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
                 pass
 
             # Accumulate accepted repairs + this round's selections, so the re-
-            # render keeps earlier rounds' fixes (render uses base task-d audio
+            # render keeps earlier rounds' fixes (render uses base synthesis audio
             # for any segment NOT in selected_segments).
             candidate_segments = _merge_selected_segments(accepted_segments, round_selected)
             run_dir.mkdir(parents=True, exist_ok=True)
@@ -512,7 +512,7 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
                 encoding="utf-8",
             )
 
-            # Snapshot the current best task-e so this round can be rolled back.
+            # Snapshot the current best render so this round can be rolled back.
             backup_dir = voice_dir / f".autofix-backup-{job_id}-r{round_idx}"
             backup_dir.mkdir(parents=True, exist_ok=True)
             for name in snap_names:
@@ -530,7 +530,7 @@ def _run_auto_fix_in_thread(job_id: str) -> None:
                     "--translation", translation,
                     *td_flags,
                     "--selected-segments", cumulative_selected,
-                    "--output-dir", output_root / "task-e",
+                    "--output-dir", output_root / "render",
                     "--target-lang", target_lang,
                     *_render_flags(output_root, target_lang),
                 ],

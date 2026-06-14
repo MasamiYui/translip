@@ -45,8 +45,8 @@ def resolve_delivery_inputs(request: PipelineRequest) -> ResolvedDeliveryInputs:
     target_lang = request.target_lang
     return ResolvedDeliveryInputs(
         video_path=video_path,
-        preview_mix_path=request.output_root / "task-e" / "voice" / f"preview_mix.{target_lang}.wav",
-        dub_voice_path=request.output_root / "task-e" / "voice" / f"dub_voice.{target_lang}.wav",
+        preview_mix_path=request.output_root / "render" / "voice" / f"preview_mix.{target_lang}.wav",
+        dub_voice_path=request.output_root / "render" / "voice" / f"dub_voice.{target_lang}.wav",
         clean_video_path=clean_video_path if clean_video_available else None,
     )
 
@@ -65,7 +65,7 @@ def export_video(request: ExportVideoRequest) -> ExportVideoResult:
     normalized_request = _resolve_request(request)
     ensure_directory(normalized_request.output_dir)
 
-    task_e_manifest_path = normalized_request.task_e_dir / "task-e-manifest.json"
+    task_e_manifest_path = normalized_request.task_e_dir / "render-manifest.json"
     task_e_manifest = _load_json(task_e_manifest_path)
     task_e_content_quality = _resolve_task_e_content_quality(task_e_manifest)
     preview_audio_path = _resolve_preview_audio_path(normalized_request, task_e_manifest)
@@ -218,7 +218,7 @@ def _resolve_request(request: ExportVideoRequest) -> ExportVideoRequest:
     pipeline_root = normalized.pipeline_root
     task_e_dir = normalized.task_e_dir
     if task_e_dir is None and pipeline_root is not None:
-        task_e_dir = pipeline_root / "task-e" / "voice"
+        task_e_dir = pipeline_root / "render" / "voice"
     if task_e_dir is None:
         raise TranslipError("Task G requires task_e_dir or pipeline_root")
     if not task_e_dir.exists():
@@ -240,7 +240,7 @@ def _resolve_request(request: ExportVideoRequest) -> ExportVideoRequest:
     output_dir = normalized.output_dir
     if output_dir is None:
         if pipeline_root is not None:
-            output_dir = pipeline_root / "task-g" / "delivery"
+            output_dir = pipeline_root / "delivery" / "delivery"
         else:
             output_dir = Path("output-delivery").resolve()
 
@@ -315,10 +315,10 @@ def _resolve_subtitle_path(request: ExportVideoRequest, target_lang: str) -> Pat
         if path.exists():
             return path
     else:
-        candidates = sorted(request.pipeline_root.glob(f"task-c/**/translation.{target_lang}.srt"))
+        candidates = sorted(request.pipeline_root.glob(f"translation/**/translation.{target_lang}.srt"))
         if candidates:
             return candidates[0]
-        direct_path = request.pipeline_root / "task-c" / f"translation.{target_lang}.srt"
+        direct_path = request.pipeline_root / "translation" / f"translation.{target_lang}.srt"
         if direct_path.exists():
             return direct_path
         path = direct_path
@@ -334,8 +334,8 @@ def _resolve_chinese_subtitle_path(request: ExportVideoRequest) -> Path | None:
         raise TranslipError("bilingual export requires pipeline_root")
     candidates = [
         request.pipeline_root / "ocr-detect" / "ocr_subtitles.source.srt",
-        *sorted(request.pipeline_root.glob("task-a/**/segments.zh.srt")),
-        request.pipeline_root / "task-a" / "segments.zh.srt",
+        *sorted(request.pipeline_root.glob("transcription/**/segments.zh.srt")),
+        request.pipeline_root / "transcription" / "segments.zh.srt",
     ]
     for path in candidates:
         if path.exists():

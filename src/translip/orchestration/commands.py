@@ -18,7 +18,7 @@ def _cli_prefix() -> list[str]:
 
 
 def stage1_bundle_dir(request: PipelineRequest) -> Path:
-    return request.output_root / "stage1" / slugify_filename(request.input_path)
+    return request.output_root / "separation" / slugify_filename(request.input_path)
 
 
 def stage1_voice_path(request: PipelineRequest) -> Path:
@@ -34,7 +34,7 @@ def stage1_manifest_path(request: PipelineRequest) -> Path:
 
 
 def task_a_bundle_dir(request: PipelineRequest) -> Path:
-    return request.output_root / "task-a" / "voice"
+    return request.output_root / "transcription" / "voice"
 
 
 def task_a_segments_path(request: PipelineRequest) -> Path:
@@ -78,11 +78,11 @@ def effective_task_a_segments_path(request: PipelineRequest) -> Path:
 
 
 def task_a_manifest_path(request: PipelineRequest) -> Path:
-    return task_a_bundle_dir(request) / "task-a-manifest.json"
+    return task_a_bundle_dir(request) / "transcription-manifest.json"
 
 
 def task_b_bundle_dir(request: PipelineRequest) -> Path:
-    return request.output_root / "task-b" / "voice"
+    return request.output_root / "speaker-registry" / "voice"
 
 
 def task_b_profiles_path(request: PipelineRequest) -> Path:
@@ -96,11 +96,11 @@ def task_b_matches_path(request: PipelineRequest) -> Path:
 def task_b_registry_path(request: PipelineRequest) -> Path:
     if request.registry_path is not None:
         return request.registry_path
-    return request.output_root / "task-b" / "registry" / "speaker_registry.json"
+    return request.output_root / "speaker-registry" / "registry" / "speaker_registry.json"
 
 
 def task_b_manifest_path(request: PipelineRequest) -> Path:
-    return task_b_bundle_dir(request) / "task-b-manifest.json"
+    return task_b_bundle_dir(request) / "speaker-registry-manifest.json"
 
 
 def task_b_voice_bank_path(request: PipelineRequest) -> Path:
@@ -120,7 +120,7 @@ def visual_context_manifest_path(request: PipelineRequest) -> Path:
 
 
 def task_c_bundle_dir(request: PipelineRequest) -> Path:
-    return request.output_root / "task-c" / "voice"
+    return request.output_root / "translation" / "voice"
 
 
 def task_c_translation_path(request: PipelineRequest) -> Path:
@@ -128,11 +128,11 @@ def task_c_translation_path(request: PipelineRequest) -> Path:
 
 
 def task_c_manifest_path(request: PipelineRequest) -> Path:
-    return task_c_bundle_dir(request) / "task-c-manifest.json"
+    return task_c_bundle_dir(request) / "translation-manifest.json"
 
 
 def task_d_bundle_dir(request: PipelineRequest) -> Path:
-    return request.output_root / "task-d"
+    return request.output_root / "synthesis"
 
 
 def task_d_voice_dir(request: PipelineRequest) -> Path:
@@ -140,7 +140,7 @@ def task_d_voice_dir(request: PipelineRequest) -> Path:
 
 
 def task_d_stage_manifest_path(request: PipelineRequest) -> Path:
-    return task_d_bundle_dir(request) / "task-d-stage-manifest.json"
+    return task_d_bundle_dir(request) / "synthesis-stage-manifest.json"
 
 
 def task_d_report_path(request: PipelineRequest, speaker_id: str) -> Path:
@@ -148,7 +148,7 @@ def task_d_report_path(request: PipelineRequest, speaker_id: str) -> Path:
 
 
 def task_e_bundle_dir(request: PipelineRequest) -> Path:
-    return request.output_root / "task-e" / "voice"
+    return request.output_root / "render" / "voice"
 
 
 def task_e_dub_voice_path(request: PipelineRequest) -> Path:
@@ -168,7 +168,7 @@ def task_e_mix_report_path(request: PipelineRequest) -> Path:
 
 
 def task_e_manifest_path(request: PipelineRequest) -> Path:
-    return task_e_bundle_dir(request) / "task-e-manifest.json"
+    return task_e_bundle_dir(request) / "render-manifest.json"
 
 
 def build_stage1_command(request: PipelineRequest) -> list[str]:
@@ -180,7 +180,7 @@ def build_stage1_command(request: PipelineRequest) -> list[str]:
         "--mode",
         request.separation_mode,
         "--output-dir",
-        str(request.output_root / "stage1"),
+        str(request.output_root / "separation"),
         "--quality",
         request.separation_quality,
         "--output-format",
@@ -196,7 +196,7 @@ def glossary_hotwords(request: PipelineRequest, *, limit: int = 64) -> list[str]
     """Source-side glossary terms to bias ASR toward (ASR-7).
 
     The proper nouns / terminology the user supplied for translation are exactly
-    what ASR should be biased to recognize, so the pipeline feeds them to task-a
+    what ASR should be biased to recognize, so the pipeline feeds them to transcription
     as --hotwords. Best-effort: a missing/unreadable glossary yields no hotwords.
     Comma-containing terms are skipped because --hotwords is comma-separated.
     """
@@ -230,7 +230,7 @@ def build_task_a_command(request: PipelineRequest) -> list[str]:
         "--input",
         str(stage1_voice_path(request)),
         "--output-dir",
-        str(request.output_root / "task-a"),
+        str(request.output_root / "transcription"),
         "--language",
         request.transcription_language,
         "--asr-model",
@@ -283,7 +283,7 @@ def build_task_b_command(request: PipelineRequest) -> list[str]:
         "--audio",
         str(stage1_voice_path(request)),
         "--output-dir",
-        str(request.output_root / "task-b"),
+        str(request.output_root / "speaker-registry"),
         "--registry",
         str(task_b_registry_path(request)),
         "--device",
@@ -310,7 +310,7 @@ def build_task_c_command(request: PipelineRequest) -> list[str]:
         "--profiles",
         str(task_b_profiles_path(request)),
         "--output-dir",
-        str(request.output_root / "task-c"),
+        str(request.output_root / "translation"),
         "--target-lang",
         request.target_lang,
         "--backend",
@@ -328,7 +328,7 @@ def build_task_c_command(request: PipelineRequest) -> list[str]:
         command.extend(["--api-model", request.api_model])
     if request.api_base_url:
         command.extend(["--api-base-url", request.api_base_url])
-    # Hand visual scene context to task-c when the visual-context node produced
+    # Hand visual scene context to translation when the visual-context node produced
     # it (templates without the node simply never have this file).
     if visual_context_path(request).exists():
         command.extend(["--visual-context", str(visual_context_path(request))])
@@ -385,7 +385,7 @@ def build_task_e_command(
         "--translation",
         str(task_c_translation_path(request)),
         "--output-dir",
-        str(request.output_root / "task-e"),
+        str(request.output_root / "render"),
         "--target-lang",
         request.target_lang,
         "--fit-policy",

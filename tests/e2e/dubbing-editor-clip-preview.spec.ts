@@ -6,7 +6,7 @@ const TASK_ID = 'task-clip-preview-demo'
 const SCREENSHOTS_DIR = path.join(__dirname, '../../output/playwright')
 const EDITOR_URL = `/tasks/${TASK_ID}/dubbing-editor`
 
-const CLIP_REL = 'task-e/voice/clips/seg-0003.wav'
+const CLIP_REL = 'render/voice/clips/seg-0003.wav'
 
 let synthesizeCallCount = 0
 
@@ -19,9 +19,9 @@ function buildProject(): Record<string, unknown> {
     status: 'ready',
     source_video_path: '/tmp/source.mp4',
     artifact_paths: {
-      final_dub: 'task-g/final-dub/final_dub.en.mp4',
-      dub_voice: 'task-e/voice/dub_voice.en.wav',
-      preview_mix: 'task-e/voice/preview_mix.en.wav',
+      final_dub: 'delivery/final-dub/final_dub.en.mp4',
+      dub_voice: 'render/voice/dub_voice.en.wav',
+      preview_mix: 'render/voice/preview_mix.en.wav',
     },
     quality_benchmark: {
       version: 'v1',

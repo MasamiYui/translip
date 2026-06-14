@@ -1,7 +1,7 @@
 """Separation output quality metrics (SEP-2).
 
 Cheap, dependency-light measures of how well stage 1 split the mix, written to
-the stage1 manifest so a low-quality separation is *detectable* (e.g. to drive a
+the separation manifest so a low-quality separation is *detectable* (e.g. to drive a
 quality escalation) instead of silently flowing downstream to ASR/diarization.
 
 All functions are pure (numpy) and tolerant of differing lengths; the reconstruction

@@ -328,10 +328,10 @@ def get_task_graph(
 @router.get("/{task_id}/stages/{stage_name}/manifest", summary="阶段清单")
 def get_stage_manifest(
     task_id: Annotated[str, PathParam(description="任务 ID")],
-    stage_name: Annotated[str, PathParam(description="阶段名（如 stage1/task-a/…/task-g、ocr-detect 等）")],
+    stage_name: Annotated[str, PathParam(description="阶段名（如 separation/transcription/…/delivery、ocr-detect 等）")],
     session: Session = Depends(get_session),
 ):
-    """读取并返回指定阶段（stage1/task-a~task-g、ocr-detect 等）的清单 JSON；未知阶段返回 400，清单不存在返回 404。"""
+    """读取并返回指定阶段（separation/transcription~delivery、ocr-detect 等）的清单 JSON；未知阶段返回 400，清单不存在返回 404。"""
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -340,16 +340,16 @@ def get_stage_manifest(
     input_stem = Path(task.input_path).stem
 
     stage_map = {
-        "stage1": f"stage1/{input_stem}/manifest.json",
+        "separation": f"separation/{input_stem}/manifest.json",
         "ocr-detect": "ocr-detect/ocr-detect-manifest.json",
-        "task-a": "task-a/voice/task-a-manifest.json",
-        "task-b": "task-b/voice/task-b-manifest.json",
-        "task-c": "task-c/voice/task-c-manifest.json",
+        "transcription": "transcription/voice/transcription-manifest.json",
+        "speaker-registry": "speaker-registry/voice/speaker-registry-manifest.json",
+        "translation": "translation/voice/translation-manifest.json",
         "ocr-translate": "ocr-translate/ocr-translate-manifest.json",
-        "task-d": "task-d/task-d-stage-manifest.json",
-        "task-e": "task-e/voice/task-e-manifest.json",
+        "synthesis": "synthesis/synthesis-stage-manifest.json",
+        "render": "render/voice/render-manifest.json",
         "subtitle-erase": "subtitle-erase/subtitle-erase-manifest.json",
-        "task-g": "task-g/delivery-manifest.json",
+        "delivery": "delivery/delivery-manifest.json",
     }
     filename = stage_map.get(stage_name)
     if not filename:

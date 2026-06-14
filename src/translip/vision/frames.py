@@ -43,7 +43,7 @@ def units_from_segments(
     """Group ASR segments into analysis units.
 
     This is vision's own grouping — it intentionally does NOT mirror
-    task-c's ``build_context_units`` numbering; downstream consumers match by
+    translation's ``build_context_units`` numbering; downstream consumers match by
     time overlap. Speaker changes do not split a unit (the camera does not cut
     on every speaker turn) — only temporal gaps and size caps do.
     """
@@ -287,7 +287,7 @@ def video_duration_sec(video_path: Path) -> float:
 
 
 def load_segments_file(path: Path) -> list[dict]:
-    """Read a task-a style segments JSON (``{"segments": [...]}`` or bare list)."""
+    """Read a transcription style segments JSON (``{"segments": [...]}`` or bare list)."""
     payload = json.loads(path.read_text(encoding="utf-8"))
     if isinstance(payload, dict):
         segments = payload.get("segments", [])

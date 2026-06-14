@@ -176,7 +176,7 @@ def render_dub(request: RenderDubRequest) -> RenderDubResult:
     mix_report_path = bundle_dir / f"mix_report.{target_lang}.json"
     dub_voice_path = bundle_dir / f"dub_voice.{target_lang}.wav"
     preview_mix_wav_path = bundle_dir / f"preview_mix.{target_lang}.wav"
-    manifest_path = bundle_dir / "task-e-manifest.json"
+    manifest_path = bundle_dir / "render-manifest.json"
 
     started_at = now_iso()
     started_monotonic = time.monotonic()

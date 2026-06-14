@@ -249,7 +249,7 @@ def test_erase_qc_node_gated_by_flag(tmp_path: Path) -> None:
     assert "erase-qc" in nodes_on
     # Ordered after erasure, before delivery.
     assert nodes_on.index("erase-qc") > nodes_on.index("subtitle-erase")
-    assert nodes_on.index("erase-qc") < nodes_on.index("task-g")
+    assert nodes_on.index("erase-qc") < nodes_on.index("delivery")
 
 
 def test_build_erase_qc_command_shape(tmp_path: Path) -> None:

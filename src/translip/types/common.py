@@ -23,23 +23,23 @@ DuckingModeName = Literal["static", "sidechain"]
 PreviewFormat = Literal["wav", "mp3"]
 RenderQualityGate = Literal["loose", "strict"]
 CorrectionPreset = Literal["conservative", "standard", "aggressive"]
-PipelineStageName = Literal["stage1", "task-a", "asr-ocr-correct", "task-b", "task-c", "task-d", "task-e", "task-g"]
+PipelineStageName = Literal["separation", "transcription", "asr-ocr-correct", "speaker-registry", "translation", "synthesis", "render", "delivery"]
 PipelineStageStatus = Literal["pending", "running", "succeeded", "cached", "failed", "skipped"]
 WorkflowTemplateName = Literal["asr-dub-basic", "asr-dub+visual", "asr-dub+ocr-subs", "asr-dub+ocr-subs+erase"]
 WorkflowNodeName = Literal[
-    "stage1",
+    "separation",
     "ocr-detect",
-    "task-a",
+    "transcription",
     "asr-ocr-correct",
-    "task-b",
+    "speaker-registry",
     "visual-context",
-    "task-c",
+    "translation",
     "ocr-translate",
-    "task-d",
-    "task-e",
+    "synthesis",
+    "render",
     "subtitle-erase",
     "erase-qc",
-    "task-g",
+    "delivery",
 ]
 WorkflowNodeGroup = Literal["audio-spine", "ocr-subtitles", "visual-perception", "video-cleanup", "delivery"]
 WorkflowNodeStatus = Literal["pending", "running", "succeeded", "cached", "failed", "skipped"]

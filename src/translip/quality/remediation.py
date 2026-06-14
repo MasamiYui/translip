@@ -49,8 +49,8 @@ ACTION_MANUAL = "manual_review"
 # --- Executors: who/what can actually perform the action ------------------- #
 EX_REPAIR = "repair"    # run-dub-repair tournament (automated)
 EX_EDITOR = "editor"    # dubbing-editor per-segment op (human-in-the-loop)
-EX_RENDER = "render"    # task-e knob change + re-render (automated)
-EX_RERUN = "rerun"      # re-run an upstream stage (task-c / task-d)
+EX_RENDER = "render"    # render knob change + re-render (automated)
+EX_RERUN = "rerun"      # re-run an upstream stage (translation / synthesis)
 EX_MANUAL = "manual"    # needs a human decision
 
 _SEVERITY_WEIGHT = {"P0": 3, "P1": 2, "P2": 1, "ok": 0}
@@ -98,7 +98,7 @@ _GATE_ISSUES = {
 
 # Advisory knob hints for the render-refit action (the optimization signal).
 _REFIT_KNOB = {
-    "stage": "task-e",
+    "stage": "render",
     "params": {"fit_backend": "rubberband", "max_compress_ratio": "+0.15"},
 }
 

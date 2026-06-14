@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class TaskStageRead(BaseModel):
-    stage_name: str = Field(description="阶段名称，如 stage1、task-a 至 task-g")
+    stage_name: str = Field(description="阶段名称，如 separation、transcription 至 delivery")
     status: str = Field(description="该阶段的执行状态")
     progress_percent: float = Field(description="该阶段进度百分比")
     current_step: Optional[str] = Field(default=None, description="当前正在执行的子步骤描述")
@@ -81,8 +81,8 @@ class TaskConfigInput(BaseModel):
     output_intent: str = Field(default="dub_final", description="输出目标，如最终配音成片")
     quality_preset: str = Field(default="standard", description="整体质量预设")
     template: str = Field(default="asr-dub-basic", description="工作流模板，决定运行哪些节点")
-    run_from_stage: str = Field(default="stage1", description="起始阶段，从该阶段开始运行")
-    run_to_stage: str = Field(default="task-g", description="结束阶段，运行至该阶段为止")
+    run_from_stage: str = Field(default="separation", description="起始阶段，从该阶段开始运行")
+    run_to_stage: str = Field(default="delivery", description="结束阶段，运行至该阶段为止")
     use_cache: bool = Field(default=True, description="是否复用各阶段缓存")
     keep_intermediate: bool = Field(default=False, description="是否保留中间产物文件")
     video_source: str = Field(default="original", description="导出所用视频来源，如原始或字幕擦除后")
@@ -112,11 +112,11 @@ class TaskConfigInput(BaseModel):
     erase_neighbor_stride: int = Field(default=5, gt=0, description="STTN 时间邻域采样步长")
     erase_reference_length: int = Field(default=10, gt=0, description="STTN 全局参考帧步长")
     # Stage 1
-    separation_mode: str = Field(default="auto", description="stage1 分离模式，auto 为自动判断")
-    separation_quality: str = Field(default="balanced", description="stage1 人声/背景分离质量档位")
+    separation_mode: str = Field(default="auto", description="separation 分离模式，auto 为自动判断")
+    separation_quality: str = Field(default="balanced", description="separation 人声/背景分离质量档位")
     music_backend: str = Field(default="demucs", description="背景音乐分离后端")
     dialogue_backend: str = Field(default="cdx23", description="人声/对白分离后端")
-    stage1_output_format: str = Field(default="mp3", description="stage1 输出音频格式")
+    stage1_output_format: str = Field(default="mp3", description="separation 输出音频格式")
     audio_stream_index: int = Field(default=0, ge=0, description="选用的输入音轨索引，从 0 开始")
     # Task A
     asr_model: str = Field(default="paraformer-zh", description="转写所用 ASR 模型")
@@ -203,7 +203,7 @@ class CreateTaskRequest(BaseModel):
 
 
 class RerunTaskRequest(BaseModel):
-    from_stage: str = Field(default="stage1", description="重跑的起始阶段")
+    from_stage: str = Field(default="separation", description="重跑的起始阶段")
 
 
 class ConfigPresetRead(BaseModel):

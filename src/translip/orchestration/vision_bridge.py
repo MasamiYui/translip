@@ -22,8 +22,8 @@ _VISION_PROGRESS_PREFIX = "__VISION_PROGRESS__"
 
 
 def build_visual_context_command(request: PipelineRequest) -> list[str]:
-    # Segments must be the *effective* task-a output (speaker-corrected →
-    # corrected → raw) — the same file task-c consumes, so the time axis the
+    # Segments must be the *effective* transcription output (speaker-corrected →
+    # corrected → raw) — the same file translation consumes, so the time axis the
     # visual units describe is the one translation will match against.
     return [
         sys.executable,

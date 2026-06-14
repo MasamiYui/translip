@@ -3,25 +3,25 @@ from __future__ import annotations
 from ..types import PipelineStageName
 
 STAGE_ORDER: list[PipelineStageName] = [
-    "stage1",
-    "task-a",
+    "separation",
+    "transcription",
     "asr-ocr-correct",
-    "task-b",
-    "task-c",
-    "task-d",
-    "task-e",
-    "task-g",
+    "speaker-registry",
+    "translation",
+    "synthesis",
+    "render",
+    "delivery",
 ]
 
 STAGE_WEIGHTS: dict[PipelineStageName, float] = {
-    "stage1": 0.10,
-    "task-a": 0.10,
+    "separation": 0.10,
+    "transcription": 0.10,
     "asr-ocr-correct": 0.05,
-    "task-b": 0.10,
-    "task-c": 0.15,
-    "task-d": 0.35,
-    "task-e": 0.20,
-    "task-g": 0.0,
+    "speaker-registry": 0.10,
+    "translation": 0.15,
+    "synthesis": 0.35,
+    "render": 0.20,
+    "delivery": 0.0,
 }
 
 

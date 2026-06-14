@@ -79,8 +79,8 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
         translation_batch_size=int(cfg.get("translation_batch_size", 4)),
         tts_backend=cfg.get("tts_backend", "moss-tts-nano-onnx"),
         device=cfg.get("device", "auto"),
-        run_from_stage=cfg.get("run_from_stage", "stage1"),
-        run_to_stage=cfg.get("run_to_stage", "task-g"),
+        run_from_stage=cfg.get("run_from_stage", "separation"),
+        run_to_stage=cfg.get("run_to_stage", "delivery"),
         reuse_existing=cfg.get("use_cache", True),
         separation_mode=cfg.get("separation_mode", "dialogue"),
         separation_quality=cfg.get("separation_quality", "balanced"),
@@ -158,8 +158,8 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
 def _planned_task_nodes(config_dict: Dict[str, Any]) -> list[str]:
     config_dict = normalize_task_config(config_dict)
     template_id = config_dict.get("template", "asr-dub-basic")
-    run_from = config_dict.get("run_from_stage", "stage1")
-    run_to = config_dict.get("run_to_stage", "task-g")
+    run_from = config_dict.get("run_from_stage", "separation")
+    run_to = config_dict.get("run_to_stage", "delivery")
     plan = resolve_template_plan(template_id)
     start_hint = NODE_REGISTRY[run_from].sequence_hint
     end_hint = NODE_REGISTRY[run_to].sequence_hint
@@ -259,8 +259,8 @@ def _run_delivery_step(task_id: str, pipeline_req: "PipelineRequest") -> None:
     from ..types import ExportVideoRequest
 
     output_root = Path(pipeline_req.output_root)
-    delivery_dir = output_root / "task-g"
-    task_e_dir = output_root / "task-e" / "voice"  # task-e bundle dir
+    delivery_dir = output_root / "delivery"
+    task_e_dir = output_root / "render" / "voice"  # render bundle dir
 
     request = ExportVideoRequest(
         input_video_path=pipeline_req.input_path,
@@ -280,11 +280,11 @@ def _run_delivery_step(task_id: str, pipeline_req: "PipelineRequest") -> None:
             if task:
                 stmt = select(TaskStage).where(
                     TaskStage.task_id == task_id,
-                    TaskStage.stage_name == "task-g",
+                    TaskStage.stage_name == "delivery",
                 )
                 stage_row = session.exec(stmt).first()
                 if not stage_row:
-                    stage_row = TaskStage(task_id=task_id, stage_name="task-g")
+                    stage_row = TaskStage(task_id=task_id, stage_name="delivery")
                 stage_row.status = "succeeded"
                 stage_row.progress_percent = 100.0
                 stage_row.current_step = "completed"
@@ -293,17 +293,17 @@ def _run_delivery_step(task_id: str, pipeline_req: "PipelineRequest") -> None:
                 session.add(stage_row)
                 session.commit()
     except Exception as exc:
-        logger.exception("Delivery step (task-g) failed for task %s", task_id)
+        logger.exception("Delivery step (delivery) failed for task %s", task_id)
         with Session(engine) as session:
             task = session.get(Task, task_id)
             if task:
                 stmt = select(TaskStage).where(
                     TaskStage.task_id == task_id,
-                    TaskStage.stage_name == "task-g",
+                    TaskStage.stage_name == "delivery",
                 )
                 stage_row = session.exec(stmt).first()
                 if not stage_row:
-                    stage_row = TaskStage(task_id=task_id, stage_name="task-g")
+                    stage_row = TaskStage(task_id=task_id, stage_name="delivery")
                 stage_row.status = "failed"
                 stage_row.error_message = str(exc)
                 session.add(stage_row)

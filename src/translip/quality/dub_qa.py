@@ -152,7 +152,7 @@ def build_dub_qa(request: DubQaRequest, *, on_phase: PhaseCallback | None = None
         except Exception:  # pragma: no cover - progress is best-effort
             pass
 
-    mix_report_path = root / "task-e" / "voice" / f"mix_report.{target_lang}.json"
+    mix_report_path = root / "render" / "voice" / f"mix_report.{target_lang}.json"
     mix_report = _read_json(mix_report_path)
     translation_path = _resolve_translation_path(root, mix_report, target_lang)
 
@@ -194,11 +194,11 @@ def build_dub_qa(request: DubQaRequest, *, on_phase: PhaseCallback | None = None
     qa_summary = _summarize(rows, mix_report=mix_report, judge_status=judge_status)
 
     # Full-track audio paths for the original-vs-dub waveform compare. The
-    # isolated original vocal sits next to stage1's background output
-    # (background.<fmt> -> voice.<fmt>); the dub full track is task-e's output.
+    # isolated original vocal sits next to separation's background output
+    # (background.<fmt> -> voice.<fmt>); the dub full track is render's output.
     original_voice_rel = _original_voice_rel(mix_report, root)
     background_rel = _background_rel(mix_report, root)
-    dub_voice_path = root / "task-e" / "voice" / f"dub_voice.{target_lang}.wav"
+    dub_voice_path = root / "render" / "voice" / f"dub_voice.{target_lang}.wav"
     dub_voice_rel = _rel_to_root(dub_voice_path, root) if dub_voice_path.exists() else None
 
     report = {
@@ -218,7 +218,7 @@ def build_dub_qa(request: DubQaRequest, *, on_phase: PhaseCallback | None = None
             # (paths relative to the task output root, streamable as artifacts).
             "original_voice": original_voice_rel,
             "dub_voice": dub_voice_rel,
-            # Pure background bed (stage1 accompaniment, no dialogue) so the UI
+            # Pure background bed (separation accompaniment, no dialogue) so the UI
             # can A/B the instrumental track against original/dub.
             "background": background_rel,
         },
@@ -674,7 +674,7 @@ def _resolve_translation_path(root: Path, mix_report: dict[str, Any], target_lan
         if candidate.exists():
             return candidate
     tag = output_tag_for_language(target_lang)
-    task_c = root / "task-c"
+    task_c = root / "translation"
     if task_c.exists():
         for candidate in sorted(task_c.rglob(f"translation.{tag}.json")):
             if candidate.is_file():
@@ -703,7 +703,7 @@ def _build_backread_index(
     for item in [*placed, *skipped]:
         _add(item.get("task_d_report_path"))
     if not report_paths:
-        task_d = root / "task-d"
+        task_d = root / "synthesis"
         if task_d.exists():
             for candidate in sorted(task_d.rglob("*.json")):
                 payload = _read_json(candidate)
@@ -771,7 +771,7 @@ def _segment_duration_ratio(item: dict[str, Any]) -> float | None:
 
 
 def _original_voice_rel(mix_report: dict[str, Any], root: Path) -> str | None:
-    """Resolve the stage1 isolated-vocal track from the mix report's background path.
+    """Resolve the separation isolated-vocal track from the mix report's background path.
 
     Stage1 writes ``voice.<fmt>`` and ``background.<fmt>`` side by side; the mix
     report records the background path, so the original vocal is its sibling.
@@ -787,7 +787,7 @@ def _original_voice_rel(mix_report: dict[str, Any], root: Path) -> str | None:
 
 
 def _background_rel(mix_report: dict[str, Any], root: Path) -> str | None:
-    """Resolve the stage1 pure-background (accompaniment, no dialogue) track.
+    """Resolve the separation pure-background (accompaniment, no dialogue) track.
 
     Stage1 writes ``background.<fmt>`` next to the isolated vocal; the mix report
     records that background path directly.

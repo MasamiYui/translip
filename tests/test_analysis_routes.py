@@ -20,14 +20,14 @@ def _write(path: Path, payload: dict) -> None:
 
 
 def _make_pipeline(root: Path) -> None:
-    tc = root / "task-c" / "voice" / "clip"
+    tc = root / "translation" / "voice" / "clip"
     _write(tc / "translation.en.json", {"segments": [
         {"segment_id": "s1", "speaker_label": "SPK1", "start": 0.0, "end": 2.0,
          "source_text": "你好", "target_text": "Hello"},
     ]})
-    td = root / "task-d" / "voice" / "clip"
+    td = root / "synthesis" / "voice" / "clip"
     _write(td / "dub_report.en.json", {"segments": [{"segment_id": "s1", "backread_text": "hello"}]})
-    _write(root / "task-e" / "voice" / "mix_report.en.json", {
+    _write(root / "render" / "voice" / "mix_report.en.json", {
         "input": {"translation_path": str(tc / "translation.en.json"),
                   "task_d_report_paths": [str(td / "dub_report.en.json")]},
         "stats": {"placed_count": 1, "skipped_count": 1, "skip_reason_counts": {"skipped_missing_audio": 1},
@@ -109,7 +109,7 @@ def test_dub_qa_analysis_route_end_to_end(tmp_path: Path, monkeypatch) -> None:
         assert rows["s1"]["source_text"] == "你好"
         assert rows["s2"]["issue_tags"] == ["undubbed"]
         # dub audio path is relative to output_root for the artifacts endpoint.
-        assert rows["s1"]["dub_audio_path"] == "task-d/voice/clip/s1.wav"
+        assert rows["s1"]["dub_audio_path"] == "synthesis/voice/clip/s1.wav"
     finally:
         app.dependency_overrides.clear()
 

@@ -694,10 +694,10 @@ def test_run_dub_repair_blocks_pitch_class_drift_against_character_ledger(tmp_pa
 
 
 def test_build_repair_plan_force_includes_qa_flagged_segment() -> None:
-    """QA-bridge: a segment task-d passed is still queued when force-included.
+    """QA-bridge: a segment synthesis passed is still queued when force-included.
 
     Mirrors the auto-fix path where the dub-QA flags a defect on the final mix
-    that task-d's own metrics missed; without force-inclusion it would never be
+    that synthesis's own metrics missed; without force-inclusion it would never be
     attempted by the repair tournament.
     """
     from translip.repair.planner import build_repair_plan

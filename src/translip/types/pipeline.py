@@ -58,8 +58,8 @@ class PipelineRequest:
     translation_batch_size: int = 4
     tts_backend: TtsBackendName = "moss-tts-nano-onnx"
     device: Device = "auto"
-    run_from_stage: PipelineStageName = "stage1"
-    run_to_stage: PipelineStageName = "task-g"
+    run_from_stage: PipelineStageName = "separation"
+    run_to_stage: PipelineStageName = "delivery"
     resume: bool = False
     force_stages: list[PipelineStageName] | None = None
     reuse_existing: bool = True

@@ -138,7 +138,7 @@ def compose_delivery(
     payload: DeliveryComposeRequestPayload,
     session: Session = Depends(get_session),
 ):
-    """执行 task-g 导出：按所选字幕模式与来源混流生成预览版/配音版视频，并将本次交付配置写回任务记录，返回产物路径与导出报告。"""
+    """执行 delivery 导出：按所选字幕模式与来源混流生成预览版/配音版视频，并将本次交付配置写回任务记录，返回产物路径与导出报告。"""
     task = session.get(Task, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -148,8 +148,8 @@ def compose_delivery(
         ExportVideoRequest(
             input_video_path=Path(task.input_path),
             pipeline_root=output_root,
-            task_e_dir=output_root / "task-e" / "voice",
-            output_dir=output_root / "task-g",
+            task_e_dir=output_root / "render" / "voice",
+            output_dir=output_root / "delivery",
             target_lang=task.target_lang,
             export_preview=payload.export_preview,
             export_dub=payload.export_dub,

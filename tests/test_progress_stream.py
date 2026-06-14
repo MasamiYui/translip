@@ -78,10 +78,10 @@ def test_stream_emits_progress_and_done_from_json(tmp_path: Path, monkeypatch) -
     (out / "pipeline-status.json").write_text(
         json.dumps(
             {
-                "current_stage": "task-d",
+                "current_stage": "synthesis",
                 "overall_progress_percent": 100,
                 "status": "succeeded",
-                "stages": [{"name": "task-d", "status": "succeeded"}],
+                "stages": [{"name": "synthesis", "status": "succeeded"}],
             }
         ),
         encoding="utf-8",
@@ -93,7 +93,7 @@ def test_stream_emits_progress_and_done_from_json(tmp_path: Path, monkeypatch) -
     joined = "".join(events)
     assert "event: progress" in joined
     assert "event: done" in joined
-    assert "task-d" in joined
+    assert "synthesis" in joined
 
 
 def test_stream_emits_heartbeat_while_running(tmp_path: Path, monkeypatch) -> None:

@@ -20,7 +20,7 @@ def build_repair_plan(
     llm_backend: object | None = None,
 ) -> dict[str, Any]:
     # ``include_segment_ids`` force-queues segments the dub-QA flagged on the final
-    # mix even when task-d's own metrics passed them, so the evaluation's defects
+    # mix even when synthesis's own metrics passed them, so the evaluation's defects
     # and the repair tournament stay in sync (otherwise QA-only defects are never
     # attempted). They enter as risk-only ``qa_flagged`` items.
     include = include_segment_ids or set()

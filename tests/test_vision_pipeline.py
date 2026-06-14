@@ -26,19 +26,19 @@ def _request(tmp_path: Path, **overrides) -> PipelineRequest:
 def test_visual_template_resolves_with_optional_visual_node() -> None:
     plan = resolve_template_plan("asr-dub+visual")
     assert plan.node_order == [
-        "stage1",
-        "task-a",
-        "task-b",
+        "separation",
+        "transcription",
+        "speaker-registry",
         "visual-context",
-        "task-c",
-        "task-d",
-        "task-e",
-        "task-g",
+        "translation",
+        "synthesis",
+        "render",
+        "delivery",
     ]
     # Optional: a missing vision backend must not fail the whole pipeline.
     assert plan.nodes["visual-context"].required is False
     assert plan.nodes["visual-context"].group == "visual-perception"
-    assert plan.dependencies_for("visual-context") == ("task-a",)
+    assert plan.dependencies_for("visual-context") == ("transcription",)
 
 
 def test_other_templates_unchanged() -> None:
@@ -61,7 +61,7 @@ def test_build_visual_context_command_uses_effective_segments(tmp_path: Path) ->
 
     # When asr-ocr-correct produced a corrected file, the command must use it.
     corrected = (
-        tmp_path / "out" / "task-a" / "correction" / "input" / "segments.zh.corrected.json"
+        tmp_path / "out" / "transcription" / "correction" / "input" / "segments.zh.corrected.json"
     )
     corrected.parent.mkdir(parents=True, exist_ok=True)
     corrected.write_text("{}", encoding="utf-8")
@@ -116,16 +116,16 @@ def test_task_c_cache_payload_tracks_visual_context_fingerprint(tmp_path: Path) 
     from translip.orchestration.runner import _stage_cache_payload
 
     request = _request(tmp_path)
-    key_without = compute_cache_key(_stage_cache_payload(request, "task-c"))
+    key_without = compute_cache_key(_stage_cache_payload(request, "translation"))
 
     vc = visual_context_path(request)
     vc.parent.mkdir(parents=True, exist_ok=True)
     vc.write_text('{"units": [{"start": 0, "end": 1, "scene": "x"}]}', encoding="utf-8")
-    key_with = compute_cache_key(_stage_cache_payload(request, "task-c"))
+    key_with = compute_cache_key(_stage_cache_payload(request, "translation"))
     assert key_with != key_without
 
     vc.write_text('{"units": [{"start": 0, "end": 1, "scene": "y"}]}', encoding="utf-8")
-    key_changed = compute_cache_key(_stage_cache_payload(request, "task-c"))
+    key_changed = compute_cache_key(_stage_cache_payload(request, "translation"))
     assert key_changed != key_with
 
 

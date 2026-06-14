@@ -18,8 +18,8 @@ def _write(path: Path, payload: dict) -> Path:
 
 
 def _make_pipeline(root: Path) -> None:
-    """Lay out a minimal task-c / task-d / task-e fixture for one input."""
-    tc = root / "task-c" / "voice" / "clip"
+    """Lay out a minimal translation / synthesis / render fixture for one input."""
+    tc = root / "translation" / "voice" / "clip"
     _write(
         tc / "translation.en.json",
         {
@@ -38,7 +38,7 @@ def _make_pipeline(root: Path) -> None:
             ]
         },
     )
-    td = root / "task-d" / "voice" / "clip"
+    td = root / "synthesis" / "voice" / "clip"
     td_report = _write(
         td / "dub_report.en.json",
         {
@@ -104,7 +104,7 @@ def _make_pipeline(root: Path) -> None:
              "task_d_report_path": str(td_report)},
         ],
     }
-    _write(root / "task-e" / "voice" / "mix_report.en.json", mix)
+    _write(root / "render" / "voice" / "mix_report.en.json", mix)
 
 
 def test_dub_qa_join_and_issue_tags(tmp_path: Path):
@@ -112,7 +112,7 @@ def test_dub_qa_join_and_issue_tags(tmp_path: Path):
     _make_pipeline(root)
     # Provide judge scores out of band (no API call) flagging s3.
     _write(
-        root / "task-e" / "voice" / "judge_scores.en.json",
+        root / "render" / "voice" / "judge_scores.en.json",
         {"scores": [
             {"segment_id": "s1", "score": 5.0, "adequacy": 5, "fluency": 5, "reason": "ok"},
             {"segment_id": "s3", "score": 1.2, "adequacy": 1, "fluency": 2, "reason": "wrong meaning"},
@@ -123,7 +123,7 @@ def test_dub_qa_join_and_issue_tags(tmp_path: Path):
             pipeline_root=root,
             output_dir=tmp_path / "analysis",
             target_lang="en",
-            judge_path=root / "task-e" / "voice" / "judge_scores.en.json",
+            judge_path=root / "render" / "voice" / "judge_scores.en.json",
         )
     )
     rows = {row["segment_id"]: row for row in result.report["segments"]}
@@ -131,7 +131,7 @@ def test_dub_qa_join_and_issue_tags(tmp_path: Path):
     # Join pulled source text + backread + relative dub audio path.
     assert rows["s1"]["source_text"] == "你好世界"
     assert rows["s1"]["backread_text"] == "hello world"
-    assert rows["s1"]["dub_audio_path"] == "task-d/voice/clip/s1.wav"
+    assert rows["s1"]["dub_audio_path"] == "synthesis/voice/clip/s1.wav"
     assert rows["s1"]["issue_tags"] == []
 
     # Each pain point maps to the right tag.
@@ -226,7 +226,7 @@ def test_translation_judge_with_mocked_api(tmp_path: Path, monkeypatch):
 
 def _overflow_pipeline(root: Path) -> None:
     """A pipeline where placed dubs overflow their windows to varying degrees."""
-    tc = root / "task-c" / "voice" / "clip"
+    tc = root / "translation" / "voice" / "clip"
     _write(tc / "translation.en.json", {"segments": [
         {"segment_id": "ok", "speaker_label": "A", "start": 0.0, "end": 3.0,
          "source_text": "正常", "target_text": "fine"},
@@ -248,7 +248,7 @@ def _overflow_pipeline(root: Path) -> None:
         base.update(over)
         return base
 
-    _write(root / "task-e" / "voice" / "mix_report.en.json", {
+    _write(root / "render" / "voice" / "mix_report.en.json", {
         "input": {"translation_path": str(tc / "translation.en.json")},
         "stats": {"placed_count": 3, "skipped_count": 0,
                   "quality_summary": {"total_count": 3, "overall_status_counts": {"passed": 3}}},

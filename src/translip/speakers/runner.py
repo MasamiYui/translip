@@ -136,7 +136,7 @@ def build_speaker_registry(
                 elapsed_sec=time.monotonic() - started_monotonic,
                 stats=stats,
             ),
-            bundle_dir / "task-b-manifest.json",
+            bundle_dir / "speaker-registry-manifest.json",
         )
 
         if not normalized_request.keep_intermediate:
@@ -172,7 +172,7 @@ def build_speaker_registry(
                 stats=stats,
                 error=str(exc),
             ),
-            bundle_dir / "task-b-manifest.json",
+            bundle_dir / "speaker-registry-manifest.json",
         )
         raise
 
