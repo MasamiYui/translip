@@ -1,0 +1,18 @@
+# OCR detection + subtitle erase on self-built synthetic GT (perfect boxes + clean
+# reference). The only quantifiable path for these stages — no public CN film/TV
+# subtitle GT exists. Needs the `ocr` (+ `erase`) extras installed.
+name = "ocr-erase-synthetic"
+dataset = "synthetic-subtitle"
+scenarios = ["ocr-detect", "subtitle-erase"]
+timeout_sec = 1800
+
+[dataset_params]
+clips = 3
+duration = 6.0
+
+[scenario_config.ocr-detect]
+ocr_language = "ch"
+iou = 0.5
+
+[scenario_config.subtitle-erase]
+erase_backend = "sttn"

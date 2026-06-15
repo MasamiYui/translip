@@ -1,0 +1,14 @@
+# Separation SI-SDR on synthetic voice+music mixes with known stems.
+# Validates plumbing + metric; for REAL numbers, use the `folder` dataset with
+# real <stem>.voice.wav + <stem>.background.wav stems.
+name = "separation-synthetic"
+dataset = "synthetic-mix"
+scenarios = ["separation"]
+timeout_sec = 1800
+
+[dataset_params]
+clips = 3
+duration = 5.0
+
+[scenario_config.separation]
+mode = "music"

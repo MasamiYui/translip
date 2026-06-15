@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>translip-lab</title>
+<style>
+  :root{--bd:#e3e3e3;--mut:#666;--bg:#fafafa}
+  *{box-sizing:border-box}
+  body{font:14px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;margin:0;color:#1a1a1a;background:var(--bg)}
+  header{background:#111827;color:#fff;padding:14px 22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header h1{font-size:17px;margin:0}
+  header .sub{color:#9ca3af;font-size:12px}
+  main{padding:20px 22px;max-width:1200px;margin:0 auto}
+  h2{font-size:15px;margin:22px 0 8px}
+  table{border-collapse:collapse;width:100%;background:#fff;margin:6px 0;box-shadow:0 1px 2px rgba(0,0,0,.06)}
+  th,td{border:1px solid var(--bd);padding:6px 10px;text-align:left;font-variant-numeric:tabular-nums}
+  th{background:#f3f4f6}
+  tr.clk{cursor:pointer}tr.clk:hover{background:#eef2ff}
+  .fail{color:#b91c1c}.skip{color:#a16207}.ok{color:#15803d}
+  tr.reg{background:#fef2f2}tr.imp{background:#f0fdf4}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0}
+  select,input,button{font:inherit;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;background:#fff}
+  button{background:#111827;color:#fff;border-color:#111827;cursor:pointer}
+  button.ghost{background:#fff;color:#111827}
+  .muted{color:var(--mut);font-size:12px}
+  .pill{display:inline-block;background:#eef2ff;color:#3730a3;border-radius:10px;padding:0 8px;font-size:12px}
+  code{background:#f3f4f6;padding:1px 5px;border-radius:4px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧪 translip-lab</h1>
+  <span class="sub">evaluation lab · quantitative regression for the translip pipeline</span>
+</header>
+<main>
+  <div class="row">
+    <strong>Trigger:</strong>
+    <select id="suiteSel"></select>
+    <label class="muted">limit <input id="limitInp" type="number" min="1" style="width:64px"></label>
+    <label class="muted"><input id="noCacheChk" type="checkbox"> no-cache</label>
+    <button id="runBtn">Run suite</button>
+    <button class="ghost" id="refreshBtn">Refresh</button>
+    <span id="status" class="muted"></span>
+  </div>
+
+  <h2>Runs</h2>
+  <div id="runs">loading…</div>
+
+  <div class="row">
+    <strong>Compare:</strong>
+    <select id="baseSel"></select> →
+    <select id="candSel"></select>
+    <button class="ghost" id="cmpBtn">Compare</button>
+  </div>
+  <div id="compare"></div>
+
+  <div id="detail"></div>
+
+  <h2>Scenarios</h2><div id="scenarios" class="muted">…</div>
+  <h2>Datasets</h2><div id="datasets" class="muted">…</div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (v) => String(v ?? "").replace(/[&<>]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+const fmt = (v) => v == null ? "—" : (typeof v === "number" ? (+v.toFixed(4)).toString() : esc(v));
+async function jget(u){const r=await fetch(u);if(!r.ok)throw new Error(u+" "+r.status);return r.json();}
+
+async function loadRuns(){
+  const runs = await jget("/api/lab/runs");
+  const sels = [$("baseSel"),$("candSel")];
+  sels.forEach(s => s.innerHTML = runs.map(r=>`<option>${esc(r.run_id)}</option>`).join(""));
+  if(!runs.length){$("runs").innerHTML="<p class='muted'>No runs yet. Trigger one above, or run <code>translip-lab run --suite …</code>.</p>";return;}
+  $("runs").innerHTML = `<table><tr><th>run</th><th>suite</th><th>dataset</th><th>scenarios</th><th>started</th></tr>` +
+    runs.map(r=>`<tr class="clk" data-id="${esc(r.run_id)}"><td><code>${esc(r.run_id)}</code></td><td>${esc(r.suite)}</td><td>${esc(r.dataset)}</td><td>${esc((r.scenarios||[]).join(", "))}</td><td class="muted">${esc(r.started_at||"")}</td></tr>`).join("") + `</table>`;
+  document.querySelectorAll("#runs tr.clk").forEach(tr=>tr.onclick=()=>showDetail(tr.dataset.id));
+}
+
+async function showDetail(id){
+  const m = await jget("/api/lab/runs/"+encodeURIComponent(id));
+  const agg = Object.entries(m.aggregates||{}).map(([n,a])=>`<tr><td>${esc(n)}</td><td>${esc(a.primary_metric)} ${a.higher_is_better===false?"↓":(a.higher_is_better?"↑":"")}</td><td>${fmt(a.mean)}</td><td>${fmt(a.median)}</td><td>${fmt(a.min)}</td><td>${fmt(a.max)}</td><td>${a.scored||0}</td><td class="fail">${a.failed||0}</td><td class="skip">${a.skipped||0}</td></tr>`).join("");
+  const res = (m.results||[]).map(r=>{const c={failed:"fail",skipped:"skip",succeeded:"ok"}[r.status]||"";const e=r.error?esc(r.error.split("\n")[0].slice(0,90)):"";return `<tr><td>${esc(r.sample_id)}</td><td>${esc(r.scenario)}</td><td class="${c}">${esc(r.status)}</td><td>${fmt(r.primary_metric)}</td><td>${r.cached?"✓":""}</td><td class="fail">${e}</td></tr>`;}).join("");
+  $("detail").innerHTML = `<h2>Run <code>${esc(id)}</code> <span class="muted">${esc(m.elapsed_sec)}s · ${m.sample_count} samples</span></h2>`+
+    `<table><tr><th>scenario</th><th>metric</th><th>mean</th><th>median</th><th>min</th><th>max</th><th>scored</th><th>failed</th><th>skipped</th></tr>${agg}</table>`+
+    `<table><tr><th>sample</th><th>scenario</th><th>status</th><th>primary</th><th>cached</th><th>error</th></tr>${res}</table>`;
+  $("detail").scrollIntoView({behavior:"smooth"});
+}
+
+async function loadCompare(){
+  const b=$("baseSel").value, c=$("candSel").value;
+  if(!b||!c)return;
+  const cmp = await jget(`/api/lab/compare?baseline=${encodeURIComponent(b)}&candidate=${encodeURIComponent(c)}`);
+  const rows = (cmp.rows||[]).map(r=>{const cl=r.regressed===true?"reg":(r.regressed===false?"imp":"");const v=r.regressed===true?"⚠️ regressed":(r.regressed===false?"✅ ok":"—");return `<tr class="${cl}"><td>${esc(r.scenario)}</td><td>${esc(r.primary_metric)}</td><td>${fmt(r.baseline_mean)}</td><td>${fmt(r.candidate_mean)}</td><td>${fmt(r.delta)}</td><td>${v}</td></tr>`;}).join("");
+  $("compare").innerHTML = `<table><tr><th>scenario</th><th>metric</th><th>baseline</th><th>candidate</th><th>Δ</th><th>verdict</th></tr>${rows}</table><p class="muted">Regressions: ${esc((cmp.regressions||[]).join(", ")||"none")}</p>`;
+}
+
+async function loadMeta(){
+  const sc = await jget("/api/lab/scenarios");
+  $("scenarios").innerHTML = sc.map(s=>`<span class="pill">${esc(s.name)} · ${esc(s.primary_metric)} ${s.higher_is_better?"↑":"↓"}</span>`).join(" ");
+  const ds = await jget("/api/lab/datasets");
+  $("datasets").innerHTML = `<table><tr><th>dataset</th><th>present</th><th>provides</th><th>root</th></tr>`+
+    ds.map(d=>`<tr><td>${esc(d.name)}</td><td>${d.exists?"✓":"·"}</td><td>${esc((d.provides||[]).join(", ")||d.license||"")}</td><td class="muted">${esc(d.root||"")}</td></tr>`).join("")+`</table>`;
+  // suites we ship — keep in sync with src/translip_lab/suites/
+  $("suiteSel").innerHTML = ["asr-diar-meeting","ocr-erase-synthetic","separation-synthetic"].map(s=>`<option>${s}</option>`).join("");
+}
+
+$("runBtn").onclick = async () => {
+  $("status").textContent = "starting…";
+  const body = {suite:$("suiteSel").value, no_cache:$("noCacheChk").checked};
+  if($("limitInp").value) body.limit = +$("limitInp").value;
+  await fetch("/api/lab/runs",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
+  $("status").textContent = "started — refresh in a bit";
+};
+$("refreshBtn").onclick = loadRuns;
+$("cmpBtn").onclick = loadCompare;
+
+loadMeta().catch(e=>$("scenarios").textContent=e);
+loadRuns().catch(e=>$("runs").textContent=e);
+</script>
+</body>
+</html>

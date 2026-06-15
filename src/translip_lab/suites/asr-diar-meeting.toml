@@ -1,0 +1,19 @@
+# Quantitative ASR + diarization regression on a Chinese meeting corpus.
+# Domain caveat: meeting/telephone, NOT film/TV — the only rigorous open CER/DER GT.
+# Place AliMeeting under <datasets>/alimeeting/ (OpenSLR SLR119, CC BY-SA 4.0).
+name = "asr-diar-meeting"
+dataset = "alimeeting"
+scenarios = ["asr", "diarization"]
+limit = 5
+timeout_sec = 3600
+
+[dataset_params]
+subset = "Eval_Ali/Eval_Ali_far"
+
+[scenario_config.asr]
+asr_backend = "faster-whisper"
+language = "zh"
+
+[scenario_config.diarization]
+diarizer_backend = "pyannote"
+collar = 0.25

@@ -73,10 +73,20 @@ vision = [
   "huggingface_hub>=0.26,<1",
   "pillow>=10,<12",
 ]
+# translip-lab — the loosely-coupled evaluation lab (src/translip_lab). The engine
+# (metrics/runner/datasets/scenarios) runs on the base deps (numpy/scipy/soundfile)
+# + ffmpeg + stdlib; the only addition is Pillow, used by the synthetic-subtitle
+# GT generator. Install with `uv sync --extra lab`. The lab imports translip
+# one-way (CLI subprocess + a couple of pure helpers); translip never imports it.
+lab = [
+  "pillow>=10,<12",
+]
 
 [project.scripts]
 translip = "translip.cli:main"
 translip-server = "translip.server.app:run_server"
+translip-lab = "translip_lab.cli:main"
+translip-lab-server = "translip_lab.server.app:run_server"
 video-voice-separate = "video_voice_separate.cli:main"
 video-voice-server = "video_voice_separate.server.app:run_server"
 

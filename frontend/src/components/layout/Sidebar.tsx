@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Clapperboard,
   Eraser,
+  FlaskConical,
   Gauge,
   Languages,
   LayoutDashboard,
@@ -31,6 +32,12 @@ import { cn } from '../../lib/utils'
 import { useI18n } from '../../i18n/useI18n'
 import { atomicToolsApi } from '../../api/atomic-tools'
 import type { ToolInfo } from '../../types/atomic-tools'
+
+// The evaluation lab is a separate, loosely-coupled service on its own port; the
+// main app only links to it. Override the URL at build time via VITE_LAB_URL.
+const LAB_URL =
+  (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_LAB_URL ||
+  'http://localhost:8799'
 
 const TOOL_ICON_MAP: Record<string, LucideIcon> = {
   AudioLines,
@@ -508,6 +515,20 @@ export function Sidebar({ collapsed: collapsedProp = false, onToggle, mobileDraw
             </Link>
           )
         })()}
+
+        {/* Testing Lab — separate loosely-coupled service, opens in a new tab */}
+        <a
+          href={LAB_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="sidebar-link-lab"
+          title={collapsed ? t.nav.lab : undefined}
+          aria-label={collapsed ? t.nav.lab : undefined}
+          className={navItemClass(false)}
+        >
+          <FlaskConical size={15} className="shrink-0" />
+          {!collapsed && <span className="truncate">{t.nav.lab}</span>}
+        </a>
 
         {/* Settings */}
         {(() => {
