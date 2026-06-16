@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+pytest.importorskip("cv2")  # ocr extra (geometry uses cv2); skip cleanly without it (e.g. CI base)
+pytest.importorskip("pydantic_settings")
+
 from translip.ocr.core import subtitle_merger
 from translip.ocr.core.subtitle_merger import SubtitleMerger, to_simplified
 

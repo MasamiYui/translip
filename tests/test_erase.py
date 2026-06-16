@@ -6,6 +6,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+pytest.importorskip("cv2")  # erase extra (opencv-contrib); skip cleanly without it (e.g. CI base)
+pytest.importorskip("pydantic_settings")
+
 from translip.erase.core import planning
 from translip.erase.core.masks import create_mask, get_inpaint_bands
 from translip.erase.models.domain import EraseBackend

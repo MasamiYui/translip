@@ -17,6 +17,10 @@ _DB_PATH = Path(
         str(CACHE_ROOT / "data.db"),
     )
 )
+# Ensure the parent dir exists at import time: the engine is created at module
+# load and a session may open the SQLite file before init_db() runs (e.g. on a
+# fresh machine or in CI where ~/.cache/translip does not exist yet).
+_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 engine = create_engine(
     f"sqlite:///{_DB_PATH}",
