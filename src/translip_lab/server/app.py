@@ -25,6 +25,7 @@ from ..datasets import DATASET_REGISTRY, get_dataset
 from .. import scenarios as _scenarios  # noqa: F401 — registers scenarios
 
 _WEB_DIR = Path(__file__).parent / "web"
+_SUITES_DIR = Path(__file__).resolve().parent.parent / "suites"
 
 app = FastAPI(title="translip-lab", version="0.1.0")
 app.add_middleware(
@@ -46,6 +47,13 @@ def api_scenarios() -> list[dict[str, Any]]:
          "higher_is_better": s.higher_is_better, "required_gt": s.required_gt()}
         for name, s in sorted(SCENARIO_REGISTRY.items())
     ]
+
+
+@app.get("/api/lab/suites")
+def api_suites() -> list[str]:
+    if not _SUITES_DIR.is_dir():
+        return []
+    return sorted(p.stem for p in _SUITES_DIR.glob("*.toml"))
 
 
 @app.get("/api/lab/datasets")

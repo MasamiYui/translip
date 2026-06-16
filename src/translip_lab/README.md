@@ -32,6 +32,7 @@ per-dir `TRANSLIP_LAB_DATASETS_DIR` / `_RUNS_DIR` / `_CACHE_DIR`).
 ## Quickstart
 
 ```bash
+translip-lab doctor                   # readiness: ffmpeg, extras, models, datasets, disk
 translip-lab datasets                 # what's registered + present
 translip-lab scenarios                # capabilities + their metric
 translip-lab gen-synthetic --kind both --clips 2   # build synthetic GT
@@ -48,6 +49,7 @@ translip-lab run --dataset synthetic-mix --scenario separation --dataset-param c
 translip-lab list-runs
 translip-lab report  --run <run_id>                # md + html
 translip-lab compare --baseline <run_a> --candidate <run_b>   # regression check
+translip-lab run --suite asr-diar-aishell4-clips --fail-under "asr=0.4,diarization=0.3"  # CI gate
 
 translip-lab-server                   # dashboard on http://localhost:8799
 ```
@@ -88,6 +90,21 @@ max_samples = 3
 [dataset_params.base_params]
 subset = "test"
 ```
+
+## Findings so far (real runs)
+
+Reproducible via the suites above, on real corpora under `/Volumes/EXT`:
+
+- **Chinese ASR** (`asr-sweep-paraformer`): funasr **paraformer-zh wins** — CER
+  0.345 < whisper-medium 0.370 < small 0.449 < tiny 0.866 (AISHELL-4 clips). Use
+  paraformer-zh for Chinese, not whisper.
+- **AliMeeting Eval baseline** (`asr-diar-alimeeting-clips`, 8 meetings, paraformer
+  + ECAPA): CER 0.259 / DER 0.231.
+- **OCR** (`ocr-sweep-synthetic`): PaddleOCR `balanced` extraction-mode beats
+  `conservative` on clean synthetic clips (text_f1 0.74 vs 0.63), and misses very
+  short subtitles. The lab's OCR suite uses `balanced`; translip's *production*
+  default stays `conservative` pending real-video subtitle GT.
+- **Subtitle erase** (STTN): SSIM 0.976 vs the subtitle-free reference.
 
 ## Scenarios ↔ datasets ↔ metrics
 

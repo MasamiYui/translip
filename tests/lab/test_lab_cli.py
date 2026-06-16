@@ -20,6 +20,27 @@ def _home(monkeypatch, tmp_path):
     monkeypatch.setenv("TRANSLIP_LAB_HOME", str(tmp_path))
 
 
+def test_doctor_runs(monkeypatch, tmp_path, capsys):
+    _home(monkeypatch, tmp_path)
+    rc = cli.main(["doctor"])
+    out = capsys.readouterr().out
+    assert "ffmpeg" in out
+    assert rc == 0  # ffmpeg is on PATH in the test env
+
+
+def test_evaluate_gates():
+    manifest = {"aggregates": {
+        "asr": {"primary_metric": "cer", "higher_is_better": False, "mean": 0.3},
+        "sep": {"primary_metric": "si_sdr", "higher_is_better": True, "mean": 8.0},
+    }}
+    ok, _ = cli._evaluate_gates("asr=0.4,sep=5", manifest)   # 0.3<=0.4 and 8>=5
+    assert ok is True
+    fail, _ = cli._evaluate_gates("asr=0.2", manifest)       # 0.3<=0.2 → FAIL
+    assert fail is False
+    unknown, _ = cli._evaluate_gates("nope=1", manifest)     # missing key → FAIL
+    assert unknown is False
+
+
 def test_scenarios_and_datasets(monkeypatch, tmp_path, capsys):
     _home(monkeypatch, tmp_path)
     assert cli.main(["scenarios"]) == 0

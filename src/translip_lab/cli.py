@@ -70,6 +70,41 @@ def _resolve_run_dir(spec: str, config: LabConfig) -> Path:
     raise FileNotFoundError(f"run not found: {spec}")
 
 
+def _evaluate_gates(spec: str, manifest: dict[str, Any]) -> tuple[bool, list[str]]:
+    """Check '<aggregate_key>=<threshold>' gates against primary-metric means.
+
+    Pass = mean >= threshold for higher-is-better metrics, mean <= threshold
+    otherwise. Keys are aggregate keys (scenario, or scenario@arm for sweeps).
+    """
+    aggregates = manifest.get("aggregates", {})
+    lines: list[str] = []
+    all_ok = True
+    for pair in spec.split(","):
+        pair = pair.strip()
+        if not pair:
+            continue
+        key, _, raw = pair.partition("=")
+        key = key.strip()
+        try:
+            threshold = float(raw)
+        except ValueError:
+            lines.append(f"  ? {key}: bad threshold {raw!r}")
+            all_ok = False
+            continue
+        agg = aggregates.get(key)
+        if not agg or not isinstance(agg.get("mean"), (int, float)):
+            lines.append(f"  ? {key}: no scored result")
+            all_ok = False
+            continue
+        mean = agg["mean"]
+        higher = agg.get("higher_is_better")
+        passed = mean >= threshold if higher else mean <= threshold
+        op = ">=" if higher else "<="
+        lines.append(f"  {'✓' if passed else '✗'} {key}: {mean:.4g} {op} {threshold} → {'PASS' if passed else 'FAIL'}")
+        all_ok = all_ok and passed
+    return all_ok, lines
+
+
 def _print_aggregates(manifest: dict[str, Any]) -> None:
     print(f"\nrun_id: {manifest['run_id']}  ({manifest.get('elapsed_sec')}s)")
     for name, agg in manifest.get("aggregates", {}).items():
@@ -173,8 +208,29 @@ def cmd_run(args, config: LabConfig) -> int:
     _print_aggregates(manifest_out)
     if len(manifest_out.get("arms", [])) > 1:
         print("\n" + sweep_to_markdown(manifest_out))
+    gate_failed = False
+    if args.fail_under:
+        ok, lines = _evaluate_gates(args.fail_under, manifest_out)
+        print("\nGates:")
+        for ln in lines:
+            print(ln)
+        gate_failed = not ok
     print(f"\nreport: {run_dir / 'report.html'}")
-    return 0
+    return 1 if gate_failed else 0
+
+
+def cmd_doctor(args, config: LabConfig) -> int:
+    from .doctor import run_doctor
+
+    icon = {"ok": "✓", "warn": "·", "missing": "✗"}
+    checks = run_doctor(config)
+    for c in checks:
+        print(f"  {icon.get(c['status'], '?')} {c['name']:28s} {c['detail']}")
+    missing_critical = [c for c in checks if c["status"] == "missing" and c.get("critical")]
+    warnings = [c for c in checks if c["status"] == "warn"]
+    print(f"\n{sum(1 for c in checks if c['status'] == 'ok')} ok · {len(warnings)} warn · "
+          f"{len(missing_critical)} critical missing")
+    return 1 if missing_critical else 0
 
 
 def cmd_list_runs(args, config: LabConfig) -> int:
@@ -235,8 +291,12 @@ def build_parser() -> argparse.ArgumentParser:
     r.add_argument("--no-cache", action="store_true")
     r.add_argument("--run-id", default=None)
     r.add_argument("--dry-run", action="store_true")
+    r.add_argument("--fail-under", default=None,
+                   help="regression gate, e.g. 'asr=0.4,diarization=0.3' (or scenario@arm=thr); "
+                        "non-zero exit if a primary-metric mean violates the threshold")
 
     sub.add_parser("list-runs", help="list previous runs")
+    sub.add_parser("doctor", help="check readiness: ffmpeg, extras, models, datasets, disk")
 
     rep = sub.add_parser("report", help="(re)generate md/html report for a run")
     rep.add_argument("--run", required=True, help="run id or run dir")
@@ -256,6 +316,7 @@ _COMMANDS = {
     "gen-synthetic": cmd_gen_synthetic,
     "run": cmd_run,
     "list-runs": cmd_list_runs,
+    "doctor": cmd_doctor,
     "report": cmd_report,
     "compare": cmd_compare,
 }

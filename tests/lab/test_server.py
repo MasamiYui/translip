@@ -30,6 +30,11 @@ def test_datasets_endpoint(monkeypatch, tmp_path):
     assert "synthetic-subtitle" in names and "alimeeting" in names
 
 
+def test_suites_endpoint(monkeypatch, tmp_path):
+    data = _client(monkeypatch, tmp_path).get("/api/lab/suites").json()
+    assert "asr-diar-meeting" in data and "ocr-erase-synthetic" in data
+
+
 def test_runs_listing_and_detail(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     assert client.get("/api/lab/runs").json() == []

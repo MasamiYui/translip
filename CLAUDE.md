@@ -109,6 +109,10 @@ React 19 + TypeScript + Vite 8 + Tailwind 4. **Server state via TanStack React Q
 
 `src/video_voice_separate/` is a thin **legacy alias** that re-exports from `translip` (`SeparationRequest/Result`, `separate_file`, `cli.main`). Real implementation lives in `translip`; don't add new logic there.
 
+### `translip_lab` evaluation lab (`src/translip_lab/`, optional extra `lab`)
+
+A **loosely-coupled** harness that benchmarks existing translip capabilities against ground-truth datasets (CER/DER/SI-SDR/PSNR-SSIM/OCR-text-F1). **One-way dependency rule: `translip_lab` imports `translip`; translip never imports the lab.** Integration is via the stable CLI/JSON contract (subprocess, like the orchestrator) plus a couple of pure helper imports — deleting `src/translip_lab/` + the one "Testing Lab" sidebar link leaves translip untouched. Entry points `translip-lab` (CLI: `doctor`/`run`/`report`/`compare`) and `translip-lab-server` (standalone dashboard on `:8799`, its own origin; the main UI only links to it). Suites in `translip_lab/suites/*.toml` declare dataset+scenarios+config (+ `[[arms]]` for config sweeps). Data/runs default to `/Volumes/EXT/translip-lab` (`TRANSLIP_LAB_HOME`). The engine runs on base deps (numpy/scipy/soundfile) + ffmpeg + stdlib; only Pillow is added by the `lab` extra. See `src/translip_lab/README.md`. Caveat: the lab cache is keyed by config+input fingerprints, **not code** — re-run with `--no-cache` after changing scoring logic.
+
 ## Key paths & env
 
 - `TRANSLIP_CACHE_DIR` (default `~/.cache/translip`) — model cache, pipeline output (`output-pipeline/<task_id>/`), atomic-tools storage.

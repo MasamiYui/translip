@@ -1,0 +1,35 @@
+# Find the OCR config that recovers missed short subtitles. The default
+# (conservative) misses the 4-char opening subtitle on synthetic clips; sweep
+# extraction-mode + sampling to see which lifts text_f1 / recall.
+name = "ocr-sweep-synthetic"
+dataset = "synthetic-subtitle"
+scenarios = ["ocr-detect"]
+timeout_sec = 3600
+
+[dataset_params]
+clips = 3
+duration = 6.0
+
+[scenario_config.ocr-detect]
+ocr_language = "ch"
+
+[[arms]]
+label = "conservative"
+[arms.scenario_config.ocr-detect]
+extraction_mode = "conservative"
+
+[[arms]]
+label = "balanced"
+[arms.scenario_config.ocr-detect]
+extraction_mode = "balanced"
+
+[[arms]]
+label = "variety_recall"
+[arms.scenario_config.ocr-detect]
+extraction_mode = "variety_recall"
+
+[[arms]]
+label = "variety+dense"
+[arms.scenario_config.ocr-detect]
+extraction_mode = "variety_recall"
+sample_interval = 0.1

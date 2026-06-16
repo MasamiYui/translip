@@ -12,7 +12,7 @@
   header h1{font-size:17px;margin:0}
   header .sub{color:#9ca3af;font-size:12px}
   main{padding:20px 22px;max-width:1200px;margin:0 auto}
-  h2{font-size:15px;margin:22px 0 8px}
+  h2{font-size:15px;margin:22px 0 8px}h3{font-size:13px;margin:14px 0 4px;color:#374151}
   table{border-collapse:collapse;width:100%;background:#fff;margin:6px 0;box-shadow:0 1px 2px rgba(0,0,0,.06)}
   th,td{border:1px solid var(--bd);padding:6px 10px;text-align:left;font-variant-numeric:tabular-nums}
   th{background:#f3f4f6}
@@ -69,20 +69,49 @@ async function jget(u){const r=await fetch(u);if(!r.ok)throw new Error(u+" "+r.s
 
 async function loadRuns(){
   const runs = await jget("/api/lab/runs");
-  const sels = [$("baseSel"),$("candSel")];
-  sels.forEach(s => s.innerHTML = runs.map(r=>`<option>${esc(r.run_id)}</option>`).join(""));
+  [$("baseSel"),$("candSel")].forEach(s => s.innerHTML = runs.map(r=>`<option>${esc(r.run_id)}</option>`).join(""));
   if(!runs.length){$("runs").innerHTML="<p class='muted'>No runs yet. Trigger one above, or run <code>translip-lab run --suite …</code>.</p>";return;}
   $("runs").innerHTML = `<table><tr><th>run</th><th>suite</th><th>dataset</th><th>scenarios</th><th>started</th></tr>` +
     runs.map(r=>`<tr class="clk" data-id="${esc(r.run_id)}"><td><code>${esc(r.run_id)}</code></td><td>${esc(r.suite)}</td><td>${esc(r.dataset)}</td><td>${esc((r.scenarios||[]).join(", "))}</td><td class="muted">${esc(r.started_at||"")}</td></tr>`).join("") + `</table>`;
   document.querySelectorAll("#runs tr.clk").forEach(tr=>tr.onclick=()=>showDetail(tr.dataset.id));
 }
 
+function sweepHtml(m){
+  const arms = m.arms || [];
+  if(arms.length <= 1) return "";
+  const byScen = {};
+  Object.values(m.aggregates||{}).forEach(a=>{(byScen[a.scenario]=byScen[a.scenario]||[]).push(a);});
+  let html = "<h3>Sweep (config arms)</h3>";
+  for(const [scen, rows] of Object.entries(byScen)){
+    const metric = rows[0].primary_metric, hib = rows[0].higher_is_better;
+    const scored = rows.filter(r=>typeof r.mean === "number");
+    let winner = null;
+    if(scored.length){ winner = scored.reduce((b,r)=>((hib ? r.mean>b.mean : r.mean<b.mean) ? r : b)).arm; }
+    const body = rows.slice().sort((a,b)=>(a.mean??1e9)-(b.mean??1e9)).map(r=>{
+      const micro = (r.corpus||{})[metric+"_micro"]; const win = r.arm===winner;
+      return `<tr class="${win?'imp':''}"><td>${esc(r.arm)}${win?' 🏆':''}</td><td>${fmt(r.mean)}</td><td>${fmt(micro)}</td><td>${fmt(r.std)}</td><td>${r.scored||0}</td></tr>`;
+    }).join("");
+    html += `<div class="muted">${esc(scen)} (${esc(metric)} ${hib?'↑':'↓'})</div><table><tr><th>arm</th><th>mean</th><th>micro</th><th>std</th><th>scored</th></tr>${body}</table>`;
+  }
+  return html;
+}
+
 async function showDetail(id){
   const m = await jget("/api/lab/runs/"+encodeURIComponent(id));
-  const agg = Object.entries(m.aggregates||{}).map(([n,a])=>`<tr><td>${esc(n)}</td><td>${esc(a.primary_metric)} ${a.higher_is_better===false?"↓":(a.higher_is_better?"↑":"")}</td><td>${fmt(a.mean)}</td><td>${fmt(a.median)}</td><td>${fmt(a.min)}</td><td>${fmt(a.max)}</td><td>${a.scored||0}</td><td class="fail">${a.failed||0}</td><td class="skip">${a.skipped||0}</td></tr>`).join("");
-  const res = (m.results||[]).map(r=>{const c={failed:"fail",skipped:"skip",succeeded:"ok"}[r.status]||"";const e=r.error?esc(r.error.split("\n")[0].slice(0,90)):"";return `<tr><td>${esc(r.sample_id)}</td><td>${esc(r.scenario)}</td><td class="${c}">${esc(r.status)}</td><td>${fmt(r.primary_metric)}</td><td>${r.cached?"✓":""}</td><td class="fail">${e}</td></tr>`;}).join("");
+  const agg = Object.entries(m.aggregates||{}).map(([n,a])=>{
+    const micro=(a.corpus||{})[a.primary_metric+"_micro"];
+    const arrow=a.higher_is_better===false?"↓":(a.higher_is_better?"↑":"");
+    return `<tr><td>${esc(n)}</td><td>${esc(a.primary_metric)} ${arrow}</td><td>${fmt(a.mean)}</td><td>${fmt(micro)}</td><td>${fmt(a.std)}</td><td>${fmt(a.median)}</td><td>${fmt(a.min)}</td><td>${fmt(a.max)}</td><td>${a.scored||0}</td><td class="fail">${a.failed||0}</td><td class="skip">${a.skipped||0}</td></tr>`;
+  }).join("");
+  const res = (m.results||[]).map(r=>{
+    const c={failed:"fail",skipped:"skip",succeeded:"ok"}[r.status]||"";
+    const e=r.error?esc(r.error.split("\n")[0].slice(0,90)):"";
+    const scen=r.arm&&r.arm!=="default"?esc(r.scenario)+"@"+esc(r.arm):esc(r.scenario);
+    return `<tr><td>${esc(r.sample_id)}</td><td>${scen}</td><td class="${c}">${esc(r.status)}</td><td>${fmt(r.primary_metric)}</td><td>${r.cached?"✓":""}</td><td class="fail">${e}</td></tr>`;
+  }).join("");
   $("detail").innerHTML = `<h2>Run <code>${esc(id)}</code> <span class="muted">${esc(m.elapsed_sec)}s · ${m.sample_count} samples</span></h2>`+
-    `<table><tr><th>scenario</th><th>metric</th><th>mean</th><th>median</th><th>min</th><th>max</th><th>scored</th><th>failed</th><th>skipped</th></tr>${agg}</table>`+
+    `<table><tr><th>scenario</th><th>metric</th><th>mean</th><th>micro</th><th>std</th><th>median</th><th>min</th><th>max</th><th>scored</th><th>failed</th><th>skipped</th></tr>${agg}</table>`+
+    sweepHtml(m)+
     `<table><tr><th>sample</th><th>scenario</th><th>status</th><th>primary</th><th>cached</th><th>error</th></tr>${res}</table>`;
   $("detail").scrollIntoView({behavior:"smooth"});
 }
@@ -101,8 +130,8 @@ async function loadMeta(){
   const ds = await jget("/api/lab/datasets");
   $("datasets").innerHTML = `<table><tr><th>dataset</th><th>present</th><th>provides</th><th>root</th></tr>`+
     ds.map(d=>`<tr><td>${esc(d.name)}</td><td>${d.exists?"✓":"·"}</td><td>${esc((d.provides||[]).join(", ")||d.license||"")}</td><td class="muted">${esc(d.root||"")}</td></tr>`).join("")+`</table>`;
-  // suites we ship — keep in sync with src/translip_lab/suites/
-  $("suiteSel").innerHTML = ["asr-diar-meeting","ocr-erase-synthetic","separation-synthetic"].map(s=>`<option>${s}</option>`).join("");
+  const suites = await jget("/api/lab/suites");
+  $("suiteSel").innerHTML = suites.map(s=>`<option>${esc(s)}</option>`).join("");
 }
 
 $("runBtn").onclick = async () => {

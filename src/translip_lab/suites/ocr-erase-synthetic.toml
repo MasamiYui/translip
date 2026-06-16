@@ -12,6 +12,10 @@ duration = 6.0
 
 [scenario_config.ocr-detect]
 ocr_language = "ch"
+# balanced beats conservative on clean synthetic clips (lab sweep: text_f1
+# 0.74 vs 0.63). Kept here where it's validated; the translip production
+# default stays conservative pending real-video GT (see lab README).
+extraction_mode = "balanced"
 iou = 0.5
 
 [scenario_config.subtitle-erase]
