@@ -20,16 +20,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install FFmpeg + CJK font
+        # fonts-noto-cjk lets the translip_lab synthetic-subtitle GT generator run
+        # in CI (otherwise those tests skip for lack of a CJK font).
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-cjk
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
-      - name: Sync dependencies (base + dev extra)
-        run: uv sync --frozen --extra dev --python ${{ matrix.python-version }}
+      - name: Sync dependencies (base + dev + lab extras)
+        run: uv sync --frozen --extra dev --extra lab --python ${{ matrix.python-version }}
 
       - name: Run tests
         run: uv run pytest -q
