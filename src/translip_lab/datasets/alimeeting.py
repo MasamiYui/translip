@@ -8,6 +8,7 @@ multi-speaker CER (Track 2).
 """
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,10 @@ class AliMeetingDataset(TextGridFolderDataset):
         )
         self._declared_root = config.datasets_dir / "alimeeting"
         self.subset = subset
+
+    def _gt_stem(self, audio_stem: str) -> str:
+        # AliMeeting audio is R<room>_M<meeting>_MS<id>.wav; TextGrid is R<room>_M<meeting>.TextGrid
+        return re.sub(r"_MS\d+$", "", audio_stem)
 
     @property
     def root(self) -> Path:

@@ -26,10 +26,12 @@ def test_diarization_micro_der():
 
 
 def test_ocr_micro_f1():
-    metrics = [{"tp": 3, "fp": 1, "fn": 1}, {"tp": 1, "fp": 0, "fn": 1}]  # tp4 fp1 fn2
+    metrics = [{"text_tp": 3, "text_fp": 1, "text_fn": 1, "tp": 3, "fp": 1, "fn": 1},
+               {"text_tp": 1, "text_fp": 0, "text_fn": 1, "tp": 1, "fp": 0, "fn": 1}]  # tp4 fp1 fn2
     out = OcrDetectScenario().corpus_metrics(metrics)
-    assert out["precision_micro"] == 0.8
-    assert abs(out["recall_micro"] - 0.6667) < 1e-3
+    assert out["text_precision_micro"] == 0.8
+    assert abs(out["text_recall_micro"] - 0.6667) < 1e-3
+    assert "box_f1_micro" in out
 
 
 def test_summarize_adds_std_and_p90():

@@ -24,25 +24,29 @@ def test_all_scenarios_registered():
         assert name in SCENARIO_REGISTRY
 
 
-def test_ocr_detect_score_perfect_and_miss(tmp_path):
+def test_ocr_detect_text_and_box_metrics(tmp_path):
     work = tmp_path / "work"
     (work / "ocr-detect").mkdir(parents=True)
+    det = work / "ocr-detect" / "detection.json"
     box = [40, 110, 200, 150]
-    (work / "ocr-detect" / "detection.json").write_text(
-        json.dumps({"events": [{"start_time": 0.2, "end_time": 1.0, "box": box, "text": "x"}]}), encoding="utf-8")
     gt_path = tmp_path / "gt.boxes.json"
-    gt_path.write_text(json.dumps({"events": [{"start": 0.2, "end": 1.0, "box": box, "text": "x"}]}), encoding="utf-8")
+    gt_path.write_text(json.dumps({"events": [{"start": 0.2, "end": 1.0, "box": box, "text": "你好"}]}), encoding="utf-8")
     sample = Sample("s", tmp_path / "v.mp4", GroundTruth(subtitle_boxes=gt_path))
 
+    # perfect: same box + text → both metrics 1.0
+    det.write_text(json.dumps({"events": [{"start_time": 0.2, "end_time": 1.0, "box": box, "text": "你好"}]}), encoding="utf-8")
     perfect = OcrDetectScenario().score(sample, work, _stage(), {})
-    assert perfect["f1"] == 1.0
+    assert perfect["text_f1"] == 1.0 and perfect["box_f1"] == 1.0
 
-    # move the prediction far away → no match
-    (work / "ocr-detect" / "detection.json").write_text(
-        json.dumps({"events": [{"start_time": 0.2, "end_time": 1.0, "box": [500, 500, 560, 540], "text": "x"}]}),
-        encoding="utf-8")
-    miss = OcrDetectScenario().score(sample, work, _stage(), {})
-    assert miss["f1"] == 0.0
+    # box moved but text correct → text_f1 stays 1.0, box_f1 drops to 0 (the realistic case)
+    det.write_text(json.dumps({"events": [{"start_time": 0.2, "end_time": 1.0, "box": [500, 500, 560, 540], "text": "你好"}]}), encoding="utf-8")
+    moved = OcrDetectScenario().score(sample, work, _stage(), {})
+    assert moved["box_f1"] == 0.0 and moved["text_f1"] == 1.0
+
+    # wrong text → text_f1 = 0
+    det.write_text(json.dumps({"events": [{"start_time": 0.2, "end_time": 1.0, "box": box, "text": "错误"}]}), encoding="utf-8")
+    wrong = OcrDetectScenario().score(sample, work, _stage(), {})
+    assert wrong["text_f1"] == 0.0
 
 
 def test_diarization_score_from_segments(tmp_path):

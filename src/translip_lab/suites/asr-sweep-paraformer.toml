@@ -1,0 +1,42 @@
+# Find the best Chinese ASR config: faster-whisper tiny/small/medium vs
+# funasr/paraformer-zh (Mandarin-specialized, translip's default). On AISHELL-4
+# 120s clips. paraformer-zh downloads from modelscope on first use.
+name = "asr-sweep-paraformer"
+dataset = "clip"
+scenarios = ["asr"]
+timeout_sec = 7200
+
+[dataset_params]
+base = "aishell4"
+seconds = 120
+max_samples = 3
+
+[dataset_params.base_params]
+subset = "test"
+
+[scenario_config.asr]
+language = "zh"
+
+[[arms]]
+label = "whisper-tiny"
+[arms.scenario_config.asr]
+asr_backend = "faster-whisper"
+asr_model = "tiny"
+
+[[arms]]
+label = "whisper-small"
+[arms.scenario_config.asr]
+asr_backend = "faster-whisper"
+asr_model = "small"
+
+[[arms]]
+label = "whisper-medium"
+[arms.scenario_config.asr]
+asr_backend = "faster-whisper"
+asr_model = "medium"
+
+[[arms]]
+label = "paraformer-zh"
+[arms.scenario_config.asr]
+asr_backend = "funasr"
+asr_model = "paraformer-zh"

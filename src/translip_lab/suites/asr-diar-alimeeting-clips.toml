@@ -1,0 +1,27 @@
+# AliMeeting (M2MeT) Eval far-field, ASR + diarization on 120s clips of all 8
+# meetings. Uses paraformer-zh (sweep winner). Place AliMeeting under
+# <datasets>/alimeeting/Eval_Ali/Eval_Ali_far/{audio_dir,textgrid_dir}.
+name = "asr-diar-alimeeting-clips"
+dataset = "clip"
+scenarios = ["asr", "diarization"]
+timeout_sec = 7200
+
+[dataset_params]
+base = "alimeeting"
+seconds = 120
+max_samples = 8
+
+[dataset_params.base_params]
+subset = "Eval_Ali/Eval_Ali_far"
+
+[scenario_config.asr]
+asr_backend = "funasr"
+asr_model = "paraformer-zh"
+language = "zh"
+
+[scenario_config.diarization]
+asr_backend = "funasr"
+asr_model = "paraformer-zh"
+diarizer_backend = "ecapa"
+language = "zh"
+collar = 0.25

@@ -69,9 +69,15 @@ class TextGridFolderDataset(DatasetAdapter):
         return SampleManifest(dataset=self.name, samples=samples,
                               meta={"audio_dir": str(self.audio_dir), "lang": self.lang})
 
+    def _gt_stem(self, audio_stem: str) -> str:
+        """Map an audio stem to its GT (TextGrid/RTTM) stem. Override for corpora
+        whose audio and annotation filenames differ (e.g. AliMeeting's _MS suffix)."""
+        return audio_stem
+
     def _find_sibling(self, audio: Path, suffix: str) -> Path | None:
+        gt_stem = self._gt_stem(audio.stem)
         for base in (self.textgrid_dir, self.audio_dir, audio.parent):
-            candidate = base / (audio.stem + suffix)
+            candidate = base / (gt_stem + suffix)
             if candidate.is_file():
                 return candidate
         return None
