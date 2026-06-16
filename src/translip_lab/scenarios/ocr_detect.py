@@ -78,5 +78,15 @@ class OcrDetectScenario(Scenario):
         scores.update({"gt_event_count": len(gt), "pred_event_count": len(pred), "iou_threshold": iou})
         return scores
 
+    def corpus_metrics(self, metrics_list):
+        tp = sum(m.get("tp", 0) for m in metrics_list)
+        fp = sum(m.get("fp", 0) for m in metrics_list)
+        fn = sum(m.get("fn", 0) for m in metrics_list)
+        if (tp + fp + fn) == 0:
+            return {}
+        s = prf(tp, fp, fn)
+        return {"f1_micro": round(s["f1"], 4), "precision_micro": round(s["precision"], 4),
+                "recall_micro": round(s["recall"], 4)}
+
 
 register_scenario(OcrDetectScenario())

@@ -52,6 +52,43 @@ translip-lab compare --baseline <run_a> --candidate <run_b>   # regression check
 translip-lab-server                   # dashboard on http://localhost:8799
 ```
 
+## Optimization & windowing
+
+**Config sweep** — declare `[[arms]]` in a suite to run the same dataset × scenarios
+across multiple configs and get a comparison matrix + winner (the optimization loop):
+
+```toml
+[[arms]]
+label = "tiny"
+[arms.scenario_config.asr]
+asr_model = "tiny"
+[[arms]]
+label = "small"
+[arms.scenario_config.asr]
+asr_model = "small"
+```
+
+`translip-lab run --suite asr-sweep-aishell4-clips` → per-arm CER (macro mean +
+corpus micro), best arm marked 🏆 in the sweep table.
+
+**Corpus metrics + stats** — aggregates report the standard corpus-level (micro)
+CER/DER/F1 (pooled errors ÷ pooled denominator), not just the mean of per-sample
+rates, plus std and p90.
+
+**Clip windowing** — the `clip` dataset wraps any base dataset and trims each
+sample's media + GT (SRT / RTTM / boxes / clean video / stems) to a window, so long
+meetings become fast, representative clips (no hand-trimming):
+
+```toml
+dataset = "clip"
+[dataset_params]
+base = "aishell4"
+seconds = 180
+max_samples = 3
+[dataset_params.base_params]
+subset = "test"
+```
+
 ## Scenarios ↔ datasets ↔ metrics
 
 | scenario | translip entry | metric | data |

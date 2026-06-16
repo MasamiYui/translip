@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from statistics import mean, median
+from statistics import mean, median, pstdev
 from typing import Any
 
 from .scenario import ScenarioResult
@@ -17,17 +17,36 @@ from .scenario import ScenarioResult
 RUN_MANIFEST_NAME = "run-manifest.json"
 
 
+def _percentile(values: list[float], p: float) -> float:
+    if not values:
+        return float("nan")
+    s = sorted(values)
+    if len(s) == 1:
+        return s[0]
+    k = (len(s) - 1) * p
+    lo = int(k)
+    hi = min(lo + 1, len(s) - 1)
+    return s[lo] + (s[hi] - s[lo]) * (k - lo)
+
+
+def aggregate_key(scenario: str, arm: str) -> str:
+    """Aggregate key: bare scenario for the default arm, scenario@arm for sweeps."""
+    return scenario if arm == "default" else f"{scenario}@{arm}"
+
+
 def summarize_aggregates(results: list[ScenarioResult], scenario_meta: dict[str, dict]) -> dict[str, Any]:
-    """Per-scenario summary: status counts + mean/median/min/max of primary metric."""
-    by_scenario: dict[str, list[ScenarioResult]] = {}
+    """Per (scenario, arm) summary: status counts + mean/median/std/p90/min/max of primary."""
+    groups: dict[tuple[str, str], list[ScenarioResult]] = {}
     for r in results:
-        by_scenario.setdefault(r.scenario, []).append(r)
+        groups.setdefault((r.scenario, getattr(r, "arm", "default")), []).append(r)
 
     aggregates: dict[str, Any] = {}
-    for name, rows in by_scenario.items():
-        meta = scenario_meta.get(name, {})
+    for (scenario, arm), rows in groups.items():
+        meta = scenario_meta.get(scenario, {})
         values = [r.primary_metric for r in rows if r.status == "succeeded" and r.primary_metric is not None]
         agg = {
+            "scenario": scenario,
+            "arm": arm,
             "primary_metric": meta.get("primary_metric_key"),
             "higher_is_better": meta.get("higher_is_better"),
             "count": len(rows),
@@ -40,10 +59,12 @@ def summarize_aggregates(results: list[ScenarioResult], scenario_meta: dict[str,
             agg.update({
                 "mean": round(mean(values), 4),
                 "median": round(median(values), 4),
+                "std": round(pstdev(values), 4) if len(values) > 1 else 0.0,
+                "p90": round(_percentile(values, 0.9), 4),
                 "min": round(min(values), 4),
                 "max": round(max(values), 4),
             })
-        aggregates[name] = agg
+        aggregates[aggregate_key(scenario, arm)] = agg
     return aggregates
 
 

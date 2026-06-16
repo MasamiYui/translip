@@ -23,7 +23,7 @@ from .core.run_store import compare_runs, list_runs, load_run
 from .core.runner import run_suite
 from .core.scenario import SCENARIO_REGISTRY, get_scenario
 from .datasets import DATASET_REGISTRY, get_dataset
-from .report import compare_to_html, compare_to_markdown, run_to_html, run_to_markdown
+from .report import compare_to_html, compare_to_markdown, run_to_html, run_to_markdown, sweep_to_markdown
 from . import scenarios as _scenarios  # noqa: F401  — import side-effect populates SCENARIO_REGISTRY
 
 _SUITES_DIR = Path(__file__).parent / "suites"
@@ -126,6 +126,7 @@ def cmd_run(args, config: LabConfig) -> int:
         dataset_params = suite.get("dataset_params", {})
         scenario_names = suite["scenarios"]
         scenario_config = suite.get("scenario_config", {})
+        arms = suite.get("arms")
         limit = args.limit if args.limit is not None else suite.get("limit")
         timeout = args.timeout if args.timeout is not None else suite.get("timeout_sec")
     else:
@@ -136,6 +137,7 @@ def cmd_run(args, config: LabConfig) -> int:
         dataset_name = args.dataset
         dataset_params = _parse_params(args.dataset_param)
         scenario_names = [s.strip() for s in args.scenario.split(",") if s.strip()]
+        arms = None
         limit = args.limit
         timeout = args.timeout
 
@@ -147,25 +149,30 @@ def cmd_run(args, config: LabConfig) -> int:
 
     if args.dry_run:
         n = len(manifest.samples[:limit] if limit else manifest.samples)
-        print(f"[dry-run] would run {n * len(scenarios)} (sample × scenario) units")
+        n_arms = len(arms) if arms else 1
+        print(f"[dry-run] would run {n * len(scenarios) * n_arms} (sample × scenario × arm) units")
         return 0
 
     def on_progress(ev: dict) -> None:
         pm = ev.get("primary_metric")
         pm_s = f" ({pm:.4g})" if isinstance(pm, (int, float)) else ""
         cached = " [cached]" if ev.get("cached") else ""
-        print(f"[{ev['index']}/{ev['total']}] {ev['sample_id']} · {ev['scenario']} → {ev['status']}{pm_s}{cached}")
+        arm = ev.get("arm", "default")
+        arm_s = f"@{arm}" if arm != "default" else ""
+        print(f"[{ev['index']}/{ev['total']}] {ev['sample_id']} · {ev['scenario']}{arm_s} → {ev['status']}{pm_s}{cached}")
 
     manifest_out = run_suite(
         manifest=manifest, scenarios=scenarios, suite=suite_name,
         invoker=SubprocessInvoker(config), lab_config=config,
-        scenario_config=scenario_config, limit=limit, timeout_sec=timeout,
+        scenario_config=scenario_config, arms=arms, limit=limit, timeout_sec=timeout,
         use_cache=not args.no_cache, run_id=args.run_id, on_progress=on_progress,
     )
     run_dir = config.runs_dir / manifest_out["run_id"]
     (run_dir / "report.md").write_text(run_to_markdown(manifest_out), encoding="utf-8")
     (run_dir / "report.html").write_text(run_to_html(manifest_out), encoding="utf-8")
     _print_aggregates(manifest_out)
+    if len(manifest_out.get("arms", [])) > 1:
+        print("\n" + sweep_to_markdown(manifest_out))
     print(f"\nreport: {run_dir / 'report.html'}")
     return 0
 

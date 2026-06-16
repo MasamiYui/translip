@@ -32,11 +32,13 @@ class ScenarioResult:
     error: str | None = None
     cached: bool = False
     stage_outputs: dict[str, str] = field(default_factory=dict)
+    arm: str = "default"  # config-sweep variant label
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "sample_id": self.sample_id,
             "scenario": self.scenario,
+            "arm": self.arm,
             "status": self.status,
             "metrics": self.metrics,
             "primary_metric": self.primary_metric,
@@ -60,6 +62,7 @@ class ScenarioResult:
             error=data.get("error"),
             cached=data.get("cached", False),
             stage_outputs=data.get("stage_outputs", {}),
+            arm=data.get("arm", "default"),
         )
 
 
@@ -71,6 +74,15 @@ class Scenario(ABC):
     def required_gt(self) -> list[str]:
         """GroundTruth attribute names that must be present for this scenario."""
         return []
+
+    def corpus_metrics(self, metrics_list: list[dict[str, Any]]) -> dict[str, Any]:
+        """Corpus-level (micro) aggregates from succeeded per-sample metrics.
+
+        Default: none. ASR/diarization/OCR override this to report the standard
+        corpus-level CER/DER/F1 (pooled errors ÷ pooled denominator), which is the
+        correct way to summarize these over a set — not a mean of per-sample rates.
+        """
+        return {}
 
     def input_paths(self, sample: Sample) -> list[str | Path]:
         """Files whose fingerprints feed the cache key (media + relevant GT)."""

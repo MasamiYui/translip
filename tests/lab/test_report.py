@@ -35,3 +35,28 @@ def test_compare_markdown_and_html():
     assert "regressed" in md and "asr" in md
     html = compare_to_html(_comparison())
     assert "reg" in html  # regressed rows get the .reg class
+
+
+def _sweep_manifest():
+    return {
+        "run_id": "r", "suite": "s", "dataset": "d", "sample_count": 2, "elapsed_sec": 1.0,
+        "started_at": "2026-06-16T10:00:00", "arms": ["tiny", "small"],
+        "aggregates": {
+            "asr@tiny": {"scenario": "asr", "arm": "tiny", "primary_metric": "cer",
+                         "higher_is_better": False, "mean": 0.4, "std": 0.0, "median": 0.4,
+                         "min": 0.4, "max": 0.4, "scored": 1, "failed": 0, "skipped": 0,
+                         "corpus": {"cer_micro": 0.38}},
+            "asr@small": {"scenario": "asr", "arm": "small", "primary_metric": "cer",
+                          "higher_is_better": False, "mean": 0.2, "std": 0.0, "median": 0.2,
+                          "min": 0.2, "max": 0.2, "scored": 1, "failed": 0, "skipped": 0,
+                          "corpus": {"cer_micro": 0.19}},
+        },
+        "results": [],
+    }
+
+
+def test_sweep_section_in_reports():
+    md = run_to_markdown(_sweep_manifest())
+    assert "Sweep" in md and "🏆" in md
+    html = run_to_html(_sweep_manifest())
+    assert "Sweep" in html and "🏆" in html

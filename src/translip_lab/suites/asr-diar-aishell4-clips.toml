@@ -1,0 +1,28 @@
+# Real AISHELL-4 ASR + diarization on 180s clips (built-in `clip` windowing —
+# no manual trimming). Place AISHELL-4 test under <datasets>/aishell4/test/.
+# Uses faster-whisper `small` (override default funasr/paraformer to avoid a
+# first-run download) + ECAPA diarization.
+name = "asr-diar-aishell4-clips"
+dataset = "clip"
+scenarios = ["asr", "diarization"]
+timeout_sec = 3600
+
+[dataset_params]
+base = "aishell4"
+seconds = 180
+max_samples = 3
+
+[dataset_params.base_params]
+subset = "test"
+
+[scenario_config.asr]
+asr_backend = "faster-whisper"
+asr_model = "small"
+language = "zh"
+
+[scenario_config.diarization]
+asr_backend = "faster-whisper"
+asr_model = "small"
+diarizer_backend = "ecapa"
+language = "zh"
+collar = 0.25

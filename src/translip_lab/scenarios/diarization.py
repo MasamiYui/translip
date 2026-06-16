@@ -52,5 +52,12 @@ class DiarizationScenario(Scenario):
             ignore_overlap=bool(config.get("ignore_overlap", False)),
         )
 
+    def corpus_metrics(self, metrics_list):
+        total = sum((m.get("ref_speech_sec") or 0.0) for m in metrics_list)
+        if total <= 0:
+            return {}
+        err = sum((m.get("miss", 0.0) + m.get("false_alarm", 0.0) + m.get("confusion", 0.0)) for m in metrics_list)
+        return {"der_micro": round(err / total, 4), "ref_speech_sec_total": round(total, 1)}
+
 
 register_scenario(DiarizationScenario())

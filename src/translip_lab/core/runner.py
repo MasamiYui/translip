@@ -18,7 +18,7 @@ from typing import Any
 from ..config import LabConfig
 from .cache import scenario_cache_key
 from .invoke import Invoker
-from .run_store import summarize_aggregates, write_run
+from .run_store import aggregate_key, summarize_aggregates, write_run
 from .sample import SampleManifest
 from .scenario import Scenario, ScenarioResult
 
@@ -39,6 +39,7 @@ def run_suite(
     invoker: Invoker,
     lab_config: LabConfig,
     scenario_config: dict[str, dict] | None = None,
+    arms: list[dict] | None = None,
     limit: int | None = None,
     timeout_sec: float | None = None,
     use_cache: bool = True,
@@ -46,6 +47,7 @@ def run_suite(
     on_progress: Callable[[dict], None] | None = None,
 ) -> dict[str, Any]:
     scenario_config = scenario_config or {}
+    arms = arms or [{"label": "default", "scenario_config": {}}]
     samples = manifest.samples[:limit] if limit else list(manifest.samples)
     if run_id is None:
         run_id = datetime.now().strftime("%Y%m%dT%H%M%S") + "-" + _safe_id(suite)
@@ -57,65 +59,87 @@ def run_suite(
     started = _now_iso()
     start_t = time.time()
     results: list[ScenarioResult] = []
-    total = len(samples) * len(scenarios)
+    total = len(samples) * len(scenarios) * len(arms)
     idx = 0
     for sample in samples:
         for scenario in scenarios:
-            idx += 1
-            cfg = scenario_config.get(scenario.name, {})
-            work_dir = run_dir / _safe_id(sample.sample_id) / scenario.name
-            key = scenario_cache_key(
-                scenario=scenario.name, sample_id=sample.sample_id, config=cfg,
-                input_paths=[str(p) for p in scenario.input_paths(sample)],
-            )
-            cache_file = cache_results_dir / f"{key}.json"
+            for arm in arms:
+                idx += 1
+                arm_label = arm.get("label", "default")
+                base_cfg = scenario_config.get(scenario.name, {})
+                arm_cfg = (arm.get("scenario_config") or {}).get(scenario.name, {})
+                cfg = {**base_cfg, **arm_cfg}
+                arm_seg = "_" if arm_label == "default" else _safe_id(arm_label)
+                work_dir = run_dir / _safe_id(sample.sample_id) / scenario.name / arm_seg
+                key = scenario_cache_key(
+                    scenario=scenario.name, sample_id=sample.sample_id, config=cfg,
+                    input_paths=[str(p) for p in scenario.input_paths(sample)],
+                )
+                cache_file = cache_results_dir / f"{key}.json"
 
-            result: ScenarioResult | None = None
-            if use_cache and cache_file.is_file():
-                try:
-                    result = ScenarioResult.from_dict(json.loads(cache_file.read_text(encoding="utf-8")))
-                    result.cached = True
-                except (json.JSONDecodeError, KeyError, OSError):
-                    result = None
-            if result is None:
-                result = scenario.run(sample, work_dir, invoker, config=cfg, timeout=timeout_sec)
-                if use_cache and result.status in ("succeeded", "skipped"):
+                result: ScenarioResult | None = None
+                if use_cache and cache_file.is_file():
                     try:
-                        cache_file.write_text(
-                            json.dumps(result.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
-                    except OSError:
-                        pass
+                        result = ScenarioResult.from_dict(json.loads(cache_file.read_text(encoding="utf-8")))
+                        result.cached = True
+                    except (json.JSONDecodeError, KeyError, OSError):
+                        result = None
+                if result is None:
+                    result = scenario.run(sample, work_dir, invoker, config=cfg, timeout=timeout_sec)
+                    if use_cache and result.status in ("succeeded", "skipped"):
+                        try:
+                            cache_file.write_text(
+                                json.dumps(result.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+                        except OSError:
+                            pass
+                result.arm = arm_label
 
-            results.append(result)
-            try:
-                work_dir.mkdir(parents=True, exist_ok=True)
-                (work_dir / "result.json").write_text(
-                    json.dumps(result.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
-            except OSError:
-                pass
+                results.append(result)
+                try:
+                    work_dir.mkdir(parents=True, exist_ok=True)
+                    (work_dir / "result.json").write_text(
+                        json.dumps(result.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+                except OSError:
+                    pass
 
-            if on_progress:
-                on_progress({
-                    "phase": "result", "index": idx, "total": total,
-                    "sample_id": sample.sample_id, "scenario": scenario.name,
-                    "status": result.status, "primary_metric": result.primary_metric,
-                    "cached": result.cached,
-                })
+                if on_progress:
+                    on_progress({
+                        "phase": "result", "index": idx, "total": total,
+                        "sample_id": sample.sample_id, "scenario": scenario.name, "arm": arm_label,
+                        "status": result.status, "primary_metric": result.primary_metric,
+                        "cached": result.cached,
+                    })
 
     scenario_meta = {
         s.name: {"primary_metric_key": s.primary_metric_key, "higher_is_better": s.higher_is_better}
         for s in scenarios
     }
     aggregates = summarize_aggregates(results, scenario_meta)
+
+    # corpus-level (micro) enrichment per (scenario, arm)
+    scen_by_name = {s.name: s for s in scenarios}
+    groups: dict[tuple[str, str], list[ScenarioResult]] = {}
+    for r in results:
+        groups.setdefault((r.scenario, r.arm), []).append(r)
+    for (scenario_name, arm_label), rows in groups.items():
+        scen = scen_by_name.get(scenario_name)
+        if scen is None:
+            continue
+        succeeded_metrics = [r.metrics for r in rows if r.status == "succeeded"]
+        corpus = scen.corpus_metrics(succeeded_metrics) if succeeded_metrics else {}
+        if corpus:
+            aggregates[aggregate_key(scenario_name, arm_label)]["corpus"] = corpus
+
     run_manifest = {
         "run_id": run_id,
         "suite": suite,
         "dataset": manifest.dataset,
         "scenarios": [s.name for s in scenarios],
+        "arms": [a.get("label", "default") for a in arms],
         "sample_count": len(samples),
         "config": {
             "limit": limit, "timeout_sec": timeout_sec, "use_cache": use_cache,
-            "scenario_config": scenario_config,
+            "scenario_config": scenario_config, "arms": arms,
         },
         "started_at": started,
         "finished_at": _now_iso(),

@@ -31,6 +31,47 @@ def _page(title: str, body: str) -> str:
     return f"<!doctype html><html><head><meta charset='utf-8'><title>{_esc(title)}</title><style>{_STYLE}</style></head><body>{body}</body></html>"
 
 
+def _agg_row_html(name: str, a: dict[str, Any]) -> str:
+    metric = a.get("primary_metric")
+    micro = (a.get("corpus") or {}).get(f"{metric}_micro")
+    arrow = "↓" if a.get("higher_is_better") is False else ("↑" if a.get("higher_is_better") else "")
+    return (
+        f"<tr><td>{_esc(name)}</td><td>{_fmt(metric)} {arrow}</td>"
+        f"<td>{_fmt(a.get('mean'))}</td><td>{_fmt(micro)}</td><td>{_fmt(a.get('std'))}</td>"
+        f"<td>{_fmt(a.get('median'))}</td><td>{_fmt(a.get('min'))}</td><td>{_fmt(a.get('max'))}</td>"
+        f"<td>{a.get('scored', 0)}</td><td class='fail'>{a.get('failed', 0)}</td>"
+        f"<td class='skip'>{a.get('skipped', 0)}</td></tr>"
+    )
+
+
+def _sweep_html(manifest: dict[str, Any]) -> str:
+    if len(manifest.get("arms", [])) <= 1:
+        return ""
+    by_scenario: dict[str, list[dict[str, Any]]] = {}
+    for a in manifest.get("aggregates", {}).values():
+        by_scenario.setdefault(a.get("scenario", "?"), []).append(a)
+    blocks = ["<h2>Sweep (config arms)</h2>"]
+    for scenario, rows in by_scenario.items():
+        metric = rows[0].get("primary_metric")
+        higher = rows[0].get("higher_is_better")
+        scored = [r for r in rows if isinstance(r.get("mean"), (int, float))]
+        winner = (max if higher else min)(scored, key=lambda r: r["mean"]).get("arm") if scored else None
+        row_html = ""
+        for r in sorted(rows, key=lambda r: (r.get("mean") is None, r.get("mean", 0))):
+            micro = (r.get("corpus") or {}).get(f"{metric}_micro")
+            is_win = r.get("arm") == winner
+            row_html += (
+                f"<tr class='{'imp' if is_win else ''}'><td>{_esc(r.get('arm'))}{' 🏆' if is_win else ''}</td>"
+                f"<td>{_fmt(r.get('mean'))}</td><td>{_fmt(micro)}</td><td>{_fmt(r.get('std'))}</td>"
+                f"<td>{r.get('scored', 0)}</td></tr>"
+            )
+        blocks.append(
+            f"<h3>{_esc(scenario)} ({_esc(metric)} {'↑' if higher else '↓'})</h3>"
+            f"<table><tr><th>arm</th><th>mean</th><th>micro</th><th>std</th><th>scored</th></tr>{row_html}</table>"
+        )
+    return "".join(blocks)
+
+
 def run_to_html(manifest: dict[str, Any]) -> str:
     head = (
         f"<h1>Lab run <code>{_esc(manifest.get('run_id'))}</code></h1>"
@@ -38,17 +79,11 @@ def run_to_html(manifest: dict[str, Any]) -> str:
         f"<b>{_esc(manifest.get('dataset'))}</b> · {manifest.get('sample_count')} samples · "
         f"{_esc(manifest.get('elapsed_sec'))}s · {_esc(manifest.get('started_at'))}</p>"
     )
-    agg_rows = "".join(
-        f"<tr><td>{_esc(name)}</td><td>{_fmt(a.get('primary_metric'))} "
-        f"{'↓' if a.get('higher_is_better') is False else ('↑' if a.get('higher_is_better') else '')}</td>"
-        f"<td>{_fmt(a.get('mean'))}</td><td>{_fmt(a.get('median'))}</td><td>{_fmt(a.get('min'))}</td>"
-        f"<td>{_fmt(a.get('max'))}</td><td>{a.get('scored', 0)}</td>"
-        f"<td class='fail'>{a.get('failed', 0)}</td><td class='skip'>{a.get('skipped', 0)}</td></tr>"
-        for name, a in manifest.get("aggregates", {}).items()
-    )
+    agg_rows = "".join(_agg_row_html(name, a) for name, a in manifest.get("aggregates", {}).items())
     agg = (
-        "<h2>Aggregates</h2><table><tr><th>scenario</th><th>metric</th><th>mean</th><th>median</th>"
-        "<th>min</th><th>max</th><th>scored</th><th>failed</th><th>skipped</th></tr>" + agg_rows + "</table>"
+        "<h2>Aggregates</h2><table><tr><th>scenario</th><th>metric</th><th>mean</th><th>micro</th>"
+        "<th>std</th><th>median</th><th>min</th><th>max</th><th>scored</th><th>failed</th><th>skipped</th></tr>"
+        + agg_rows + "</table>" + _sweep_html(manifest)
     )
     res_rows = ""
     for r in manifest.get("results", []):

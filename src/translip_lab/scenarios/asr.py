@@ -46,5 +46,12 @@ class AsrScenario(Scenario):
         metrics = score_transcription_against_reference(reference_subtitles=references, hypothesis_payload=hypothesis)
         return metrics
 
+    def corpus_metrics(self, metrics_list):
+        total_ref = sum((m.get("reference_char_count") or 0) for m in metrics_list)
+        if total_ref <= 0:
+            return {}
+        total_edits = sum((m.get("cer") or 0.0) * (m.get("reference_char_count") or 0) for m in metrics_list)
+        return {"cer_micro": round(total_edits / total_ref, 4), "reference_char_total": int(total_ref)}
+
 
 register_scenario(AsrScenario())
