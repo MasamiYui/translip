@@ -234,6 +234,7 @@ def test_custom_downloaders_dispatch_erase_and_vision(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """erase keys -> ensure_weight; vision key -> HF snapshot into the vision cache."""
+    pytest.importorskip("pydantic_settings")  # erase/vision config (extras); skip on base CI env
     import translip.erase.utils.weights as erase_weights
     from translip.server import cache_manager
 

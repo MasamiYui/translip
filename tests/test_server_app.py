@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from translip.server import app as app_module
 
 
+@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "frontend" / "dist").exists(),
+                    reason="frontend/dist not built (run `npm run build`)")
 def test_frontend_dist_path_points_to_repo_frontend_dist() -> None:
     expected = Path(__file__).resolve().parents[1] / "frontend" / "dist"
 
@@ -15,6 +18,8 @@ def test_frontend_dist_path_points_to_repo_frontend_dist() -> None:
     assert app_module._FRONTEND_DIST.exists()
 
 
+@pytest.mark.skipif(not (Path(__file__).resolve().parents[1] / "frontend" / "dist").exists(),
+                    reason="frontend/dist not built (run `npm run build`)")
 def test_frontend_spa_fallback_serves_index_html_for_task_routes() -> None:
     client = TestClient(app_module.app)
 
