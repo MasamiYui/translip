@@ -77,6 +77,29 @@ export interface RunState {
   status: RunStatus
   message: string
   summary: string
+  plan?: AssistantPlan | null
   steps: RunStepState[]
   error_message?: string | null
+}
+
+export interface AssistantRunSummary {
+  run_id: string
+  status: RunStatus
+  message: string
+  summary: string
+  tools: string[]
+  step_count: number
+  completed_steps: number
+  created_at: string
+  updated_at?: string | null
+  finished_at?: string | null
+  elapsed_sec?: number | null
+  error_message?: string | null
+}
+
+export interface AssistantRunListResponse {
+  items: AssistantRunSummary[]
+  total: number
+  page: number
+  size: number
 }

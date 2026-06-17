@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AudioLines,
+  Bot,
   BookOpen,
   BookUser,
   Braces,
@@ -103,7 +104,10 @@ export function Sidebar({ collapsed: collapsedProp = false, onToggle, mobileDraw
   const isPipelineTaskRoute =
     currentPath === '/tasks' || (currentPath.startsWith('/tasks/') && !isNewTaskRoute)
   const isAtomicJobsRoute = currentPath === '/tools/jobs' || currentPath.startsWith('/tools/jobs/')
-  const isTaskCenterRoute = isPipelineTaskRoute || isNewTaskRoute || isAtomicJobsRoute
+  const isAiTaskRoute =
+    currentPath === '/assistant/tasks' || currentPath.startsWith('/assistant/tasks/')
+  const isTaskCenterRoute =
+    isPipelineTaskRoute || isNewTaskRoute || isAtomicJobsRoute || isAiTaskRoute
   const isToolsRoute =
     currentPath === '/tools' || (currentPath.startsWith('/tools/') && !isAtomicJobsRoute)
   const [taskCenterCollapsedPath, setTaskCenterCollapsedPath] = useState<string | null>(null)
@@ -325,6 +329,19 @@ export function Sidebar({ collapsed: collapsedProp = false, onToggle, mobileDraw
                 >
                   <ListChecks size={13} className="shrink-0" />
                   <span className="truncate">{t.nav.atomicTasks}</span>
+                </Link>
+                <Link
+                  to="/assistant/tasks"
+                  aria-current={isAiTaskRoute ? 'page' : undefined}
+                  className={cn(
+                    'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-all',
+                    isAiTaskRoute
+                      ? 'bg-[#3b5bdb]/10 text-[#3b5bdb]'
+                      : 'text-[#9ca3af] hover:bg-[#f3f4f6] hover:text-[#374151]',
+                  )}
+                >
+                  <Bot size={13} className="shrink-0" />
+                  <span className="truncate">{t.nav.aiTasks}</span>
                 </Link>
                 <Link
                   to="/tasks/new"

@@ -6,6 +6,8 @@ from .catalog import build_tool_catalog
 from .executor import AssistantRunManager, run_manager
 from .models import (
     AssistantPlan,
+    AssistantRunListResponse,
+    AssistantRunSummary,
     AvailableFileRef,
     Clarification,
     ConversationTurn,
@@ -18,7 +20,9 @@ from .planner import generate_plan, parse_planner_response
 
 __all__ = [
     "AssistantPlan",
+    "AssistantRunListResponse",
     "AssistantRunManager",
+    "AssistantRunSummary",
     "AvailableFileRef",
     "Clarification",
     "ConversationTurn",

@@ -20,14 +20,22 @@ from datetime import datetime
 from typing import Any
 from uuid import uuid4
 
+from sqlalchemy import func, or_
 from sqlalchemy.engine import Engine
-from sqlmodel import Session
+from sqlmodel import Session, select
 
 from ..atomic_tools.job_manager import job_manager as default_job_manager
 from ..database import engine as default_engine
 from ..models import AssistantRun
 from .catalog import is_file_param
-from .models import AssistantPlan, RunState, RunStepState, StepArtifact
+from .models import (
+    AssistantPlan,
+    AssistantRunListResponse,
+    AssistantRunSummary,
+    RunState,
+    RunStepState,
+    StepArtifact,
+)
 
 
 class AssistantRunError(RuntimeError):
@@ -97,14 +105,98 @@ class AssistantRunManager:
             message = run.message
             summary = run.summary
             error = run.error_message
+            stored_plan = dict(run.plan) if run.plan else None
         step_states = [self._step_state(step) for step in stored_steps]
+        plan = AssistantPlan.model_validate(stored_plan) if stored_plan else None
         return RunState(
             run_id=run_id,
             status=stored_status,  # type: ignore[arg-type]
             message=message,
             summary=summary,
+            plan=plan,
             steps=step_states,
             error_message=error,
+        )
+
+    def list_runs(
+        self,
+        *,
+        status: str | None = None,
+        search: str | None = None,
+        page: int = 1,
+        size: int = 20,
+    ) -> AssistantRunListResponse:
+        stmt = select(AssistantRun)
+        if status and status != "all":
+            stmt = stmt.where(AssistantRun.status == status)
+        if search:
+            like = f"%{search.strip().lower()}%"
+            stmt = stmt.where(
+                or_(
+                    func.lower(AssistantRun.id).like(like),
+                    func.lower(AssistantRun.message).like(like),
+                    func.lower(AssistantRun.summary).like(like),
+                )
+            )
+        with self._session() as session:
+            total = int(session.exec(select(func.count()).select_from(stmt.subquery())).one())
+            offset = max(0, (page - 1) * size)
+            rows = list(
+                session.exec(
+                    stmt.order_by(AssistantRun.created_at.desc()).offset(offset).limit(size)
+                ).all()
+            )
+        return AssistantRunListResponse(
+            items=[self._run_summary(run) for run in rows],
+            total=total,
+            page=page,
+            size=size,
+        )
+
+    def delete_run(self, run_id: str) -> None:
+        """Delete the assistant-run record. Underlying atomic jobs/artifacts are
+        owned by the atomic-tools system and are left intact."""
+        with self._session() as session:
+            run = session.get(AssistantRun, run_id)
+            if run is None:
+                raise KeyError(run_id)
+            session.delete(run)
+            session.commit()
+
+    def rerun_run(self, run_id: str) -> str:
+        with self._session() as session:
+            run = session.get(AssistantRun, run_id)
+            if run is None:
+                raise KeyError(run_id)
+            plan = AssistantPlan.model_validate(run.plan)
+            upload_file_ids = list(run.upload_file_ids)
+            conversation_id = run.conversation_id
+        return self.start_run(
+            plan, upload_file_ids=upload_file_ids, conversation_id=conversation_id
+        )
+
+    def _run_summary(self, run: AssistantRun) -> AssistantRunSummary:
+        steps = run.steps or []
+        completed = sum(1 for s in steps if s.get("status") == "completed")
+        tools = [str(s.get("tool_id", "")) for s in steps]
+        elapsed = (
+            round((run.finished_at - run.created_at).total_seconds(), 3)
+            if run.finished_at
+            else None
+        )
+        return AssistantRunSummary(
+            run_id=run.id,
+            status=run.status,  # type: ignore[arg-type]
+            message=run.message,
+            summary=run.summary,
+            tools=tools,
+            step_count=len(steps),
+            completed_steps=completed,
+            created_at=run.created_at,
+            updated_at=run.updated_at,
+            finished_at=run.finished_at,
+            elapsed_sec=elapsed,
+            error_message=run.error_message,
         )
 
     def cancel_run(self, run_id: str) -> bool:

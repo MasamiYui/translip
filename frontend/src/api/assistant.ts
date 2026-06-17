@@ -1,6 +1,7 @@
 import api from './client'
 import type {
   AssistantPlan,
+  AssistantRunListResponse,
   AvailableFileRef,
   ConversationTurn,
   PlanResult,
@@ -39,4 +40,13 @@ export const assistantApi = {
 
   cancelRun: (runId: string) =>
     api.post<{ ok: boolean }>(`/api/assistant/runs/${runId}/cancel`).then(r => r.data),
+
+  listRuns: (params?: { status?: string; search?: string; page?: number; size?: number }) =>
+    api.get<AssistantRunListResponse>('/api/assistant/runs', { params }).then(r => r.data),
+
+  rerunRun: (runId: string) =>
+    api.post<{ run_id: string }>(`/api/assistant/runs/${runId}/rerun`).then(r => r.data),
+
+  deleteRun: (runId: string) =>
+    api.delete<{ ok: boolean }>(`/api/assistant/runs/${runId}`).then(r => r.data),
 }

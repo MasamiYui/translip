@@ -174,3 +174,48 @@ def test_run_not_found_returns_404(monkeypatch) -> None:
     client = TestClient(app)
     resp = client.get("/api/assistant/runs/does-not-exist")
     assert resp.status_code == 404
+
+
+def test_runs_list_rerun_delete(tmp_path: Path, monkeypatch) -> None:
+    from translip.server.app import app
+    from translip.server.assistant.executor import AssistantRunManager
+    from translip.server.atomic_tools.job_manager import JobManager
+    from translip.server.routes import assistant as assistant_route
+
+    engine = _isolated_engine(tmp_path)
+    manager = JobManager(root=tmp_path / "atomic-tools", db_engine=engine)
+    manager.register_adapter("probe", StubProbe())
+    runner = AssistantRunManager(job_manager=manager, db_engine=engine)
+    monkeypatch.setattr(assistant_route, "run_manager", runner)
+    from translip.server.routes import atomic_tools as atomic_tools_route
+
+    monkeypatch.setattr(atomic_tools_route, "job_manager", manager)
+
+    client = TestClient(app)
+    upload = client.post(
+        "/api/atomic-tools/upload",
+        files={"file": ("clip.mp4", BytesIO(b"video"), "video/mp4")},
+    )
+    file_id = upload.json()["file_id"]
+    run_id = client.post(
+        "/api/assistant/execute", json={"plan": _PLAN_PAYLOAD, "file_ids": [file_id]}
+    ).json()["run_id"]
+
+    for _ in range(50):
+        if client.get(f"/api/assistant/runs/{run_id}").json()["status"] == "completed":
+            break
+        time.sleep(0.1)
+
+    # list
+    listing = client.get("/api/assistant/runs").json()
+    assert listing["total"] >= 1
+    assert any(item["run_id"] == run_id for item in listing["items"])
+
+    # rerun -> a new run id
+    rerun = client.post(f"/api/assistant/runs/{run_id}/rerun")
+    assert rerun.status_code == 200
+    assert rerun.json()["run_id"] != run_id
+
+    # delete -> gone
+    assert client.delete(f"/api/assistant/runs/{run_id}").status_code == 200
+    assert client.get(f"/api/assistant/runs/{run_id}").status_code == 404

@@ -8,6 +8,7 @@ assembled by merging the persisted run row with the underlying atomic-tool jobs.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
@@ -143,5 +144,30 @@ class RunState(BaseModel):
     status: RunStatus
     message: str = ""
     summary: str = ""
+    plan: Optional[AssistantPlan] = None
     steps: list[RunStepState] = Field(default_factory=list)
     error_message: Optional[str] = None
+
+
+class AssistantRunSummary(BaseModel):
+    """Lightweight row for the AI-task list (derived from the persisted run row)."""
+
+    run_id: str
+    status: RunStatus
+    message: str = ""
+    summary: str = ""
+    tools: list[str] = Field(default_factory=list, description="Tool ids in chain order")
+    step_count: int = 0
+    completed_steps: int = 0
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    elapsed_sec: Optional[float] = None
+    error_message: Optional[str] = None
+
+
+class AssistantRunListResponse(BaseModel):
+    items: list[AssistantRunSummary] = Field(default_factory=list)
+    total: int = 0
+    page: int = 1
+    size: int = 20

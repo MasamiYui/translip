@@ -4,6 +4,7 @@ import asyncio
 import io
 from pathlib import Path
 
+import pytest
 from fastapi import UploadFile
 from sqlmodel import SQLModel, create_engine
 
@@ -145,6 +146,64 @@ def test_executor_fails_run_when_a_step_fails(tmp_path: Path) -> None:
     assert state.status == "failed"
     assert state.steps[0].status == "failed"
     assert "kaboom" in (state.error_message or "")
+
+
+def _seed_completed_run(tmp_path: Path):
+    manager, mixing, runner = _wire(tmp_path)
+    upload = asyncio.run(
+        manager.save_upload(
+            UploadFile(
+                filename="clip.wav",
+                file=io.BytesIO(b"raw audio"),
+                headers={"content-type": "audio/wav"},
+            )
+        )
+    )
+    run_id = runner.start_run(
+        _two_step_plan(), upload_file_ids=[upload.file_id], background=False
+    )
+    return runner, run_id
+
+
+def test_list_runs_summarizes_chain(tmp_path: Path) -> None:
+    runner, run_id = _seed_completed_run(tmp_path)
+    listing = runner.list_runs()
+    assert listing.total == 1
+    item = listing.items[0]
+    assert item.run_id == run_id
+    assert item.status == "completed"
+    assert (item.completed_steps, item.step_count) == (2, 2)
+    assert item.tools == ["separation", "mixing"]
+    assert item.elapsed_sec is not None
+
+
+def test_list_runs_filters_by_status(tmp_path: Path) -> None:
+    runner, _ = _seed_completed_run(tmp_path)
+    assert runner.list_runs(status="completed").total == 1
+    assert runner.list_runs(status="failed").total == 0
+
+
+def test_delete_run_removes_record(tmp_path: Path) -> None:
+    runner, run_id = _seed_completed_run(tmp_path)
+    runner.delete_run(run_id)
+    assert runner.list_runs().total == 0
+    with pytest.raises(KeyError):
+        runner.get_run(run_id)
+
+
+def test_rerun_run_creates_a_new_record(tmp_path: Path) -> None:
+    runner, run_id = _seed_completed_run(tmp_path)
+    new_id = runner.rerun_run(run_id)
+    assert new_id != run_id
+    # start_run writes the new row synchronously before the worker thread starts.
+    assert runner.list_runs().total == 2
+
+
+def test_get_run_includes_plan_for_detail(tmp_path: Path) -> None:
+    runner, run_id = _seed_completed_run(tmp_path)
+    state = runner.get_run(run_id)
+    assert state.plan is not None
+    assert [s.tool_id for s in state.plan.steps] == ["separation", "mixing"]
 
 
 def test_executor_errors_when_upload_missing(tmp_path: Path) -> None:

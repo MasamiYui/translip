@@ -31,6 +31,12 @@ const AtomicJobListPage = lazy(() =>
 const AtomicJobDetailPage = lazy(() =>
   import('./pages/AtomicJobDetailPage').then(module => ({ default: module.AtomicJobDetailPage })),
 )
+const AssistantRunListPage = lazy(() =>
+  import('./pages/AssistantRunListPage').then(module => ({ default: module.AssistantRunListPage })),
+)
+const AssistantRunDetailPage = lazy(() =>
+  import('./pages/AssistantRunDetailPage').then(module => ({ default: module.AssistantRunDetailPage })),
+)
 const ToolPage = lazy(() =>
   import('./pages/ToolPage').then(module => ({ default: module.ToolPage })),
 )
@@ -95,6 +101,8 @@ export default function App() {
                 <Route path="tools" element={<ToolListPage />} />
                 <Route path="tools/jobs" element={<AtomicJobListPage />} />
                 <Route path="tools/jobs/:jobId" element={<AtomicJobDetailPage />} />
+                <Route path="assistant/tasks" element={<AssistantRunListPage />} />
+                <Route path="assistant/tasks/:runId" element={<AssistantRunDetailPage />} />
                 <Route path="tools/:toolId" element={<ToolPage />} />
                 <Route path="character-library" element={<CharacterLibraryPage />} />
                 <Route path="works" element={<WorksPage />} />
