@@ -13,6 +13,7 @@ from .database import init_db
 from .atomic_tools.job_manager import job_manager
 from .task_manager import mark_interrupted_tasks
 from .routes.analysis import router as analysis_router
+from .routes.assistant import router as assistant_router
 from .routes.autofix import router as autofix_router
 from .routes.api_docs import router as api_docs_router
 from .routes.artifacts import router as artifacts_router
@@ -82,6 +83,7 @@ app.include_router(analysis_router)
 app.include_router(autofix_router)
 app.include_router(artifacts_router)
 app.include_router(atomic_tools_router)
+app.include_router(assistant_router)
 app.include_router(api_docs_router)
 
 # Serve frontend static files if built

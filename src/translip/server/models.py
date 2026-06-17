@@ -164,3 +164,28 @@ class AtomicToolArtifact(SQLModel, table=True):
     content_type: str = Field(default="application/octet-stream")
     download_url: str
     created_at: datetime = Field(default_factory=datetime.now)
+
+
+class AssistantRun(SQLModel, table=True):
+    """Natural-language assistant run — one chained execution of a planned tool chain.
+
+    ``plan`` stores the approved plan; ``steps`` is the lightweight per-step
+    bookkeeping ([{id, tool_id, title, job_id, status, error}]). Live progress and
+    artifacts are read back from the atomic-tool jobs via each step's ``job_id``,
+    so this row stays small and never goes stale on progress.
+    """
+
+    __tablename__ = "assistant_runs"
+
+    id: str = Field(primary_key=True)
+    conversation_id: Optional[str] = Field(default=None, index=True)
+    status: str = Field(index=True, default="pending")
+    message: str = Field(default="")
+    summary: str = Field(default="")
+    plan: Dict[str, Any] = Field(default_factory=dict, sa_column=Column(JSON))
+    upload_file_ids: list[str] = Field(default_factory=list, sa_column=Column(JSON))
+    steps: list[Dict[str, Any]] = Field(default_factory=list, sa_column=Column(JSON))
+    error_message: Optional[str] = Field(default=None)
+    created_at: datetime = Field(default_factory=datetime.now, index=True)
+    updated_at: datetime = Field(default_factory=datetime.now)
+    finished_at: Optional[datetime] = Field(default=None)

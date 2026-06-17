@@ -4,6 +4,7 @@ import { Menu } from 'lucide-react'
 import { Sidebar } from './Sidebar'
 import { Header } from './Header'
 import { TopNav } from './TopNav'
+import { AssistantWidget } from '../assistant/AssistantWidget'
 import { useTaskNotifications } from '../../hooks/useTaskNotifications'
 import { useI18n } from '../../i18n/useI18n'
 
@@ -175,6 +176,8 @@ export function MainLayout() {
           </div>
         )}
       </main>
+
+      <AssistantWidget />
     </div>
   )
 }

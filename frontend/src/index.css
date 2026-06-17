@@ -154,6 +154,91 @@ body {
   }
 }
 
+/* --- AI assistant robot mascot --- */
+@keyframes assistant-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes assistant-blink {
+  0%,
+  92%,
+  100% {
+    transform: scaleY(1);
+  }
+  96% {
+    transform: scaleY(0.1);
+  }
+}
+
+@keyframes assistant-antenna {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.78);
+  }
+}
+
+@keyframes assistant-pop {
+  0% {
+    transform: scale(0.85) translateY(8px);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes assistant-slide-in {
+  0% {
+    transform: translateX(32px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.assistant-slide-in {
+  animation: assistant-slide-in 200ms ease-out;
+}
+
+.assistant-float {
+  animation: assistant-float 3.2s ease-in-out infinite;
+}
+.assistant-eye {
+  transform-origin: center;
+  animation: assistant-blink 4.5s ease-in-out infinite;
+}
+.assistant-antenna {
+  transform-origin: center;
+  animation: assistant-antenna 1.6s ease-in-out infinite;
+}
+.assistant-pop {
+  animation: assistant-pop 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-float,
+  .assistant-eye,
+  .assistant-antenna,
+  .assistant-pop,
+  .assistant-slide-in {
+    animation: none;
+  }
+}
+
 /* Print: export the current blog post as a clean PDF via the browser's native
    "Save as PDF". App chrome (sidebar / header / on-page nav / the export button
    itself) is hidden per-element with the `print:hidden` Tailwind variant; here

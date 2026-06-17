@@ -12,6 +12,12 @@ vi.mock('../Header', () => ({
   Header: () => <header>Header</header>,
 }))
 
+// The floating assistant uses React Query; stub it here since this is a
+// layout-only test that intentionally avoids a QueryClientProvider.
+vi.mock('../../assistant/AssistantWidget', () => ({
+  AssistantWidget: () => null,
+}))
+
 // Layout-only test: stub the app-wide task watcher so MainLayout doesn't need a
 // QueryClientProvider here (its behaviour is covered in useTaskNotifications.test).
 vi.mock('../../../hooks/useTaskNotifications', () => ({
