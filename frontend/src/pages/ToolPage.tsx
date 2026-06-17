@@ -114,6 +114,9 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     }
     const uploaded = await uploadFile(file)
     setFileRefs(prev => ({ ...prev, [slot]: uploaded }))
+    if (toolId === 'translation' && slot === 'file') {
+      setTranslationInputMode('file')
+    }
   }
 
   async function handleRun() {
@@ -855,10 +858,13 @@ function buildRunPayload(
   }
 
   if (toolId === 'translation') {
+    const trimmedText = textInput.trim()
+    const uploadedFileId = fileRefs.file?.file_id
+    const useFile = translationInputMode === 'file' ? Boolean(uploadedFileId) : !trimmedText && Boolean(uploadedFileId)
     return {
       ...params,
-      text: translationInputMode === 'text' ? textInput : undefined,
-      file_id: translationInputMode === 'file' ? fileRefs.file?.file_id : undefined,
+      text: useFile ? undefined : trimmedText || undefined,
+      file_id: useFile ? uploadedFileId : undefined,
     }
   }
 
