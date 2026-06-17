@@ -1958,6 +1958,25 @@ const zhMessages = {
     errorTitle: '出错了',
     reset: '新对话',
     you: '你',
+    clarifyHint: '我需要先确认一下',
+    needKeyTitle: '尚未配置 DeepSeek',
+    needKeyDesc: '智能助手需要 DeepSeek API Key 才能规划任务。',
+    goSettings: '去设置',
+    needUpload: '这个任务需要先上传文件，请点左下角回形针添加后再执行。',
+    scrollToBottom: '回到底部',
+    uploading: '上传中…',
+    categories: {
+      subtitle: '字幕',
+      dubbing: '配音',
+      audio: '音频',
+      video: '视频',
+    },
+    examplesByCategory: {
+      subtitle: ['识别这个视频的日语字幕并转成中文字幕', '给这个视频生成中文字幕'],
+      dubbing: ['把这个视频配成英文配音'],
+      audio: ['提取这个视频里的人声', '分离人声和背景音乐'],
+      video: ['擦除视频里的硬字幕', '探测这个文件的媒体信息'],
+    },
   },
 } as const
 
@@ -3931,6 +3950,25 @@ const enMessages: LocaleMessages = {
     errorTitle: 'Something went wrong',
     reset: 'New chat',
     you: 'You',
+    clarifyHint: 'I need to check one thing first',
+    needKeyTitle: 'DeepSeek not configured',
+    needKeyDesc: 'The assistant needs a DeepSeek API Key to plan tasks.',
+    goSettings: 'Open Settings',
+    needUpload: 'This task needs a file first — click the paperclip to add one, then run.',
+    scrollToBottom: 'Scroll to bottom',
+    uploading: 'Uploading…',
+    categories: {
+      subtitle: 'Subtitles',
+      dubbing: 'Dubbing',
+      audio: 'Audio',
+      video: 'Video',
+    },
+    examplesByCategory: {
+      subtitle: ['Detect the Japanese subtitles and translate them to Chinese', 'Generate Chinese subtitles for this video'],
+      dubbing: ['Dub this video into English'],
+      audio: ['Extract the voice from this video', 'Separate voice and background music'],
+      video: ['Erase the hard subtitles from this video', 'Probe this file’s media info'],
+    },
   },
 }
 

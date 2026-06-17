@@ -7,9 +7,9 @@ from fastapi import APIRouter, HTTPException, Path
 from ...exceptions import BackendUnavailableError
 from ..assistant.executor import run_manager
 from ..assistant.models import (
-    AssistantPlan,
     ExecuteRequest,
     PlanRequest,
+    PlanResult,
     RunState,
 )
 from ..assistant.planner import generate_plan
@@ -17,11 +17,16 @@ from ..assistant.planner import generate_plan
 router = APIRouter(prefix="/api/assistant", tags=["assistant"])
 
 
-@router.post("/plan", response_model=AssistantPlan, summary="规划原子能力调用链路")
-def plan_chain(body: PlanRequest) -> AssistantPlan:
-    """用 DeepSeek 把自然语言需求规划成一条原子能力调用链路（只规划不执行）。"""
+@router.post("/plan", response_model=PlanResult, summary="规划原子能力调用链路")
+def plan_chain(body: PlanRequest) -> PlanResult:
+    """用 DeepSeek 把自然语言需求规划成调用链路；信息不足时返回澄清问题（只规划不执行）。"""
     try:
-        return generate_plan(body.message, filenames=body.filenames)
+        return generate_plan(
+            body.message,
+            filenames=body.filenames,
+            history=body.history,
+            available_files=body.available_files,
+        )
     except BackendUnavailableError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except ValueError as exc:

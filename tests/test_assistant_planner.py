@@ -48,13 +48,67 @@ def test_generate_plan_parses_deepseek_json(monkeypatch) -> None:
     monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
     monkeypatch.setattr(planner, "post_chat_completion", lambda **kw: _fake_response(_VALID_PLAN))
 
-    plan = generate_plan("把日语台词转成中文字幕", filenames=["movie.mp4"])
+    result = generate_plan("把日语台词转成中文字幕", filenames=["movie.mp4"])
 
+    assert result.type == "plan"
+    plan = result.plan
+    assert plan is not None
     assert len(plan.steps) == 3
     assert [s.tool_id for s in plan.steps] == ["separation", "transcription", "translation"]
     # edges auto-derived from step bindings when the model omits them
     assert {(e.source, e.target) for e in plan.edges} == {("sep", "asr"), ("asr", "mt")}
     assert plan.steps[1].inputs["file_id"].output == "voice_file"
+
+
+def test_generate_plan_returns_clarification(monkeypatch) -> None:
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test")
+    clarification_payload = {
+        "type": "clarification",
+        "question": "你想翻译成哪种语言？",
+        "options": ["中文", "英文"],
+    }
+    monkeypatch.setattr(
+        planner, "post_chat_completion", lambda **kw: _fake_response(clarification_payload)
+    )
+
+    result = generate_plan("翻译这个视频")
+
+    assert result.type == "clarification"
+    assert result.plan is None
+    assert result.clarification is not None
+    assert result.clarification.question == "你想翻译成哪种语言？"
+    assert result.clarification.options == ["中文", "英文"]
+
+
+def test_parse_planner_response_detects_clarification_without_discriminator() -> None:
+    from translip.server.assistant.planner import parse_planner_response
+
+    result = parse_planner_response({"question": "需要先上传一个视频文件，方便上传吗？"})
+    assert result.type == "clarification"
+    assert result.clarification is not None
+
+
+def test_build_planner_messages_injects_history_and_available_files() -> None:
+    from translip.server.assistant.models import AvailableFileRef, ConversationTurn
+    from translip.server.assistant.planner import build_planner_messages
+
+    messages = build_planner_messages(
+        "把刚才的人声配成英文",
+        history=[
+            ConversationTurn(role="user", content="提取这个视频的人声"),
+            ConversationTurn(role="assistant", content="已执行，产物：voice.wav"),
+        ],
+        available_files=[AvailableFileRef(label="上一步产物：voice.wav", filename="voice.wav")],
+    )
+
+    roles = [m["role"] for m in messages]
+    # system, then the two history turns, then the final user message
+    assert roles == ["system", "user", "assistant", "user"]
+    assert messages[1]["content"] == "提取这个视频的人声"
+    assert "已执行，产物：voice.wav" in messages[2]["content"]
+    final_user = messages[-1]["content"]
+    assert "upload_index=0" in final_user
+    assert "voice.wav" in final_user
 
 
 def test_generate_plan_requires_api_key(monkeypatch) -> None:

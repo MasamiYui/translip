@@ -29,6 +29,27 @@ export interface AssistantPlan {
   edges: StepEdge[]
 }
 
+export interface Clarification {
+  question: string
+  options: string[]
+}
+
+export interface ConversationTurn {
+  role: 'user' | 'assistant'
+  content: string
+}
+
+export interface AvailableFileRef {
+  label: string
+  filename: string
+}
+
+export interface PlanResult {
+  type: 'plan' | 'clarification'
+  plan?: AssistantPlan | null
+  clarification?: Clarification | null
+}
+
 export type RunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
 
 export interface StepArtifact {

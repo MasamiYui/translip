@@ -22,7 +22,15 @@ from ...translation.llm_utils import (
 )
 from ..atomic_tools.registry import TOOL_REGISTRY
 from .catalog import build_tool_catalog, is_file_param, model_field_names
-from .models import AssistantPlan, PlanStep, StepEdge
+from .models import (
+    AssistantPlan,
+    AvailableFileRef,
+    Clarification,
+    ConversationTurn,
+    PlanResult,
+    PlanStep,
+    StepEdge,
+)
 
 _SYSTEM_PROMPT = """\
 你是 translip（本地视频配音/字幕流水线）的智能编排助手。用户用自然语言描述需求，\
@@ -33,7 +41,14 @@ _SYSTEM_PROMPT = """\
 
 规则：
 1. 只输出一个 JSON 对象，不要任何解释文字、不要 markdown 代码块。
-2. JSON 结构：
+2. 如果信息不足以规划——例如：需要文件但用户没有上传、目标语言/翻译方向不明确、需求过于宽泛无法确定要做什么——\
+则**不要硬猜**，而是输出一个澄清对象向用户提问：
+{{
+  "type": "clarification",
+  "question": "用中文提出一个清晰的问题",
+  "options": ["可点选的简短选项1", "选项2"]   // 可选；没有合适选项就给空数组
+}}
+3. 信息足够时，输出计划对象（type 可省略或写 "plan"）：
 {{
   "summary": "用一两句中文向非技术用户解释你将怎么做",
   "steps": [
@@ -55,11 +70,12 @@ _SYSTEM_PROMPT = """\
   ],
   "edges": [ {{ "source": "上游步骤id", "target": "下游步骤id" }} ]
 }}
-3. 文件参数（file_id、*_file_id）必须放在 inputs 里用 binding 指定来源；其余参数放在 params。
-4. 上一步的产物用 source="step" + step_id + output 绑定；output 必须是该工具 outputs 中存在的键。
-5. 用户上传的文件用 source="upload" + upload_index 绑定。
-6. 参数名必须是该工具真实存在的参数；不确定的可选参数就省略，使用其默认值。
-7. 语言代码用简短形式（如 ja=日语, zh=中文, en=英语）。
+4. 文件参数（file_id、*_file_id）必须放在 inputs 里用 binding 指定来源；其余参数放在 params。
+5. 同一计划里上一步的产物用 source="step" + step_id + output 绑定；output 必须是该工具 outputs 中存在的键。
+6. source="upload" + upload_index 引用「可用文件」列表里的第 N 个文件——它既可能是用户本轮上传的，也可能是本会话**之前运行产出的产物**。没有任何可用文件却需要文件时，按规则 2 提出澄清。
+7. 结合「对话历史」理解追问与指代：如「刚才/上次/那个结果」通常指最近一次运行的产物，应在「可用文件」里挑对应项用 upload_index 引用；「再来一份/换成…」表示在上一轮设定基础上调整。
+8. 参数名必须是该工具真实存在的参数；不确定的可选参数就省略，使用其默认值。
+9. 语言代码用简短形式（如 ja=日语, zh=中文, en=英语）。
 
 示例：用户说「把这个视频里的日语台词转成中文字幕」（上传了 1 个视频）：
 {{
@@ -83,19 +99,40 @@ def _deepseek_api_key() -> str:
     return key
 
 
-def _build_messages(message: str, filenames: list[str]) -> list[dict[str, str]]:
+def _available_files_block(
+    available_files: list[AvailableFileRef], filenames: list[str]
+) -> str:
+    if available_files:
+        return "\n".join(
+            f"- upload_index={i}: {ref.label} (文件名 {ref.filename})"
+            for i, ref in enumerate(available_files)
+        )
+    if filenames:
+        return "\n".join(f"- upload_index={i}: {name}" for i, name in enumerate(filenames))
+    return "（无可用文件）"
+
+
+def _build_messages(
+    message: str,
+    filenames: list[str],
+    history: list[ConversationTurn] | None = None,
+    available_files: list[AvailableFileRef] | None = None,
+) -> list[dict[str, str]]:
     catalog_json = json.dumps(build_tool_catalog(), ensure_ascii=False, indent=2)
     system = _SYSTEM_PROMPT.format(catalog=catalog_json)
-    attachments = (
-        "\n".join(f"- upload_index={i}: {name}" for i, name in enumerate(filenames))
-        if filenames
-        else "（无上传文件）"
+    files_block = _available_files_block(available_files or [], filenames)
+    user = (
+        f"用户需求：\n{message}\n\n"
+        f"可用文件（用 source=upload + upload_index 引用）：\n{files_block}\n\n"
+        "请输出 JSON。"
     )
-    user = f"用户需求：\n{message}\n\n已上传文件：\n{attachments}\n\n请输出 JSON 计划。"
-    return [
-        {"role": "system", "content": system},
-        {"role": "user", "content": user},
-    ]
+    messages: list[dict[str, str]] = [{"role": "system", "content": system}]
+    for turn in history or []:
+        content = turn.content.strip()
+        if content:
+            messages.append({"role": turn.role, "content": content})
+    messages.append({"role": "user", "content": user})
+    return messages
 
 
 def _coerce_plan(payload: dict[str, Any]) -> AssistantPlan:
@@ -106,6 +143,31 @@ def _coerce_plan(payload: dict[str, Any]) -> AssistantPlan:
     if not plan.edges:
         plan.edges = _derive_edges(plan)
     return plan
+
+
+def _looks_like_clarification(payload: dict[str, Any]) -> bool:
+    if payload.get("type") == "clarification":
+        return True
+    # Tolerate models that emit a clarification without the discriminator.
+    if isinstance(payload.get("clarification"), dict):
+        return True
+    has_question = bool(str(payload.get("question") or "").strip())
+    return has_question and not payload.get("steps")
+
+
+def _coerce_clarification(payload: dict[str, Any]) -> Clarification:
+    raw = payload.get("clarification") if isinstance(payload.get("clarification"), dict) else payload
+    clarification = Clarification.model_validate(raw)
+    if not clarification.question.strip():
+        raise ValueError("澄清问题为空。")
+    return clarification
+
+
+def parse_planner_response(payload: dict[str, Any]) -> PlanResult:
+    """Turn a raw planner JSON object into a plan-or-clarification result."""
+    if _looks_like_clarification(payload):
+        return PlanResult(type="clarification", clarification=_coerce_clarification(payload))
+    return PlanResult(type="plan", plan=_coerce_plan(payload))
 
 
 def _validate_plan(plan: AssistantPlan) -> None:
@@ -145,16 +207,23 @@ def generate_plan(
     message: str,
     *,
     filenames: list[str] | None = None,
+    history: list[ConversationTurn] | None = None,
+    available_files: list[AvailableFileRef] | None = None,
     timeout_sec: int = 60,
-) -> AssistantPlan:
-    """Plan a tool chain for ``message``. Raises BackendUnavailableError if no key."""
+) -> PlanResult:
+    """Plan a tool chain for ``message`` (or ask for clarification).
+
+    ``history`` and ``available_files`` give the planner multi-turn context and
+    the pool of files (uploads + prior-run artifacts) it may bind to.
+    Raises BackendUnavailableError if no DeepSeek key is configured.
+    """
     if not message.strip():
         raise ValueError("请输入你的需求。")
     api_key = _deepseek_api_key()
     payload = {
         "model": DEFAULT_DEEPSEEK_MODEL,
         "temperature": 0,
-        "messages": _build_messages(message, filenames or []),
+        "messages": _build_messages(message, filenames or [], history, available_files),
         "response_format": {"type": "json_object"},
     }
     response = post_chat_completion(
@@ -165,7 +234,7 @@ def generate_plan(
     )
     content = extract_message_content(response)
     data = parse_json_payload(content)
-    return _coerce_plan(data)
+    return parse_planner_response(data)
 
 
 # Exposed for unit tests that want to validate a raw planner JSON payload without
@@ -174,5 +243,10 @@ def plan_from_payload(payload: dict[str, Any]) -> AssistantPlan:
     return _coerce_plan(payload)
 
 
-def build_planner_messages(message: str, filenames: list[str] | None = None) -> list[dict[str, str]]:
-    return _build_messages(message, filenames or [])
+def build_planner_messages(
+    message: str,
+    filenames: list[str] | None = None,
+    history: list[ConversationTurn] | None = None,
+    available_files: list[AvailableFileRef] | None = None,
+) -> list[dict[str, str]]:
+    return _build_messages(message, filenames or [], history, available_files)

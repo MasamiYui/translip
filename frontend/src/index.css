@@ -214,6 +214,27 @@ body {
   animation: assistant-slide-in 200ms ease-out;
 }
 
+@keyframes assistant-celebrate {
+  0% {
+    transform: scale(0.9);
+  }
+  40% {
+    transform: scale(1.12);
+  }
+  70% {
+    transform: scale(0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.assistant-celebrate {
+  display: inline-block;
+  transform-origin: left center;
+  animation: assistant-celebrate 520ms ease-out;
+}
+
 .assistant-float {
   animation: assistant-float 3.2s ease-in-out infinite;
 }
@@ -234,7 +255,8 @@ body {
   .assistant-eye,
   .assistant-antenna,
   .assistant-pop,
-  .assistant-slide-in {
+  .assistant-slide-in,
+  .assistant-celebrate {
     animation: none;
   }
 }

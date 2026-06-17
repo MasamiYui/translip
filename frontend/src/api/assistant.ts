@@ -1,13 +1,27 @@
 import api from './client'
-import type { AssistantPlan, RunState } from '../types/assistant'
+import type {
+  AssistantPlan,
+  AvailableFileRef,
+  ConversationTurn,
+  PlanResult,
+  RunState,
+} from '../types/assistant'
 
 export const assistantApi = {
-  plan: (message: string, fileIds: string[], filenames: string[]) =>
+  plan: (
+    message: string,
+    fileIds: string[],
+    filenames: string[],
+    history: ConversationTurn[] = [],
+    availableFiles: AvailableFileRef[] = [],
+  ) =>
     api
-      .post<AssistantPlan>('/api/assistant/plan', {
+      .post<PlanResult>('/api/assistant/plan', {
         message,
         file_ids: fileIds,
         filenames,
+        history,
+        available_files: availableFiles,
       })
       .then(r => r.data),
 

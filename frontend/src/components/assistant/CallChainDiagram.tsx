@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ArrowRight, Check, Loader2, Pencil, X } from 'lucide-react'
+import { ArrowDown, ArrowRight, Check, Loader2, Pencil, X } from 'lucide-react'
 import { useI18n } from '../../i18n/useI18n'
 import { cn } from '../../lib/utils'
 import type { AssistantPlan, PlanStep, RunState } from '../../types/assistant'
@@ -9,6 +9,7 @@ interface CallChainDiagramProps {
   plan: AssistantPlan
   runState?: RunState | null
   editable?: boolean
+  orientation?: 'horizontal' | 'vertical'
   onChange?: (plan: AssistantPlan) => void
 }
 
@@ -38,9 +39,16 @@ function coerceValue(original: unknown, raw: string): unknown {
   return raw
 }
 
-export function CallChainDiagram({ plan, runState, editable = false, onChange }: CallChainDiagramProps) {
+export function CallChainDiagram({
+  plan,
+  runState,
+  editable = false,
+  orientation = 'horizontal',
+  onChange,
+}: CallChainDiagramProps) {
   const { t, locale } = useI18n()
   const [editingId, setEditingId] = useState<string | null>(null)
+  const vertical = orientation === 'vertical'
 
   const statusLabel: Record<NodeStatus, string> = {
     pending: t.assistant.statusPending,
@@ -66,7 +74,11 @@ export function CallChainDiagram({ plan, runState, editable = false, onChange }:
   }
 
   return (
-    <div className="flex flex-wrap items-stretch gap-2" data-testid="call-chain-diagram">
+    <div
+      className={cn('flex gap-2', vertical ? 'flex-col items-stretch' : 'flex-wrap items-stretch')}
+      data-testid="call-chain-diagram"
+      data-orientation={orientation}
+    >
       {plan.steps.map((step, index) => {
         const meta = TOOL_META[step.tool_id]
         const Icon = meta?.icon ?? FALLBACK_TOOL_ICON
@@ -77,10 +89,11 @@ export function CallChainDiagram({ plan, runState, editable = false, onChange }:
         const isEditing = editingId === step.id
 
         return (
-          <div key={step.id} className="flex items-stretch gap-2">
+          <div key={step.id} className={cn('flex items-stretch gap-2', vertical && 'flex-col')}>
             <div
               className={cn(
-                'relative flex w-44 flex-col rounded-xl border p-3 transition-all',
+                'relative flex flex-col rounded-xl border p-3 transition-all',
+                vertical ? 'w-full' : 'w-44',
                 styles.box,
               )}
               data-testid={`chain-node-${step.id}`}
@@ -168,8 +181,8 @@ export function CallChainDiagram({ plan, runState, editable = false, onChange }:
             </div>
 
             {index < plan.steps.length - 1 && (
-              <div className="flex items-center text-[#c0c6d4]">
-                <ArrowRight size={18} />
+              <div className={cn('flex text-[#c0c6d4]', vertical ? 'justify-center' : 'items-center')}>
+                {vertical ? <ArrowDown size={18} /> : <ArrowRight size={18} />}
               </div>
             )}
           </div>

@@ -54,7 +54,42 @@ class AssistantPlan(BaseModel):
     edges: list[StepEdge] = Field(default_factory=list)
 
 
+class Clarification(BaseModel):
+    """The planner asks the user for missing info instead of guessing."""
+
+    question: str = Field(description="The question to ask the user")
+    options: list[str] = Field(
+        default_factory=list, description="Optional quick-reply choices the user can click"
+    )
+
+
+class PlanResult(BaseModel):
+    """Planner output: either a runnable plan or a clarification request."""
+
+    type: Literal["plan", "clarification"] = "plan"
+    plan: Optional[AssistantPlan] = None
+    clarification: Optional[Clarification] = None
+
+
 # --- API request bodies -----------------------------------------------------
+
+
+class ConversationTurn(BaseModel):
+    """One prior turn fed to the planner for multi-turn continuity."""
+
+    role: Literal["user", "assistant"]
+    content: str
+
+
+class AvailableFileRef(BaseModel):
+    """A file the planner may bind to via source=upload + upload_index.
+
+    The list order IS the index. An available file is either something the user
+    uploaded or an artifact produced by an earlier run in this conversation.
+    """
+
+    label: str = Field(description="Human description, e.g. '上一步产物：voice.wav'")
+    filename: str = Field(description="Underlying filename (informs the planner)")
 
 
 class PlanRequest(BaseModel):
@@ -62,6 +97,13 @@ class PlanRequest(BaseModel):
     file_ids: list[str] = Field(default_factory=list)
     filenames: list[str] = Field(
         default_factory=list, description="Optional names parallel to file_ids, for planner context"
+    )
+    history: list[ConversationTurn] = Field(
+        default_factory=list, description="Recent conversation turns for follow-up context"
+    )
+    available_files: list[AvailableFileRef] = Field(
+        default_factory=list,
+        description="Ordered pool the planner can reference by upload_index (uploads + prior outputs)",
     )
 
 

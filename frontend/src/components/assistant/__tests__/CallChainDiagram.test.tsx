@@ -62,6 +62,14 @@ describe('CallChainDiagram', () => {
     expect(screen.getByTestId('chain-node-asr')).toHaveAttribute('data-status', 'running')
   })
 
+  it('renders all nodes in vertical orientation', () => {
+    renderDiagram({ orientation: 'vertical' })
+    const diagram = screen.getByTestId('call-chain-diagram')
+    expect(diagram).toHaveAttribute('data-orientation', 'vertical')
+    expect(screen.getByTestId('chain-node-sep')).toBeInTheDocument()
+    expect(screen.getByTestId('chain-node-asr')).toBeInTheDocument()
+  })
+
   it('allows editing a param when editable and calls onChange', () => {
     const onChange = vi.fn()
     renderDiagram({ editable: true, onChange })
