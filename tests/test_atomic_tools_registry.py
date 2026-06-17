@@ -20,8 +20,13 @@ def test_atomic_tools_registry_exposes_all_tools() -> None:
         "subtitle-detect",
         "subtitle-erase",
         "video-analyze",
+        "m3u8-to-mp4",
     }
     assert {tool.category for tool in tools} == {"audio", "speech", "video"}
+    m3u8 = next(tool for tool in tools if tool.tool_id == "m3u8-to-mp4")
+    assert m3u8.category == "video"
+    assert m3u8.accept_formats == [".m3u8"]
+    assert m3u8.icon == "FileDown"
     correction = next(tool for tool in tools if tool.tool_id == "transcript-correction")
     assert correction.name_zh == "台词校正"
     assert correction.category == "speech"

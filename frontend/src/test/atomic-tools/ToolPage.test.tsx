@@ -332,4 +332,53 @@ describe('ToolPage', () => {
     expect(screen.getByRole('button', { name: '开始处理' })).toBeDisabled()
     expect(screen.getByText(/所选后端需要上传参考音频/)).toBeInTheDocument()
   })
+
+  it('runs m3u8-to-mp4 with a pasted URL and copy defaults', async () => {
+    apiMocks.listTools.mockResolvedValue([
+      {
+        tool_id: 'm3u8-to-mp4',
+        name_zh: 'M3U8 转 MP4',
+        name_en: 'M3U8 to MP4',
+        description_zh: '下载并转换 HLS 流为 MP4',
+        description_en: 'Download and convert an HLS stream into MP4',
+        category: 'video',
+        icon: 'FileDown',
+        accept_formats: ['.m3u8'],
+        max_file_size_mb: 20,
+        max_files: 1,
+      },
+    ])
+
+    render(
+      <Routes>
+        <Route path="/tools/:toolId" element={<ToolPage />} />
+      </Routes>,
+      { wrapper: createWrapper(['/tools/m3u8-to-mp4']) },
+    )
+
+    expect(await screen.findByRole('heading', { name: 'M3U8 转 MP4' })).toBeInTheDocument()
+
+    // Run stays disabled until a source is provided.
+    const runButton = screen.getByRole('button', { name: '开始处理' })
+    expect(runButton).toBeDisabled()
+    expect(screen.getByText('请填写 M3U8 链接或上传 .m3u8 文件')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('M3U8 链接'), {
+      target: { value: 'https://host/path/index.m3u8' },
+    })
+    expect(runButton).not.toBeDisabled()
+    fireEvent.click(runButton)
+
+    expect(atomicToolMocks.runTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        url: 'https://host/path/index.m3u8',
+        mode: 'copy',
+        output_format: 'mp4',
+      }),
+    )
+    // The UI-only source toggle never leaks to the backend, and no file id in URL mode.
+    const payload = atomicToolMocks.runTool.mock.calls[0][0]
+    expect(payload).not.toHaveProperty('source_type')
+    expect(payload).not.toHaveProperty('playlist_file_id')
+  })
 })

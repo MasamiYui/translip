@@ -225,3 +225,71 @@ class SubtitleEraseToolRequest(BaseModel):
     neighbor_stride: int | None = None
     reference_length: int | None = None
     max_load: int | None = None
+
+
+M3u8Mode = Literal["copy", "transcode"]
+M3u8Container = Literal["mp4", "mkv"]
+X264Preset = Literal[
+    "ultrafast", "superfast", "veryfast", "faster", "fast", "medium", "slow", "slower", "veryslow"
+]
+
+
+class M3u8ToMp4ToolRequest(BaseModel):
+    """Convert an HLS (.m3u8) playlist — remote URL or uploaded file — into one MP4/MKV.
+
+    Exactly one input source is required: either ``url`` (an http/https playlist,
+    VOD or live) or ``playlist_file_id`` (an uploaded local ``.m3u8`` whose segment
+    URIs must themselves be reachable). Everything else is optional tuning; the
+    network knobs (``user_agent`` / ``referer`` / ``headers``) cover anti-hotlink
+    streams, ``duration_limit_sec`` bounds otherwise-endless live captures, and
+    ``mode=transcode`` re-encodes when a stream's codecs aren't MP4-friendly.
+    """
+
+    url: str | None = Field(
+        default=None, description="HLS 播放列表 URL（http/https），点播或直播均可"
+    )
+    playlist_file_id: str | None = Field(
+        default=None,
+        description="上传的本地 .m3u8 文件 ID（其分片地址需为可访问的完整 URL）",
+    )
+    mode: M3u8Mode = Field(
+        default="copy",
+        description="copy=快速转封装（不重新编码，最快且无损）；transcode=重新编码为 H.264/AAC（兼容优先）",
+    )
+    output_format: M3u8Container = Field(default="mp4", description="输出容器：mp4 或 mkv")
+    output_name: str | None = Field(
+        default=None, description="输出文件名（不含扩展名），留空则自动命名"
+    )
+    duration_limit_sec: float | None = Field(
+        default=None, gt=0, description="仅抓取前 N 秒；直播流必填，否则会持续录制直至停止"
+    )
+    start_sec: float | None = Field(
+        default=None, ge=0, description="起始偏移（秒），用于裁剪片段"
+    )
+    user_agent: str | None = Field(default=None, description="自定义 User-Agent 请求头")
+    referer: str | None = Field(default=None, description="Referer 请求头，用于绕过防盗链")
+    headers: str | None = Field(
+        default=None, description="附加 HTTP 请求头，每行一个 'Key: Value'"
+    )
+    crf: int = Field(
+        default=20, ge=0, le=51, description="transcode 模式的 x264 画质（越小越清晰，18–23 常用）"
+    )
+    preset: X264Preset = Field(default="veryfast", description="transcode 模式的 x264 编码速度")
+    audio_bitrate: str = Field(default="192k", description="transcode 模式的音频码率")
+
+    @model_validator(mode="after")
+    def validate_source(self) -> "M3u8ToMp4ToolRequest":
+        url = (self.url or "").strip()
+        has_url = bool(url)
+        has_file = bool(self.playlist_file_id)
+        if has_url == has_file:
+            raise ValueError(
+                "Provide exactly one input: an m3u8 URL or an uploaded .m3u8 file."
+            )
+        if has_url:
+            if not url.lower().startswith(("http://", "https://")):
+                raise ValueError("URL must start with http:// or https://")
+            self.url = url
+        else:
+            self.url = None
+        return self

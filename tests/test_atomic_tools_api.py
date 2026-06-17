@@ -65,6 +65,7 @@ def test_atomic_tools_api_supports_upload_run_status_and_artifacts(tmp_path: Pat
         "subtitle-detect",
         "subtitle-erase",
         "video-analyze",
+        "m3u8-to-mp4",
     }
 
     upload_response = client.post(

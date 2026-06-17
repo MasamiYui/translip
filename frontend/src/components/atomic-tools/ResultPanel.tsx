@@ -157,6 +157,8 @@ function buildArtifactActions(
     toSubtitleErase: string
     toTranscriptCorrection: string
     toVideoAnalyze: string
+    toProbe: string
+    toSeparation: string
   },
 ) {
   const fileId = artifact.file_id ?? undefined
@@ -254,6 +256,21 @@ function buildArtifactActions(
     return [
       buildArtifactAction(labels.toMuxing, 'muxing', {
         files: { video_file: { file_id: fileId, filename: artifact.filename } },
+      }),
+    ]
+  }
+
+  if (toolId === 'm3u8-to-mp4' && /\.(mp4|mkv)$/i.test(artifact.filename)) {
+    // The converted video drops straight into the downstream dubbing tools.
+    return [
+      buildArtifactAction(labels.toProbe, 'probe', {
+        files: { file: { file_id: fileId, filename: artifact.filename } },
+      }),
+      buildArtifactAction(labels.toTranscription, 'transcription', {
+        files: { file: { file_id: fileId, filename: artifact.filename } },
+      }),
+      buildArtifactAction(labels.toSeparation, 'separation', {
+        files: { file: { file_id: fileId, filename: artifact.filename } },
       }),
     ]
   }

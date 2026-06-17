@@ -130,6 +130,13 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     (params.backend === 'moss-tts-nano-onnx' || params.backend === 'voxcpm2') &&
     !fileRefs.reference_audio_file?.file_id
 
+  // m3u8 needs exactly one source: a URL (url mode) or an uploaded playlist (file mode).
+  const m3u8NeedsSource =
+    toolId === 'm3u8-to-mp4' &&
+    (String(params.source_type ?? 'url') === 'file'
+      ? !fileRefs.playlist_file?.file_id
+      : !String(params.url ?? '').trim())
+
   function handleReset() {
     setFileRefs({})
     setTextInput('')
@@ -167,7 +174,7 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
       {/* Inputs + controls — single centered column */}
       <section className="space-y-4">
         <div className={uploadGridClass}>
-          {renderUploadZones(toolId, fileRefs, handleFileSelected, t.atomicTools.uploadHints)}
+          {renderUploadZones(toolId, fileRefs, handleFileSelected, t.atomicTools.uploadHints, params)}
         </div>
 
         <div className="rounded-xl border border-[#e5e7eb] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,.04)]">
@@ -189,13 +196,16 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
           <button
             type="button"
             onClick={() => void handleRun()}
-            disabled={isRunning || ttsNeedsReference}
+            disabled={isRunning || ttsNeedsReference || m3u8NeedsSource}
             className="rounded-lg bg-[#3b5bdb] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7] hover:shadow-[0_4px_12px_rgba(59,91,219,.3)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isRunning ? t.atomicTools.actions.running : t.atomicTools.actions.run}
           </button>
           {ttsNeedsReference && (
             <span className="text-sm font-medium text-amber-600">{t.atomicTools.fields.ttsReferenceRequiredHint}</span>
+          )}
+          {m3u8NeedsSource && (
+            <span className="text-sm font-medium text-amber-600">{t.atomicTools.fields.m3u8SourceRequiredHint}</span>
           )}
           {errorMessage && <span className="text-sm font-medium text-red-500">{errorMessage}</span>}
         </div>
@@ -220,6 +230,7 @@ function renderUploadZones(
   fileRefs: FileRefMap,
   onFileSelected: (slot: string, file: File) => Promise<void>,
   hints: Record<string, string>,
+  params: ToolParams,
 ) {
   if (toolId === 'mixing') {
     return (
@@ -363,6 +374,21 @@ function renderUploadZones(
           onFileSelected={file => onFileSelected('ocr_events_file', file)}
         />
       </>
+    )
+  }
+
+  if (toolId === 'm3u8-to-mp4') {
+    // URL is the primary input (rendered in the controls); the upload zone only
+    // appears when the user switches the source toggle to a local file.
+    if (String(params.source_type ?? 'url') !== 'file') return null
+    return (
+      <FileUploadZone
+        label={hints.m3u8FileLabel}
+        hint={hints.m3u8FileHint}
+        accept=".m3u8"
+        value={fileRefs.playlist_file ?? null}
+        onFileSelected={file => onFileSelected('playlist_file', file)}
+      />
     )
   }
 
@@ -801,6 +827,131 @@ function renderControls(
     )
   }
 
+  if (toolId === 'm3u8-to-mp4') {
+    const sourceType = String(params.source_type ?? 'url')
+    const mode = String(params.mode ?? 'copy')
+    return (
+      <div className="space-y-4">
+        <div className="inline-flex rounded-full border border-slate-200 p-1">
+          {(['url', 'file'] as const).map(option => (
+            <button
+              key={option}
+              type="button"
+              onClick={() => setField('source_type', option)}
+              className={`rounded-full px-3 py-1.5 text-sm ${sourceType === option ? 'bg-slate-900 text-white' : 'text-slate-500'}`}
+            >
+              {atomicTools.options.m3u8Source[option]}
+            </button>
+          ))}
+        </div>
+
+        {sourceType === 'url' && (
+          <TextField
+            label={atomicTools.fields.m3u8Url}
+            hint={atomicTools.hints.m3u8Url}
+            hintAriaLabel={atomicTools.hints.termHintAria}
+            value={String(params.url ?? '')}
+            onChange={value => setField('url', value)}
+          />
+        )}
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <SelectField
+            label={atomicTools.fields.m3u8Mode}
+            hint={atomicTools.hints.m3u8Mode}
+            hintAriaLabel={atomicTools.hints.termHintAria}
+            value={mode}
+            options={(['copy', 'transcode'] as const).map(value => ({ value, label: atomicTools.options.m3u8Mode[value] }))}
+            onChange={value => setField('mode', value)}
+          />
+          <SelectField
+            label={atomicTools.fields.outputFormat}
+            value={String(params.output_format ?? 'mp4')}
+            options={['mp4', 'mkv']}
+            onChange={value => setField('output_format', value)}
+          />
+        </div>
+
+        <p className="text-xs leading-5 text-slate-500">{atomicTools.hints.m3u8Live}</p>
+
+        <details className="group rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-lg px-1 py-0.5 text-sm font-medium text-slate-700 transition-colors hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300">
+            <span className="flex items-center gap-2">
+              <span
+                aria-hidden="true"
+                className="inline-flex h-4 w-4 items-center justify-center text-slate-400 transition-transform group-open:rotate-90"
+              >
+                ▶
+              </span>
+              {atomicTools.fields.advanced}
+            </span>
+            <span className="hidden text-xs font-normal text-slate-400 sm:inline">
+              {atomicTools.fields.advancedHint}
+            </span>
+          </summary>
+          <div className="mt-3 grid gap-4 md:grid-cols-2">
+            <TextField
+              label={atomicTools.fields.durationLimit}
+              type="number"
+              value={String(params.duration_limit_sec ?? '')}
+              onChange={value => setField('duration_limit_sec', value === '' ? '' : Number(value))}
+            />
+            <TextField
+              label={atomicTools.fields.startOffset}
+              type="number"
+              value={String(params.start_sec ?? '')}
+              onChange={value => setField('start_sec', value === '' ? '' : Number(value))}
+            />
+            <TextField
+              label={atomicTools.fields.userAgent}
+              value={String(params.user_agent ?? '')}
+              onChange={value => setField('user_agent', value)}
+            />
+            <TextField
+              label={atomicTools.fields.referer}
+              value={String(params.referer ?? '')}
+              onChange={value => setField('referer', value)}
+            />
+            <TextField
+              label={atomicTools.fields.outputName}
+              value={String(params.output_name ?? '')}
+              onChange={value => setField('output_name', value)}
+            />
+          </div>
+          <div className="mt-4">
+            <TextAreaField
+              label={atomicTools.fields.httpHeaders}
+              value={String(params.headers ?? '')}
+              onChange={value => setField('headers', value)}
+            />
+            <p className="mt-1.5 text-xs leading-5 text-slate-500">{atomicTools.hints.m3u8Headers}</p>
+          </div>
+          {mode === 'transcode' && (
+            <div className="mt-4 grid gap-4 md:grid-cols-3">
+              <TextField
+                label={atomicTools.fields.crf}
+                type="number"
+                value={String(params.crf ?? 20)}
+                onChange={value => setField('crf', value === '' ? '' : Number(value))}
+              />
+              <SelectField
+                label={atomicTools.fields.x264Preset}
+                value={String(params.preset ?? 'veryfast')}
+                options={['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow']}
+                onChange={value => setField('preset', value)}
+              />
+              <TextField
+                label={atomicTools.fields.audioBitrate}
+                value={String(params.audio_bitrate ?? '192k')}
+                onChange={value => setField('audio_bitrate', value)}
+              />
+            </div>
+          )}
+        </details>
+      </div>
+    )
+  }
+
   return null
 }
 
@@ -892,6 +1043,24 @@ function buildRunPayload(
     }
   }
 
+  if (toolId === 'm3u8-to-mp4') {
+    const sourceType = String(params.source_type ?? 'url')
+    const cleaned: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(params)) {
+      // source_type is a UI-only toggle; url is re-added below per source mode.
+      if (key === 'source_type' || key === 'url') continue
+      if (value === '' || value === undefined || value === null) continue
+      cleaned[key] = value
+    }
+    if (sourceType === 'file') {
+      cleaned.playlist_file_id = fileRefs.playlist_file?.file_id
+    } else {
+      const url = String(params.url ?? '').trim()
+      if (url) cleaned.url = url
+    }
+    return cleaned
+  }
+
   return params
 }
 
@@ -980,6 +1149,17 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
       break
     case 'transcript-correction':
       params = { preset: 'standard', llm_arbitration: 'off' }
+      break
+    case 'm3u8-to-mp4':
+      params = {
+        source_type: 'url',
+        url: '',
+        mode: 'copy',
+        output_format: 'mp4',
+        crf: 20,
+        preset: 'veryfast',
+        audio_bitrate: '192k',
+      }
       break
     default:
       params = {}
