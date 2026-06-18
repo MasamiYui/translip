@@ -1,66 +1,27 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   AlertCircle,
-  AudioLines,
-  BookOpen,
-  BookUser,
-  Braces,
-  Captions,
   ChevronDown,
-  Clapperboard,
-  Eraser,
-  Gauge,
-  Languages,
-  LayoutDashboard,
-  ListChecks,
-  MessageSquareText,
-  Mic,
   Monitor,
   MoreHorizontal,
-  Music,
   PanelLeft,
   PanelTop,
-  PlusCircle,
-  ScanSearch,
-  ScanText,
-  Settings,
-  Wrench,
   Zap,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useI18n } from '../../i18n/useI18n'
-import { atomicToolsApi } from '../../api/atomic-tools'
 import { systemApi } from '../../api/config'
-import { collapseSubtitleOutputTools, getToolDisplayName } from '../../lib/atomicToolsDisplay'
 import { shortDeviceLabel } from './deviceLabel'
 import { LanguageToggle } from './LanguageToggle'
-import type { ToolInfo } from '../../types/atomic-tools'
+import {
+  useNavConfig,
+  type NavSimpleItem,
+  type NavSubItem,
+} from './navConfig'
 import type { LayoutMode } from './MainLayout'
-
-const TOOL_ICON_MAP: Record<string, LucideIcon> = {
-  AudioLines,
-  Captions,
-  Clapperboard,
-  Eraser,
-  Languages,
-  MessageSquareText,
-  Mic,
-  Music,
-  ScanSearch,
-  ScanText,
-}
-
-function resolveToolIcon(name: string): LucideIcon {
-  return TOOL_ICON_MAP[name] ?? Wrench
-}
-
-function normalizePathname(pathname: string) {
-  if (pathname === '/') return pathname
-  return pathname.replace(/\/+$/, '')
-}
 
 function TranslipVoiceStemsLogo() {
   return (
@@ -98,18 +59,11 @@ function topItemClass(active: boolean) {
   )
 }
 
-interface DropdownItem {
-  to: string
-  label: string
-  icon: LucideIcon
-  isActive: boolean
-}
-
 interface TopDropdownProps {
   label: string
   icon: LucideIcon
   active: boolean
-  items: DropdownItem[]
+  items: NavSubItem[]
   ariaLabel?: string
   renderTrigger?: 'label' | 'icon-only'
 }
@@ -216,8 +170,8 @@ function TopDropdown({ label, icon: Icon, active, items, ariaLabel, renderTrigge
 }
 
 type NavSlot =
-  | { kind: 'link'; key: string; to: string; label: string; icon: LucideIcon; isActive: boolean; testId?: string }
-  | { kind: 'dropdown'; key: string; label: string; icon: LucideIcon; active: boolean; items: DropdownItem[] }
+  | { kind: 'link'; key: string; to: string; label: string; icon: LucideIcon; isActive: boolean; testId?: string; external?: boolean }
+  | { kind: 'dropdown'; key: string; label: string; icon: LucideIcon; active: boolean; items: NavSubItem[] }
 
 interface MoreMenuProps {
   label: string
@@ -306,7 +260,26 @@ function MoreMenu({ label, slots }: MoreMenuProps) {
           <div className="min-w-[220px] max-h-[70vh] overflow-y-auto rounded-lg border border-[#e5e7eb] bg-white p-1 shadow-lg">
             {slots.map((slot) => {
               if (slot.kind === 'link') {
-                const { to, label: itemLabel, icon: ItemIcon, isActive } = slot
+                const { to, label: itemLabel, icon: ItemIcon, isActive, external } = slot
+                if (external) {
+                  return (
+                    <a
+                      key={slot.key}
+                      href={to}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      role="menuitem"
+                      onClick={() => setOpen(false)}
+                      className={cn(
+                        'flex items-center gap-2 rounded-md px-2.5 py-1.5 text-[12.5px] font-medium transition-colors',
+                        'text-[#4b5563] hover:bg-[#f3f4f6] hover:text-[#111827]',
+                      )}
+                    >
+                      <ItemIcon size={13} className="shrink-0" />
+                      <span className="truncate">{itemLabel}</span>
+                    </a>
+                  )
+                }
                 return (
                   <Link
                     key={slot.key}
@@ -367,24 +340,35 @@ interface TopNavProps {
   onToggleLayoutMode?: () => void
 }
 
-export function TopNav({ height = 60, layoutMode = 'top', onToggleLayoutMode }: TopNavProps = {}) {
-  const { t, locale } = useI18n()
-  const { pathname } = useLocation()
-  const currentPath = normalizePathname(pathname)
-  const isNewTaskRoute = currentPath === '/tasks/new' || currentPath.startsWith('/tasks/new/')
-  const isPipelineTaskRoute =
-    currentPath === '/tasks' || (currentPath.startsWith('/tasks/') && !isNewTaskRoute)
-  const isAtomicJobsRoute = currentPath === '/tools/jobs' || currentPath.startsWith('/tools/jobs/')
-  const isTaskCenterRoute = isPipelineTaskRoute || isNewTaskRoute || isAtomicJobsRoute
-  const isToolsRoute =
-    currentPath === '/tools' || (currentPath.startsWith('/tools/') && !isAtomicJobsRoute)
+const TOPNAV_TEST_ID_KEYS = new Set([
+  'works-library',
+  'character-library',
+  'evaluation',
+  'blog',
+  'api-docs',
+  'lab',
+])
 
-  const toolLabels = t.atomicTools.tools as Record<string, string | undefined>
-  const { data: tools } = useQuery({
-    queryKey: ['atomic-tools'],
-    queryFn: atomicToolsApi.listTools,
-    staleTime: 30_000,
-  })
+function resolveTopNavTestId(key: string): string | undefined {
+  return TOPNAV_TEST_ID_KEYS.has(key) ? `topnav-link-${key}` : undefined
+}
+
+function simpleItemToSlot(item: NavSimpleItem): NavSlot {
+  return {
+    kind: 'link',
+    key: item.key,
+    to: item.to,
+    label: item.label,
+    icon: item.icon,
+    isActive: item.isActive,
+    testId: resolveTopNavTestId(item.key),
+    external: item.external,
+  }
+}
+
+export function TopNav({ height = 60, layoutMode = 'top', onToggleLayoutMode }: TopNavProps = {}) {
+  const { t } = useI18n()
+  const nav = useNavConfig()
   const { data: sysInfo } = useQuery({
     queryKey: ['system-info'],
     queryFn: systemApi.getInfo,
@@ -392,154 +376,35 @@ export function TopNav({ height = 60, layoutMode = 'top', onToggleLayoutMode }: 
     retry: 1,
   })
 
-  const toolNavItems: DropdownItem[] = collapseSubtitleOutputTools(tools ?? []).map((tool: ToolInfo) => {
-    const isSubtitleOutput = tool.tool_id === 'subtitle-burn' || tool.tool_id === 'subtitle-embed'
-    const label = isSubtitleOutput
-      ? getToolDisplayName(tool, locale, t.atomicTools)
-      : toolLabels[tool.tool_id] ?? (locale === 'zh-CN' ? tool.name_zh : tool.name_en)
-    const isActive = isSubtitleOutput
-      ? currentPath === '/tools/subtitle-burn' || currentPath === '/tools/subtitle-embed'
-      : currentPath === `/tools/${tool.tool_id}`
-    return {
-      to: `/tools/${tool.tool_id}`,
-      label,
-      icon: resolveToolIcon(tool.icon),
-      isActive,
-    }
-  })
-
-  const taskCenterItems: DropdownItem[] = [
-    {
-      to: '/tasks',
-      label: t.nav.pipelineTasks,
-      icon: ListChecks,
-      isActive: isPipelineTaskRoute,
-    },
-    {
-      to: '/tools/jobs',
-      label: t.nav.atomicTasks,
-      icon: ListChecks,
-      isActive: isAtomicJobsRoute,
-    },
-    {
-      to: '/tasks/new',
-      label: t.nav.newPipelineTask,
-      icon: PlusCircle,
-      isActive: isNewTaskRoute,
-    },
-  ]
-
-  const toolItems: DropdownItem[] = [
-    {
-      to: '/tools',
-      label: t.atomicJobs.library,
-      icon: Wrench,
-      isActive: currentPath === '/tools',
-    },
-    ...toolNavItems,
-  ]
-
-  const simpleItems = [
-    {
-      to: '/',
-      label: t.nav.dashboard,
-      icon: LayoutDashboard,
-      isActive: currentPath === '/',
-    },
-    {
-      to: '/works',
-      label: t.nav.worksLibrary,
-      icon: Clapperboard,
-      isActive: currentPath === '/works',
-      testId: 'topnav-link-works-library',
-    },
-    {
-      to: '/character-library',
-      label: t.nav.characterLibrary,
-      icon: BookUser,
-      isActive: currentPath === '/character-library',
-      testId: 'topnav-link-character-library',
-    },
-    {
-      to: '/evaluation',
-      label: t.nav.evaluation,
-      icon: Gauge,
-      isActive: currentPath === '/evaluation' || currentPath.startsWith('/evaluation/'),
-      testId: 'topnav-link-evaluation',
-    },
-    {
-      to: '/blog',
-      label: t.nav.blog,
-      icon: BookOpen,
-      isActive: currentPath === '/blog' || currentPath.startsWith('/blog/'),
-      testId: 'topnav-link-blog',
-    },
-    {
-      to: '/api-docs',
-      label: t.nav.apiDocs,
-      icon: Braces,
-      isActive: currentPath === '/api-docs',
-      testId: 'topnav-link-api-docs',
-    },
-    {
-      to: '/settings',
-      label: t.nav.settings,
-      icon: Settings,
-      isActive: currentPath === '/settings',
-    },
-  ] as const
-
   // Unified ordered nav-slot list driving both inline rendering and overflow.
   const slots: NavSlot[] = useMemo(() => {
-    const list: NavSlot[] = []
-    list.push({
-      kind: 'link',
-      key: 'dashboard',
-      to: simpleItems[0].to,
-      label: simpleItems[0].label,
-      icon: simpleItems[0].icon,
-      isActive: simpleItems[0].isActive,
-    })
-    list.push({
-      kind: 'dropdown',
-      key: 'task-center',
-      label: t.nav.taskCenter,
-      icon: ListChecks,
-      active: isTaskCenterRoute,
-      items: taskCenterItems,
-    })
-    list.push({
-      kind: 'dropdown',
-      key: 'tools',
-      label: t.atomicTools.title,
-      icon: Wrench,
-      active: isToolsRoute,
-      items: toolItems,
-    })
-    simpleItems.slice(1).forEach((it) => {
-      list.push({
-        kind: 'link',
-        key: it.to,
-        to: it.to,
-        label: it.label,
-        icon: it.icon,
-        isActive: it.isActive,
-        testId: 'testId' in it ? (it as { testId?: string }).testId : undefined,
-      })
-    })
-    return list
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    currentPath,
-    locale,
-    isTaskCenterRoute,
-    isToolsRoute,
-    isPipelineTaskRoute,
-    isAtomicJobsRoute,
-    isNewTaskRoute,
-    tools,
-    t,
-  ])
+    return [
+      simpleItemToSlot(nav.dashboard),
+      {
+        kind: 'dropdown',
+        key: 'task-center',
+        label: nav.taskCenter.label,
+        icon: nav.taskCenter.icon,
+        active: nav.taskCenter.isActive,
+        items: nav.taskCenter.items,
+      },
+      {
+        kind: 'dropdown',
+        key: 'tools',
+        label: nav.tools.label,
+        icon: nav.tools.icon,
+        active: nav.tools.isActive,
+        items: nav.tools.items,
+      },
+      simpleItemToSlot(nav.worksLibrary),
+      simpleItemToSlot(nav.characterLibrary),
+      simpleItemToSlot(nav.evaluation),
+      simpleItemToSlot(nav.blog),
+      simpleItemToSlot(nav.apiDocs),
+      simpleItemToSlot(nav.lab),
+      simpleItemToSlot(nav.settings),
+    ]
+  }, [nav])
 
   // Overflow detection: measure inline-slot widths via a hidden mirror row,
   // then compute how many fit in the live container, reserving space for More.
@@ -587,7 +452,22 @@ export function TopNav({ height = 60, layoutMode = 'top', onToggleLayoutMode }: 
 
   function renderSlot(slot: NavSlot, keySuffix = '') {
     if (slot.kind === 'link') {
-      const { to, label, icon: Icon, isActive, testId } = slot
+      const { to, label, icon: Icon, isActive, testId, external } = slot
+      if (external) {
+        return (
+          <a
+            key={slot.key + keySuffix}
+            href={to}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid={testId}
+            className={topItemClass(false)}
+          >
+            <Icon size={15} className="shrink-0" />
+            <span>{label}</span>
+          </a>
+        )
+      }
       return (
         <Link
           key={slot.key + keySuffix}
