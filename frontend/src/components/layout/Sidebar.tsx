@@ -33,6 +33,7 @@ import {
 import { cn } from '../../lib/utils'
 import { useI18n } from '../../i18n/useI18n'
 import { atomicToolsApi } from '../../api/atomic-tools'
+import { collapseSubtitleOutputTools, getToolDisplayName } from '../../lib/atomicToolsDisplay'
 import type { ToolInfo } from '../../types/atomic-tools'
 
 // The evaluation lab is a separate, loosely-coupled service on its own port; the
@@ -173,11 +174,17 @@ export function Sidebar({ collapsed: collapsedProp = false, onToggle, mobileDraw
     staleTime: 30_000,
   })
 
-  const toolNavItems = (tools ?? []).map((tool: ToolInfo) => ({
-    to: `/tools/${tool.tool_id}`,
-    label: toolLabels[tool.tool_id] ?? (locale === 'zh-CN' ? tool.name_zh : tool.name_en),
-    icon: resolveToolIcon(tool.icon),
-  }))
+  const toolNavItems = collapseSubtitleOutputTools(tools ?? []).map((tool: ToolInfo) => {
+    const isSubtitleOutput = tool.tool_id === 'subtitle-burn' || tool.tool_id === 'subtitle-embed'
+    const label = isSubtitleOutput
+      ? getToolDisplayName(tool, locale, t.atomicTools)
+      : toolLabels[tool.tool_id] ?? (locale === 'zh-CN' ? tool.name_zh : tool.name_en)
+    return {
+      to: `/tools/${tool.tool_id}`,
+      label,
+      icon: resolveToolIcon(tool.icon),
+    }
+  })
 
   const asideWidth = mobileDrawer ? 'w-[260px]' : collapsedProp ? 'w-[60px]' : 'w-[220px]'
   const collapsed = mobileDrawer ? false : collapsedProp

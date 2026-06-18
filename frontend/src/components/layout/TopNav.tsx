@@ -34,6 +34,7 @@ import { cn } from '../../lib/utils'
 import { useI18n } from '../../i18n/useI18n'
 import { atomicToolsApi } from '../../api/atomic-tools'
 import { systemApi } from '../../api/config'
+import { collapseSubtitleOutputTools, getToolDisplayName } from '../../lib/atomicToolsDisplay'
 import { shortDeviceLabel } from './deviceLabel'
 import { LanguageToggle } from './LanguageToggle'
 import type { ToolInfo } from '../../types/atomic-tools'
@@ -391,12 +392,21 @@ export function TopNav({ height = 60, layoutMode = 'top', onToggleLayoutMode }: 
     retry: 1,
   })
 
-  const toolNavItems: DropdownItem[] = (tools ?? []).map((tool: ToolInfo) => ({
-    to: `/tools/${tool.tool_id}`,
-    label: toolLabels[tool.tool_id] ?? (locale === 'zh-CN' ? tool.name_zh : tool.name_en),
-    icon: resolveToolIcon(tool.icon),
-    isActive: currentPath === `/tools/${tool.tool_id}`,
-  }))
+  const toolNavItems: DropdownItem[] = collapseSubtitleOutputTools(tools ?? []).map((tool: ToolInfo) => {
+    const isSubtitleOutput = tool.tool_id === 'subtitle-burn' || tool.tool_id === 'subtitle-embed'
+    const label = isSubtitleOutput
+      ? getToolDisplayName(tool, locale, t.atomicTools)
+      : toolLabels[tool.tool_id] ?? (locale === 'zh-CN' ? tool.name_zh : tool.name_en)
+    const isActive = isSubtitleOutput
+      ? currentPath === '/tools/subtitle-burn' || currentPath === '/tools/subtitle-embed'
+      : currentPath === `/tools/${tool.tool_id}`
+    return {
+      to: `/tools/${tool.tool_id}`,
+      label,
+      icon: resolveToolIcon(tool.icon),
+      isActive,
+    }
+  })
 
   const taskCenterItems: DropdownItem[] = [
     {

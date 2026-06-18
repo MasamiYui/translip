@@ -12,6 +12,7 @@ import { useAtomicTool } from '../hooks/useAtomicTool'
 import { useI18n } from '../i18n/useI18n'
 import type { Locale, LocaleMessages } from '../i18n/messages'
 import { readAtomicToolPrefill, type AtomicToolPrefill } from '../lib/atomicToolPrefill'
+import { getToolDisplayDescription, getToolDisplayName } from '../lib/atomicToolsDisplay'
 import type { TaskConfig } from '../types'
 import type { FileUploadResponse } from '../types/atomic-tools'
 import { DUBBING_BACKEND_OPTIONS } from '../lib/dubbingBackends'
@@ -102,12 +103,8 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     )
   }
 
-  const title = isSubtitleOutputTool
-    ? subtitleOutputCopy.cardTitle
-    : locale === 'zh-CN' ? tool.name_zh : tool.name_en
-  const description = isSubtitleOutputTool
-    ? subtitleOutputCopy.cardDescription
-    : locale === 'zh-CN' ? tool.description_zh : tool.description_en
+  const title = getToolDisplayName(tool, locale, t.atomicTools)
+  const description = getToolDisplayDescription(tool, locale, t.atomicTools)
   const uploadGridClass =
     toolId === 'mixing' ||
     toolId === 'muxing' ||

@@ -3,6 +3,11 @@ import { atomicToolsApi } from '../api/atomic-tools'
 import { ToolCard } from '../components/atomic-tools/ToolCard'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { useI18n } from '../i18n/useI18n'
+import {
+  collapseSubtitleOutputTools,
+  getToolDisplayDescription,
+  getToolDisplayName,
+} from '../lib/atomicToolsDisplay'
 
 const CATEGORY_ORDER = ['audio', 'speech', 'video'] as const
 
@@ -14,8 +19,7 @@ export function ToolListPage() {
     staleTime: 30_000,
   })
 
-  const subtitleOutput = t.atomicTools.subtitleOutput
-  const visibleTools = tools.filter(tool => tool.tool_id !== 'subtitle-embed')
+  const visibleTools = collapseSubtitleOutputTools(tools)
 
   const toolsByCategory = CATEGORY_ORDER.map(category => ({
     category,
@@ -46,28 +50,15 @@ export function ToolListPage() {
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {group.tools.map(tool => {
-              const isSubtitleOutput = tool.tool_id === 'subtitle-burn'
-              const title = isSubtitleOutput
-                ? subtitleOutput.cardTitle
-                : locale === 'zh-CN'
-                  ? tool.name_zh
-                  : tool.name_en
-              const description = isSubtitleOutput
-                ? subtitleOutput.cardDescription
-                : locale === 'zh-CN'
-                  ? tool.description_zh
-                  : tool.description_en
-              return (
-                <ToolCard
-                  key={tool.tool_id}
-                  tool={tool}
-                  title={title}
-                  description={description}
-                  categoryLabel={t.atomicTools.categories[tool.category]}
-                />
-              )
-            })}
+            {group.tools.map(tool => (
+              <ToolCard
+                key={tool.tool_id}
+                tool={tool}
+                title={getToolDisplayName(tool, locale, t.atomicTools)}
+                description={getToolDisplayDescription(tool, locale, t.atomicTools)}
+                categoryLabel={t.atomicTools.categories[tool.category]}
+              />
+            ))}
           </div>
         </section>
       ))}
