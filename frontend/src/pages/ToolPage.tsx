@@ -7,6 +7,7 @@ import { configApi } from '../api/config'
 import { FileUploadZone } from '../components/atomic-tools/FileUploadZone'
 import { ResultPanel } from '../components/atomic-tools/ResultPanel'
 import { ToolProgressBar } from '../components/atomic-tools/ToolProgressBar'
+import { WatermarkPreview } from '../components/atomic-tools/WatermarkPreview'
 import { PageContainer } from '../components/layout/PageContainer'
 import { useAtomicTool } from '../hooks/useAtomicTool'
 import { useI18n } from '../i18n/useI18n'
@@ -77,6 +78,8 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     ...(prefill?.params ?? {}),
   }))
   const [originalVideoUrl, setOriginalVideoUrl] = useState<string | null>(null)
+  const [watermarkVideoUrl, setWatermarkVideoUrl] = useState<string | null>(null)
+  const [watermarkImageUrl, setWatermarkImageUrl] = useState<string | null>(null)
 
   // Fold saved transcription defaults into the params when they load. Tracked by
   // reference (react-query keeps it stable across identical refetches) and applied
@@ -92,6 +95,18 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
       if (originalVideoUrl) URL.revokeObjectURL(originalVideoUrl)
     }
   }, [originalVideoUrl])
+
+  useEffect(() => {
+    return () => {
+      if (watermarkVideoUrl) URL.revokeObjectURL(watermarkVideoUrl)
+    }
+  }, [watermarkVideoUrl])
+
+  useEffect(() => {
+    return () => {
+      if (watermarkImageUrl) URL.revokeObjectURL(watermarkImageUrl)
+    }
+  }, [watermarkImageUrl])
 
   if (!tool) {
     return (
@@ -111,13 +126,26 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     toolId === 'transcript-correction' ||
     toolId === 'subtitle-burn' ||
     toolId === 'subtitle-embed' ||
-    toolId === 'dub-render'
+    toolId === 'dub-render' ||
+    (toolId === 'watermark' && String(params.mode ?? 'image') === 'image')
       ? 'grid gap-4 md:grid-cols-2'
       : 'grid gap-4'
 
   async function handleFileSelected(slot: string, file: File) {
     if (toolId === 'subtitle-erase' && slot === 'file' && file.type.startsWith('video/')) {
       setOriginalVideoUrl(prev => {
+        if (prev) URL.revokeObjectURL(prev)
+        return URL.createObjectURL(file)
+      })
+    }
+    if (toolId === 'watermark' && slot === 'video_file' && file.type.startsWith('video/')) {
+      setWatermarkVideoUrl(prev => {
+        if (prev) URL.revokeObjectURL(prev)
+        return URL.createObjectURL(file)
+      })
+    }
+    if (toolId === 'watermark' && slot === 'image_file' && file.type.startsWith('image/')) {
+      setWatermarkImageUrl(prev => {
         if (prev) URL.revokeObjectURL(prev)
         return URL.createObjectURL(file)
       })
@@ -153,6 +181,14 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     setTranslationInputMode('text')
     setParams(getDefaultParams(toolId, globalDefaults))
     setOriginalVideoUrl(prev => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+    setWatermarkVideoUrl(prev => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+    setWatermarkImageUrl(prev => {
       if (prev) URL.revokeObjectURL(prev)
       return null
     })
@@ -223,6 +259,39 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
         )}
 
         <div className="rounded-xl border border-[#e5e7eb] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,.04)]">
+          {toolId === 'watermark' && (
+            <div className="mb-4">
+              <WatermarkPreview
+                videoUrl={watermarkVideoUrl}
+                imageUrl={watermarkImageUrl}
+                mode={(String(params.mode ?? 'image') === 'text' ? 'text' : 'image') as 'image' | 'text'}
+                position={(String(params.position ?? 'bottom-right')) as
+                  | 'top-left'
+                  | 'top-right'
+                  | 'bottom-left'
+                  | 'bottom-right'
+                  | 'center'}
+                margin={Number(params.margin ?? 24)}
+                opacity={Number(params.opacity ?? 0.8)}
+                scale={Number(params.scale ?? 0.15)}
+                text={String(params.text ?? '')}
+                fontSize={Number(params.font_size ?? 36)}
+                fontColor={String(params.font_color ?? 'white')}
+                strokeColor={String(params.stroke_color ?? 'black')}
+                strokeOpacity={Number(params.stroke_opacity ?? 0.6)}
+                strokeWidth={Number(params.stroke_width ?? 2)}
+                copy={{
+                  title: t.atomicTools.watermarkPreview.title,
+                  uploadVideoFirst: t.atomicTools.watermarkPreview.uploadVideoFirst,
+                  imagePlaceholder: t.atomicTools.watermarkPreview.imagePlaceholder,
+                  textPlaceholder: t.atomicTools.watermarkPreview.textPlaceholder,
+                  unsupportedVideo: t.atomicTools.watermarkPreview.unsupportedVideo,
+                  fontHint: t.atomicTools.watermarkPreview.fontHint,
+                  resolutionLabel: t.atomicTools.watermarkPreview.resolutionLabel,
+                }}
+              />
+            </div>
+          )}
           {renderControls(
             toolId,
             params,
@@ -434,6 +503,30 @@ function renderUploadZones(
           value={fileRefs.subtitle_file ?? null}
           onFileSelected={file => onFileSelected('subtitle_file', file)}
         />
+      </>
+    )
+  }
+
+  if (toolId === 'watermark') {
+    const isImageMode = String(params.mode ?? 'image') === 'image'
+    return (
+      <>
+        <FileUploadZone
+          label={hints.videoLabel}
+          hint={hints.videoHint}
+          accept=".mp4,.mkv,.mov,.avi"
+          value={fileRefs.video_file ?? null}
+          onFileSelected={file => onFileSelected('video_file', file)}
+        />
+        {isImageMode && (
+          <FileUploadZone
+            label={hints.watermarkImageLabel}
+            hint={hints.watermarkImageHint}
+            accept=".png,.jpg,.jpeg,.webp"
+            value={fileRefs.image_file ?? null}
+            onFileSelected={file => onFileSelected('image_file', file)}
+          />
+        )}
       </>
     )
   }
@@ -757,6 +850,132 @@ function renderControls(
           value={String(params.subtitle_language ?? 'und')}
           onChange={value => setField('subtitle_language', value)}
         />
+      </div>
+    )
+  }
+
+  if (toolId === 'watermark') {
+    const mode = String(params.mode ?? 'image')
+    const positionOptions = (['bottom-right', 'bottom-left', 'top-right', 'top-left', 'center'] as const).map(value => ({
+      value,
+      label: atomicTools.options.watermarkPosition[value],
+    }))
+    return (
+      <div className="space-y-4">
+        <div>
+          <div className="mb-2 text-sm font-medium text-slate-700">{atomicTools.fields.watermarkMode}</div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {(['image', 'text'] as const).map(option => (
+              <button
+                key={option}
+                type="button"
+                onClick={() =>
+                  // Image watermarks read best slightly translucent; text
+                  // watermarks default to fully opaque. Reset opacity to the
+                  // mode default on switch so the control reflects the mode.
+                  setParams(prev => ({
+                    ...prev,
+                    mode: option,
+                    opacity: option === 'text' ? 1 : 0.8,
+                  }))
+                }
+                className={`rounded-2xl border p-3 text-left transition ${
+                  mode === option
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="text-sm font-semibold text-slate-900">
+                  {atomicTools.options.watermarkMode[option]}
+                </div>
+                <div className="mt-1 text-xs leading-5 text-slate-500">
+                  {atomicTools.hints.watermarkMode[option]}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+        {mode === 'text' && (
+          <TextField
+            label={atomicTools.fields.watermarkText}
+            value={String(params.text ?? '')}
+            onChange={value => setField('text', value)}
+          />
+        )}
+        <div className="grid gap-4 md:grid-cols-3">
+          <SelectField
+            label={atomicTools.fields.watermarkPosition}
+            value={String(params.position ?? 'bottom-right')}
+            options={positionOptions}
+            onChange={value => setField('position', value)}
+          />
+          <TextField
+            label={atomicTools.fields.watermarkMargin}
+            type="number"
+            value={String(params.margin ?? 24)}
+            onChange={value => setField('margin', value === '' ? 0 : Number(value))}
+          />
+          <TextField
+            label={atomicTools.fields.watermarkOpacity}
+            type="number"
+            value={String(params.opacity ?? 0.8)}
+            onChange={value => setField('opacity', value === '' ? 0 : Number(value))}
+          />
+          {mode === 'image' && (
+            <TextField
+              label={atomicTools.fields.watermarkScale}
+              hint={atomicTools.hints.watermarkScale}
+              hintAriaLabel={atomicTools.hints.termHintAria}
+              type="number"
+              value={String(params.scale ?? 0.15)}
+              onChange={value => setField('scale', value === '' ? 0 : Number(value))}
+            />
+          )}
+          {mode === 'text' && (
+            <>
+              <TextField
+                label={atomicTools.fields.watermarkFontSize}
+                type="number"
+                value={String(params.font_size ?? 36)}
+                onChange={value => setField('font_size', value === '' ? 0 : Number(value))}
+              />
+              <SelectField
+                label={atomicTools.fields.watermarkFontColor}
+                value={String(params.font_color ?? 'white')}
+                options={(
+                  ['white', 'black', 'yellow', 'red', 'green', 'blue', 'gray', '#ff6600'] as const
+                ).map(value => ({ value, label: atomicTools.options.watermarkColor[value] }))}
+                onChange={value => setField('font_color', value)}
+              />
+              <SelectField
+                label={atomicTools.fields.watermarkStrokeColor}
+                value={String(params.stroke_color ?? 'black')}
+                options={(
+                  ['white', 'black', 'yellow', 'red', 'green', 'blue', 'gray', '#ff6600'] as const
+                ).map(value => ({ value, label: atomicTools.options.watermarkColor[value] }))}
+                onChange={value => setField('stroke_color', value)}
+              />
+              <TextField
+                label={atomicTools.fields.watermarkStrokeOpacity}
+                type="number"
+                value={String(params.stroke_opacity ?? 0.6)}
+                onChange={value => setField('stroke_opacity', value === '' ? 0 : Number(value))}
+              />
+              <TextField
+                label={atomicTools.fields.watermarkStrokeWidth}
+                type="number"
+                value={String(params.stroke_width ?? 2)}
+                onChange={value => setField('stroke_width', value === '' ? 0 : Number(value))}
+              />
+            </>
+          )}
+          <SelectField
+            label={atomicTools.fields.quality}
+            value={String(params.quality ?? 'balanced')}
+            options={(['balanced', 'high'] as const).map(value => ({ value, label: atomicTools.options.quality[value] }))}
+            onChange={value => setField('quality', value)}
+          />
+        </div>
       </div>
     )
   }
@@ -1250,6 +1469,35 @@ function buildRunPayload(
     }
   }
 
+  if (toolId === 'watermark') {
+    const mode = String(params.mode ?? 'image')
+    const cleaned: Record<string, unknown> = {
+      video_file_id: fileRefs.video_file?.file_id,
+      mode,
+      position: params.position ?? 'bottom-right',
+      margin: params.margin,
+      opacity: params.opacity,
+      quality: params.quality ?? 'balanced',
+    }
+    if (mode === 'image') {
+      cleaned.image_file_id = fileRefs.image_file?.file_id
+      cleaned.scale = params.scale
+    } else {
+      const text = String(params.text ?? '').trim()
+      if (text) cleaned.text = text
+      cleaned.font_size = params.font_size
+      cleaned.font_color = params.font_color
+      const strokeColorRaw = String(params.stroke_color ?? 'black')
+      const strokeOpacity = Number(params.stroke_opacity ?? 0.6)
+      cleaned.stroke_color =
+        Number.isFinite(strokeOpacity) && strokeOpacity < 1
+          ? `${strokeColorRaw}@${strokeOpacity}`
+          : strokeColorRaw
+      cleaned.stroke_width = params.stroke_width
+    }
+    return cleaned
+  }
+
   if (toolId === 'dub-render') {
     return {
       ...params,
@@ -1374,6 +1622,22 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
       break
     case 'subtitle-embed':
       params = { container: 'mp4', subtitle_language: 'und' }
+      break
+    case 'watermark':
+      params = {
+        mode: 'image',
+        position: 'bottom-right',
+        margin: 24,
+        opacity: 0.8,
+        scale: 0.15,
+        quality: 'balanced',
+        text: '',
+        font_size: 36,
+        font_color: 'white',
+        stroke_color: 'black',
+        stroke_opacity: 0.6,
+        stroke_width: 2,
+      }
       break
     case 'video-analyze':
       params = {

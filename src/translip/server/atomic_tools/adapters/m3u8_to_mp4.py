@@ -8,6 +8,11 @@ from typing import Any
 from ....orchestration.subprocess_runner import StageSubprocessError, run_stage_command
 from ....utils.ffmpeg import ffmpeg_binary, ffprobe_binary
 from ..cancellation import cancel_checker
+from ..ffmpeg_progress import (
+    describe_ffmpeg_failure,
+    parse_out_time_seconds,
+    progress_percent,
+)
 from ..registry import ToolSpec, register_tool
 from ..schemas import M3u8ToMp4ToolRequest
 from . import ToolAdapter
@@ -18,21 +23,6 @@ from . import ToolAdapter
 # alongside the http/crypto protocols to resolve its segments and AES keys.
 _REMOTE_PROTOCOLS = "crypto,data,http,https,tcp,tls,httpproxy"
 _LOCAL_PROTOCOLS = "file,crypto,data,http,https,tcp,tls,httpproxy"
-
-# ffmpeg -progress writes one key=value per line; these are the metric keys (as
-# opposed to a real error line) we strip when summarising a failure's log tail.
-_PROGRESS_LINE_PREFIXES = (
-    "frame=",
-    "fps=",
-    "stream_",
-    "bitrate=",
-    "total_size=",
-    "out_time",
-    "dup_frames=",
-    "drop_frames=",
-    "speed=",
-    "progress=",
-)
 
 
 def _format_seconds(value: float) -> str:
@@ -146,49 +136,6 @@ def build_ffprobe_command(
         "json",
         input_arg,
     ]
-
-
-def parse_out_time_seconds(line: str) -> float | None:
-    """Pull elapsed output seconds from an ffmpeg ``out_time_us=`` progress line."""
-    if not line.startswith("out_time_us="):
-        return None
-    value = line.split("=", 1)[1].strip()
-    if not value or value == "N/A":
-        return None
-    try:
-        return int(value) / 1_000_000.0
-    except ValueError:
-        return None
-
-
-def progress_percent(seconds: float, total: float | None) -> float:
-    """Map elapsed output seconds onto the adapter's 10–95% working band.
-
-    With a known total it is linear; for live / unknown-length streams it eases
-    asymptotically toward (but never reaching) 95% so the bar still advances.
-    """
-    if total and total > 0:
-        return 10.0 + 85.0 * min(1.0, seconds / total)
-    return 10.0 + 80.0 * (1.0 - 1.0 / (1.0 + seconds / 30.0))
-
-
-def _describe_ffmpeg_failure(exc: StageSubprocessError) -> str:
-    """Turn the raw subprocess error into something a user can act on.
-
-    StageSubprocessError.__str__ only echoes the command; the real reason (403,
-    404, "Invalid data", unsupported codec…) lives in the captured log tail, so
-    surface that — minus the -progress metric spam — as the job error message.
-    """
-    meaningful = [
-        line
-        for line in (exc.tail or [])
-        if line and not line.startswith(_PROGRESS_LINE_PREFIXES)
-    ]
-    detail = (meaningful or list(exc.tail or []))[-4:]
-    message = "; ".join(detail).strip()
-    if message:
-        return f"ffmpeg failed (exit {exc.returncode}): {message}"
-    return f"ffmpeg failed with exit code {exc.returncode}"
 
 
 def _find_playlist(input_dir: Path) -> Path:
@@ -343,7 +290,7 @@ class M3u8ToMp4Adapter(ToolAdapter):
                 should_cancel=cancel_checker(on_progress),
             )
         except StageSubprocessError as exc:
-            raise RuntimeError(_describe_ffmpeg_failure(exc)) from exc
+            raise RuntimeError(describe_ffmpeg_failure(exc)) from exc
 
         if not output_path.exists() or output_path.stat().st_size == 0:
             raise RuntimeError(

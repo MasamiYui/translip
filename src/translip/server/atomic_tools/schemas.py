@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime
 from typing import Any, Literal
 
@@ -347,4 +348,77 @@ class M3u8ToMp4ToolRequest(BaseModel):
             self.url = url
         else:
             self.url = None
+        return self
+
+
+WatermarkPosition = Literal[
+    "top-left", "top-right", "bottom-left", "bottom-right", "center"
+]
+
+# An ffmpeg color is a name (``white``) or ``#RRGGBB``/``#RRGGBBAA`` hex, each
+# optionally suffixed ``@<opacity>``. We validate the *shape* (not the full name
+# table) so values that would break the filtergraph or smuggle in extra options
+# — anything with ``:``, ``,``, quotes, spaces, brackets — are rejected before
+# they reach the drawtext/overlay filter string.
+_FFMPEG_COLOR_RE = re.compile(
+    r"^(#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?|[A-Za-z]+)(?:@\d*\.?\d+)?$"
+)
+
+
+def _validate_ffmpeg_color(value: str, field: str) -> str:
+    if not _FFMPEG_COLOR_RE.match(value or ""):
+        raise ValueError(
+            f"{field} must be an ffmpeg color name or #hex, optionally with @opacity "
+            f"(e.g. white, #ffcc00, black@0.6); got {value!r}"
+        )
+    return value
+
+
+class WatermarkToolRequest(BaseModel):
+    """Overlay an image or text watermark onto a video and re-encode it.
+
+    Two modes share the same position / opacity controls:
+
+    * ``image``: requires ``image_file_id`` (PNG/JPG, alpha respected). ``scale``
+      sizes the watermark relative to the video width (0.15 = 15% of width).
+    * ``text``:  requires ``text``. ``font_size`` is in pixels; ``font_color`` /
+      ``stroke_color`` accept ffmpeg color spellings (e.g. ``white``, ``#ffcc00``,
+      ``black@0.6``).
+    """
+
+    video_file_id: str = Field(description="待加水印的视频文件 ID")
+    image_file_id: str | None = Field(
+        default=None, description="图片水印的图片文件 ID（mode=image 时必填，建议 PNG）"
+    )
+    mode: Literal["image", "text"] = Field(default="image", description="水印类型")
+    position: WatermarkPosition = Field(
+        default="bottom-right", description="水印位置：四角或居中"
+    )
+    margin: int = Field(default=24, ge=0, description="距离边缘的像素")
+    opacity: float = Field(default=0.8, ge=0.0, le=1.0, description="透明度 0.0–1.0")
+    quality: Literal["balanced", "high"] = Field(
+        default="balanced", description="编码质量：balanced=较快，high=更清晰但更慢"
+    )
+
+    # image-mode only
+    scale: float = Field(
+        default=0.15, gt=0.0, le=1.0, description="图片水印宽度相对视频宽度的比例 (mode=image)"
+    )
+
+    # text-mode only
+    text: str | None = Field(default=None, description="文字水印内容 (mode=text 必填)")
+    font_size: int = Field(default=36, gt=0, description="字号 (mode=text)")
+    font_color: str = Field(default="white", description="文字颜色，如 white / #ffcc00")
+    stroke_color: str = Field(default="black@0.6", description="描边颜色，可带透明度")
+    stroke_width: int = Field(default=2, ge=0, description="描边宽度像素")
+
+    @model_validator(mode="after")
+    def validate_mode_inputs(self) -> "WatermarkToolRequest":
+        if self.mode == "image" and not self.image_file_id:
+            raise ValueError("mode=image requires image_file_id")
+        if self.mode == "text" and not (self.text or "").strip():
+            raise ValueError("mode=text requires non-empty text")
+        if self.mode == "text":
+            _validate_ffmpeg_color(self.font_color, "font_color")
+            _validate_ffmpeg_color(self.stroke_color, "stroke_color")
         return self

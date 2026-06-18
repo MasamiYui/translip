@@ -25,6 +25,7 @@ def test_atomic_tools_registry_exposes_all_tools() -> None:
         "subtitle-embed",
         "video-analyze",
         "m3u8-to-mp4",
+        "watermark",
     }
     assert {tool.category for tool in tools} == {"audio", "speech", "video"}
     m3u8 = next(tool for tool in tools if tool.tool_id == "m3u8-to-mp4")
