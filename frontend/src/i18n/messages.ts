@@ -1925,10 +1925,17 @@ const zhMessages = {
     collapseWidth: '收窄',
     greeting:
       '你好！我是 translip 智能助手。用自然语言告诉我你想做什么，我会把原子能力组合起来帮你完成。',
-    inputPlaceholder: '描述你的需求，例如：把这个视频的日语字幕转成中文…',
+    inputPlaceholder: '描述你的需求，例如：把日语字幕转成中文…',
+    composerHint: 'Enter 发送 · Shift+Enter 换行 · 回形针上传文件',
     send: '发送',
     attach: '添加文件',
     attachedFiles: '已添加文件',
+    howToTitle: '怎么用',
+    howToSteps: [
+      '用一句话描述需求，或点回形针上传文件',
+      '我会编排原子能力，先把调用链路展示给你看',
+      '确认无误后一键执行，完成即可下载产物',
+    ],
     examplesTitle: '试试这些',
     examples: {
       jaSubs: '识别这个视频的日语字幕并转成中文字幕',
@@ -3948,10 +3955,17 @@ const enMessages: LocaleMessages = {
     collapseWidth: 'Narrow panel',
     greeting:
       "Hi! I'm the translip assistant. Tell me what you want in plain language and I'll chain the atomic tools to get it done.",
-    inputPlaceholder: 'Describe your goal, e.g. turn this video’s Japanese subtitles into Chinese…',
+    inputPlaceholder: 'Describe your goal, e.g. turn Japanese subtitles into Chinese…',
+    composerHint: 'Enter to send · Shift+Enter for a new line · paperclip to upload',
     send: 'Send',
     attach: 'Add file',
     attachedFiles: 'Attached files',
+    howToTitle: 'How it works',
+    howToSteps: [
+      'Describe your goal in one sentence, or click the paperclip to upload a file',
+      "I'll orchestrate the atomic tools and show you the call chain first",
+      'Confirm, run with one click, then download the outputs',
+    ],
     examplesTitle: 'Try these',
     examples: {
       jaSubs: 'Detect the Japanese subtitles in this video and translate them to Chinese',

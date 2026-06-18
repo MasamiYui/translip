@@ -388,11 +388,11 @@ export function AssistantWidget() {
         ? 'done'
         : 'idle'
 
-  const categories = [
-    { key: 'subtitle' as const, label: t.assistant.categories.subtitle, items: t.assistant.examplesByCategory.subtitle },
-    { key: 'dubbing' as const, label: t.assistant.categories.dubbing, items: t.assistant.examplesByCategory.dubbing },
-    { key: 'audio' as const, label: t.assistant.categories.audio, items: t.assistant.examplesByCategory.audio },
-    { key: 'video' as const, label: t.assistant.categories.video, items: t.assistant.examplesByCategory.video },
+  const exampleChips = [
+    ...t.assistant.examplesByCategory.subtitle,
+    ...t.assistant.examplesByCategory.dubbing,
+    ...t.assistant.examplesByCategory.audio,
+    ...t.assistant.examplesByCategory.video,
   ]
 
   return (
@@ -489,34 +489,44 @@ export function AssistantWidget() {
                 <div className="space-y-3">
                   <div className="flex gap-2">
                     <RobotMascot state="idle" size={28} className="mt-1 shrink-0" />
-                    <div className="rounded-2xl rounded-tl-sm bg-white px-3 py-2 text-sm text-[#374151] shadow-sm">
+                    <div className="rounded-2xl rounded-tl-sm bg-white px-3 py-2 text-sm leading-relaxed text-[#374151] shadow-sm">
                       {t.assistant.greeting}
                     </div>
                   </div>
-                  <div>
-                    <div className="mb-1.5 flex items-center gap-1 px-1 text-[11px] font-medium text-[#9ca3af]">
-                      <Sparkles size={12} /> {t.assistant.examplesTitle}
+
+                  {/* Quick how-it-works tutorial */}
+                  <div className="rounded-2xl border border-[#e4e9f0] bg-white px-3.5 py-3 shadow-sm">
+                    <div className="mb-2 flex items-center gap-1 text-[11px] font-medium text-[#9ca3af]">
+                      <Sparkles size={12} /> {t.assistant.howToTitle}
                     </div>
-                    <div className="space-y-2.5">
-                      {categories.map(category => (
-                        <div key={category.key}>
-                          <div className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wide text-[#b0b7c3]">
-                            {category.label}
-                          </div>
-                          <div className="flex flex-col gap-1.5">
-                            {category.items.map(example => (
-                              <button
-                                key={example}
-                                type="button"
-                                disabled={keyMissing}
-                                onClick={() => handleSend(example)}
-                                className="rounded-xl border border-[#e4e9f0] bg-white px-3 py-2 text-left text-[13px] text-[#374151] transition-colors hover:border-[#3b5bdb]/50 hover:bg-[#f0f3ff] disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {example}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
+                    <ol className="space-y-1.5">
+                      {t.assistant.howToSteps.map((step, i) => (
+                        <li key={step} className="flex items-start gap-2 text-[13px] leading-relaxed text-[#4b5563]">
+                          <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-[#eef2ff] text-[10px] font-semibold text-[#3b5bdb]">
+                            {i + 1}
+                          </span>
+                          <span>{step}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+
+                  {/* Example prompts as tappable chips */}
+                  <div>
+                    <div className="mb-1.5 px-1 text-[11px] font-medium text-[#9ca3af]">
+                      {t.assistant.examplesTitle}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {exampleChips.map(example => (
+                        <button
+                          key={example}
+                          type="button"
+                          disabled={keyMissing}
+                          onClick={() => handleSend(example)}
+                          className="rounded-full border border-[#e4e9f0] bg-white px-3 py-1.5 text-left text-[12px] text-[#4b5563] transition-colors hover:border-[#3b5bdb]/50 hover:bg-[#f0f3ff] hover:text-[#3b5bdb] disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {example}
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -586,8 +596,8 @@ export function AssistantWidget() {
           )}
 
           {/* Composer */}
-          <div className="border-t border-[#eef1f6] bg-white px-3 py-3">
-            <div className="flex items-end gap-2 rounded-xl border border-[#e4e9f0] bg-white px-2 py-1.5 transition-colors focus-within:border-[#3b5bdb] focus-within:ring-2 focus-within:ring-[#3b5bdb]/10">
+          <div className="border-t border-[#eef1f6] bg-white px-3 py-2.5">
+            <div className="flex items-end gap-1.5 rounded-2xl border border-[#e4e9f0] bg-white py-1.5 pl-1.5 pr-2 transition-colors focus-within:border-[#3b5bdb] focus-within:ring-2 focus-within:ring-[#3b5bdb]/10">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -600,7 +610,7 @@ export function AssistantWidget() {
                 onClick={() => fileInputRef.current?.click()}
                 aria-label={t.assistant.attach}
                 title={t.assistant.attach}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-[#6b7280] transition-colors hover:bg-[#f3f4f6]"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[#6b7280] transition-colors hover:bg-[#f3f4f6] hover:text-[#3b5bdb]"
               >
                 <Paperclip size={18} />
               </button>
@@ -613,10 +623,10 @@ export function AssistantWidget() {
                     handleSend(input)
                   }
                 }}
-                rows={2}
+                rows={1}
                 disabled={keyMissing}
                 placeholder={keyMissing ? t.assistant.needKeyDesc : t.assistant.inputPlaceholder}
-                className="max-h-32 min-h-[52px] flex-1 resize-none border-0 bg-transparent px-1 py-1.5 text-sm leading-relaxed text-[#374151] focus:outline-none disabled:cursor-not-allowed"
+                className="max-h-32 min-h-[36px] flex-1 resize-none self-center border-0 bg-transparent px-1 py-2 text-sm leading-relaxed text-[#374151] focus:outline-none disabled:cursor-not-allowed"
               />
               <button
                 type="button"
@@ -624,11 +634,14 @@ export function AssistantWidget() {
                 disabled={!input.trim() || planMutation.isPending || keyMissing}
                 aria-label={t.assistant.send}
                 title={t.assistant.send}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#3b5bdb] text-white transition-colors hover:bg-[#3451c7] disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#3b5bdb] text-white transition-colors hover:bg-[#3451c7] disabled:cursor-not-allowed disabled:opacity-40"
               >
                 <Send size={16} />
               </button>
             </div>
+            {!keyMissing && (
+              <div className="mt-1 px-1.5 text-[10px] text-[#b0b7c3]">{t.assistant.composerHint}</div>
+            )}
           </div>
         </div>
       )}
