@@ -1276,6 +1276,19 @@ const zhMessages = {
       m3u8FileHint: '上传本地 .m3u8 文件（其中分片地址需为可访问的完整 URL）',
       optionalBadge: '可选',
     },
+    subtitleOutput: {
+      cardTitle: '字幕烧录 / 封装',
+      cardDescription: '把 SRT/ASS 字幕加进视频：硬字幕直接烧录画面，软字幕作为可开关轨道封装，无需重新编码。',
+      modeLabel: '输出模式',
+      modes: {
+        burn: '硬字幕（烧录）',
+        embed: '软字幕（封装）',
+      },
+      modeHints: {
+        burn: '把字幕画到画面像素上，输出 MP4，字幕不可关闭，重新编码视频。',
+        embed: '把字幕作为独立轨道封装，不重新编码画面，播放器可开关/切轨。',
+      },
+    },
     actions: {
       run: '开始处理',
       running: '处理中...',
@@ -3326,6 +3339,19 @@ const enMessages: LocaleMessages = {
       m3u8FileLabel: 'M3U8 Playlist',
       m3u8FileHint: 'Upload a local .m3u8 file (its segment URIs must be reachable absolute URLs)',
       optionalBadge: 'Optional',
+    },
+    subtitleOutput: {
+      cardTitle: 'Burn / Embed Subtitles',
+      cardDescription: 'Add an SRT/ASS subtitle to a video: hardsub burns it into the frame, soft embeds it as a toggleable track without re-encoding.',
+      modeLabel: 'Output Mode',
+      modes: {
+        burn: 'Hardsub (Burn)',
+        embed: 'Soft (Embed)',
+      },
+      modeHints: {
+        burn: 'Paints the subtitle into the pixels. Outputs MP4, cannot be turned off, re-encodes the video.',
+        embed: 'Adds the subtitle as a separate track without re-encoding the video; viewers can toggle or switch tracks.',
+      },
     },
     actions: {
       run: 'Run Tool',

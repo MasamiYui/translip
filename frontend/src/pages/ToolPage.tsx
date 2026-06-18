@@ -1,7 +1,7 @@
 import { useEffect, useId, useState, type Dispatch, type SetStateAction } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeft, Info, RefreshCw } from 'lucide-react'
-import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { atomicToolsApi } from '../api/atomic-tools'
 import { configApi } from '../api/config'
 import { FileUploadZone } from '../components/atomic-tools/FileUploadZone'
@@ -50,6 +50,9 @@ export function ToolPage() {
 
 function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillParam: string }) {
   const { locale, t, getLanguageLabel } = useI18n()
+  const navigate = useNavigate()
+  const isSubtitleOutputTool = toolId === 'subtitle-burn' || toolId === 'subtitle-embed'
+  const subtitleOutputCopy = t.atomicTools.subtitleOutput
   const prefill = readAtomicToolPrefill(prefillParam)
   const { data: tools = [] } = useQuery({
     queryKey: ['atomic-tools'],
@@ -99,8 +102,12 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     )
   }
 
-  const title = locale === 'zh-CN' ? tool.name_zh : tool.name_en
-  const description = locale === 'zh-CN' ? tool.description_zh : tool.description_en
+  const title = isSubtitleOutputTool
+    ? subtitleOutputCopy.cardTitle
+    : locale === 'zh-CN' ? tool.name_zh : tool.name_en
+  const description = isSubtitleOutputTool
+    ? subtitleOutputCopy.cardDescription
+    : locale === 'zh-CN' ? tool.description_zh : tool.description_en
   const uploadGridClass =
     toolId === 'mixing' ||
     toolId === 'muxing' ||
@@ -182,6 +189,41 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
         <div className={uploadGridClass}>
           {renderUploadZones(toolId, fileRefs, handleFileSelected, t.atomicTools.uploadHints, params)}
         </div>
+
+        {isSubtitleOutputTool && (
+          <div className="rounded-xl border border-[#e5e7eb] bg-white p-4 shadow-[0_1px_3px_rgba(0,0,0,.04)]">
+            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#6b7280]">
+              {subtitleOutputCopy.modeLabel}
+            </div>
+            <div className="grid gap-2 md:grid-cols-2">
+              {(['burn', 'embed'] as const).map(mode => {
+                const targetToolId = mode === 'burn' ? 'subtitle-burn' : 'subtitle-embed'
+                const active = toolId === targetToolId
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => {
+                      if (!active) navigate(`/tools/${targetToolId}`)
+                    }}
+                    className={`rounded-lg border p-3 text-left transition ${
+                      active
+                        ? 'border-[#3b5bdb] bg-[#f0f3ff]'
+                        : 'border-[#e5e7eb] bg-white hover:border-[#3b5bdb]/40'
+                    }`}
+                  >
+                    <div className={`text-sm font-semibold ${active ? 'text-[#3b5bdb]' : 'text-[#111827]'}`}>
+                      {subtitleOutputCopy.modes[mode]}
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-[#6b7280]">
+                      {subtitleOutputCopy.modeHints[mode]}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         <div className="rounded-xl border border-[#e5e7eb] bg-white p-5 shadow-[0_1px_3px_rgba(0,0,0,.04)]">
           {renderControls(

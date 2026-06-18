@@ -14,9 +14,12 @@ export function ToolListPage() {
     staleTime: 30_000,
   })
 
+  const subtitleOutput = t.atomicTools.subtitleOutput
+  const visibleTools = tools.filter(tool => tool.tool_id !== 'subtitle-embed')
+
   const toolsByCategory = CATEGORY_ORDER.map(category => ({
     category,
-    tools: tools.filter(tool => tool.category === category),
+    tools: visibleTools.filter(tool => tool.category === category),
   })).filter(group => group.tools.length > 0)
 
   return (
@@ -43,15 +46,28 @@ export function ToolListPage() {
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {group.tools.map(tool => (
-              <ToolCard
-                key={tool.tool_id}
-                tool={tool}
-                title={locale === 'zh-CN' ? tool.name_zh : tool.name_en}
-                description={locale === 'zh-CN' ? tool.description_zh : tool.description_en}
-                categoryLabel={t.atomicTools.categories[tool.category]}
-              />
-            ))}
+            {group.tools.map(tool => {
+              const isSubtitleOutput = tool.tool_id === 'subtitle-burn'
+              const title = isSubtitleOutput
+                ? subtitleOutput.cardTitle
+                : locale === 'zh-CN'
+                  ? tool.name_zh
+                  : tool.name_en
+              const description = isSubtitleOutput
+                ? subtitleOutput.cardDescription
+                : locale === 'zh-CN'
+                  ? tool.description_zh
+                  : tool.description_en
+              return (
+                <ToolCard
+                  key={tool.tool_id}
+                  tool={tool}
+                  title={title}
+                  description={description}
+                  categoryLabel={t.atomicTools.categories[tool.category]}
+                />
+              )
+            })}
           </div>
         </section>
       ))}
