@@ -96,6 +96,14 @@ class MixingToolRequest(BaseModel):
     output_format: str = "wav"
 
 
+class DetectLanguageToolRequest(BaseModel):
+    file_id: str = Field(description="待识别语种的音/视频文件 ID")
+    model: Literal["tiny", "base", "small", "medium", "large-v3"] = Field(
+        default="medium", description="faster-whisper 模型；越大越准但越慢、占内存越多"
+    )
+    windows: int = Field(default=3, ge=1, le=10, description="采样的 30 秒窗口数；越多对长视频越稳但越慢")
+
+
 class TranscriptionToolRequest(BaseModel):
     file_id: str
     language: str = "zh"

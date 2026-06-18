@@ -667,6 +667,27 @@ function renderControls(
     )
   }
 
+  if (toolId === 'detect-language') {
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <SelectField
+          label={atomicTools.fields.langDetectModel}
+          hint={atomicTools.hints.langDetectModel}
+          hintAriaLabel={atomicTools.hints.termHintAria}
+          value={String(params.model ?? 'medium')}
+          options={['tiny', 'base', 'small', 'medium', 'large-v3']}
+          onChange={value => setField('model', value)}
+        />
+        <TextField
+          label={atomicTools.fields.langDetectWindows}
+          type="number"
+          value={String(params.windows ?? 3)}
+          onChange={value => setField('windows', Number(value))}
+        />
+      </div>
+    )
+  }
+
   if (toolId === 'dub-render') {
     return (
       <div className="grid gap-4 md:grid-cols-2">
@@ -1146,7 +1167,12 @@ function buildRunPayload(
   textInput: string,
   translationInputMode: 'text' | 'file',
 ) {
-  if (toolId === 'separation' || toolId === 'probe' || toolId === 'transcription') {
+  if (
+    toolId === 'separation' ||
+    toolId === 'probe' ||
+    toolId === 'transcription' ||
+    toolId === 'detect-language'
+  ) {
     return { ...params, file_id: fileRefs.file?.file_id }
   }
 
@@ -1327,6 +1353,9 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
       break
     case 'muxing':
       params = { video_codec: 'copy', audio_codec: 'aac', audio_bitrate: '192k' }
+      break
+    case 'detect-language':
+      params = { model: 'medium', windows: 3 }
       break
     case 'dub-render':
       params = { backend: 'qwen3tts', target_lang: 'auto', ducking_mode: 'static', background_gain_db: -8 }

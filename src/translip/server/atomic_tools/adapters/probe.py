@@ -14,6 +14,9 @@ class ProbeAdapter(ToolAdapter):
         input_file = self.first_input(input_dir, "file")
         on_progress(50.0, "probing")
         info = probe_media(input_file)
+        audio_languages = [s.language for s in info.streams if s.codec_type == "audio" and s.language]
+        subtitle_streams = [s for s in info.streams if s.codec_type == "subtitle"]
+        subtitle_languages = [s.language for s in subtitle_streams if s.language]
         payload = {
             "path": input_file.name,
             "media_type": info.media_type,
@@ -24,6 +27,22 @@ class ProbeAdapter(ToolAdapter):
             "audio_streams": info.audio_stream_count,
             "sample_rate": info.sample_rate,
             "channels": info.channels,
+            # Container-declared language tags (absent where the muxer left them
+            # undefined). For the SPOKEN language use detect-language; for hard
+            # subtitles use subtitle-detect.
+            "audio_languages": audio_languages,
+            "subtitle_stream_count": len(subtitle_streams),
+            "subtitle_languages": subtitle_languages,
+            "streams": [
+                {
+                    "index": s.index,
+                    "type": s.codec_type,
+                    "codec": s.codec_name,
+                    "language": s.language,
+                    "title": s.title,
+                }
+                for s in info.streams
+            ],
         }
         self.write_json(output_dir / "probe.json", payload)
         return payload

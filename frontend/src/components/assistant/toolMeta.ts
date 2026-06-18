@@ -7,6 +7,7 @@ import {
   Film,
   Gauge,
   Flame,
+  Globe,
   Languages,
   Mic,
   ScanEye,
@@ -27,6 +28,7 @@ export interface ToolMeta {
 export const TOOL_META: Record<string, ToolMeta> = {
   separation: { icon: AudioLines, zh: '人声分离', en: 'Separation' },
   transcription: { icon: Captions, zh: '语音转文字', en: 'Transcription' },
+  'detect-language': { icon: Globe, zh: '语种识别', en: 'Language ID' },
   'transcript-correction': { icon: SpellCheck, zh: '台词校正', en: 'Correction' },
   translation: { icon: Languages, zh: '翻译', en: 'Translation' },
   tts: { icon: Mic, zh: '语音合成', en: 'TTS' },

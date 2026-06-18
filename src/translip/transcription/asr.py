@@ -119,6 +119,43 @@ def _load_model(model_name: str, device: str, compute_type: str) -> WhisperModel
     return WhisperModel(model_name, device=device, compute_type=compute_type)
 
 
+def detect_audio_language(
+    audio_path: Path,
+    *,
+    model_name: str,
+    requested_device: str,
+    windows: int = 1,
+) -> tuple[str, float, list[tuple[str, float]], dict[str, str | int]]:
+    """Identify the spoken language without transcribing.
+
+    Uses faster-whisper's dedicated language-identification head over the first
+    ``windows`` 30-second windows (VAD-filtered so leading silence/music doesn't
+    skew the guess) and returns ``(language, probability, ranked_candidates,
+    metadata)``. ``ranked_candidates`` is the full per-language probability list,
+    highest first — the caller decides how many to surface.
+    """
+    from faster_whisper.audio import decode_audio
+
+    device = resolve_asr_device(requested_device)
+    resolved_model_path = resolve_faster_whisper_model_path(model_name)
+    model = _load_model(resolved_model_path, device, _compute_type(device))
+    audio = decode_audio(str(audio_path), sampling_rate=model.feature_extractor.sampling_rate)
+    language, probability, all_language_probs = model.detect_language(
+        audio=audio,
+        vad_filter=True,
+        language_detection_segments=max(1, windows),
+    )
+    candidates = sorted(all_language_probs, key=lambda item: item[1], reverse=True)
+    metadata: dict[str, str | int] = {
+        "asr_backend": "faster-whisper",
+        "asr_model": model_name,
+        "asr_model_resolved": resolved_model_path,
+        "asr_device": device,
+        "windows_analyzed": max(1, windows),
+    }
+    return language, float(probability), candidates, metadata
+
+
 def transcribe_audio(
     audio_path: Path,
     *,

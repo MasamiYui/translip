@@ -57,6 +57,7 @@ def test_atomic_tools_api_supports_upload_run_status_and_artifacts(tmp_path: Pat
         "separation",
         "mixing",
         "transcription",
+        "detect-language",
         "transcript-correction",
         "translation",
         "tts",

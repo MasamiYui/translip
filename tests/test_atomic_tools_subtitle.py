@@ -97,6 +97,37 @@ def test_subtitle_detect_request_defaults() -> None:
     assert request.preview_frames == 3
 
 
+def test_summarize_events_surfaces_subtitle_language() -> None:
+    from translip.server.atomic_tools.adapters.subtitle_detect import _summarize_events
+
+    # detection.json events carry no language; ocr_events.json does.
+    detection_events = [
+        {"start_time": 0.0, "end_time": 1.0, "text": "这一排是苹果班"},
+        {"start_time": 2.0, "end_time": 3.0, "text": "那第一排就是樱花班了"},
+    ]
+    ocr_events = [
+        {"start": 0.0, "end": 1.0, "language": "zh", "text": "这一排是苹果班"},
+        {"start": 2.0, "end": 3.0, "language": "zh", "text": "那第一排就是樱花班了"},
+    ]
+    summary = _summarize_events(detection_events, language_events=ocr_events, source_language="zh")
+    assert summary["subtitle_language"] == "zh"
+    assert summary["language_breakdown"] == {"zh": 2}
+    assert summary["event_count"] == 2
+
+
+def test_summarize_events_falls_back_to_event_majority_and_handles_absent_language() -> None:
+    from translip.server.atomic_tools.adapters.subtitle_detect import _summarize_events
+
+    # No consolidated source_language → majority vote across per-event guesses.
+    mixed = [{"language": "ja"}, {"language": "ja"}, {"language": "zh"}]
+    assert _summarize_events(mixed, language_events=mixed)["subtitle_language"] == "ja"
+    # No language info anywhere → None, not a crash.
+    bare = [{"start_time": 0.0, "end_time": 1.0}]
+    summary = _summarize_events(bare)
+    assert summary["subtitle_language"] is None
+    assert summary["language_breakdown"] == {}
+
+
 # ---------------------------------------------------------------------------
 # Test 3: build_eraser_command produces a CLI matching the resolved profile
 # ---------------------------------------------------------------------------

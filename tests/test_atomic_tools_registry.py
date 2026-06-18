@@ -12,6 +12,7 @@ def test_atomic_tools_registry_exposes_all_tools() -> None:
         "separation",
         "mixing",
         "transcription",
+        "detect-language",
         "transcript-correction",
         "translation",
         "tts",

@@ -20,6 +20,7 @@ from pydantic_core import PydanticUndefined
 
 from ..atomic_tools.registry import TOOL_REGISTRY, get_tool_spec
 from ..atomic_tools.schemas import (
+    DetectLanguageToolRequest,
     DubRenderToolRequest,
     M3u8ToMp4ToolRequest,
     MixingToolRequest,
@@ -56,6 +57,10 @@ TOOL_CATALOG: dict[str, ToolCatalogEntry] = {
     "transcription": ToolCatalogEntry(
         TranscriptionToolRequest,
         {"segments_file": "转写分段 JSON（含时间轴与文本）", "srt_file": "转写字幕 SRT"},
+    ),
+    "detect-language": ToolCatalogEntry(
+        DetectLanguageToolRequest,
+        {},
     ),
     "transcript-correction": ToolCatalogEntry(
         TranscriptCorrectionToolRequest,

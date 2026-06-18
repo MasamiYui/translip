@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, TypedDict, cast
 
@@ -104,6 +104,22 @@ def normalize_dubbing_quality_check_mode(value: object | None) -> DubbingQuality
 
 
 @dataclass(slots=True)
+class StreamInfo:
+    """A single container stream's identity + language tag (from ffprobe).
+
+    ``language`` is the ISO 639 tag the container declares (``tags.language``);
+    ``None``/``"und"`` means the muxer left it undefined — it is NOT content
+    detection (use detect-language for spoken language, subtitle-detect for hard
+    subs)."""
+
+    index: int
+    codec_type: Literal["video", "audio", "subtitle", "data", "attachment"] | str
+    codec_name: str | None
+    language: str | None
+    title: str | None
+
+
+@dataclass(slots=True)
 class MediaInfo:
     path: Path
     media_type: Literal["audio", "video"]
@@ -113,9 +129,11 @@ class MediaInfo:
     audio_stream_count: int
     sample_rate: int | None
     channels: int | None
+    streams: list[StreamInfo] = field(default_factory=list)
 
 
 __all__ = [
+    "StreamInfo",
     "Mode",
     "Route",
     "OutputFormat",

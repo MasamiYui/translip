@@ -76,12 +76,21 @@ class SubtitleDetectAdapter(ToolAdapter):
             max_previews=int(params.get("preview_frames", 3)),
         )
 
-        summary = _summarize_events(events)
+        # The per-event language guess + consolidated source_language live in
+        # ocr_events.json, not detection.json — read them for the language tally.
+        ocr_events_path = stage_dir / "ocr_events.json"
+        language_events = events
+        source_language: str | None = None
+        if ocr_events_path.exists():
+            ocr_payload = json.loads(ocr_events_path.read_text(encoding="utf-8"))
+            language_events = ocr_payload.get("events") or ocr_payload.get("results") or events
+            source_language = ocr_payload.get("source_language")
+
+        summary = _summarize_events(events, language_events=language_events, source_language=source_language)
         summary_path = stage_dir / "summary.json"
         self.write_json(summary_path, summary)
 
         on_progress(95.0, "collecting_artifacts")
-        ocr_events_path = stage_dir / "ocr_events.json"
         return {
             "detection_file": detection_path.name,
             # ocr_events.json carries start/end/event_id and is the transcript-correction-friendly OCR export.
@@ -90,11 +99,18 @@ class SubtitleDetectAdapter(ToolAdapter):
             "event_count": summary["event_count"],
             "total_subtitle_seconds": summary["total_subtitle_seconds"],
             "dominant_position": summary["dominant_position"],
+            "subtitle_language": summary["subtitle_language"],
+            "language_breakdown": summary["language_breakdown"],
             "preview_files": [p.name for p in preview_files],
         }
 
 
-def _summarize_events(events: list[dict]) -> dict:
+def _summarize_events(
+    events: list[dict],
+    *,
+    language_events: list[dict] | None = None,
+    source_language: str | None = None,
+) -> dict:
     event_count = len(events)
     total_seconds = 0.0
     position_counts: dict[str, int] = {}
@@ -105,11 +121,27 @@ def _summarize_events(events: list[dict]) -> dict:
         pos = str(ev.get("position") or ev.get("region") or "bottom")
         position_counts[pos] = position_counts.get(pos, 0) + 1
     dominant = max(position_counts.items(), key=lambda kv: kv[1])[0] if position_counts else "bottom"
+
+    # Subtitle language = per-event script/charset guess (subtitle_detector.
+    # _detect_language), majority-voted. This is distinct from the SPOKEN
+    # language (use detect-language for that): a clip can be e.g. Japanese audio
+    # with Chinese hard subs. The OCR pipeline's consolidated source_language
+    # wins when present; otherwise fall back to the per-event majority.
+    language_counts: dict[str, int] = {}
+    for ev in language_events if language_events is not None else events:
+        lang = ev.get("language")
+        if lang:
+            language_counts[str(lang)] = language_counts.get(str(lang), 0) + 1
+    dominant_language = source_language or (
+        max(language_counts.items(), key=lambda kv: kv[1])[0] if language_counts else None
+    )
     return {
         "event_count": event_count,
         "total_subtitle_seconds": round(total_seconds, 3),
         "dominant_position": dominant,
         "position_breakdown": position_counts,
+        "subtitle_language": dominant_language,
+        "language_breakdown": language_counts,
     }
 
 

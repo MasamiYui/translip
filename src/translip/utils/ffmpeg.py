@@ -10,7 +10,7 @@ from typing import Any
 from imageio_ffmpeg import get_ffmpeg_exe
 
 from ..exceptions import DependencyError, FFmpegError
-from ..types import MediaInfo
+from ..types import MediaInfo, StreamInfo
 
 
 def _resolve_binary(name: str) -> str:
@@ -114,6 +114,22 @@ def probe_media(path: Path) -> MediaInfo:
     if duration_text:
         duration = float(duration_text)
 
+    stream_infos = []
+    for stream in streams:
+        tags = stream.get("tags") or {}
+        language = tags.get("language") or tags.get("LANGUAGE")
+        stream_infos.append(
+            StreamInfo(
+                index=int(stream.get("index", len(stream_infos))),
+                codec_type=str(stream.get("codec_type") or "unknown"),
+                codec_name=stream.get("codec_name"),
+                # ffprobe writes "und" for an unset tag — normalize to None so
+                # callers can tell "undefined" apart from a real code.
+                language=(language if language and language != "und" else None),
+                title=tags.get("title") or tags.get("TITLE"),
+            )
+        )
+
     return MediaInfo(
         path=path,
         media_type="video" if video_streams else "audio",
@@ -123,6 +139,7 @@ def probe_media(path: Path) -> MediaInfo:
         audio_stream_count=len(audio_streams),
         sample_rate=int(selected_audio["sample_rate"]) if selected_audio else None,
         channels=int(selected_audio["channels"]) if selected_audio else None,
+        streams=stream_infos,
     )
 
 
