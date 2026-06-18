@@ -23,9 +23,28 @@
 >
 > `translip` is currently best suited for research workflows, internal demos, self-hosted iteration, and pipeline exploration. It already provides an end-to-end path, a visual dubbing review surface, and a management UI, but it is intentionally positioned as fast-moving beta software rather than a production-ready product claim.
 
+<details>
+<summary><strong>Table of contents</strong></summary>
+
+- [Why translip](#why-translip)
+- [UI Preview](#ui-preview)
+- [System Architecture](#system-architecture)
+- [Core Capabilities](#core-capabilities)
+- [Workflow Templates](#workflow-templates)
+- [Web Management UI](#web-management-ui)
+- [Pipeline Stages](#pipeline-stages)
+- [Requirements](#requirements) · [Installation](#installation) · [Quick Start](#quick-start)
+- [Configuration & Environment Variables](#configuration-and-environment-variables)
+- [Tech Stack](#tech-stack)
+- [Roadmap & Status](#roadmap--status)
+- [Development](#development) · [Related Documentation](#related-documentation) · [Contact](#contact)
+
+</details>
+
 ## Why `translip`
 
 - **Pipeline + atomic tools, both ways**: run the full "separate → transcribe → translate → dub → re-fit → deliver" chain in one click, or invoke separation, transcription, translation, synthesis, mixing, muxing, and subtitle detect/erase as independent tools.
+- **AI assistant that orchestrates atomic tools**: describe a goal in one sentence and the assistant (DeepSeek-planned) chains multiple atomic tools into a call graph — it shows the plan first, then runs it and lets you download the outputs.
 - **Speaker-aware by default**: outputs are built around speaker profiles and a reusable registry, with a character library that records the "character → speaker" mapping across tasks.
 - **Visual dubbing review**: the built-in Dubbing Editor drives segment-by-segment review from an issue queue, with live duration prediction, preview playback rate, and per-segment re-synthesis.
 - **Cache-aware, re-runnable orchestration**: each stage is an isolated subprocess that writes artifacts + a manifest; changing one backend/model only recomputes what is needed, and you can re-run from any stage.
@@ -37,17 +56,25 @@
 | --- | --- |
 | ![Dashboard](docs/assets/readme/dashboard.png) | ![New task](docs/assets/readme/new-task.png) |
 
-| Pipeline task detail · stage DAG and rerun controls | Atomic tools · grouped by audio/speech/video |
+| Pipeline task detail · stage DAG and rerun controls | Dubbing editor · issue queue + inspector |
 | --- | --- |
-| ![Task detail](docs/assets/readme/task-detail.png) | ![Atomic tools](docs/assets/readme/atomic-tools.png) |
+| ![Task detail](docs/assets/readme/task-detail.png) | ![Dubbing editor](docs/assets/readme/dubbing-editor.png) |
 
-| A single atomic tool · dialogue/background separation | Dubbing editor · issue queue + inspector |
+| AI assistant · orchestrate atomic tools in one sentence | Dub evaluation · per-segment QC + one-click auto-fix |
 | --- | --- |
-| ![Separation tool](docs/assets/readme/tool-separation.png) | ![Dubbing editor](docs/assets/readme/dubbing-editor.png) |
+| ![AI assistant](docs/assets/readme/assistant.png) | ![Dub evaluation](docs/assets/readme/evaluation.png) |
 
-| Settings · HuggingFace token & one-click model download | Works library · works/episode assets |
+| Atomic tools · grouped by audio/speech/video | A single atomic tool · dialogue/background separation |
 | --- | --- |
-| ![Settings](docs/assets/readme/settings.png) | ![Works library](docs/assets/readme/works-library.png) |
+| ![Atomic tools](docs/assets/readme/atomic-tools.png) | ![Separation tool](docs/assets/readme/tool-separation.png) |
+
+| Behind-the-scenes blog · architecture / algorithms / decisions | API docs · live OpenAPI, auto-generated |
+| --- | --- |
+| ![Blog](docs/assets/readme/blog.png) | ![API docs](docs/assets/readme/api-docs.png) |
+
+| Works library · works/episode assets | Settings · HuggingFace token & one-click model download |
+| --- | --- |
+| ![Works library](docs/assets/readme/works-library.png) | ![Settings](docs/assets/readme/settings.png) |
 
 ## System Architecture
 
@@ -72,12 +99,15 @@ flowchart LR
         DB[("SQLite Task Store")]
         Orchestrator["Orchestration / Cache / Artifact Index"]
         Atomic["Atomic Tools Subsystem<br/>standalone job queue"]
+        Assistant["AI Assistant<br/>plan → run atomic-tool chains"]
     end
 
     UI <--> API
     API <--> DB
     API <--> Orchestrator
     API <--> Atomic
+    API <--> Assistant
+    Assistant --> Atomic
     Orchestrator --> Separation & Transcription & SpeakerRegistry & Translation & Synthesis & Render & DeliveryStage
 
     Render --> Preview["Preview Mix / Dub Audio"]
@@ -99,12 +129,16 @@ The orchestrator holds no task logic: it resolves a node DAG, checks a cache, an
 
 **B. Standalone atomic tools** (upload → process → download independently; results can flow into the next tool in one click)
 
-- Dialogue/background separation, audio mixing, speech-to-text, transcript correction, text translation, text-to-speech, audio/video muxing, subtitle detection, subtitle erase, video content analysis (scene description / on-screen text triage / erase QC / free-form Q&A), and media probe.
+- Audio: dialogue/background separation, audio mixing.
+- Speech: speech-to-text, language detection, transcript correction, text translation, text-to-speech, dub render (timeline alignment).
+- Video: subtitle detection, subtitle burn/embed, subtitle erase, watermark, video content analysis (scene description / on-screen text triage / erase QC / free-form Q&A), audio/video muxing, M3U8→MP4, and media probe.
 
 **C. Collaboration & assets**
 
+- **AI assistant**: describe a goal in natural language and the assistant plans and executes a chain of atomic capabilities; runs are recorded as "AI tasks" (needs `DEEPSEEK_API_KEY`).
 - **Dubbing Editor**: an issue queue (silence, voice mismatch, duration stretch, low translation confidence, etc.) + inspector + live duration prediction + per-segment re-synthesis.
-- **Dub evaluation / experiment analysis**: per-segment QC of a finished dub — automatically flags missing dub / voice mismatch / dropped words / off-rhythm / unintelligible / poor translation, with an overall score and a quality gate; the "Dub Evaluation" page compares source vs dub segment by segment, highlights dropped words in the translation, and can optionally score translations with a DeepSeek LLM.
+- **Dub evaluation + one-click auto-fix**: per-segment QC of a finished dub — automatically flags missing dub / voice mismatch / dropped words / off-rhythm / unintelligible / poor translation, with an overall score and a quality gate; the "Dub Evaluation" page compares source vs dub segment by segment, highlights dropped words, optionally scores translations with a DeepSeek LLM, and can **auto-fix** the flagged segments in one click (re-translate / re-synthesize / re-fit).
+- **Speaker-review harness**: visually review diarization — diagnose, manually merge / assign speakers, and write decisions back into the downstream stages.
 - **Works / Character libraries**: attach tasks to a "work → episode" and maintain a "character → speaker" ledger, with reusable global personas.
 - **Model & token management**: configure the HuggingFace token (to unlock gated models such as pyannote), inspect model status, and download all missing models at once or one at a time (subtitle-erase `sttn`/`big-lama` and vision `Qwen3-VL` weights are included in the panel).
 
@@ -124,10 +158,25 @@ The orchestrator holds no task logic: it resolves a node DAG, checks a cache, an
 The UI is the primary day-to-day entry point. The left navigation is grouped into:
 
 - **Dashboard**: unified counts and recent activity across pipeline tasks and atomic jobs (total / running / completed / failed).
-- **translationenter**: pipeline task list, new pipeline task (stepped wizard + grouped advanced config), task detail (stage DAG / progress / artifacts / rerun from any stage), the **Dubbing Editor**, and the speaker-review harness.
-- **Atomic Tools**: 11 standalone single-tool jobs (separation, mixing, transcription, correction, translation, synthesis, muxing, subtitle detect/erase, video content analysis, probe), each with its own upload + parameter panel; outputs can flow straight into the next tool.
-- **Works / Character libraries**: cross-task works-and-episodes assets and the character→speaker ledger.
+- **Task Center**: three task lists + the create entry — **Pipeline Tasks**, **Atomic Tasks**, **AI Tasks** (AI-assistant runs), and Create Pipeline Task (stepped wizard + grouped advanced config). Opening a pipeline task exposes the stage DAG / progress / artifacts, rerun-from-any-stage, the **Dubbing Editor**, and the speaker-review harness.
+- **Atomic Tools**: 16 standalone single-tool jobs grouped by audio / speech / video (separation, mixing | transcription, language detection, correction, translation, synthesis, dub render | subtitle detect, subtitle burn/embed, subtitle erase, watermark, video content analysis, muxing, M3U8→MP4, probe), each with its own upload + parameter panel; outputs can flow straight into the next tool.
+- **Works Library**: cross-task "work → episode" assets, with TMDB metadata and posters.
+- **Character Library**: the "character → speaker" ledger, with reusable global personas.
+- **Dub Evaluation**: pick a finished task to compare source vs dub segment by segment, locating missing-dub / voice / dropped-word / translation issues with an overall score; optionally score translations with a DeepSeek LLM.
+- **Blog**: the "behind-the-scenes" series (architecture / algorithms / decisions), with search and PDF export.
+- **API Docs**: a full backend REST API reference generated from the live OpenAPI spec, always in sync with the code.
+- **Testing Lab**: links out to the standalone evaluation lab (`translip-lab`, default `:8799`) that benchmarks each capability against ground-truth datasets.
 - **Settings**: system info & cache cleanup, TMDB API, HuggingFace token, model status & download (all missing / one at a time), and task default parameters.
+
+> **AI assistant**: a chat assistant you can summon from the bottom-right of any page (it opens as a right-docked drawer). Describe a goal in one sentence (e.g. "dub this video into English", "erase the hard subtitles"), and the assistant uses DeepSeek to plan your request into a chain of atomic capabilities and shows it first; confirm (editing each step's params if needed) and run it in one click, then download the outputs. Runs are recorded as "AI tasks" and need `DEEPSEEK_API_KEY` configured in Settings.
+
+```mermaid
+flowchart LR
+    NL["Natural-language goal<br/>'dub this into English'"] --> Plan["DeepSeek plans<br/>an atomic-tool chain"]
+    Plan --> Review["Show the plan<br/>edit each step's params"]
+    Review --> Exec["Run the tools<br/>in order"]
+    Exec --> Out["Download outputs"]
+```
 
 ### Development Mode
 
@@ -230,6 +279,7 @@ uv sync --extra dev     # add pytest etc. for tests / development
 uv sync --extra ocr     # in-tree PaddleOCR hard-subtitle detection
 uv sync --extra erase   # hard-subtitle erasure (STTN / big-LaMa inpainting; ~63MB / ~196MB weights auto-download on first use)
 uv sync --extra vision  # video content perception (Qwen3-VL; only needed on Apple Silicon — other platforms can use Ollama with no extra)
+uv sync --extra lab     # evaluation lab (translip-lab; adds only Pillow)
 ```
 
 > `uv sync --extra X` syncs the environment to *exactly* X, dropping other extras — combine flags to keep several, e.g. `uv sync --extra dev --extra ocr --extra erase --extra vision`.
@@ -242,7 +292,7 @@ uv run translip download-models --backend cdx23 --quality balanced
 
 > `--backend` also accepts other downloadable keys, e.g. `erase_sttn` / `erase_lama` / `vision_qwen3vl_mlx` / `faster_whisper_small` / `funasr_*`; `translip doctor` lists what is currently missing along with the matching download command.
 
-For gated models (e.g. `pyannote` diarization), accept the model license on HuggingFace, then provide a read-scoped access token — either in the Settings page or via `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN`. The DeepSeek translation backend, transcript-correction LLM arbitration, and translation quality scoring need `DEEPSEEK_API_KEY`.
+For gated models (e.g. `pyannote` diarization), accept the model license on HuggingFace, then provide a read-scoped access token — either in the Settings page or via `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN`. The DeepSeek translation backend, transcript-correction LLM arbitration, translation quality scoring, and AI-assistant planning need `DEEPSEEK_API_KEY`.
 
 After installing, run the environment self-check to confirm FFmpeg, the inference device (CUDA/MPS/CPU), optional extras, external CLIs, API keys, and model weights are all ready:
 
@@ -329,7 +379,7 @@ uv run translip --help    # list all subcommands
 | `TRANSLIP_DB_PATH` | `<cache>/data.db` | SQLite database path for the web UI |
 | `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN` | none | HuggingFace token to download/use gated models (e.g. pyannote); can also be set in Settings |
 | `TMDB_API_KEY` / `TMDB_BEARER_TOKEN` | none | Fetch works/episode metadata and posters for the Works library |
-| `DEEPSEEK_API_KEY` | none | Required for the `deepseek` translation backend, transcript-correction LLM arbitration, and translation quality scoring |
+| `DEEPSEEK_API_KEY` | none | Required for the `deepseek` translation backend, transcript-correction LLM arbitration, translation quality scoring, and AI-assistant planning |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | Override the DeepSeek API endpoint |
 | `DEEPSEEK_MODEL` | `deepseek-v4-pro` | Override the default DeepSeek model |
 | `MOSS_TTS_NANO_CLI` | `moss-tts-nano` | CLI executable used by the `moss-tts-nano-onnx` backend |
@@ -353,6 +403,16 @@ uv run translip --help    # list all subcommands
 
 For more defaults, see [src/translip/config.py](src/translip/config.py); the remaining `VISION_*` knobs (frames/resolution/temperature) live in [src/translip/vision/config.py](src/translip/vision/config.py), and `ERASE_*` / `PADDLEOCR_*` in [src/translip/erase/config.py](src/translip/erase/config.py) and [src/translip/ocr/config.py](src/translip/ocr/config.py).
 
+## Tech Stack
+
+| Layer | Stack |
+| --- | --- |
+| Orchestration / CLI | Python 3.11–3.12 · cache-aware DAG orchestrator · isolated subprocess execution (crash-isolated, models freed on exit) |
+| Control plane | FastAPI · SQLModel (SQLite + WAL) · SSE live progress · concurrent atomic-tools job queue |
+| Management UI | React 19 · TypeScript · Vite · Tailwind 4 · TanStack Query · Zustand · React Router · bilingual (zh/en) i18n |
+| Speech / vision models | demucs · CDX23 · faster-whisper · FunASR/Paraformer · ECAPA / pyannote · M2M100 / DeepSeek · MOSS-TTS-Nano / Qwen3-TTS / VoxCPM2 · PaddleOCR · STTN / big-LaMa · Qwen3-VL (MLX / Ollama) |
+| Media | FFmpeg (atempo / rubberband time-stretch · sidechain mix · mux / subtitle burn) |
+
 ## Development
 
 ```bash
@@ -370,14 +430,43 @@ npm run test       # Vitest unit/component tests
 
 End-to-end Playwright tests live at the repo root (`tests/e2e/*.spec.ts`); start the dev stack first with `./scripts/dev.sh start`, then run `npx playwright test`.
 
+## Roadmap & Status
+
+translip is fast-moving beta software. Here is the **honest scope** — what has landed, what is a placeholder, and what is next:
+
+**Available now**
+
+- End-to-end dubbing pipeline (separate → transcribe → translate → synthesize → re-fit → deliver), cache-aware and re-runnable from any stage.
+- 16 atomic tools + AI-assistant orchestration; Dubbing Editor, dub evaluation, one-click auto-fix, speaker review.
+- OCR hard-subtitle detection / translation / erasure; Qwen3-VL visual perception injected into translation context.
+- Speaker profiles / registry, Works / Character libraries, model & token management, bilingual UI.
+
+**Placeholder / limited**
+
+- `--enhance-voice` is currently a **no-op placeholder** (`NoOpVoiceEnhancer`) — no real denoise / dereverb backend yet.
+- The default TTS (MOSS-TTS-Nano) has limited timbre; higher-quality voice cloning is better served by `voxcpm2` on a GPU.
+- Erasure coverage is bounded by the OCR detection boxes — anything the detector misses is not inpainted.
+
+**Next**
+
+- A real voice-enhancement backend; stronger local TTS timbre; deeper vision integration for erase-qc / ocr-classify (see [docs/qwen3-vl-integration-plan.md](docs/qwen3-vl-integration-plan.md) Phase 3).
+
 ## Related Documentation
 
 - [docs/README.md](docs/README.md): documentation index
 - [docs/speaker-aware-dubbing-plan.md](docs/speaker-aware-dubbing-plan.md): high-level plan and technical route
 - [docs/pipeline-and-engineering-orchestration.md](docs/pipeline-and-engineering-orchestration.md): orchestration and cache design
 - [docs/final-video-delivery.md](docs/final-video-delivery.md): final video delivery design
+- [docs/qwen3-vl-integration-plan.md](docs/qwen3-vl-integration-plan.md): video content perception (Qwen3-VL) integration plan
 - [docs/frontend-management-system-design.md](docs/frontend-management-system-design.md): management UI design
 - [frontend/README.md](frontend/README.md): frontend directory guide
+
+## Contact
+
+Questions, suggestions, or collaboration — feel free to reach out:
+
+- 📧 Email: [sherlock.yin1994@gmail.com](mailto:sherlock.yin1994@gmail.com)
+- 🐧 QQ: 546253846
 
 ## Chinese README
 

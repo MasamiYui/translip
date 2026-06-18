@@ -23,9 +23,28 @@
 >
 > `translip` 当前适合研究、实验验证、内部演示、自托管迭代和流程探索。它已经具备端到端链路、可视化配音校对和管理界面，但定位仍然是快速演进中的 Beta 系统，而不是对外宣称的生产级商业产品。
 
+<details>
+<summary><strong>目录</strong></summary>
+
+- [为什么是 translip](#为什么是-translip)
+- [界面预览](#界面预览)
+- [系统架构](#系统架构)
+- [核心能力](#核心能力)
+- [工作流模板](#工作流模板)
+- [Web 管理界面](#web-管理界面)
+- [流水线阶段](#流水线阶段)
+- [环境要求](#环境要求) · [安装](#安装) · [快速开始](#快速开始)
+- [配置与环境变量](#配置与环境变量)
+- [技术栈](#技术栈)
+- [路线图与状态](#路线图与状态)
+- [开发](#开发) · [相关文档](#相关文档) · [联系方式](#联系方式)
+
+</details>
+
 ## 为什么是 `translip`
 
 - **流水线 + 原子工具双形态**：既能一键跑完「分离 → 转写 → 翻译 → 配音 → 回贴 → 交付」的完整链路，也能把分离、转写、翻译、合成、混音、合并、字幕识别/擦除等环节作为独立工具单独调用。
+- **AI 助手编排原子能力**：用一句自然语言描述目标，助手（DeepSeek 规划）自动把多个原子工具串成调用链，先展示计划再一键执行、下载产物。
 - **多说话人感知**：不仅输出文本，还围绕说话人 profile / registry 建立可复用资产，并通过角色库把「角色 → 说话人」沉淀为跨任务台账。
 - **可视化配音校对**：内置「配音编辑台」，以问题队列驱动逐段复核，支持实时时长预测、试听倍速、单段重新合成。
 - **缓存感知的可重跑编排**：每个阶段是独立子进程，产物落盘 + manifest，改一个后端/模型只会选择性重算，可从任意阶段重跑。
@@ -37,17 +56,25 @@
 | --- | --- |
 | ![Dashboard](docs/assets/readme/dashboard.png) | ![New task](docs/assets/readme/new-task.png) |
 
-| 流水线任务详情 · 阶段 DAG 与重跑控制 | 原子工具集 · 按音频/语音/视频分类 |
+| 流水线任务详情 · 阶段 DAG 与重跑控制 | 配音编辑台 · 问题队列 + 检视面板 |
 | --- | --- |
-| ![Task detail](docs/assets/readme/task-detail.png) | ![Atomic tools](docs/assets/readme/atomic-tools.png) |
+| ![Task detail](docs/assets/readme/task-detail.png) | ![Dubbing editor](docs/assets/readme/dubbing-editor.png) |
 
-| 单个原子工具 · 人声/背景分离 | 配音编辑台 · 问题队列 + 检视面板 |
+| AI 助手 · 一句话编排原子能力 | 配音评测 · 逐段质检 + 一键自动修复 |
 | --- | --- |
-| ![Separation tool](docs/assets/readme/tool-separation.png) | ![Dubbing editor](docs/assets/readme/dubbing-editor.png) |
+| ![AI assistant](docs/assets/readme/assistant.png) | ![Dub evaluation](docs/assets/readme/evaluation.png) |
 
-| 全局设置 · HuggingFace 令牌与一键模型下载 | 作品库 · 作品/剧集资产 |
+| 原子工具集 · 按音频/语音/视频分类 | 单个原子工具 · 人声/背景分离 |
 | --- | --- |
-| ![Settings](docs/assets/readme/settings.png) | ![Works library](docs/assets/readme/works-library.png) |
+| ![Atomic tools](docs/assets/readme/atomic-tools.png) | ![Separation tool](docs/assets/readme/tool-separation.png) |
+
+| 幕后博客 · 架构 / 算法 / 决策 | 接口文档 · 实时 OpenAPI 自动生成 |
+| --- | --- |
+| ![Blog](docs/assets/readme/blog.png) | ![API docs](docs/assets/readme/api-docs.png) |
+
+| 作品库 · 作品/剧集资产 | 全局设置 · HuggingFace 令牌与一键模型下载 |
+| --- | --- |
+| ![Works library](docs/assets/readme/works-library.png) | ![Settings](docs/assets/readme/settings.png) |
 
 ## 系统架构
 
@@ -72,12 +99,15 @@ flowchart LR
         DB[("SQLite 任务状态")]
         Orchestrator["编排 / 缓存 / 产物索引"]
         Atomic["原子工具子系统<br/>独立任务队列"]
+        Assistant["AI 助手<br/>规划 → 执行原子能力链"]
     end
 
     UI <--> API
     API <--> DB
     API <--> Orchestrator
     API <--> Atomic
+    API <--> Assistant
+    Assistant --> Atomic
     Orchestrator --> Separation & Transcription & SpeakerRegistry & Translation & Synthesis & Render & DeliveryStage
 
     Render --> Preview["预览混音 / 配音音轨"]
@@ -99,12 +129,16 @@ flowchart LR
 
 **B. 独立原子工具**（可单独上传 → 处理 → 下载，结果可一键转入下一个工具）
 
-- 人声/背景分离、音频混合、语音转文字、台词校正、文本翻译、语音合成、音视频合并、字幕识别、字幕擦除、视频内容分析（场景描述/画面文字分类/擦除质检/自由问答）、媒体信息探测。
+- **音频**：人声/背景分离、音频混合。
+- **语音**：语音转文字、语种识别、台词校正、文本翻译、语音合成、配音渲染（时间轴对齐）。
+- **视频**：字幕识别、字幕烧录/封装、字幕擦除、水印压制、视频内容分析（场景描述/画面文字分类/擦除质检/自由问答）、音视频合并、M3U8 转 MP4、媒体信息探测。
 
 **C. 协作与资产**
 
+- **AI 助手**：用自然语言描述目标，助手自动规划并执行原子能力调用链，运行记录沉淀为「AI 任务」（需 `DEEPSEEK_API_KEY`）。
 - **配音编辑台**：问题队列（静音、音色不匹配、时长拉伸、翻译可信度等）+ 检视面板 + 实时时长预测 + 单段重新合成。
-- **配音评测 / 实验分析**：对完成的配音任务做逐段质检——自动定位「漏配 / 音色不符 / 漏词吞字 / 节奏异常 / 听不清 / 翻译差」，给出综合评分与质量门；菜单栏「配音评测」页可逐段对比原声 vs 配音、查看译文漏词高亮，并可选用 DeepSeek LLM 给译文打分。
+- **配音评测 + 一键自动修复**：对完成的配音任务做逐段质检——自动定位「漏配 / 音色不符 / 漏词吞字 / 节奏异常 / 听不清 / 翻译差」，给出综合评分与质量门；「配音评测」页可逐段对比原声 vs 配音、查看译文漏词高亮，可选用 DeepSeek LLM 给译文打分，并据问题清单**一键自动修复**（重译 / 重合成 / 重贴失败段）。
+- **说话人复核工作台**：可视化复核 diarization 结果——诊断、人工合并 / 指派说话人，并把决策回灌下游阶段。
 - **作品库 / 角色库**：把任务挂到「作品 → 剧集」，并维护「角色 → 说话人」台账，支持全局 persona 复用。
 - **模型与令牌管理**：在设置页配置 HuggingFace 令牌（解锁 pyannote 等门控模型）、查看模型状态，一键下载全部缺失模型或逐个下载（字幕擦除 `sttn`/`big-lama`、视觉 `Qwen3-VL` 等权重均已纳入模型面板）。
 
@@ -124,10 +158,25 @@ flowchart LR
 管理界面是日常使用的主入口，左侧导航分为以下功能区：
 
 - **仪表盘**：统一展示流水线任务与原子任务的总数、运行中/完成/失败统计与最近任务。
-- **任务中心**：流水线任务列表、新建流水线任务（分步向导 + 分组高级配置）、任务详情（阶段 DAG / 进度 / 产物 / 从任意阶段重跑）、**配音编辑台**、说话人复核工作台。
-- **原子工具集**：11 个独立单工具任务（分离、混合、转写、校正、翻译、合成、合并、字幕识别/擦除、视频内容分析、探测），各自有上传与参数面板，处理完成后产物可一键转入下一个工具。
-- **作品库 / 角色库**：跨任务的作品-剧集资产与角色→说话人台账。
+- **任务中心**：三类任务列表 + 新建入口——**流水线任务**、**原子任务**、**AI 任务**（AI 助手的运行记录）、新建流水线任务（分步向导 + 分组高级配置）。点进流水线任务可查看阶段 DAG / 进度 / 产物、从任意阶段重跑，并进入**配音编辑台**与**说话人复核工作台**。
+- **原子工具集**：16 个独立单工具，按音频 / 语音 / 视频分类（分离、混合 ｜ 转写、语种识别、校正、翻译、合成、配音渲染 ｜ 字幕识别、字幕烧录/封装、字幕擦除、水印压制、视频内容分析、合并、M3U8 转 MP4、探测）。各自有上传与参数面板，处理完成后产物可一键转入下一个工具。
+- **作品库**：跨任务的「作品 → 剧集」资产，可拉取 TMDB 元数据与海报。
+- **角色库**：「角色 → 说话人」台账，支持全局 persona 复用。
+- **配音评测**：选择已完成任务逐段对比原声 vs 配音，定位漏配 / 音色 / 漏词 / 翻译问题并给出综合评分，可选 DeepSeek LLM 给译文打分。
+- **博客**：「幕后」系列文章（架构 / 算法 / 决策），支持搜索与 PDF 导出。
+- **接口文档**：读取实时 OpenAPI 规范自动生成的后端 REST API 全量参考，始终与代码同步。
+- **实验室**：跳转到独立的评测实验台（`translip-lab`，默认 `:8799`），用真值数据集对各项能力做基准评测。
 - **全局设置**：系统信息与缓存清理、TMDB API、HuggingFace 令牌、模型状态与一键下载、任务默认参数。
+
+> **AI 助手**：管理界面任意页面右下角都可唤起的对话式助手（右侧抽屉展开）。用一句自然语言描述目标（如「把这个视频配成英文配音」「擦除视频里的硬字幕」），助手用 DeepSeek 把需求规划成原子能力调用链并先展示给你；确认（可逐步编辑参数）后一键执行，完成即可下载产物。运行记录沉淀为「AI 任务」，需在设置页配置 `DEEPSEEK_API_KEY`。
+
+```mermaid
+flowchart LR
+    NL["自然语言需求<br/>「把视频配成英文」"] --> Plan["DeepSeek 规划<br/>原子能力调用链"]
+    Plan --> Review["展示计划<br/>可编辑每步参数"]
+    Review --> Exec["按序执行<br/>原子工具"]
+    Exec --> Out["下载产物"]
+```
 
 ### 开发模式
 
@@ -230,6 +279,7 @@ uv sync --extra dev     # 如需运行测试 / 参与开发
 uv sync --extra ocr     # 如需 OCR 硬字幕识别（内置 PaddleOCR，约数百 MB）
 uv sync --extra erase   # 如需硬字幕擦除（STTN / big-LaMa 视频修复；权重约 63MB / 196MB 首次自动下载）
 uv sync --extra vision  # 如需视频画面感知（Qwen3-VL，仅 Apple Silicon 需要装；其余平台可用 Ollama 零依赖）
+uv sync --extra lab     # 如需评测实验台（translip-lab，仅新增 Pillow）
 ```
 
 > `uv sync --extra X` 会把环境**精确**同步到 X 并移除其它 extra；要同时保留多个能力，请组合使用，如 `uv sync --extra dev --extra ocr --extra erase --extra vision`。OCR 字幕识别为**完全本地**实现（内置 PaddleOCR，不调用任何外部服务）；PP-OCRv5 模型权重默认放在 `<缓存目录>/paddleocr_models`，可用 `PADDLEOCR_MODELS_BASE_DIR` 覆盖。
@@ -242,7 +292,7 @@ uv run translip download-models --backend cdx23 --quality balanced
 
 > `--backend` 也接受其它可下载键，如 `erase_sttn` / `erase_lama` / `vision_qwen3vl_mlx` / `faster_whisper_small` / `funasr_*`；`translip doctor` 会列出当前缺失项及对应下载命令。
 
-如需使用门控模型（如 `pyannote` 说话人分离），先在 HuggingFace 接受模型许可，再提供 read 权限的访问令牌——可在设置页填写，或通过环境变量 `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN` 提供。DeepSeek 翻译后端、台词校正 LLM 仲裁、翻译质量打分则需要 `DEEPSEEK_API_KEY`。
+如需使用门控模型（如 `pyannote` 说话人分离），先在 HuggingFace 接受模型许可，再提供 read 权限的访问令牌——可在设置页填写，或通过环境变量 `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN` 提供。DeepSeek 翻译后端、台词校正 LLM 仲裁、翻译质量打分与 AI 助手规划则需要 `DEEPSEEK_API_KEY`。
 
 安装完成后可运行环境自检，一眼确认 FFmpeg、推理设备（CUDA/MPS/CPU）、可选 extra、外部 CLI、API 密钥与各模型权重是否就绪：
 
@@ -329,7 +379,7 @@ uv run translip --help    # 查看全部子命令
 | `TRANSLIP_DB_PATH` | `<cache>/data.db` | Web 管理界面的 SQLite 数据库位置 |
 | `HF_TOKEN` / `HUGGINGFACE_HUB_TOKEN` / `PYANNOTE_AUTH_TOKEN` | 无 | 下载/使用门控模型（如 pyannote）所需的 HuggingFace 令牌，也可在设置页填写 |
 | `TMDB_API_KEY` / `TMDB_BEARER_TOKEN` | 无 | 作品库拉取作品/剧集元数据与海报 |
-| `DEEPSEEK_API_KEY` | 无 | 启用 `deepseek` 翻译后端、台词校正 LLM 仲裁、翻译质量打分时必需 |
+| `DEEPSEEK_API_KEY` | 无 | 启用 `deepseek` 翻译后端、台词校正 LLM 仲裁、翻译质量打分、AI 助手规划时必需 |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | 覆盖 DeepSeek API 地址 |
 | `DEEPSEEK_MODEL` | `deepseek-v4-pro` | 覆盖默认 DeepSeek 模型 |
 | `MOSS_TTS_NANO_CLI` | `moss-tts-nano` | `moss-tts-nano-onnx` 后端调用的 CLI 路径 |
@@ -353,6 +403,16 @@ uv run translip --help    # 查看全部子命令
 
 更细的默认参数见 [src/translip/config.py](src/translip/config.py)；其余 `VISION_*` 旋钮（帧数/分辨率/温度等）见 [src/translip/vision/config.py](src/translip/vision/config.py)，`ERASE_*` / `PADDLEOCR_*` 见 [src/translip/erase/config.py](src/translip/erase/config.py) 与 [src/translip/ocr/config.py](src/translip/ocr/config.py)。
 
+## 技术栈
+
+| 层 | 选型 |
+| --- | --- |
+| 编排 / CLI | Python 3.11–3.12 · 缓存感知 DAG 编排器 · 隔离子进程执行（崩溃不污染、模型按需释放） |
+| 控制平面 | FastAPI · SQLModel（SQLite + WAL）· SSE 实时进度 · 原子工具并发任务队列 |
+| 管理界面 | React 19 · TypeScript · Vite · Tailwind 4 · TanStack Query · Zustand · React Router · 中英双语 i18n |
+| 语音 / 视觉模型 | demucs · CDX23 · faster-whisper · FunASR/Paraformer · ECAPA / pyannote · M2M100 / DeepSeek · MOSS-TTS-Nano / Qwen3-TTS / VoxCPM2 · PaddleOCR · STTN / big-LaMa · Qwen3-VL（MLX / Ollama） |
+| 媒体 | FFmpeg（atempo / rubberband 变速 · 侧链混音 · mux / 字幕烧录） |
+
 ## 开发
 
 ```bash
@@ -370,14 +430,43 @@ npm run test       # Vitest 单元/组件测试
 
 仓库根目录还有 Playwright 端到端测试（`tests/e2e/*.spec.ts`），需要先 `./scripts/dev.sh start` 启动开发栈，再 `npx playwright test`。
 
+## 路线图与状态
+
+translip 是快速演进中的 Beta。下面是**诚实的能力边界**——已落地的、占位待补的、以及接下来的方向：
+
+**已经可用**
+
+- 端到端配音流水线（分离 → 转写 → 翻译 → 合成 → 回贴 → 交付），缓存感知、可从任意阶段重跑。
+- 16 个原子工具 + AI 助手编排；配音编辑台、配音评测、一键自动修复、说话人复核。
+- OCR 硬字幕识别 / 翻译 / 擦除；Qwen3-VL 画面感知注入翻译上下文。
+- 说话人 profile / registry、作品库 / 角色库、模型与令牌管理、中英双语界面。
+
+**占位 / 受限**
+
+- `--enhance-voice` 目前是**空操作占位**（`NoOpVoiceEnhancer`），尚无真实降噪 / 去混响后端。
+- 默认 TTS（MOSS-TTS-Nano）音色受限；更高质量音色克隆建议在 GPU 上用 `voxcpm2`。
+- 擦除范围以 OCR 检测框为界——检测漏框处不会被修复。
+
+**接下来**
+
+- 真实人声增强后端；更强的本地 TTS 音色；erase-qc / ocr-classify 的视觉集成深化（见 [docs/qwen3-vl-integration-plan.md](docs/qwen3-vl-integration-plan.md) Phase 3）。
+
 ## 相关文档
 
 - [docs/README.md](docs/README.md)：文档总索引
 - [docs/speaker-aware-dubbing-plan.md](docs/speaker-aware-dubbing-plan.md)：整体方案与技术路线
 - [docs/pipeline-and-engineering-orchestration.md](docs/pipeline-and-engineering-orchestration.md)：编排与缓存设计
 - [docs/final-video-delivery.md](docs/final-video-delivery.md)：最终视频交付设计
+- [docs/qwen3-vl-integration-plan.md](docs/qwen3-vl-integration-plan.md)：视频画面感知（Qwen3-VL）集成方案
 - [docs/frontend-management-system-design.md](docs/frontend-management-system-design.md)：管理界面设计
 - [frontend/README.md](frontend/README.md)：前端目录与开发说明
+
+## 联系方式
+
+有问题、建议或合作意向，欢迎联系：
+
+- 📧 Email：[sherlock.yin1994@gmail.com](mailto:sherlock.yin1994@gmail.com)
+- 🐧 QQ：546253846
 
 ## English README
 
