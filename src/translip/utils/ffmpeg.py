@@ -472,3 +472,74 @@ def burn_subtitle_preview(
     ]
     _run_ffmpeg_with_libass(args)
     return output_path
+
+
+def burn_subtitle(
+    *,
+    input_video_path: Path,
+    subtitle_path: Path,
+    output_path: Path,
+    video_codec: str = "libx264",
+    audio_codec: str = "copy",
+    crf: int = 18,
+    preset: str = "medium",
+) -> Path:
+    """Burn an ASS/SRT subtitle into the video while keeping the source's own
+    audio (re-encodes video; audio defaults to stream-copy). Unlike
+    ``burn_subtitle_and_mux`` this does not replace the audio with a dub track —
+    it is the standalone "hardsub this video" path.
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    vf = f"ass={subtitle_path}"
+    args = [
+        "-y",
+        "-i",
+        str(input_video_path),
+        "-map",
+        "0:v:0",
+        "-map",
+        "0:a:0?",  # '?' keeps videos without an audio track exporting cleanly
+        "-vf",
+        vf,
+        "-c:v",
+        video_codec,
+    ]
+    if video_codec == "libx264":
+        args.extend(["-crf", str(crf), "-preset", preset])
+    args.extend(["-c:a", audio_codec, "-movflags", "+faststart", str(output_path)])
+    _run_ffmpeg_with_libass(args)
+    return output_path
+
+
+def embed_soft_subtitle(
+    *,
+    input_video_path: Path,
+    subtitle_path: Path,
+    output_path: Path,
+    container: str = "mp4",
+    subtitle_language: str | None = None,
+) -> Path:
+    """Embed a subtitle as a selectable soft track without re-encoding video or
+    audio. Copies every existing source stream (``-map 0``) and adds the new
+    subtitle (``mov_text`` for mp4, ``srt`` for mkv)."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    args = [
+        "-y",
+        "-i",
+        str(input_video_path),
+        "-i",
+        str(subtitle_path),
+        "-map",
+        "0",
+        "-map",
+        "1:s:0",
+        "-c",
+        "copy",
+        "-c:s",
+        _soft_subtitle_codec(container),
+    ]
+    if subtitle_language:
+        args.extend(["-metadata:s:s:0", f"language={iso639_2(subtitle_language)}"])
+    args.extend(["-movflags", "+faststart", str(output_path)])
+    run_ffmpeg(args)
+    return output_path

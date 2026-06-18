@@ -12,7 +12,7 @@ def test_catalog_covers_every_registered_tool() -> None:
     catalog = build_tool_catalog()
     ids = {entry["tool_id"] for entry in catalog}
     assert ids == set(TOOL_REGISTRY)
-    assert len(catalog) == 12
+    assert len(catalog) == 15
 
 
 def test_catalog_separates_file_inputs_and_params_with_defaults() -> None:

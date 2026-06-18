@@ -101,9 +101,15 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
 
   const title = locale === 'zh-CN' ? tool.name_zh : tool.name_en
   const description = locale === 'zh-CN' ? tool.description_zh : tool.description_en
-  const uploadGridClass = toolId === 'mixing' || toolId === 'muxing' || toolId === 'transcript-correction'
-    ? 'grid gap-4 md:grid-cols-2'
-    : 'grid gap-4'
+  const uploadGridClass =
+    toolId === 'mixing' ||
+    toolId === 'muxing' ||
+    toolId === 'transcript-correction' ||
+    toolId === 'subtitle-burn' ||
+    toolId === 'subtitle-embed' ||
+    toolId === 'dub-render'
+      ? 'grid gap-4 md:grid-cols-2'
+      : 'grid gap-4'
 
   async function handleFileSelected(slot: string, file: File) {
     if (toolId === 'subtitle-erase' && slot === 'file' && file.type.startsWith('video/')) {
@@ -333,6 +339,66 @@ function renderUploadZones(
     )
   }
 
+  if (toolId === 'dub-render') {
+    return (
+      <>
+        <FileUploadZone
+          label={hints.translationLabel}
+          hint={hints.translationHint}
+          accept=".json"
+          value={fileRefs.translation_file ?? null}
+          onFileSelected={file => onFileSelected('translation_file', file)}
+        />
+        <FileUploadZone
+          label={hints.backgroundLabel}
+          hint={hints.backgroundHint}
+          accept=".wav,.mp3,.flac,.m4a,.ogg"
+          value={fileRefs.background_file ?? null}
+          onFileSelected={file => onFileSelected('background_file', file)}
+        />
+        <FileUploadZone
+          label={hints.referenceLabel}
+          hint={hints.referenceHint}
+          accept=".wav,.mp3,.flac,.m4a,.ogg"
+          value={fileRefs.reference_audio_file ?? null}
+          onFileSelected={file => onFileSelected('reference_audio_file', file)}
+          optional
+          optionalLabel={hints.optionalBadge}
+        />
+        <FileUploadZone
+          label={hints.dubVideoLabel}
+          hint={hints.dubVideoHint}
+          accept=".mp4,.mkv,.mov,.avi"
+          value={fileRefs.video_file ?? null}
+          onFileSelected={file => onFileSelected('video_file', file)}
+          optional
+          optionalLabel={hints.optionalBadge}
+        />
+      </>
+    )
+  }
+
+  if (toolId === 'subtitle-burn' || toolId === 'subtitle-embed') {
+    return (
+      <>
+        <FileUploadZone
+          label={hints.videoLabel}
+          hint={hints.videoHint}
+          accept=".mp4,.mkv,.mov,.avi"
+          value={fileRefs.video_file ?? null}
+          onFileSelected={file => onFileSelected('video_file', file)}
+        />
+        <FileUploadZone
+          label={hints.subtitleLabel}
+          hint={hints.subtitleHint}
+          accept=".srt,.ass"
+          value={fileRefs.subtitle_file ?? null}
+          onFileSelected={file => onFileSelected('subtitle_file', file)}
+        />
+      </>
+    )
+  }
+
   if (toolId === 'video-analyze') {
     return (
       <>
@@ -555,6 +621,82 @@ function renderControls(
         <SelectField label={atomicTools.fields.videoCodec} value={String(params.video_codec)} options={['copy', 'libx264']} onChange={value => setField('video_codec', value)} />
         <SelectField label={atomicTools.fields.audioCodec} value={String(params.audio_codec)} options={['aac']} onChange={value => setField('audio_codec', value)} />
         <TextField label={atomicTools.fields.audioBitrate} value={String(params.audio_bitrate)} onChange={value => setField('audio_bitrate', value)} />
+      </div>
+    )
+  }
+
+  if (toolId === 'dub-render') {
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <SelectField
+          label={atomicTools.fields.ttsBackend}
+          hint={atomicTools.hints.ttsBackend}
+          hintAriaLabel={atomicTools.hints.termHintAria}
+          value={String(params.backend ?? 'qwen3tts')}
+          options={['qwen3tts', 'moss-tts-nano-onnx', 'voxcpm2']}
+          onChange={value => setField('backend', value)}
+        />
+        <SelectField
+          label={atomicTools.fields.targetLang}
+          value={String(params.target_lang ?? 'auto')}
+          options={[{ value: 'auto', label: atomicTools.options.subtitleLang.auto }, ...targetLanguageOptions]}
+          onChange={value => setField('target_lang', value)}
+        />
+        <SelectField
+          label={atomicTools.fields.duckingMode}
+          value={String(params.ducking_mode ?? 'static')}
+          options={['static', 'sidechain']}
+          onChange={value => setField('ducking_mode', value)}
+        />
+        <TextField
+          label={atomicTools.fields.backgroundGain}
+          type="number"
+          value={String(params.background_gain_db ?? -8)}
+          onChange={value => setField('background_gain_db', Number(value))}
+        />
+      </div>
+    )
+  }
+
+  if (toolId === 'subtitle-burn') {
+    return (
+      <div className="grid gap-4 md:grid-cols-3">
+        <SelectField
+          label={atomicTools.fields.subtitleLang}
+          value={String(params.lang ?? 'auto')}
+          options={(['auto', 'cjk', 'latin'] as const).map(value => ({ value, label: atomicTools.options.subtitleLang[value] }))}
+          onChange={value => setField('lang', value)}
+        />
+        <SelectField
+          label={atomicTools.fields.subtitlePosition}
+          value={String(params.position ?? 'bottom')}
+          options={(['bottom', 'top'] as const).map(value => ({ value, label: atomicTools.options.subtitlePosition[value] }))}
+          onChange={value => setField('position', value)}
+        />
+        <SelectField
+          label={atomicTools.fields.quality}
+          value={String(params.quality ?? 'balanced')}
+          options={(['balanced', 'high'] as const).map(value => ({ value, label: atomicTools.options.quality[value] }))}
+          onChange={value => setField('quality', value)}
+        />
+      </div>
+    )
+  }
+
+  if (toolId === 'subtitle-embed') {
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <SelectField
+          label={atomicTools.fields.container}
+          value={String(params.container ?? 'mp4')}
+          options={(['mp4', 'mkv'] as const).map(value => ({ value, label: atomicTools.options.container[value] }))}
+          onChange={value => setField('container', value)}
+        />
+        <TextField
+          label={atomicTools.fields.subtitleLanguage}
+          value={String(params.subtitle_language ?? 'und')}
+          onChange={value => setField('subtitle_language', value)}
+        />
       </div>
     )
   }
@@ -1035,6 +1177,24 @@ function buildRunPayload(
     }
   }
 
+  if (toolId === 'subtitle-burn' || toolId === 'subtitle-embed') {
+    return {
+      ...params,
+      video_file_id: fileRefs.video_file?.file_id,
+      subtitle_file_id: fileRefs.subtitle_file?.file_id,
+    }
+  }
+
+  if (toolId === 'dub-render') {
+    return {
+      ...params,
+      translation_file_id: fileRefs.translation_file?.file_id,
+      background_file_id: fileRefs.background_file?.file_id,
+      reference_audio_file_id: fileRefs.reference_audio_file?.file_id,
+      video_file_id: fileRefs.video_file?.file_id,
+    }
+  }
+
   if (toolId === 'transcript-correction') {
     return {
       ...params,
@@ -1126,6 +1286,9 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
     case 'muxing':
       params = { video_codec: 'copy', audio_codec: 'aac', audio_bitrate: '192k' }
       break
+    case 'dub-render':
+      params = { backend: 'qwen3tts', target_lang: 'auto', ducking_mode: 'static', background_gain_db: -8 }
+      break
     case 'subtitle-detect':
       params = {
         language: 'ch',
@@ -1137,6 +1300,12 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
       break
     case 'subtitle-erase':
       params = { preset: 'balanced', backend: '', device: 'auto' }
+      break
+    case 'subtitle-burn':
+      params = { lang: 'auto', position: 'bottom', quality: 'balanced' }
+      break
+    case 'subtitle-embed':
+      params = { container: 'mp4', subtitle_language: 'und' }
       break
     case 'video-analyze':
       params = {

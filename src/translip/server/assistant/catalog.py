@@ -20,12 +20,15 @@ from pydantic_core import PydanticUndefined
 
 from ..atomic_tools.registry import TOOL_REGISTRY, get_tool_spec
 from ..atomic_tools.schemas import (
+    DubRenderToolRequest,
     M3u8ToMp4ToolRequest,
     MixingToolRequest,
     MuxingToolRequest,
     ProbeToolRequest,
     SeparationToolRequest,
+    SubtitleBurnToolRequest,
     SubtitleDetectToolRequest,
+    SubtitleEmbedToolRequest,
     SubtitleEraseToolRequest,
     TranscriptCorrectionToolRequest,
     TranscriptionToolRequest,
@@ -82,6 +85,13 @@ TOOL_CATALOG: dict[str, ToolCatalogEntry] = {
         MuxingToolRequest,
         {"output_file": "合成后的视频 MP4"},
     ),
+    "dub-render": ToolCatalogEntry(
+        DubRenderToolRequest,
+        {
+            "mixed_audio_file": "配音+背景的混音 WAV",
+            "output_file": "（提供视频时）合并配音后的成品视频 MP4",
+        },
+    ),
     "subtitle-detect": ToolCatalogEntry(
         SubtitleDetectToolRequest,
         {
@@ -92,6 +102,14 @@ TOOL_CATALOG: dict[str, ToolCatalogEntry] = {
     "subtitle-erase": ToolCatalogEntry(
         SubtitleEraseToolRequest,
         {"erased_file": "擦除字幕后的视频"},
+    ),
+    "subtitle-burn": ToolCatalogEntry(
+        SubtitleBurnToolRequest,
+        {"output_file": "烧录硬字幕后的视频 MP4"},
+    ),
+    "subtitle-embed": ToolCatalogEntry(
+        SubtitleEmbedToolRequest,
+        {"output_file": "封装软字幕后的视频"},
     ),
     "video-analyze": ToolCatalogEntry(
         VideoAnalyzeToolRequest,

@@ -62,8 +62,11 @@ def test_atomic_tools_api_supports_upload_run_status_and_artifacts(tmp_path: Pat
         "tts",
         "probe",
         "muxing",
+        "dub-render",
         "subtitle-detect",
         "subtitle-erase",
+        "subtitle-burn",
+        "subtitle-embed",
         "video-analyze",
         "m3u8-to-mp4",
     }

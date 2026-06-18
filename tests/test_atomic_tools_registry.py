@@ -17,8 +17,11 @@ def test_atomic_tools_registry_exposes_all_tools() -> None:
         "tts",
         "probe",
         "muxing",
+        "dub-render",
         "subtitle-detect",
         "subtitle-erase",
+        "subtitle-burn",
+        "subtitle-embed",
         "video-analyze",
         "m3u8-to-mp4",
     }

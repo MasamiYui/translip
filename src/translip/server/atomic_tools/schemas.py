@@ -169,6 +169,53 @@ class MuxingToolRequest(BaseModel):
     audio_bitrate: str = "192k"
 
 
+class DubRenderToolRequest(BaseModel):
+    translation_file_id: str = Field(description="翻译结果 JSON（含每段 segment_id/speaker_id/时间轴/target_text），来自「文本翻译」工具")
+    background_file_id: str = Field(description="背景/伴奏音轨文件 ID，来自「人声/背景分离」工具")
+    reference_audio_file_id: str | None = Field(
+        default=None, description="参考音色音频文件 ID；moss-tts-nano-onnx / voxcpm2 后端必填（音色克隆）"
+    )
+    video_file_id: str | None = Field(
+        default=None, description="可选：目标视频文件 ID，提供则把配音混音合并回视频输出成品 MP4"
+    )
+    backend: str = Field(default="qwen3tts", description="TTS 后端")
+    target_lang: str = Field(default="auto", description="目标语言；auto 表示沿用翻译 JSON 中记录的目标语言")
+    ducking_mode: Literal["static", "sidechain"] = Field(default="static", description="背景压混方式")
+    background_gain_db: float = Field(default=-8.0, description="背景音轨增益 (dB)")
+
+    @model_validator(mode="after")
+    def validate_backend(self) -> "DubRenderToolRequest":
+        if self.backend not in SUPPORTED_DUBBING_BACKENDS:
+            raise ValueError(
+                f"Unsupported TTS backend: {self.backend}. "
+                f"Choose one of: {', '.join(SUPPORTED_DUBBING_BACKENDS)}"
+            )
+        if self.backend in {"moss-tts-nano-onnx", "voxcpm2"} and not self.reference_audio_file_id:
+            raise ValueError(
+                f"The {self.backend} backend requires a reference audio upload for voice cloning."
+            )
+        return self
+
+
+class SubtitleBurnToolRequest(BaseModel):
+    video_file_id: str = Field(description="待烧录字幕的视频文件 ID")
+    subtitle_file_id: str = Field(description="字幕文件 ID（.srt 或 .ass）")
+    lang: Literal["auto", "cjk", "latin"] = Field(
+        default="auto", description="字体选择：auto 自动判断中日韩/拉丁，cjk 强制中日韩字体，latin 强制拉丁字体"
+    )
+    position: Literal["bottom", "top"] = Field(default="bottom", description="字幕位置")
+    quality: Literal["balanced", "high"] = Field(
+        default="balanced", description="编码质量：balanced=较快，high=更清晰但更慢"
+    )
+
+
+class SubtitleEmbedToolRequest(BaseModel):
+    video_file_id: str = Field(description="目标视频文件 ID")
+    subtitle_file_id: str = Field(description="字幕文件 ID（.srt 或 .ass）")
+    container: Literal["mp4", "mkv"] = Field(default="mp4", description="输出容器：mp4 用 mov_text，mkv 用 srt 软字幕")
+    subtitle_language: str = Field(default="und", description="字幕语言标签（ISO 639，如 zh/en/und）")
+
+
 SubtitleErasePreset = Literal["balanced", "quality"]
 
 
