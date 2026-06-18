@@ -11,11 +11,11 @@ import {
   Minimize2,
   Paperclip,
   Play,
-  RotateCcw,
   Send,
   Settings,
   Sparkles,
   Square,
+  SquarePen,
   Upload,
   X,
 } from 'lucide-react'
@@ -141,6 +141,7 @@ export function AssistantWidget() {
   )
   const [uploading, setUploading] = useState<UploadingFile[]>([])
   const [showScrollButton, setShowScrollButton] = useState(false)
+  const [confirmingNew, setConfirmingNew] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
@@ -210,15 +211,20 @@ export function AssistantWidget() {
     }
   }, [messages, isOpen])
 
-  // ESC closes the drawer.
+  // ESC closes the new-chat confirm popover first, otherwise the drawer.
   useEffect(() => {
     if (!isOpen) return
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close()
+      if (e.key !== 'Escape') return
+      if (confirmingNew) {
+        setConfirmingNew(false)
+        return
+      }
+      close()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [isOpen, close])
+  }, [isOpen, close, confirmingNew])
 
   function handleScroll() {
     const el = scrollRef.current
@@ -380,6 +386,27 @@ export function AssistantWidget() {
           ? t.assistant.errorTitle
           : ''
 
+  // A run keeps executing server-side after a new chat; warn before clearing.
+  const hasRunningJob =
+    activeRunId != null && (liveStatus === 'running' || liveStatus === 'pending')
+
+  function startNewChat() {
+    reset()
+    setConfirmingNew(false)
+    setActiveRunId(null)
+    setActiveMsgId(null)
+    setInput('')
+  }
+
+  function handleNewChatClick() {
+    // An empty conversation is already "new" — start fresh silently.
+    if (messages.length === 0) {
+      startNewChat()
+      return
+    }
+    setConfirmingNew(true)
+  }
+
   const mascotState: MascotState = planMutation.isPending
     ? 'thinking'
     : liveStatus === 'running'
@@ -437,15 +464,59 @@ export function AssistantWidget() {
             >
               {expanded ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
             </button>
-            <button
-              type="button"
-              onClick={reset}
-              aria-label={t.assistant.reset}
-              title={t.assistant.reset}
-              className="rounded-md p-1.5 text-white/85 transition-colors hover:bg-white/15"
-            >
-              <RotateCcw size={16} />
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={handleNewChatClick}
+                aria-label={t.assistant.reset}
+                title={t.assistant.reset}
+                className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-white/85 transition-colors hover:bg-white/15"
+              >
+                <SquarePen size={16} />
+                <span className="hidden text-[12px] font-medium sm:inline">{t.assistant.reset}</span>
+              </button>
+
+              {confirmingNew && (
+                <>
+                  {/* click-outside catcher */}
+                  <button
+                    type="button"
+                    aria-hidden="true"
+                    tabIndex={-1}
+                    onClick={() => setConfirmingNew(false)}
+                    className="fixed inset-0 z-40 cursor-default"
+                  />
+                  <div
+                    role="dialog"
+                    aria-label={t.assistant.newChatConfirmTitle}
+                    className="absolute right-0 top-full z-50 mt-2 w-64 rounded-xl border border-[#e4e9f0] bg-white p-3 text-left shadow-[0_12px_32px_rgba(17,24,39,0.18)]"
+                  >
+                    <div className="text-[13px] font-semibold text-[#1f2937]">
+                      {t.assistant.newChatConfirmTitle}
+                    </div>
+                    <p className="mt-1 text-[12px] leading-relaxed text-[#6b7280]">
+                      {hasRunningJob ? t.assistant.newChatConfirmRunning : t.assistant.newChatConfirmDesc}
+                    </p>
+                    <div className="mt-3 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingNew(false)}
+                        className="rounded-lg border border-[#e4e9f0] px-2.5 py-1 text-[12px] text-[#6b7280] transition-colors hover:bg-[#f3f4f6]"
+                      >
+                        {t.assistant.cancelPlan}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={startNewChat}
+                        className="rounded-lg bg-[#3b5bdb] px-2.5 py-1 text-[12px] font-medium text-white transition-colors hover:bg-[#3451c7]"
+                      >
+                        {t.assistant.newChatConfirm}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
             <button
               type="button"
               onClick={close}

@@ -214,6 +214,38 @@ describe('AssistantWidget', () => {
     expect(screen.queryByText(/请先上传文件/)).not.toBeInTheDocument()
   })
 
+  it('confirms before starting a new chat, then clears the conversation', async () => {
+    apiMocks.plan.mockResolvedValue(RUNNABLE_RESULT)
+    renderWidget()
+    fireEvent.click(screen.getByLabelText('打开 AI 助手'))
+    fireEvent.click(screen.getByText('提取这个视频里的人声'))
+    await waitFor(() => expect(screen.getByTestId('call-chain-diagram')).toBeInTheDocument())
+
+    // Clicking "新对话" with content opens a confirm popover — it must NOT clear yet.
+    fireEvent.click(screen.getByRole('button', { name: '新对话' }))
+    expect(screen.getByRole('dialog', { name: '开始新对话？' })).toBeInTheDocument()
+    expect(screen.getByTestId('call-chain-diagram')).toBeInTheDocument()
+
+    // Confirming clears the conversation back to the empty greeting state.
+    fireEvent.click(screen.getByText('新建'))
+    await waitFor(() => expect(screen.queryByTestId('call-chain-diagram')).not.toBeInTheDocument())
+    expect(screen.getByText('识别这个视频的日语字幕并转成中文字幕')).toBeInTheDocument()
+  })
+
+  it('keeps the conversation when the new-chat confirm is dismissed', async () => {
+    apiMocks.plan.mockResolvedValue(RUNNABLE_RESULT)
+    renderWidget()
+    fireEvent.click(screen.getByLabelText('打开 AI 助手'))
+    fireEvent.click(screen.getByText('提取这个视频里的人声'))
+    await waitFor(() => expect(screen.getByTestId('call-chain-diagram')).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: '新对话' }))
+    fireEvent.click(screen.getByText('取消'))
+
+    expect(screen.queryByRole('dialog', { name: '开始新对话？' })).not.toBeInTheDocument()
+    expect(screen.getByTestId('call-chain-diagram')).toBeInTheDocument()
+  })
+
   it('shows a setup banner and disables sending when the DeepSeek key is missing', async () => {
     apiMocks.getLlmKeys.mockResolvedValue({ ok: true, providers: { deepseek: false }, base_urls: {} })
     renderWidget()
