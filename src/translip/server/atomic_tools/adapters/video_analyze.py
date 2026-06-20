@@ -128,7 +128,7 @@ register_tool(
         category="video",
         icon="ScanEye",
         accept_formats=[".mp4", ".mkv", ".avi", ".mov"],
-        max_file_size_mb=2048,
+        max_file_size_mb=4096,
         max_files=1,
         heavy=True,
     ),

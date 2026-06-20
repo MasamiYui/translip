@@ -169,7 +169,7 @@ register_tool(
         category="speech",
         icon="AudioLines",
         accept_formats=[".json", ".wav", ".mp3", ".flac", ".m4a", ".mp4", ".mkv", ".mov"],
-        max_file_size_mb=2000,
+        max_file_size_mb=4096,
         max_files=4,
         heavy=True,
     ),

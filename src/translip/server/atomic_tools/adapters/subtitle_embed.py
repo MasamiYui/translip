@@ -42,7 +42,7 @@ register_tool(
         category="video",
         icon="Subtitles",
         accept_formats=[".mp4", ".mkv", ".mov", ".srt", ".ass"],
-        max_file_size_mb=2000,
+        max_file_size_mb=4096,
         max_files=2,
     ),
     SubtitleEmbedAdapter,

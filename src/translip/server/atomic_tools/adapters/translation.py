@@ -162,7 +162,7 @@ register_tool(
         category="speech",
         icon="Languages",
         accept_formats=[".txt", ".srt", ".json"],
-        max_file_size_mb=20,
+        max_file_size_mb=64,
         max_files=2,
     ),
     TranslationAdapter,

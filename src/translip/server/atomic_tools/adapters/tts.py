@@ -234,7 +234,7 @@ register_tool(
         category="speech",
         icon="Mic",
         accept_formats=[".wav", ".mp3", ".flac", ".m4a", ".ogg", ".txt"],
-        max_file_size_mb=100,
+        max_file_size_mb=1024,
         max_files=1,
     ),
     TtsAdapter,

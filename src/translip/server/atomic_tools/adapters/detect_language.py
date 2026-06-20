@@ -80,7 +80,7 @@ register_tool(
         category="speech",
         icon="Globe",
         accept_formats=[".mp4", ".mkv", ".mov", ".avi", ".wav", ".mp3", ".flac", ".m4a", ".ogg", ".webm", ".ts"],
-        max_file_size_mb=2000,
+        max_file_size_mb=4096,
         max_files=1,
     ),
     DetectLanguageAdapter,

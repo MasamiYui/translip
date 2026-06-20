@@ -58,7 +58,7 @@ register_tool(
         category="video",
         icon="ScanSearch",
         accept_formats=[".mp4", ".mkv", ".avi", ".mov", ".wav", ".mp3", ".flac", ".m4a", ".ogg", ".webm", ".ts"],
-        max_file_size_mb=2000,
+        max_file_size_mb=4096,
         max_files=1,
     ),
     ProbeAdapter,

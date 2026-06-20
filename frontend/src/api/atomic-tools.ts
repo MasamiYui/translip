@@ -43,6 +43,9 @@ export const atomicToolsApi = {
     return api
       .post<FileUploadResponse>('/api/atomic-tools/upload', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: 0,
+        maxBodyLength: Infinity,
+        maxContentLength: Infinity,
         onUploadProgress: event => {
           if (onProgress && event.total) {
             onProgress((event.loaded / event.total) * 100)

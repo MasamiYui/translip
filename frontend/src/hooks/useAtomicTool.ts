@@ -1,7 +1,40 @@
 import { startTransition, useEffect, useState } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
+import { AxiosError } from 'axios'
 import { atomicToolsApi } from '../api/atomic-tools'
 import type { ArtifactInfo, AtomicJob, FileUploadResponse } from '../types/atomic-tools'
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof AxiosError) {
+    const data = error.response?.data as unknown
+    if (data && typeof data === 'object') {
+      const detail = (data as { detail?: unknown }).detail
+      if (typeof detail === 'string' && detail.trim().length > 0) {
+        return detail
+      }
+      if (Array.isArray(detail)) {
+        const parts = detail
+          .map(item => {
+            if (item && typeof item === 'object' && typeof (item as { msg?: unknown }).msg === 'string') {
+              return (item as { msg: string }).msg
+            }
+            return typeof item === 'string' ? item : null
+          })
+          .filter((part): part is string => Boolean(part))
+        if (parts.length > 0) {
+          return parts.join('; ')
+        }
+      }
+    }
+    if (typeof data === 'string' && data.trim().length > 0) {
+      return data
+    }
+  }
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+  return fallback
+}
 
 interface UseAtomicToolOptions {
   toolId: string
@@ -42,7 +75,7 @@ export function useAtomicTool({
       })
     },
     onError: error => {
-      setErrorMessage(error instanceof Error ? error.message : 'Upload failed')
+      setErrorMessage(extractErrorMessage(error, 'Upload failed'))
     },
   })
 
@@ -56,7 +89,7 @@ export function useAtomicTool({
       })
     },
     onError: error => {
-      setErrorMessage(error instanceof Error ? error.message : 'Run failed')
+      setErrorMessage(extractErrorMessage(error, 'Run failed'))
     },
   })
 
@@ -94,7 +127,7 @@ export function useAtomicTool({
       })
       .catch(error => {
         if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : 'Artifact loading failed')
+          setErrorMessage(extractErrorMessage(error, 'Artifact loading failed'))
         }
       })
 

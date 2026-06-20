@@ -37,11 +37,11 @@ def test_atomic_tools_registry_exposes_all_tools() -> None:
     assert correction.category == "speech"
     assert correction.max_files == 2
     assert ".json" in correction.accept_formats
-    assert next(tool for tool in tools if tool.tool_id == "probe").max_file_size_mb == 2000
+    assert next(tool for tool in tools if tool.tool_id == "probe").max_file_size_mb == 4096
     erase = next(tool for tool in tools if tool.tool_id == "subtitle-erase")
     assert erase.category == "video"
     assert erase.max_files == 2
     assert ".json" in erase.accept_formats
     detect = next(tool for tool in tools if tool.tool_id == "subtitle-detect")
     assert detect.category == "video"
-    assert detect.max_file_size_mb == 2048
+    assert detect.max_file_size_mb == 4096

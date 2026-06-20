@@ -84,7 +84,7 @@ register_tool(
         category="audio",
         icon="Music",
         accept_formats=[".wav", ".mp3", ".flac", ".m4a", ".ogg"],
-        max_file_size_mb=500,
+        max_file_size_mb=4096,
         max_files=2,
     ),
     MixingAdapter,

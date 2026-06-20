@@ -604,7 +604,7 @@ def test_subtitle_tools_are_registered_with_video_category() -> None:
     erase = TOOL_REGISTRY["subtitle-erase"]
     assert detect.category == "video"
     assert erase.category == "video"
-    assert detect.max_file_size_mb == 2048
-    assert erase.max_file_size_mb == 2048
+    assert detect.max_file_size_mb == 4096
+    assert erase.max_file_size_mb == 4096
     assert ".mp4" in detect.accept_formats
     assert ".json" in erase.accept_formats

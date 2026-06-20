@@ -115,7 +115,7 @@ register_tool(
         # Accepts both video and image file uploads — _validate_stored_file
         # checks every uploaded file's suffix against this list.
         accept_formats=[".mp4", ".mkv", ".mov", ".avi", ".png", ".jpg", ".jpeg", ".webp"],
-        max_file_size_mb=2000,
+        max_file_size_mb=4096,
         max_files=2,
     ),
     WatermarkAdapter,
