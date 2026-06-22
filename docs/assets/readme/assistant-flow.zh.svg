@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 286" width="1360" height="286" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Source Han Sans SC','Segoe UI',sans-serif" role="img" aria-labelledby="t d">
+  <title id="t">AI 助手编排流程</title>
+  <desc id="d">自然语言需求 → DeepSeek 规划原子能力调用链 → 展示可编辑计划 → 按序执行原子工具 → 下载产物，支持多轮对话重新规划。</desc>
+
+  <defs>
+    <style>
+      .cjk{font-family:'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Source Han Sans SC','Segoe UI',sans-serif}
+      .mono{font-family:'SF Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace}
+      .ttl{font-size:13.5px;font-weight:600;fill:#EAF5FF}
+      .sub{font-size:9px;fill:#8AA0BE}
+      .sec{font-size:13px;font-weight:700;fill:#9CC4E8;letter-spacing:2px}
+      .secsm{font-size:9px;fill:#5E7B9C;letter-spacing:3px}
+      .step{font-size:8px;letter-spacing:1.5px}
+      .loop{font-size:9.5px;fill:#A78BD8}
+    </style>
+
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0A0F20"/><stop offset="0.5" stop-color="#0B1228"/><stop offset="1" stop-color="#080B1A"/>
+    </linearGradient>
+    <radialGradient id="blobTop" cx="0.5" cy="-0.1" r="0.8"><stop offset="0" stop-color="#0EA5E9" stop-opacity="0.16"/><stop offset="1" stop-color="#0EA5E9" stop-opacity="0"/></radialGradient>
+    <radialGradient id="blobV" cx="0.42" cy="1.1" r="0.5"><stop offset="0" stop-color="#7C3AED" stop-opacity="0.16"/><stop offset="1" stop-color="#7C3AED" stop-opacity="0"/></radialGradient>
+    <pattern id="grid" width="38" height="38" patternUnits="userSpaceOnUse"><path d="M38 0H0V38" fill="none" stroke="#2DD4F0" stroke-opacity="0.045" stroke-width="1"/></pattern>
+
+    <linearGradient id="cFlow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#14294C"/><stop offset="1" stop-color="#0C1830"/></linearGradient>
+
+    <filter id="gCyan" x="-45%" y="-45%" width="190%" height="190%"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#22D3EE" flood-opacity="0.42"/></filter>
+    <filter id="gViolet" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#8B5CF6" flood-opacity="0.45"/></filter>
+    <filter id="gBlue" x="-45%" y="-45%" width="190%" height="190%"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#3B82F6" flood-opacity="0.42"/></filter>
+    <filter id="gEmerald" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#10B981" flood-opacity="0.42"/></filter>
+
+    <marker id="aCyan" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#7DE6F5"/></marker>
+    <marker id="aViolet" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#C4B5FD"/></marker>
+
+    <symbol id="i-bot" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5A2 2 0 0 1 6 5.5h8a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H8.5l-3 2.6v-2.6H6a2 2 0 0 1-2-2z"/><path d="M18 6.2v3.6M16.2 8h3.6"/></g></symbol>
+    <symbol id="i-orch" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="5.5" cy="18" r="2.2"/><circle cx="18" cy="12" r="2.4"/><path d="M7.4 7.1l8.6 3.8M7.4 16.9l8.6-3.8"/></g></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6.5" r="1.4"/><path d="M9.5 6.5H20"/><circle cx="5" cy="12" r="1.4"/><path d="M9.5 12H20"/><circle cx="5" cy="17.5" r="1.4"/><path d="M9.5 17.5h7"/></g></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.2"/><path d="M10.3 8.4l5 3.6-5 3.6z" fill="currentColor" stroke="none"/></g></symbol>
+    <symbol id="i-dl" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v10"/><path d="M8 10l4 4 4-4"/><path d="M5 19h14"/></g></symbol>
+  </defs>
+
+  <rect width="1360" height="286" fill="url(#bg)"/>
+  <rect width="1360" height="286" fill="url(#grid)"/>
+  <rect width="1360" height="286" fill="url(#blobTop)"/>
+  <rect width="1360" height="286" fill="url(#blobV)"/>
+
+  <!-- eyebrow -->
+  <rect x="78" y="34" width="16" height="5" rx="2.5" fill="#22D3EE"/>
+  <text x="104" y="44" class="cjk sec">AI 助手 · 一句话编排原子能力</text>
+  <text x="104" y="62" class="mono secsm">NATURAL&#160;LANGUAGE&#160;→&#160;ATOMIC-TOOL&#160;CHAIN</text>
+
+  <!-- flow connectors -->
+  <g>
+    <line x1="274" y1="154" x2="330" y2="154" stroke="#3EA7E0" stroke-opacity="0.4" stroke-width="2.2"/>
+    <line x1="526" y1="154" x2="582" y2="154" stroke="#3EA7E0" stroke-opacity="0.4" stroke-width="2.2"/>
+    <line x1="778" y1="154" x2="834" y2="154" stroke="#3EA7E0" stroke-opacity="0.4" stroke-width="2.2"/>
+    <line x1="1030" y1="154" x2="1086" y2="154" stroke="#3EA7E0" stroke-opacity="0.4" stroke-width="2.2"/>
+  </g>
+  <g stroke="#A5F3FC" stroke-width="2.6" stroke-linecap="round" fill="none" marker-end="url(#aCyan)" filter="url(#gCyan)">
+    <line x1="274" y1="154" x2="330" y2="154" stroke-dasharray="2 9"><animate attributeName="stroke-dashoffset" values="22;0" dur="1.15s" begin="0s" repeatCount="indefinite"/></line>
+    <line x1="526" y1="154" x2="582" y2="154" stroke-dasharray="2 9"><animate attributeName="stroke-dashoffset" values="22;0" dur="1.15s" begin="0.25s" repeatCount="indefinite"/></line>
+    <line x1="778" y1="154" x2="834" y2="154" stroke-dasharray="2 9"><animate attributeName="stroke-dashoffset" values="22;0" dur="1.15s" begin="0.5s" repeatCount="indefinite"/></line>
+    <line x1="1030" y1="154" x2="1086" y2="154" stroke-dasharray="2 9"><animate attributeName="stroke-dashoffset" values="22;0" dur="1.15s" begin="0.75s" repeatCount="indefinite"/></line>
+  </g>
+
+  <!-- feedback loop: review/exec -> re-plan -->
+  <path d="M680 214C680 252 428 252 428 216" fill="none" stroke="#8B5CF6" stroke-opacity="0.5" stroke-width="1.8" stroke-dasharray="5 5" stroke-linecap="round" marker-end="url(#aViolet)"/>
+  <text x="554" y="248" text-anchor="middle" class="cjk loop">多轮对话 · 重新规划</text>
+
+  <!-- step 1 -->
+  <g><rect x="78" y="96" width="196" height="116" rx="16" fill="url(#cFlow)" stroke="#22D3EE" stroke-opacity="0.45" filter="url(#gCyan)"/>
+    <rect x="96" y="131" width="44" height="44" rx="13" fill="#22D3EE" fill-opacity="0.13" stroke="#22D3EE" stroke-opacity="0.45"/>
+    <use href="#i-bot" x="104" y="139" width="28" height="28" color="#7DE6F5"/>
+    <text x="156" y="142" class="mono step" fill="#22D3EE">STEP 01</text>
+    <text x="156" y="162" class="cjk ttl">自然语言需求</text>
+    <text x="156" y="181" class="cjk sub">「把视频配成英文」</text></g>
+
+  <!-- step 2 -->
+  <g><rect x="330" y="96" width="196" height="116" rx="16" fill="url(#cFlow)" stroke="#8B5CF6" stroke-opacity="0.45" filter="url(#gViolet)"/>
+    <rect x="348" y="131" width="44" height="44" rx="13" fill="#8B5CF6" fill-opacity="0.14" stroke="#8B5CF6" stroke-opacity="0.45"/>
+    <use href="#i-orch" x="356" y="139" width="28" height="28" color="#C4B5FD"/>
+    <text x="408" y="142" class="mono step" fill="#A78BFA">STEP 02</text>
+    <text x="408" y="162" class="cjk ttl">DeepSeek 规划</text>
+    <text x="408" y="181" class="cjk sub">原子能力调用链</text></g>
+
+  <!-- step 3 -->
+  <g><rect x="582" y="96" width="196" height="116" rx="16" fill="url(#cFlow)" stroke="#38BDF8" stroke-opacity="0.45" filter="url(#gCyan)"/>
+    <rect x="600" y="131" width="44" height="44" rx="13" fill="#38BDF8" fill-opacity="0.13" stroke="#38BDF8" stroke-opacity="0.45"/>
+    <use href="#i-list" x="608" y="139" width="28" height="28" color="#7DD3FC"/>
+    <text x="660" y="142" class="mono step" fill="#38BDF8">STEP 03</text>
+    <text x="660" y="162" class="cjk ttl">展示计划</text>
+    <text x="660" y="181" class="cjk sub">可编辑每步参数</text></g>
+
+  <!-- step 4 -->
+  <g><rect x="834" y="96" width="196" height="116" rx="16" fill="url(#cFlow)" stroke="#3B82F6" stroke-opacity="0.45" filter="url(#gBlue)"/>
+    <rect x="852" y="131" width="44" height="44" rx="13" fill="#3B82F6" fill-opacity="0.13" stroke="#3B82F6" stroke-opacity="0.45"/>
+    <use href="#i-play" x="860" y="139" width="28" height="28" color="#93C5FD"/>
+    <text x="912" y="142" class="mono step" fill="#5B9CF8">STEP 04</text>
+    <text x="912" y="162" class="cjk ttl">按序执行</text>
+    <text x="912" y="181" class="cjk sub">调度原子工具</text></g>
+
+  <!-- step 5 -->
+  <g><rect x="1086" y="96" width="196" height="116" rx="16" fill="url(#cFlow)" stroke="#10B981" stroke-opacity="0.45" filter="url(#gEmerald)"/>
+    <rect x="1104" y="131" width="44" height="44" rx="13" fill="#10B981" fill-opacity="0.13" stroke="#10B981" stroke-opacity="0.45"/>
+    <use href="#i-dl" x="1112" y="139" width="28" height="28" color="#6EE7B7"/>
+    <text x="1164" y="142" class="mono step" fill="#34D399">STEP 05</text>
+    <text x="1164" y="162" class="cjk ttl">下载产物</text>
+    <text x="1164" y="181" class="cjk sub">成片 + 中间产物</text></g>
+</svg>

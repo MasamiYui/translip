@@ -150,13 +150,9 @@
 - 擦除视频里的硬字幕
 - 探测这个文件的媒体信息
 
-```mermaid
-flowchart LR
-    NL["自然语言需求<br/>「把视频配成英文」"] --> Plan["DeepSeek 规划<br/>原子能力调用链"]
-    Plan --> Review["展示计划<br/>可编辑每步参数"]
-    Review --> Exec["按序执行<br/>原子工具"]
-    Exec --> Out["下载产物"]
-```
+<div align="center">
+  <img src="docs/assets/readme/assistant-flow.zh.svg" alt="AI 助手编排流程：自然语言需求 → DeepSeek 规划原子能力调用链 → 展示可编辑计划 → 按序执行原子工具 → 下载产物，支持多轮对话重新规划" width="100%" />
+</div>
 
 **启用条件**
 

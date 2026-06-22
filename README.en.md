@@ -138,13 +138,9 @@ The UI is the primary day-to-day entry point. The left navigation is grouped int
 
 > **AI assistant**: a chat assistant you can summon from the bottom-right of any page (it opens as a right-docked drawer). Describe a goal in one sentence (e.g. "dub this video into English", "erase the hard subtitles"), and the assistant uses DeepSeek to plan your request into a chain of atomic capabilities and shows it first; confirm (editing each step's params if needed) and run it in one click, then download the outputs. Runs are recorded as "AI tasks" and need `DEEPSEEK_API_KEY` configured in Settings.
 
-```mermaid
-flowchart LR
-    NL["Natural-language goal<br/>'dub this into English'"] --> Plan["DeepSeek plans<br/>an atomic-tool chain"]
-    Plan --> Review["Show the plan<br/>edit each step's params"]
-    Review --> Exec["Run the tools<br/>in order"]
-    Exec --> Out["Download outputs"]
-```
+<div align="center">
+  <img src="docs/assets/readme/assistant-flow.en.svg" alt="AI assistant flow: natural-language goal → DeepSeek plans an atomic-tool chain → review the editable plan → run the tools in order → download outputs, with multi-turn re-planning" width="100%" />
+</div>
 
 ### Development Mode
 
