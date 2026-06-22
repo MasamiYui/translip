@@ -126,6 +126,14 @@ Reproducible via the suites above, on real corpora under `/Volumes/EXT`:
   GT. Place under `<datasets>/aishell4/<subset>/{wav,TextGrid}` and
   `<datasets>/alimeeting/<subset>/{audio_dir,textgrid_dir}`. **Domain caveat:**
   meeting/telephone, the only rigorous open CER/DER GT — not film/TV.
+- **`wenetspeech-drama`** — the "D" (drama) subset of WenetSpeech, Mandarin
+  film/TV ASR with reference transcripts. EULA-gated: register at
+  https://wenet.org.cn/WenetSpeech/, filter `WenetSpeech.json` by
+  `"D" in segment.subsets`, slice the matching opus into per-segment WAVs and
+  drop them under `<datasets>/wenetspeech-drama/<subset>/{manifest.json,audio/,srt/}`
+  (schema documented at the top of `datasets/wenetspeech_drama.py`). This is the
+  first dataset that puts the film/TV domain on the leaderboard — run it via
+  `translip-lab run --suite asr-drama-wenetspeech`.
 - **`synthetic-subtitle`** / **`synthetic-mix`** — generated GT for OCR/erase and
   separation (no public CN film/TV GT exists for these). Synthetic numbers validate
   plumbing; for real numbers supply real material via `folder`.
