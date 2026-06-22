@@ -78,41 +78,9 @@
 
 ## System Architecture
 
-```mermaid
-flowchart LR
-    Input["Input Media<br/>Video / Audio"] --> Separation["separation<br/>Audio Separation"]
-    Separation --> Transcription["transcription<br/>Speaker-attributed Transcription"]
-    Transcription --> SpeakerRegistry["speaker-registry<br/>Speaker Profiles / Registry"]
-    SpeakerRegistry --> Translation["translation<br/>Dubbing Script Translation"]
-    Translation --> Synthesis["synthesis<br/>Per-speaker TTS"]
-    Synthesis --> Render["render<br/>Timeline Fit And Mix"]
-    Render --> DeliveryStage["delivery<br/>Final Video Delivery"]
-
-    Transcription -. "+OCR subs template" .-> OCR["OCR subtitle detect/translate<br/>+ subtitle erase"]
-    OCR -.-> DeliveryStage
-    Transcription -. "+visual template" .-> Visual["Qwen3-VL visual perception<br/>scene descriptions"]
-    Visual -. "inject translation context" .-> Translation
-
-    subgraph ControlPlane["Control Plane (FastAPI + React)"]
-        UI["React Management UI"]
-        API["FastAPI Service"]
-        DB[("SQLite Task Store")]
-        Orchestrator["Orchestration / Cache / Artifact Index"]
-        Atomic["Atomic Tools Subsystem<br/>standalone job queue"]
-        Assistant["AI Assistant<br/>plan → run atomic-tool chains"]
-    end
-
-    UI <--> API
-    API <--> DB
-    API <--> Orchestrator
-    API <--> Atomic
-    API <--> Assistant
-    Assistant --> Atomic
-    Orchestrator --> Separation & Transcription & SpeakerRegistry & Translation & Synthesis & Render & DeliveryStage
-
-    Render --> Preview["Preview Mix / Dub Audio"]
-    DeliveryStage --> Delivery["Final MP4 Delivery"]
-```
+<div align="center">
+  <img src="docs/assets/readme/architecture.en.svg" alt="translip system architecture: a control plane (FastAPI + React) drives a cache-aware dubbing pipeline, with optional OCR / visual-perception templates and output deliverables" width="100%" />
+</div>
 
 The orchestrator holds no task logic: it resolves a node DAG, checks a cache, and shells out to each stage as an **isolated subprocess** (the same code path as the CLI subcommands). Heavy ML models are freed on exit and a single stage crash cannot poison the orchestrator. The atomic-tools subsystem is orthogonal to the pipeline: a standalone single-tool job queue that handles uploads, concurrency, cancellation, and artifact registration.
 

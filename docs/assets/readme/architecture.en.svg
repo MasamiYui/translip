@@ -1,0 +1,328 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1360 744" width="1360" height="744" font-family="'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Source Han Sans SC','Segoe UI',sans-serif" role="img" aria-labelledby="t d">
+  <title id="t">translip system architecture</title>
+  <desc id="d">A control plane (FastAPI + React) drives a cache-aware dubbing pipeline: input → separation → transcription → speaker assets → translation → synthesis → render → delivery, with optional OCR / visual-perception templates and output deliverables.</desc>
+
+  <defs>
+    <style>
+      .cjk{font-family:'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Source Han Sans SC','Segoe UI',sans-serif}
+      .mono{font-family:'SF Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace}
+      .ttl{font-size:13.5px;font-weight:600;fill:#EAF5FF}
+      .idt{font-size:10px;letter-spacing:.4px}
+      .sub{font-size:9px;fill:#8AA0BE}
+      .sec{font-size:13px;font-weight:700;fill:#9CC4E8;letter-spacing:3px}
+      .secsm{font-size:9px;fill:#5E7B9C;letter-spacing:3px}
+      .ctl{font-size:12px;font-weight:600;fill:#DCEBFF}
+      .ctsub{font-size:8.5px;fill:#84A0C4}
+      .chip{font-size:11.5px;font-weight:600;fill:#DCEBFF}
+      .gloss{font-size:8px;fill:#6E8BB0;letter-spacing:1.5px}
+      .lbl{font-size:10px;fill:#7FA4CE}
+      .lblv{font-size:10px;fill:#B9A6E8}
+      .lbla{font-size:10px;fill:#E6B765}
+      .lble{font-size:10px;fill:#71C9A5}
+      .brand{font-size:36px;font-weight:800;letter-spacing:-1px}
+      .tag{font-size:12px;fill:#9FB6D6}
+      .tag2{font-size:8.5px;fill:#5E789C;letter-spacing:2.5px}
+      .legt{font-size:9px;fill:#6E8BB0;letter-spacing:3px}
+      .leg{font-size:11px;fill:#AEC4DF}
+      .num{font-size:19px;font-weight:700}
+    </style>
+
+    <!-- backdrop -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0A0F20"/>
+      <stop offset="0.5" stop-color="#0B1228"/>
+      <stop offset="1" stop-color="#080B1A"/>
+    </linearGradient>
+    <radialGradient id="blobTop" cx="0.5" cy="0" r="0.75">
+      <stop offset="0" stop-color="#0EA5E9" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#0EA5E9" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blobL" cx="0.04" cy="0.78" r="0.5">
+      <stop offset="0" stop-color="#22D3EE" stop-opacity="0.13"/>
+      <stop offset="1" stop-color="#22D3EE" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="blobR" cx="0.92" cy="0.85" r="0.5">
+      <stop offset="0" stop-color="#7C3AED" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#7C3AED" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="38" height="38" patternUnits="userSpaceOnUse">
+      <path d="M38 0H0V38" fill="none" stroke="#2DD4F0" stroke-opacity="0.045" stroke-width="1"/>
+    </pattern>
+
+    <!-- card glass fills -->
+    <linearGradient id="cPipe" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#14294C"/><stop offset="1" stop-color="#0C1830"/></linearGradient>
+    <linearGradient id="cHub" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1C3760"/><stop offset="1" stop-color="#112343"/></linearGradient>
+    <linearGradient id="cCtl" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#15243F"/><stop offset="1" stop-color="#0E1A30"/></linearGradient>
+    <linearGradient id="cVis" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#271B47"/><stop offset="1" stop-color="#160E2C"/></linearGradient>
+    <linearGradient id="cOcr" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#352611"/><stop offset="1" stop-color="#1F1607"/></linearGradient>
+    <linearGradient id="cOut" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#10362A"/><stop offset="1" stop-color="#08201A"/></linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0F1A33" stop-opacity="0.66"/><stop offset="1" stop-color="#0A1124" stop-opacity="0.5"/></linearGradient>
+
+    <linearGradient id="brandG" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#5EEAD4"/><stop offset="0.5" stop-color="#38BDF8"/><stop offset="1" stop-color="#6366F1"/>
+    </linearGradient>
+    <linearGradient id="flowG" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22D3EE" stop-opacity="0"/><stop offset="0.5" stop-color="#A5F3FC"/><stop offset="1" stop-color="#22D3EE" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- neon glows -->
+    <filter id="gCyan" x="-45%" y="-45%" width="190%" height="190%"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#22D3EE" flood-opacity="0.45"/></filter>
+    <filter id="gBlue" x="-45%" y="-45%" width="190%" height="190%"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#3B82F6" flood-opacity="0.42"/></filter>
+    <filter id="gViolet" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#8B5CF6" flood-opacity="0.45"/></filter>
+    <filter id="gAmber" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#F59E0B" flood-opacity="0.4"/></filter>
+    <filter id="gEmerald" x="-50%" y="-50%" width="200%" height="200%"><feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#10B981" flood-opacity="0.42"/></filter>
+    <filter id="gHub" x="-60%" y="-60%" width="220%" height="220%"><feDropShadow dx="0" dy="0" stdDeviation="9" flood-color="#3B82F6" flood-opacity="0.55"/></filter>
+
+    <!-- arrowheads -->
+    <marker id="aCyan" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#7DE6F5"/></marker>
+    <marker id="aBlue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#93C5FD"/></marker>
+    <marker id="aViolet" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#C4B5FD"/></marker>
+    <marker id="aAmber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#FBBF24"/></marker>
+    <marker id="aEmerald" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#6EE7B7"/></marker>
+
+    <!-- icons -->
+    <symbol id="i-ui" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.4"/><path d="M3 9h18"/><circle cx="6" cy="6.7" r="0.45" fill="currentColor" stroke="none"/><circle cx="8.4" cy="6.7" r="0.45" fill="currentColor" stroke="none"/></g></symbol>
+    <symbol id="i-api" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4" width="17" height="6.6" rx="1.8"/><rect x="3.5" y="13.4" width="17" height="6.6" rx="1.8"/><circle cx="7" cy="7.3" r="0.6" fill="currentColor" stroke="none"/><circle cx="7" cy="16.7" r="0.6" fill="currentColor" stroke="none"/><path d="M15.5 7.3h2.4M15.5 16.7h2.4"/></g></symbol>
+    <symbol id="i-db" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.66 3.13 3 7 3s7-1.34 7-3V6"/><path d="M5 12c0 1.66 3.13 3 7 3s7-1.34 7-3"/></g></symbol>
+    <symbol id="i-orch" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="6" r="2.2"/><circle cx="5.5" cy="18" r="2.2"/><circle cx="18" cy="12" r="2.4"/><path d="M7.4 7.1l8.6 3.8M7.4 16.9l8.6-3.8"/></g></symbol>
+    <symbol id="i-atom" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="6.6" height="6.6" rx="1.5"/><rect x="13.4" y="4" width="6.6" height="6.6" rx="1.5"/><rect x="4" y="13.4" width="6.6" height="6.6" rx="1.5"/><rect x="13.4" y="13.4" width="6.6" height="6.6" rx="1.5"/></g></symbol>
+    <symbol id="i-bot" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5A2 2 0 0 1 6 5.5h8a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H8.5l-3 2.6v-2.6H6a2 2 0 0 1-2-2z"/><path d="M18 6.2v3.6M16.2 8h3.6"/></g></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6z"/><circle cx="12" cy="12" r="2.6"/></g></symbol>
+    <symbol id="i-ocr" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M7 15.5h10" stroke-width="2.3"/><path d="M9 11.5h6" stroke-opacity="0.55" stroke-width="1.5"/></g></symbol>
+    <symbol id="i-head" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13v-1a7 7 0 0 1 14 0v1"/><rect x="3.4" y="12.6" width="3.6" height="6.4" rx="1.6"/><rect x="17" y="12.6" width="3.6" height="6.4" rx="1.6"/></g></symbol>
+    <symbol id="i-film" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="14" rx="2.4"/><path d="M10.3 9.3l4.4 2.7-4.4 2.7z" fill="currentColor" stroke="none"/></g></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.2"/><path d="M10.3 8.4l5 3.6-5 3.6z" fill="currentColor" stroke="none"/></g></symbol>
+  </defs>
+
+  <!-- ===== backdrop ===== -->
+  <rect width="1360" height="744" fill="url(#bg)"/>
+  <rect width="1360" height="744" fill="url(#grid)"/>
+  <rect width="1360" height="744" fill="url(#blobTop)"/>
+  <rect width="1360" height="744" fill="url(#blobL)"/>
+  <rect width="1360" height="744" fill="url(#blobR)"/>
+
+  <!-- ===== CONTROL PLANE panel ===== -->
+  <rect x="40" y="56" width="844" height="230" rx="22" fill="url(#panel)" stroke="#284A78" stroke-opacity="0.5"/>
+  <rect x="66" y="78" width="9" height="9" rx="2.5" fill="#3B82F6"/>
+  <text x="86" y="86" class="cjk sec" font-size="12">Control Plane</text>
+  <text x="86" y="100" class="mono secsm">FASTAPI&#160;·&#160;SQLMODEL&#160;·&#160;REACT&#160;19</text>
+
+  <!-- control-plane connectors (under cards) -->
+  <g fill="none" stroke="#3B82F6" stroke-opacity="0.55" stroke-width="1.6">
+    <line x1="214" y1="198" x2="256" y2="198" marker-start="url(#aBlue)" marker-end="url(#aBlue)"/>
+    <line x1="424" y1="198" x2="518" y2="134" marker-start="url(#aBlue)" marker-end="url(#aBlue)"/>
+    <line x1="424" y1="198" x2="518" y2="178" marker-start="url(#aBlue)" marker-end="url(#aBlue)"/>
+    <line x1="424" y1="198" x2="518" y2="222" marker-start="url(#aBlue)" marker-end="url(#aBlue)"/>
+    <line x1="424" y1="198" x2="518" y2="266" marker-start="url(#aBlue)" marker-end="url(#aBlue)"/>
+  </g>
+  <path d="M726 220C744 214 744 188 728 182" fill="none" stroke="#60A5FA" stroke-opacity="0.7" stroke-width="1.6" marker-end="url(#aBlue)"/>
+
+  <!-- React UI -->
+  <g><rect x="64" y="150" width="150" height="96" rx="15" fill="url(#cCtl)" stroke="#3B82F6" stroke-opacity="0.45" filter="url(#gBlue)"/>
+    <rect x="122" y="165" width="34" height="34" rx="10" fill="#3B82F6" fill-opacity="0.14" stroke="#60A5FA" stroke-opacity="0.5"/>
+    <use href="#i-ui" x="131" y="172" width="20" height="20" color="#93C5FD"/>
+    <text x="139" y="221" text-anchor="middle" class="cjk ctl">Management UI</text>
+    <text x="139" y="237" text-anchor="middle" class="mono ctsub">React 19</text></g>
+
+  <!-- FastAPI hub -->
+  <g><rect x="256" y="142" width="168" height="112" rx="17" fill="url(#cHub)" stroke="#60A5FA" stroke-opacity="0.6" filter="url(#gHub)"/>
+    <rect x="321" y="158" width="38" height="38" rx="11" fill="#60A5FA" fill-opacity="0.16" stroke="#93C5FD" stroke-opacity="0.55"/>
+    <use href="#i-api" x="331" y="166" width="22" height="22" color="#BFDBFE"/>
+    <text x="340" y="224" text-anchor="middle" class="cjk ctl" font-size="13">FastAPI Service</text>
+    <text x="340" y="241" text-anchor="middle" class="mono ctsub">SQLModel · SSE</text></g>
+
+  <!-- service chips -->
+  <g>
+    <rect x="518" y="116" width="206" height="36" rx="11" fill="url(#cCtl)" stroke="#60A5FA" stroke-opacity="0.4" filter="url(#gBlue)"/>
+    <rect x="527" y="121" width="26" height="26" rx="8" fill="#60A5FA" fill-opacity="0.14"/>
+    <use href="#i-orch" x="532" y="126" width="16" height="16" color="#93C5FD"/>
+    <text x="564" y="139" class="cjk chip">Orchestrator</text>
+    <text x="712" y="138" text-anchor="end" class="mono gloss">DAG · CACHE</text>
+  </g>
+  <g>
+    <rect x="518" y="160" width="206" height="36" rx="11" fill="url(#cCtl)" stroke="#38BDF8" stroke-opacity="0.4" filter="url(#gBlue)"/>
+    <rect x="527" y="165" width="26" height="26" rx="8" fill="#38BDF8" fill-opacity="0.14"/>
+    <use href="#i-atom" x="532" y="170" width="16" height="16" color="#7DD3FC"/>
+    <text x="564" y="183" class="cjk chip">Atomic Tools</text>
+    <text x="712" y="182" text-anchor="end" class="mono gloss">JOB QUEUE</text>
+  </g>
+  <g>
+    <rect x="518" y="204" width="206" height="36" rx="11" fill="url(#cCtl)" stroke="#818CF8" stroke-opacity="0.4" filter="url(#gBlue)"/>
+    <rect x="527" y="209" width="26" height="26" rx="8" fill="#818CF8" fill-opacity="0.16"/>
+    <use href="#i-bot" x="532" y="214" width="16" height="16" color="#C4B5FD"/>
+    <text x="564" y="227" class="cjk chip">AI Assistant</text>
+    <text x="712" y="226" text-anchor="end" class="mono gloss">PLAN → RUN</text>
+  </g>
+  <g>
+    <rect x="518" y="248" width="206" height="36" rx="11" fill="url(#cCtl)" stroke="#5B9BD5" stroke-opacity="0.4" filter="url(#gBlue)"/>
+    <rect x="527" y="253" width="26" height="26" rx="8" fill="#5B9BD5" fill-opacity="0.16"/>
+    <use href="#i-db" x="532" y="258" width="16" height="16" color="#9DC3E6"/>
+    <text x="564" y="271" class="cjk chip">Task Store</text>
+    <text x="712" y="270" text-anchor="end" class="mono gloss">SQLITE · WAL</text>
+  </g>
+
+  <!-- ===== BRAND + LEGEND ===== -->
+  <rect x="908" y="56" width="412" height="230" rx="22" fill="url(#panel)" stroke="#284A78" stroke-opacity="0.45"/>
+  <text x="934" y="124" class="cjk brand" fill="url(#brandG)">translip</text>
+  <text x="936" y="152" class="cjk tag">Local-first, speaker-aware video dubbing</text>
+  <text x="936" y="170" class="mono tag2">PIPELINE · ATOMIC TOOLS · CONTROL PLANE</text>
+  <line x1="934" y1="190" x2="1296" y2="190" stroke="#35557F" stroke-opacity="0.45"/>
+  <text x="934" y="212" class="mono legt">LEGEND</text>
+  <g>
+    <line x1="936" y1="232" x2="978" y2="232" stroke="#67E8F9" stroke-width="3" stroke-linecap="round" marker-end="url(#aCyan)"/>
+    <text x="992" y="236" class="cjk leg">Dubbing pipeline</text>
+  </g>
+  <g>
+    <line x1="936" y1="256" x2="978" y2="256" stroke="#C4B5FD" stroke-width="2.4" stroke-dasharray="5 4" stroke-linecap="round" marker-end="url(#aViolet)"/>
+    <text x="992" y="260" class="cjk leg">Optional templates · OCR / vision</text>
+  </g>
+  <g>
+    <line x1="936" y1="280" x2="978" y2="280" stroke="#93C5FD" stroke-width="1.8" stroke-linecap="round" marker-start="url(#aBlue)" marker-end="url(#aBlue)"/>
+    <text x="992" y="284" class="cjk leg">Control-plane calls</text>
+  </g>
+
+  <!-- ===== orchestrator -> pipeline drive ===== -->
+  <path id="drive" d="M620 152C620 258 458 262 458 366" fill="none" stroke="#3B82F6" stroke-opacity="0.4" stroke-width="2.2"/>
+  <path d="M620 152C620 258 458 262 458 366" fill="none" stroke="#93C5FD" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="2 9" marker-end="url(#aBlue)">
+    <animate attributeName="stroke-dashoffset" values="44;0" dur="1.3s" repeatCount="indefinite"/>
+  </path>
+  <text x="524" y="276" text-anchor="middle" class="cjk lbl">orchestrate · cache · isolated subprocess</text>
+
+  <!-- ===== PIPELINE section label ===== -->
+  <rect x="58" y="338" width="16" height="5" rx="2.5" fill="#22D3EE"/>
+  <text x="84" y="348" class="cjk sec">Dubbing Pipeline</text>
+  <text x="288" y="347" class="mono secsm">CACHE-AWARE&#160;DAG&#160;·&#160;EACH&#160;STAGE&#160;=&#160;ISOLATED&#160;SUBPROCESS</text>
+
+  <!-- pipeline connectors (drawn first, behind cards) -->
+  <g>
+    <line x1="182" y1="439" x2="216" y2="439" stroke="#3EA7E0" stroke-opacity="0.4" stroke-width="2.2"/>
+    <line x1="342" y1="439" x2="376" y2="439" stroke="#3EA7E0" stroke-opacity="0.4" stroke-width="2.2"/>
+    <line x1="502" y1="439" x2="536" y2="439" stroke="#3EA7E0" stroke-opacity="0.4" stroke-width="2.2"/>
+    <line x1="662" y1="439" x2="696" y2="439" stroke="#3EA7E0" stroke-opacity="0.4" stroke-width="2.2"/>
+    <line x1="822" y1="439" x2="856" y2="439" stroke="#3EA7E0" stroke-opacity="0.4" stroke-width="2.2"/>
+    <line x1="982" y1="439" x2="1016" y2="439" stroke="#3EA7E0" stroke-opacity="0.4" stroke-width="2.2"/>
+    <line x1="1142" y1="439" x2="1176" y2="439" stroke="#3EA7E0" stroke-opacity="0.4" stroke-width="2.2"/>
+  </g>
+  <g stroke="#A5F3FC" stroke-width="2.6" stroke-linecap="round" fill="none" marker-end="url(#aCyan)" filter="url(#gCyan)">
+    <line x1="182" y1="439" x2="216" y2="439" stroke-dasharray="2 8"><animate attributeName="stroke-dashoffset" values="20;0" dur="1.1s" begin="0s" repeatCount="indefinite"/></line>
+    <line x1="342" y1="439" x2="376" y2="439" stroke-dasharray="2 8"><animate attributeName="stroke-dashoffset" values="20;0" dur="1.1s" begin="0.16s" repeatCount="indefinite"/></line>
+    <line x1="502" y1="439" x2="536" y2="439" stroke-dasharray="2 8"><animate attributeName="stroke-dashoffset" values="20;0" dur="1.1s" begin="0.32s" repeatCount="indefinite"/></line>
+    <line x1="662" y1="439" x2="696" y2="439" stroke-dasharray="2 8"><animate attributeName="stroke-dashoffset" values="20;0" dur="1.1s" begin="0.48s" repeatCount="indefinite"/></line>
+    <line x1="822" y1="439" x2="856" y2="439" stroke-dasharray="2 8"><animate attributeName="stroke-dashoffset" values="20;0" dur="1.1s" begin="0.64s" repeatCount="indefinite"/></line>
+    <line x1="982" y1="439" x2="1016" y2="439" stroke-dasharray="2 8"><animate attributeName="stroke-dashoffset" values="20;0" dur="1.1s" begin="0.80s" repeatCount="indefinite"/></line>
+    <line x1="1142" y1="439" x2="1176" y2="439" stroke-dasharray="2 8"><animate attributeName="stroke-dashoffset" values="20;0" dur="1.1s" begin="0.96s" repeatCount="indefinite"/></line>
+  </g>
+
+  <!-- pipeline cards -->
+  <!-- input -->
+  <g><rect x="58" y="372" width="124" height="134" rx="16" fill="url(#cPipe)" stroke="#2DD4BF" stroke-opacity="0.4" filter="url(#gCyan)"/>
+    <rect x="100" y="388" width="40" height="40" rx="12" fill="#2DD4BF" fill-opacity="0.13" stroke="#2DD4BF" stroke-opacity="0.45"/>
+    <use href="#i-play" x="108" y="396" width="24" height="24" color="#5EEAD4"/>
+    <text x="120" y="453" text-anchor="middle" class="cjk ttl">Input Media</text>
+    <text x="120" y="472" text-anchor="middle" class="mono idt" fill="#5EEAD4">source</text>
+    <text x="120" y="489" text-anchor="middle" class="cjk sub">Video · Audio</text></g>
+  <!-- separation -->
+  <g><rect x="218" y="372" width="124" height="134" rx="16" fill="url(#cPipe)" stroke="#22D3EE" stroke-opacity="0.4" filter="url(#gCyan)"/>
+    <rect x="260" y="388" width="40" height="40" rx="12" fill="#22D3EE" fill-opacity="0.13" stroke="#22D3EE" stroke-opacity="0.45"/>
+    <text x="280" y="415" text-anchor="middle" class="mono num" fill="#22D3EE">01</text>
+    <text x="280" y="453" text-anchor="middle" class="cjk ttl">Audio Split</text>
+    <text x="280" y="472" text-anchor="middle" class="mono idt" fill="#22D3EE">separation</text>
+    <text x="280" y="489" text-anchor="middle" class="cjk sub">demucs · cdx23</text></g>
+  <!-- transcription -->
+  <g><rect x="378" y="372" width="124" height="134" rx="16" fill="url(#cPipe)" stroke="#2EC5EE" stroke-opacity="0.4" filter="url(#gCyan)"/>
+    <rect x="420" y="388" width="40" height="40" rx="12" fill="#2EC5EE" fill-opacity="0.13" stroke="#2EC5EE" stroke-opacity="0.45"/>
+    <text x="440" y="415" text-anchor="middle" class="mono num" fill="#2EC5EE">02</text>
+    <text x="440" y="453" text-anchor="middle" class="cjk ttl">Speaker ASR</text>
+    <text x="440" y="472" text-anchor="middle" class="mono idt" fill="#2EC5EE">transcription</text>
+    <text x="440" y="489" text-anchor="middle" class="cjk sub">FunASR · whisper</text></g>
+  <!-- speaker-registry -->
+  <g><rect x="538" y="372" width="124" height="134" rx="16" fill="url(#cPipe)" stroke="#38BDF8" stroke-opacity="0.4" filter="url(#gCyan)"/>
+    <rect x="580" y="388" width="40" height="40" rx="12" fill="#38BDF8" fill-opacity="0.13" stroke="#38BDF8" stroke-opacity="0.45"/>
+    <text x="600" y="415" text-anchor="middle" class="mono num" fill="#38BDF8">03</text>
+    <text x="600" y="453" text-anchor="middle" class="cjk ttl">Speaker Assets</text>
+    <text x="600" y="472" text-anchor="middle" class="mono idt" fill="#38BDF8" font-size="9">speaker-registry</text>
+    <text x="600" y="489" text-anchor="middle" class="cjk sub">profile · registry</text></g>
+  <!-- translation -->
+  <g><rect x="698" y="372" width="124" height="134" rx="16" fill="url(#cPipe)" stroke="#4AA3F7" stroke-opacity="0.4" filter="url(#gCyan)"/>
+    <rect x="740" y="388" width="40" height="40" rx="12" fill="#4AA3F7" fill-opacity="0.13" stroke="#4AA3F7" stroke-opacity="0.45"/>
+    <text x="760" y="415" text-anchor="middle" class="mono num" fill="#4AA3F7">04</text>
+    <text x="760" y="453" text-anchor="middle" class="cjk ttl">Dub Script</text>
+    <text x="760" y="472" text-anchor="middle" class="mono idt" fill="#4AA3F7">translation</text>
+    <text x="760" y="489" text-anchor="middle" class="cjk sub">M2M100 · DeepSeek</text></g>
+  <!-- synthesis -->
+  <g><rect x="858" y="372" width="124" height="134" rx="16" fill="url(#cPipe)" stroke="#3F8BF3" stroke-opacity="0.4" filter="url(#gCyan)"/>
+    <rect x="900" y="388" width="40" height="40" rx="12" fill="#3F8BF3" fill-opacity="0.13" stroke="#3F8BF3" stroke-opacity="0.45"/>
+    <text x="920" y="415" text-anchor="middle" class="mono num" fill="#3F8BF3">05</text>
+    <text x="920" y="453" text-anchor="middle" class="cjk ttl">Speaker TTS</text>
+    <text x="920" y="472" text-anchor="middle" class="mono idt" fill="#3F8BF3">synthesis</text>
+    <text x="920" y="489" text-anchor="middle" class="cjk sub">MOSS · VoxCPM2</text></g>
+  <!-- render -->
+  <g><rect x="1018" y="372" width="124" height="134" rx="16" fill="url(#cPipe)" stroke="#3B82F6" stroke-opacity="0.4" filter="url(#gCyan)"/>
+    <rect x="1060" y="388" width="40" height="40" rx="12" fill="#3B82F6" fill-opacity="0.13" stroke="#3B82F6" stroke-opacity="0.45"/>
+    <text x="1080" y="415" text-anchor="middle" class="mono num" fill="#3B82F6">06</text>
+    <text x="1080" y="453" text-anchor="middle" class="cjk ttl">Fit &amp; Mix</text>
+    <text x="1080" y="472" text-anchor="middle" class="mono idt" fill="#5B9CF8">render</text>
+    <text x="1080" y="489" text-anchor="middle" class="cjk sub">atempo · sidechain</text></g>
+  <!-- delivery -->
+  <g><rect x="1178" y="372" width="124" height="134" rx="16" fill="url(#cPipe)" stroke="#2563EB" stroke-opacity="0.45" filter="url(#gCyan)"/>
+    <rect x="1220" y="388" width="40" height="40" rx="12" fill="#2563EB" fill-opacity="0.16" stroke="#2563EB" stroke-opacity="0.5"/>
+    <text x="1240" y="415" text-anchor="middle" class="mono num" fill="#5B8DEF">07</text>
+    <text x="1240" y="453" text-anchor="middle" class="cjk ttl">Final Export</text>
+    <text x="1240" y="472" text-anchor="middle" class="mono idt" fill="#5B8DEF">delivery</text>
+    <text x="1240" y="489" text-anchor="middle" class="cjk sub">ffmpeg mux</text></g>
+
+  <!-- ===== OPTIONAL TEMPLATES + OUTPUT section ===== -->
+  <rect x="58" y="552" width="16" height="5" rx="2.5" fill="#8B5CF6"/>
+  <text x="84" y="562" class="cjk sec" font-size="12">Templates &amp; Output</text>
+  <text x="318" y="561" class="mono secsm">OCR&#160;·&#160;VISION&#160;·&#160;DELIVERABLES</text>
+
+  <!-- branch + output connectors (behind cards) -->
+  <!-- transcription -> OCR -->
+  <path d="M440 506C440 552 465 556 465 594" fill="none" stroke="#F59E0B" stroke-opacity="0.7" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" marker-end="url(#aAmber)"/>
+  <!-- transcription -> visual -->
+  <path d="M440 506C560 544 690 560 803 594" fill="none" stroke="#8B5CF6" stroke-opacity="0.75" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" marker-end="url(#aViolet)"/>
+  <!-- visual -> translation -->
+  <path d="M772 594C764 556 760 540 760 508" fill="none" stroke="#8B5CF6" stroke-opacity="0.75" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" marker-end="url(#aViolet)"/>
+  <!-- ocr -> delivery -->
+  <path d="M566 612C812 556 1046 522 1238 508" fill="none" stroke="#F59E0B" stroke-opacity="0.7" stroke-width="2" stroke-dasharray="5 4" stroke-linecap="round" marker-end="url(#aAmber)"/>
+  <!-- render -> preview -->
+  <path d="M1080 506C1080 548 1055 552 1055 594" fill="none" stroke="#34D399" stroke-opacity="0.8" stroke-width="2.2" stroke-linecap="round" marker-end="url(#aEmerald)"/>
+  <!-- delivery -> final -->
+  <path d="M1240 506C1240 548 1221 552 1221 594" fill="none" stroke="#34D399" stroke-opacity="0.8" stroke-width="2.2" stroke-linecap="round" marker-end="url(#aEmerald)"/>
+
+  <!-- branch connector labels -->
+  <text x="486" y="544" class="cjk lbla" font-size="9">+OCR</text>
+  <text x="612" y="540" text-anchor="middle" class="cjk lblv" font-size="9">+visual</text>
+  <text x="784" y="552" class="cjk lblv" font-size="9">inject [scene] context</text>
+  <text x="906" y="536" text-anchor="middle" class="cjk lbla" font-size="9">erase → deliver</text>
+
+  <!-- OCR card -->
+  <g><rect x="360" y="596" width="210" height="92" rx="16" fill="url(#cOcr)" stroke="#F59E0B" stroke-opacity="0.45" filter="url(#gAmber)"/>
+    <rect x="378" y="618" width="44" height="44" rx="13" fill="#F59E0B" fill-opacity="0.13" stroke="#F59E0B" stroke-opacity="0.45"/>
+    <use href="#i-ocr" x="386" y="626" width="28" height="28" color="#FCD34D"/>
+    <text x="438" y="632" class="cjk ttl">Detect &amp; Erase</text>
+    <text x="438" y="651" class="mono idt" fill="#FBBF24" font-size="9">ocr-detect · subtitle-erase</text>
+    <text x="438" y="668" class="cjk sub">PaddleOCR · STTN / LaMa</text></g>
+
+  <!-- Visual card -->
+  <g><rect x="700" y="596" width="210" height="92" rx="16" fill="url(#cVis)" stroke="#8B5CF6" stroke-opacity="0.45" filter="url(#gViolet)"/>
+    <rect x="718" y="618" width="44" height="44" rx="13" fill="#8B5CF6" fill-opacity="0.14" stroke="#8B5CF6" stroke-opacity="0.45"/>
+    <use href="#i-eye" x="726" y="626" width="28" height="28" color="#C4B5FD"/>
+    <text x="778" y="632" class="cjk ttl">Visual Perception</text>
+    <text x="778" y="651" class="mono idt" fill="#A78BFA" font-size="9">visual-context · Qwen3-VL</text>
+    <text x="778" y="668" class="cjk sub">MLX · Ollama (local)</text></g>
+
+  <!-- preview output -->
+  <g><rect x="980" y="596" width="150" height="92" rx="16" fill="url(#cOut)" stroke="#10B981" stroke-opacity="0.45" filter="url(#gEmerald)"/>
+    <rect x="1037" y="612" width="36" height="36" rx="11" fill="#10B981" fill-opacity="0.13" stroke="#10B981" stroke-opacity="0.45"/>
+    <use href="#i-head" x="1045" y="620" width="20" height="20" color="#6EE7B7"/>
+    <text x="1055" y="666" text-anchor="middle" class="cjk ttl">Preview Mix</text>
+    <text x="1055" y="682" text-anchor="middle" class="mono sub" fill="#71C9A5">preview mix</text></g>
+
+  <!-- final output -->
+  <g><rect x="1146" y="596" width="150" height="92" rx="16" fill="url(#cOut)" stroke="#10B981" stroke-opacity="0.45" filter="url(#gEmerald)"/>
+    <rect x="1203" y="612" width="36" height="36" rx="11" fill="#10B981" fill-opacity="0.13" stroke="#10B981" stroke-opacity="0.45"/>
+    <use href="#i-film" x="1211" y="620" width="20" height="20" color="#6EE7B7"/>
+    <text x="1221" y="666" text-anchor="middle" class="cjk ttl">Final Video</text>
+    <text x="1221" y="682" text-anchor="middle" class="mono sub" fill="#71C9A5">final MP4</text></g>
+</svg>

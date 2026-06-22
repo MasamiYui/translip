@@ -79,41 +79,9 @@
 
 ## 系统架构
 
-```mermaid
-flowchart LR
-    Input["输入媒体<br/>Video / Audio"] --> Separation["separation<br/>音频分离"]
-    Separation --> Transcription["transcription<br/>说话人归因转写"]
-    Transcription --> SpeakerRegistry["speaker-registry<br/>说话人 Profile / Registry"]
-    SpeakerRegistry --> Translation["translation<br/>配音脚本翻译"]
-    Translation --> Synthesis["synthesis<br/>单说话人 TTS"]
-    Synthesis --> Render["render<br/>时间轴拟合与混音"]
-    Render --> DeliveryStage["delivery<br/>最终视频导出"]
-
-    Transcription -. "+OCR 字幕模板" .-> OCR["OCR 字幕检测/翻译<br/>+ 字幕擦除"]
-    OCR -.-> DeliveryStage
-    Transcription -. "+visual 模板" .-> Visual["Qwen3-VL 画面感知<br/>场景描述"]
-    Visual -. "注入翻译上下文" .-> Translation
-
-    subgraph ControlPlane["控制平面 (FastAPI + React)"]
-        UI["React 管理界面"]
-        API["FastAPI 服务"]
-        DB[("SQLite 任务状态")]
-        Orchestrator["编排 / 缓存 / 产物索引"]
-        Atomic["原子工具子系统<br/>独立任务队列"]
-        Assistant["AI 助手<br/>规划 → 执行原子能力链"]
-    end
-
-    UI <--> API
-    API <--> DB
-    API <--> Orchestrator
-    API <--> Atomic
-    API <--> Assistant
-    Assistant --> Atomic
-    Orchestrator --> Separation & Transcription & SpeakerRegistry & Translation & Synthesis & Render & DeliveryStage
-
-    Render --> Preview["预览混音 / 配音音轨"]
-    DeliveryStage --> Delivery["最终 MP4 交付"]
-```
+<div align="center">
+  <img src="docs/assets/readme/architecture.zh.svg" alt="translip 系统架构图：控制平面（FastAPI + React）驱动缓存感知的配音流水线，并配有 OCR / 画面感知可选模板与产物输出" width="100%" />
+</div>
 
 编排器本身不含业务逻辑，它解析节点 DAG、检查缓存，再把每个阶段以**独立子进程**形式 shell 出去执行（与 CLI 子命令是同一套代码）；这样重型 ML 模型在退出时即被释放，单阶段崩溃也不会污染编排器。原子工具子系统与流水线正交：它是一套独立的单工具任务队列，处理上传、并发、取消和产物注册。
 
