@@ -641,17 +641,21 @@ function renderControls(
       <div className="grid gap-4 md:grid-cols-3">
         <SelectField
           label={atomicTools.fields.mode}
+          hint={atomicTools.hints.separationMode}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           value={separationMode}
           options={(['auto', 'music', 'dialogue'] as const).map(value => ({ value, label: atomicTools.options.mode[value] }))}
           onChange={value => setField('mode', value)}
         />
         <SelectField
           label={atomicTools.fields.quality}
+          hint={atomicTools.hints.separationQuality}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           value={String(params.quality)}
           options={(['balanced', 'high'] as const).map(value => ({ value, label: atomicTools.options.quality[value] }))}
           onChange={value => setField('quality', value)}
         />
-        <SelectField label={atomicTools.fields.outputFormat} value={String(params.output_format)} options={['wav', 'mp3', 'flac']} onChange={value => setField('output_format', value)} />
+        <SelectField label={atomicTools.fields.outputFormat} hint={atomicTools.hints.separationOutputFormat} hintAriaLabel={atomicTools.hints.termHintAria} value={String(params.output_format)} options={['wav', 'mp3', 'flac']} onChange={value => setField('output_format', value)} />
         {showOverlap && (
           <SelectField
             label={atomicTools.fields.cdx23Overlap}
@@ -692,13 +696,13 @@ function renderControls(
     return (
       <div className="space-y-4">
         <div className="grid gap-4 md:grid-cols-3">
-          <SelectField label={atomicTools.fields.language} value={String(params.language)} options={sourceLanguageOptions} onChange={value => setField('language', value)} />
+          <SelectField label={atomicTools.fields.language} hint={atomicTools.hints.transcriptionLanguage} hintAriaLabel={atomicTools.hints.termHintAria} value={String(params.language)} options={sourceLanguageOptions} onChange={value => setField('language', value)} />
           <SelectField label={atomicTools.fields.asrBackend} hint={atomicTools.hints.asrBackend} hintAriaLabel={atomicTools.hints.termHintAria} value={asrBackend} options={ASR_BACKEND_OPTIONS} onChange={handleAsrBackendChange} />
           <SelectField label={atomicTools.fields.asrModel} hint={atomicTools.hints.asrModel} hintAriaLabel={atomicTools.hints.termHintAria} value={asrModelValue} options={asrModelOptions} onChange={value => setField('asr_model', value)} />
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <CheckboxField label={atomicTools.fields.enableDiarization} hint={atomicTools.hints.diarization} hintAriaLabel={atomicTools.hints.termHintAria} checked={Boolean(params.enable_diarization)} onChange={value => setField('enable_diarization', value)} />
-          <CheckboxField label={atomicTools.fields.generateSrt} checked={Boolean(params.generate_srt)} onChange={value => setField('generate_srt', value)} />
+          <CheckboxField label={atomicTools.fields.generateSrt} hint={atomicTools.hints.generateSrt} hintAriaLabel={atomicTools.hints.termHintAria} checked={Boolean(params.generate_srt)} onChange={value => setField('generate_srt', value)} />
         </div>
         <div className="grid gap-4 md:grid-cols-2">
           <TextField
@@ -729,9 +733,9 @@ function renderControls(
           <TextAreaField label={atomicTools.fields.text} value={textInput} onChange={setTextInput} />
         )}
         <div className="grid gap-4 md:grid-cols-3">
-          <SelectField label={atomicTools.fields.sourceLang} value={String(params.source_lang)} options={sourceLanguageOptions} onChange={value => setField('source_lang', value)} />
-          <SelectField label={atomicTools.fields.targetLang} value={String(params.target_lang)} options={targetLanguageOptions} onChange={value => setField('target_lang', value)} />
-          <SelectField label={atomicTools.fields.backend} value={String(params.backend)} options={['local-m2m100', 'deepseek']} onChange={value => setField('backend', value)} />
+          <SelectField label={atomicTools.fields.sourceLang} hint={atomicTools.hints.translationSourceLang} hintAriaLabel={atomicTools.hints.termHintAria} value={String(params.source_lang)} options={sourceLanguageOptions} onChange={value => setField('source_lang', value)} />
+          <SelectField label={atomicTools.fields.targetLang} hint={atomicTools.hints.translationTargetLang} hintAriaLabel={atomicTools.hints.termHintAria} value={String(params.target_lang)} options={targetLanguageOptions} onChange={value => setField('target_lang', value)} />
+          <SelectField label={atomicTools.fields.backend} hint={atomicTools.hints.translationBackend} hintAriaLabel={atomicTools.hints.termHintAria} value={String(params.backend)} options={['local-m2m100', 'deepseek']} onChange={value => setField('backend', value)} />
         </div>
       </div>
     )
@@ -742,7 +746,7 @@ function renderControls(
       <div className="space-y-4">
         <TextAreaField label={atomicTools.fields.text} value={textInput} onChange={setTextInput} />
         <div className="grid gap-4 md:grid-cols-2">
-          <TextField label={atomicTools.fields.language} value={String(params.language)} onChange={value => setField('language', value)} />
+          <TextField label={atomicTools.fields.language} hint={atomicTools.hints.ttsLanguage} hintAriaLabel={atomicTools.hints.termHintAria} value={String(params.language)} onChange={value => setField('language', value)} />
           <SelectField label={atomicTools.fields.ttsBackend} hint={atomicTools.hints.ttsBackend} hintAriaLabel={atomicTools.hints.termHintAria} value={String(params.backend ?? 'qwen3tts')} options={DUBBING_BACKEND_OPTIONS} onChange={value => setField('backend', value)} />
         </div>
       </div>
@@ -752,9 +756,9 @@ function renderControls(
   if (toolId === 'muxing') {
     return (
       <div className="grid gap-4 md:grid-cols-3">
-        <SelectField label={atomicTools.fields.videoCodec} value={String(params.video_codec)} options={['copy', 'libx264']} onChange={value => setField('video_codec', value)} />
-        <SelectField label={atomicTools.fields.audioCodec} value={String(params.audio_codec)} options={['aac']} onChange={value => setField('audio_codec', value)} />
-        <TextField label={atomicTools.fields.audioBitrate} value={String(params.audio_bitrate)} onChange={value => setField('audio_bitrate', value)} />
+        <SelectField label={atomicTools.fields.videoCodec} hint={atomicTools.hints.videoCodecMux} hintAriaLabel={atomicTools.hints.termHintAria} value={String(params.video_codec)} options={['copy', 'libx264']} onChange={value => setField('video_codec', value)} />
+        <SelectField label={atomicTools.fields.audioCodec} hint={atomicTools.hints.audioCodecMux} hintAriaLabel={atomicTools.hints.termHintAria} value={String(params.audio_codec)} options={['aac']} onChange={value => setField('audio_codec', value)} />
+        <TextField label={atomicTools.fields.audioBitrate} hint={atomicTools.hints.audioBitrateMux} hintAriaLabel={atomicTools.hints.termHintAria} value={String(params.audio_bitrate)} onChange={value => setField('audio_bitrate', value)} />
       </div>
     )
   }
@@ -772,6 +776,8 @@ function renderControls(
         />
         <TextField
           label={atomicTools.fields.langDetectWindows}
+          hint={atomicTools.hints.langDetectWindows}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           type="number"
           value={String(params.windows ?? 3)}
           onChange={value => setField('windows', Number(value))}
@@ -793,18 +799,24 @@ function renderControls(
         />
         <SelectField
           label={atomicTools.fields.targetLang}
+          hint={atomicTools.hints.dubTargetLang}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           value={String(params.target_lang ?? 'auto')}
           options={[{ value: 'auto', label: atomicTools.options.subtitleLang.auto }, ...targetLanguageOptions]}
           onChange={value => setField('target_lang', value)}
         />
         <SelectField
           label={atomicTools.fields.duckingMode}
+          hint={atomicTools.hints.duckingMode}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           value={String(params.ducking_mode ?? 'static')}
           options={['static', 'sidechain']}
           onChange={value => setField('ducking_mode', value)}
         />
         <TextField
           label={atomicTools.fields.backgroundGain}
+          hint={atomicTools.hints.backgroundGain}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           type="number"
           value={String(params.background_gain_db ?? -8)}
           onChange={value => setField('background_gain_db', Number(value))}
@@ -818,18 +830,24 @@ function renderControls(
       <div className="grid gap-4 md:grid-cols-3">
         <SelectField
           label={atomicTools.fields.subtitleLang}
+          hint={atomicTools.hints.subtitleLang}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           value={String(params.lang ?? 'auto')}
           options={(['auto', 'cjk', 'latin'] as const).map(value => ({ value, label: atomicTools.options.subtitleLang[value] }))}
           onChange={value => setField('lang', value)}
         />
         <SelectField
           label={atomicTools.fields.subtitlePosition}
+          hint={atomicTools.hints.subtitlePosition}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           value={String(params.position ?? 'bottom')}
           options={(['bottom', 'top'] as const).map(value => ({ value, label: atomicTools.options.subtitlePosition[value] }))}
           onChange={value => setField('position', value)}
         />
         <SelectField
           label={atomicTools.fields.quality}
+          hint={atomicTools.hints.subtitleBurnQuality}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           value={String(params.quality ?? 'balanced')}
           options={(['balanced', 'high'] as const).map(value => ({ value, label: atomicTools.options.quality[value] }))}
           onChange={value => setField('quality', value)}
@@ -843,12 +861,16 @@ function renderControls(
       <div className="grid gap-4 md:grid-cols-2">
         <SelectField
           label={atomicTools.fields.container}
+          hint={atomicTools.hints.subtitleEmbedContainer}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           value={String(params.container ?? 'mp4')}
           options={(['mp4', 'mkv'] as const).map(value => ({ value, label: atomicTools.options.container[value] }))}
           onChange={value => setField('container', value)}
         />
         <TextField
           label={atomicTools.fields.subtitleLanguage}
+          hint={atomicTools.hints.subtitleLanguageTag}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           value={String(params.subtitle_language ?? 'und')}
           onChange={value => setField('subtitle_language', value)}
         />
@@ -907,6 +929,8 @@ function renderControls(
         <div className="grid gap-4 md:grid-cols-3">
           <SelectField
             label={atomicTools.fields.watermarkPosition}
+            hint={atomicTools.hints.watermarkPosition}
+            hintAriaLabel={atomicTools.hints.termHintAria}
             value={String(params.position ?? 'bottom-right')}
             options={positionOptions}
             onChange={value => setField('position', value)}
@@ -941,6 +965,8 @@ function renderControls(
             <>
               <TextField
                 label={atomicTools.fields.watermarkFontSize}
+                hint={atomicTools.hints.watermarkFontSize}
+                hintAriaLabel={atomicTools.hints.termHintAria}
                 type="number"
                 value={String(params.font_size ?? 36)}
                 onChange={value => setField('font_size', value === '' ? 0 : Number(value))}
@@ -967,12 +993,16 @@ function renderControls(
               />
               <TextField
                 label={atomicTools.fields.watermarkStrokeOpacity}
+                hint={atomicTools.hints.watermarkStrokeOpacity}
+                hintAriaLabel={atomicTools.hints.termHintAria}
                 type="number"
                 value={String(params.stroke_opacity ?? 0.6)}
                 onChange={value => setField('stroke_opacity', value === '' ? 0 : Number(value))}
               />
               <TextField
                 label={atomicTools.fields.watermarkStrokeWidth}
+                hint={atomicTools.hints.watermarkStrokeWidth}
+                hintAriaLabel={atomicTools.hints.termHintAria}
                 type="number"
                 value={String(params.stroke_width ?? 2)}
                 onChange={value => setField('stroke_width', value === '' ? 0 : Number(value))}
@@ -981,6 +1011,8 @@ function renderControls(
           )}
           <SelectField
             label={atomicTools.fields.quality}
+            hint={atomicTools.hints.watermarkQuality}
+            hintAriaLabel={atomicTools.hints.termHintAria}
             value={String(params.quality ?? 'balanced')}
             options={(['balanced', 'high'] as const).map(value => ({ value, label: atomicTools.options.quality[value] }))}
             onChange={value => setField('quality', value)}
@@ -995,6 +1027,8 @@ function renderControls(
       <div className="grid gap-4 md:grid-cols-3">
         <SelectField
           label={atomicTools.fields.language}
+          hint={atomicTools.hints.subtitleDetectLanguage}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           value={String(params.language ?? 'ch')}
           options={['ch', 'en', 'ch_tra', 'japan', 'korean']}
           onChange={value => setField('language', value)}
@@ -1098,12 +1132,16 @@ function renderControls(
           />
           <SelectField
             label={atomicTools.fields.outputLang}
+            hint={atomicTools.hints.visionOutputLang}
+            hintAriaLabel={atomicTools.hints.termHintAria}
             value={String(params.lang ?? 'zh')}
             options={['zh', 'en']}
             onChange={value => setField('lang', value)}
           />
           <SelectField
             label={atomicTools.fields.visionBackend}
+            hint={atomicTools.hints.visionBackend}
+            hintAriaLabel={atomicTools.hints.termHintAria}
             value={String(params.backend ?? 'auto')}
             options={['auto', 'mlx', 'ollama']}
             onChange={value => setField('backend', value)}
@@ -1121,7 +1159,10 @@ function renderControls(
     return (
       <div className="space-y-4">
         <div>
-          <div className="mb-2 text-sm font-medium text-slate-700">{atomicTools.fields.preset}</div>
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+            <span>{atomicTools.fields.preset}</span>
+            <TermHint hint={atomicTools.hints.erasePreset} ariaLabel={atomicTools.hints.termHintAria} />
+          </div>
           <div className="grid gap-2 md:grid-cols-2">
             {(['balanced', 'quality'] as const).map(option => (
               <button
@@ -1235,7 +1276,10 @@ function renderControls(
     return (
       <div className="space-y-4">
         <div>
-          <div className="mb-2 text-sm font-medium text-slate-700">{atomicTools.fields.preset}</div>
+          <div className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700">
+            <span>{atomicTools.fields.preset}</span>
+            <TermHint hint={atomicTools.hints.correctionPreset} ariaLabel={atomicTools.hints.termHintAria} />
+          </div>
           <div className="grid gap-2 md:grid-cols-3">
             {(['conservative', 'standard', 'aggressive'] as const).map(option => (
               <button
@@ -1261,6 +1305,8 @@ function renderControls(
         <div>
           <SelectField
             label={atomicTools.fields.llmArbitration}
+            hint={atomicTools.hints.llmArbitration}
+            hintAriaLabel={atomicTools.hints.termHintAria}
             value={arbitration}
             options={(['off', 'deepseek'] as const).map(value => ({
               value,
@@ -1313,6 +1359,8 @@ function renderControls(
           />
           <SelectField
             label={atomicTools.fields.outputFormat}
+            hint={atomicTools.hints.m3u8OutputFormat}
+            hintAriaLabel={atomicTools.hints.termHintAria}
             value={String(params.output_format ?? 'mp4')}
             options={['mp4', 'mkv']}
             onChange={value => setField('output_format', value)}
@@ -1339,28 +1387,38 @@ function renderControls(
           <div className="mt-3 grid gap-4 md:grid-cols-2">
             <TextField
               label={atomicTools.fields.durationLimit}
+              hint={atomicTools.hints.durationLimit}
+              hintAriaLabel={atomicTools.hints.termHintAria}
               type="number"
               value={String(params.duration_limit_sec ?? '')}
               onChange={value => setField('duration_limit_sec', value === '' ? '' : Number(value))}
             />
             <TextField
               label={atomicTools.fields.startOffset}
+              hint={atomicTools.hints.startOffset}
+              hintAriaLabel={atomicTools.hints.termHintAria}
               type="number"
               value={String(params.start_sec ?? '')}
               onChange={value => setField('start_sec', value === '' ? '' : Number(value))}
             />
             <TextField
               label={atomicTools.fields.userAgent}
+              hint={atomicTools.hints.userAgent}
+              hintAriaLabel={atomicTools.hints.termHintAria}
               value={String(params.user_agent ?? '')}
               onChange={value => setField('user_agent', value)}
             />
             <TextField
               label={atomicTools.fields.referer}
+              hint={atomicTools.hints.referer}
+              hintAriaLabel={atomicTools.hints.termHintAria}
               value={String(params.referer ?? '')}
               onChange={value => setField('referer', value)}
             />
             <TextField
               label={atomicTools.fields.outputName}
+              hint={atomicTools.hints.outputName}
+              hintAriaLabel={atomicTools.hints.termHintAria}
               value={String(params.output_name ?? '')}
               onChange={value => setField('output_name', value)}
             />
@@ -1377,18 +1435,24 @@ function renderControls(
             <div className="mt-4 grid gap-4 md:grid-cols-3">
               <TextField
                 label={atomicTools.fields.crf}
+                hint={atomicTools.hints.crf}
+                hintAriaLabel={atomicTools.hints.termHintAria}
                 type="number"
                 value={String(params.crf ?? 20)}
                 onChange={value => setField('crf', value === '' ? '' : Number(value))}
               />
               <SelectField
                 label={atomicTools.fields.x264Preset}
+                hint={atomicTools.hints.x264Preset}
+                hintAriaLabel={atomicTools.hints.termHintAria}
                 value={String(params.preset ?? 'veryfast')}
                 options={['ultrafast', 'superfast', 'veryfast', 'faster', 'fast', 'medium', 'slow']}
                 onChange={value => setField('preset', value)}
               />
               <TextField
                 label={atomicTools.fields.audioBitrate}
+                hint={atomicTools.hints.m3u8AudioBitrate}
+                hintAriaLabel={atomicTools.hints.termHintAria}
                 value={String(params.audio_bitrate ?? '192k')}
                 onChange={value => setField('audio_bitrate', value)}
               />
