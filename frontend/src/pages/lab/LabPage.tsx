@@ -7,10 +7,12 @@ import {
   CheckCircle2,
   Database,
   ExternalLink,
+  Filter,
   FlaskConical,
   Loader2,
   Minus,
   PlayCircle,
+  Search,
   Sparkles,
   Trophy,
 } from 'lucide-react'
@@ -44,6 +46,11 @@ const CARD =
 
 const TABLE_WRAPPER =
   'overflow-x-auto rounded-xl border border-[#e5e7eb] bg-white shadow-[0_1px_3px_rgba(0,0,0,.04)]'
+
+const SELECT =
+  'rounded-lg border border-[#e5e7eb] bg-white px-2.5 py-1.5 text-xs text-[#374151] transition-colors hover:border-[#d1d5db] focus:border-[#3b5bdb] focus:outline-none focus:ring-1 focus:ring-[#3b5bdb]'
+
+const METRIC_KEYS = ['sim', 'cer_micro', 'cer', 'der', 'mcd', 'si_sdr', 'f1', 'psnr']
 
 function mapStatusForBadge(status?: string): string {
   const key = (status ?? 'pending').toLowerCase()
@@ -136,9 +143,24 @@ function StatCard({ icon: Icon, label, value, hint }: { icon: typeof Database; l
 function pickPrimaryMetric(run: LabRunSummary): { scenario: string; key: string; value: number } | null {
   const aggregates = run.aggregates ?? {}
   for (const [scenario, metrics] of Object.entries(aggregates)) {
-    for (const k of ['sim', 'cer_micro', 'cer', 'der', 'mcd', 'si_sdr', 'f1', 'psnr']) {
+    for (const k of METRIC_KEYS) {
       const v = metrics[k]
       if (typeof v === 'number') return { scenario, key: k, value: v }
+    }
+  }
+  return null
+}
+
+// When a scenario filter is active, rank/show that scenario's metric (handles
+// "scenario" and "scenario@arm" aggregate keys), not just the first metric found.
+function pickMetricForScenario(run: LabRunSummary, scenario: string): { scenario: string; key: string; value: number } | null {
+  if (scenario === 'all') return pickPrimaryMetric(run)
+  for (const [aggKey, metrics] of Object.entries(run.aggregates ?? {})) {
+    if (aggKey === scenario || aggKey.startsWith(`${scenario}@`)) {
+      for (const k of METRIC_KEYS) {
+        const v = metrics[k]
+        if (typeof v === 'number') return { scenario, key: k, value: v }
+      }
     }
   }
   return null
@@ -410,21 +432,75 @@ function LeaderboardTab() {
   })
 
   const runs = useMemo(() => data ?? [], [data])
+  const [scenarioFilter, setScenarioFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [search, setSearch] = useState('')
+
+  const allScenarios = useMemo(() => {
+    const set = new Set<string>()
+    runs.forEach(r => (r.scenarios ?? []).forEach(s => set.add(s)))
+    return Array.from(set).sort()
+  }, [runs])
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    return runs.filter(r => {
+      if (scenarioFilter !== 'all' && !(r.scenarios ?? []).includes(scenarioFilter)) return false
+      if (statusFilter !== 'all' && (r.status ?? '') !== statusFilter) return false
+      if (q && !`${r.run_id} ${r.suite ?? ''}`.toLowerCase().includes(q)) return false
+      return true
+    })
+  }, [runs, scenarioFilter, statusFilter, search])
+
+  const pick = (run: LabRunSummary) => pickMetricForScenario(run, scenarioFilter)
   const ranked = useMemo(() => {
-    return [...runs].sort((a, b) => {
-      const pa = pickPrimaryMetric(a)
-      const pb = pickPrimaryMetric(b)
+    return [...filtered].sort((a, b) => {
+      const pa = pickMetricForScenario(a, scenarioFilter)
+      const pb = pickMetricForScenario(b, scenarioFilter)
       if (!pa) return 1
       if (!pb) return -1
       const lower = LOWER_IS_BETTER.has(pa.key)
       return lower ? pa.value - pb.value : pb.value - pa.value
     })
-  }, [runs])
-  const bestRunId = ranked.find(r => r.status === 'finished' && pickPrimaryMetric(r))?.run_id
+  }, [filtered, scenarioFilter])
+  const bestRunId = ranked.find(r => r.status === 'finished' && pick(r))?.run_id
 
   return (
     <div className="space-y-3">
       <p className="text-xs text-[#6b7280]">{t.lab.leaderboard.hint}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <Filter className="h-3.5 w-3.5 text-[#9ca3af]" />
+        <select
+          value={scenarioFilter}
+          onChange={e => setScenarioFilter(e.target.value)}
+          className={SELECT}
+          aria-label={t.lab.leaderboard.filterScenario}
+        >
+          <option value="all">{t.lab.leaderboard.allScenarios}</option>
+          {allScenarios.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select
+          value={statusFilter}
+          onChange={e => setStatusFilter(e.target.value)}
+          className={SELECT}
+          aria-label={t.lab.leaderboard.filterStatus}
+        >
+          <option value="all">{t.lab.leaderboard.allStatuses}</option>
+          <option value="finished">{t.lab.leaderboard.statusFinished}</option>
+          <option value="running">{t.lab.leaderboard.statusRunning}</option>
+          <option value="failed">{t.lab.leaderboard.statusFailed}</option>
+        </select>
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9ca3af]" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder={t.lab.leaderboard.searchPlaceholder}
+            className="rounded-lg border border-[#e5e7eb] bg-white py-1.5 pl-7 pr-2.5 text-xs text-[#374151] focus:border-[#3b5bdb] focus:outline-none focus:ring-1 focus:ring-[#3b5bdb]"
+          />
+        </div>
+        <span className="text-xs text-[#9ca3af]">{ranked.length} / {runs.length}</span>
+      </div>
       <div className={TABLE_WRAPPER}>
         {isLoading ? (
           <LoadingState label={t.lab.loading} />
@@ -450,7 +526,7 @@ function LeaderboardTab() {
             </thead>
             <tbody>
               {ranked.map((run, idx) => {
-                const primary = pickPrimaryMetric(run)
+                const primary = pick(run)
                 const rtf = run.aggregates?.asr?.rtf
                 const isBest = run.run_id === bestRunId
                 const isRunning = run.status === 'running'
