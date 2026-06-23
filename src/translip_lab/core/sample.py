@@ -28,6 +28,8 @@ class GroundTruth:
     subtitle_boxes: Path | None = None  # JSON {events:[{start,end,text,box}]} → OCR detection F1
     clean_video: Path | None = None  # subtitle-free reference video → erase PSNR/SSIM
     clean_frames_dir: Path | None = None  # or pre-extracted clean frames
+    clone_text: str | None = None  # target text to synthesize → tts-clone CER (intelligibility)
+    clone_ref_wav: Path | None = None  # target-voice reference → tts-clone SIM (timbre); falls back to media
     extra: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -38,6 +40,8 @@ class GroundTruth:
             "subtitle_boxes": _opt_str(self.subtitle_boxes),
             "clean_video": _opt_str(self.clean_video),
             "clean_frames_dir": _opt_str(self.clean_frames_dir),
+            "clone_text": self.clone_text,
+            "clone_ref_wav": _opt_str(self.clone_ref_wav),
             "extra": dict(self.extra),
         }
 

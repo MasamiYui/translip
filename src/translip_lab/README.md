@@ -2,14 +2,15 @@
 
 A **loosely-coupled** harness that tests/optimizes existing `translip` capabilities
 against external, ground-truth-annotated datasets and produces **quantitative,
-comparable** results (CER / DER / SI-SDR / PSNR-SSIM / detection-F1).
+comparable** results (CER / DER / SI-SDR / PSNR-SSIM / detection-F1 / speaker-SIM).
 
 ## Loose coupling (the one rule)
 
 `translip_lab` depends on `translip` **one way only** — translip never imports the
 lab. The integration surface is the stable translip **CLI/JSON contract** (run via
 subprocess, exactly like the orchestrator) plus a couple of pure helper imports
-(`translip.transcription.benchmark` for ASR scoring). Delete `src/translip_lab/`
+(`translip.transcription.benchmark` for ASR scoring, `translip.speaker_embedding`
+for the tts-clone SIM metric). Delete `src/translip_lab/`
 and the single "Testing Lab" link in the frontend sidebar, and the main system is
 untouched. The dashboard runs as its **own service on its own port** — the main UI
 just links to it.
@@ -116,16 +117,25 @@ Reproducible via the suites above, on real corpora under `/Volumes/EXT`:
 | `ocr-detect` | `python -m translip.ocr.extract` | box F1 ↑ | subtitle box GT |
 | `subtitle-erase` | `… ocr.extract` → `erase.extract` | PSNR/SSIM ↑ | clean (sub-free) video |
 | `e2e-dub` | `run-pipeline` → `benchmark-dub` | honest score ↑ | (intrinsic, no GT) |
+| `tts-clone` | `python -m translip_lab.tts_synth` → `transcribe` | SIM ↑ (+ CER ↓) | reference voice + target text |
 
 ## Datasets
 
 - **`folder`** — bring your own: drop media + sidecars under a dir. Per `<stem>`:
   `.srt` (ASR), `.rttm` (diar), `.boxes.json` (OCR), `.clean.mp4` (erase),
-  `.voice.wav`+`.background.wav` (separation).
+  `.voice.wav`+`.background.wav` (separation), `.clone.txt` + optional `.ref.wav`
+  (tts-clone: target text + reference voice).
 - **`aishell4`** (SLR111) / **`alimeeting`** (SLR119) — Mandarin meetings, ASR+diar
   GT. Place under `<datasets>/aishell4/<subset>/{wav,TextGrid}` and
   `<datasets>/alimeeting/<subset>/{audio_dir,textgrid_dir}`. **Domain caveat:**
   meeting/telephone, the only rigorous open CER/DER GT — not film/TV.
+- **`magicdata-ramc`** (SLR123) — Mandarin **spontaneous 2-party conversation**,
+  ASR + diar GT in one corpus (manual transcript + per-speaker timestamps). Extends
+  CER/DER from meetings into the *dialogue* domain (closer to film/TV than meetings).
+  Extract under `<datasets>/magicdata-ramc/<subset>/`; the adapter parses RAMC's
+  `[start,end] speaker gender,dialect text` transcripts (**not** TextGrid). License
+  CC BY-NC-ND 4.0 (academic). Baseline CER 19.1% / DER 7.96% (collar 0.25). Run via
+  `translip-lab run --suite asr-diar-ramc`.
 - **`wenetspeech-drama`** — the "D" (drama) subset of WenetSpeech, Mandarin
   film/TV ASR with reference transcripts. EULA-gated: register at
   https://wenet.org.cn/WenetSpeech/, filter `WenetSpeech.json` by
@@ -134,9 +144,10 @@ Reproducible via the suites above, on real corpora under `/Volumes/EXT`:
   (schema documented at the top of `datasets/wenetspeech_drama.py`). This is the
   first dataset that puts the film/TV domain on the leaderboard — run it via
   `translip-lab run --suite asr-drama-wenetspeech`.
-- **`synthetic-subtitle`** / **`synthetic-mix`** — generated GT for OCR/erase and
-  separation (no public CN film/TV GT exists for these). Synthetic numbers validate
-  plumbing; for real numbers supply real material via `folder`.
+- **`synthetic-subtitle`** / **`synthetic-mix`** / **`synthetic-clone`** — generated GT
+  for OCR/erase, separation, and voice-clone TTS (no public CN film/TV GT exists for
+  these). Synthetic numbers validate plumbing; for real numbers supply real material
+  via `folder`.
 
 ## Design
 

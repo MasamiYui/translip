@@ -1,0 +1,18 @@
+# Voice-clone TTS on self-built synthetic GT: clone a reference voice saying a
+# target line, then score timbre (SIM) + intelligibility (CER). The synthetic
+# "speakers" validate the plumbing + metrics offline; for real numbers feed real
+# voice samples via the `folder` dataset (<stem>.clone.txt + optional <stem>.ref.wav).
+# Real runs need a TTS backend (qwen3tts) and the ECAPA (speechbrain) embedder for SIM.
+name = "tts-clone-synthetic"
+dataset = "synthetic-clone"
+scenarios = ["tts-clone"]
+limit = 2
+timeout_sec = 1800
+
+[dataset_params]
+clips = 2
+duration = 4.0
+
+[scenario_config.tts-clone]
+tts_backend = "qwen3tts"
+language = "zh"

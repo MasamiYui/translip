@@ -5,6 +5,7 @@ from .audio import si_sdr, sdr
 from .detection import box_iou, match_boxes, prf
 from .diarization import der, parse_rttm
 from .image import psnr, ssim
+from .speaker import cosine_similarity, speaker_similarity
 from .text import cer, edit_distance, wer
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "si_sdr", "sdr",
     "psnr", "ssim",
     "box_iou", "match_boxes", "prf",
+    "cosine_similarity", "speaker_similarity",
 ]

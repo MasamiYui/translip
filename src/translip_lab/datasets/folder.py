@@ -6,6 +6,9 @@ For each media file ``<stem>.<ext>`` under the root, sidecars by stem provide GT
   <stem>.boxes.json     → subtitle box GT (OCR detection F1)
   <stem>.clean.mp4      → subtitle-free reference video (erase PSNR/SSIM)
   <stem>.voice.wav + <stem>.background.wav → clean stems (separation SI-SDR)
+  <stem>.clone.txt      → target text for voice-clone TTS (tts-clone CER); the media
+                          itself is the reference voice unless <stem>.ref.wav is present
+  <stem>.ref.wav        → explicit target-voice reference (tts-clone SIM)
 
 This is how you turn ANY corpus (or your own clips) into a quantifiable bench
 once you drop the references next to the media.
@@ -20,7 +23,7 @@ from ..core.sample import GroundTruth, Sample, SampleManifest
 from .base import DatasetAdapter, register_dataset
 
 _MEDIA_EXTS = (".mp4", ".mkv", ".mov", ".webm", ".wav", ".mp3", ".flac", ".m4a", ".aac", ".ogg")
-_GT_MEDIA_SUFFIXES = (".voice", ".background", ".clean")
+_GT_MEDIA_SUFFIXES = (".voice", ".background", ".clean", ".ref")
 
 
 @register_dataset
@@ -68,6 +71,11 @@ class FolderDataset(DatasetAdapter):
             background = Path(f"{stem_path}.background.wav")
             if voice.is_file() and background.is_file():
                 gt.clean_stems = {"voice": str(voice), "background": str(background)}
+            clone_txt = Path(f"{stem_path}.clone.txt")
+            if clone_txt.is_file():
+                gt.clone_text = clone_txt.read_text(encoding="utf-8").strip()
+                ref_wav = Path(f"{stem_path}.ref.wav")
+                gt.clone_ref_wav = ref_wav if ref_wav.is_file() else media
             samples.append(Sample(
                 sample_id=media.stem, media_path=media, ground_truth=gt,
                 meta={"lang": self.lang, "source": "folder"},
