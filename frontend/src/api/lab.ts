@@ -6,6 +6,7 @@ import {
   MOCK_SCENARIOS,
   MOCK_SUITES,
   buildMockCompare,
+  buildMockReport,
   buildMockTriggerResponse,
 } from './labMock'
 
@@ -169,6 +170,11 @@ export const labApi = {
     callOrFallback(
       () => labClient.get<LabRunDetail>(`/api/lab/runs/${runId}`).then(r => r.data),
       () => MOCK_RUN_DETAILS[runId] ?? { ...MOCK_RUNS[0], run_id: runId },
+    ),
+  reportMarkdown: (runId: string) =>
+    callOrFallback(
+      () => labClient.get(`/api/lab/runs/${runId}/report.md`, { responseType: 'text' }).then(r => String(r.data)),
+      () => buildMockReport(runId),
     ),
   compare: (baseline: string, candidate: string) =>
     callOrFallback(

@@ -1,6 +1,6 @@
 import { useMemo, useState, useSyncExternalStore } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -427,7 +427,9 @@ function LeaderboardTab() {
                     <td className="px-4 py-3.5 text-center text-xs font-semibold text-[#9ca3af]">
                       {isBest ? <Trophy className="mx-auto h-4 w-4 text-amber-500" /> : idx + 1}
                     </td>
-                    <td className="px-4 py-3.5 font-mono text-xs text-[#4b5563]">{run.run_id}</td>
+                    <td className="px-4 py-3.5 font-mono text-xs">
+                      <Link to={`/lab/runs/${run.run_id}`} className="text-[#3b5bdb] hover:underline">{run.run_id}</Link>
+                    </td>
                     <td className="px-4 py-3.5 text-[#4b5563]">{run.suite ?? '—'}</td>
                     <td className="hidden px-4 py-3.5 text-xs text-[#4b5563] md:table-cell">
                       {String((run as Record<string, unknown>).arm_label ?? '—')}

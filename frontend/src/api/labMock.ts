@@ -253,23 +253,65 @@ export const MOCK_RUNS: LabRunSummary[] = [
   },
 ]
 
+function mockResults(r: LabRunSummary): Array<Record<string, unknown>> {
+  const scenarios = r.scenarios?.length ? r.scenarios : ['asr']
+  const n = Math.max(3, Math.min(r.num_samples ?? 3, 4))
+  const arm = String((r as Record<string, unknown>).arm_label ?? 'default')
+  const rows: Array<Record<string, unknown>> = []
+  for (let i = 0; i < n; i++) {
+    const scenario = scenarios[i % scenarios.length]
+    const agg = r.aggregates?.[scenario] ?? {}
+    const raw = agg.sim ?? agg.cer_micro ?? agg.der ?? agg.si_sdr ?? agg.cer
+    const base = typeof raw === 'number' ? raw : undefined
+    const failed = r.status === 'failed' && i === 0 // demo a traceable failure
+    rows.push({
+      sample_id: `${r.dataset ?? 'sample'}_${String(i + 1).padStart(4, '0')}`,
+      scenario,
+      arm,
+      status: failed ? 'failed' : 'succeeded',
+      primary_metric: failed || base === undefined ? null : Number((base * (0.92 + 0.04 * i)).toFixed(4)),
+      duration_sec: 4 + i * 3,
+      cached: i === n - 1,
+      ...(failed ? { error: r.error ?? 'stage exit 1: RuntimeError: GPU OOM\n  at sample 3/32' } : {}),
+    })
+  }
+  return rows
+}
+
+// Promote the leaderboard's flat {metric: value} aggregates into the full run-store
+// aggregate shape (primary_metric / mean / scored…) the detail page (and live API) use.
+function mockAggregates(r: LabRunSummary): Record<string, Record<string, unknown>> {
+  const arm = String((r as Record<string, unknown>).arm_label ?? 'default')
+  const out: Record<string, Record<string, unknown>> = {}
+  for (const [scenario, metrics] of Object.entries(r.aggregates ?? {})) {
+    const def = MOCK_SCENARIOS.find(s => s.name === scenario)
+    const primary = def?.primary_metric ?? Object.keys(metrics)[0] ?? 'metric'
+    const mean = metrics[primary]
+    out[scenario] = {
+      scenario,
+      arm,
+      primary_metric: primary,
+      higher_is_better: def?.higher_is_better ?? false,
+      mean: typeof mean === 'number' ? mean : null,
+      std: 0,
+      scored: r.num_samples ?? 0,
+      failed: r.status === 'failed' ? 1 : 0,
+      skipped: 0,
+    }
+  }
+  return out
+}
+
 export const MOCK_RUN_DETAILS: Record<string, LabRunDetail> = Object.fromEntries(
   MOCK_RUNS.map(r => [
     r.run_id,
     {
       ...r,
-      manifest: {
-        dataset: r.dataset,
-        subset: 'mini',
-        license: 'WeNet Open Source — research only',
-        source: 'https://wenet.org.cn/WenetSpeech/',
-        drama_only: r.suite === 'asr-drama-wenetspeech',
-      },
-      results: Array.from({ length: Math.min(r.num_samples ?? 0, 5) }).map((_, i) => ({
-        sample_id: `Y0000000000_drama_${String(i + 1).padStart(4, '0')}`,
-        duration_sec: 4 + Math.random() * 6,
-        scenario_metrics: r.aggregates,
-      })),
+      aggregates: mockAggregates(r) as unknown as Record<string, Record<string, number | string>>,
+      sample_count: r.num_samples,
+      started_at: r.created_at,
+      elapsed_sec: r.duration_sec,
+      results: mockResults(r),
     },
   ]),
 )
@@ -318,4 +360,28 @@ export function buildMockTriggerResponse(payload: LabTriggerRunPayload): LabTrig
   if (payload.limit) cmd.push('--limit', String(payload.limit))
   if (payload.no_cache) cmd.push('--no-cache')
   return { status: 'started', cmd }
+}
+
+export function buildMockReport(runId: string): string {
+  const r = MOCK_RUN_DETAILS[runId] ?? MOCK_RUNS.find(x => x.run_id === runId)
+  if (!r) return `# Lab run \`${runId}\`\n\n(not found — demo data)\n`
+  const lines = [
+    `# Lab run \`${runId}\``,
+    '',
+    `- suite: \`${r.suite ?? '—'}\``,
+    `- dataset: \`${r.dataset ?? '—'}\``,
+    `- samples: ${(r as Record<string, unknown>).sample_count ?? r.num_samples ?? '—'}`,
+    '',
+    '## Aggregates',
+    '',
+    '| scenario | metric | mean |',
+    '|---|---|---|',
+  ]
+  for (const [name, agg] of Object.entries(r.aggregates ?? {})) {
+    const a = agg as Record<string, number | string>
+    const metric = ['cer_micro', 'sim', 'der', 'si_sdr', 'cer', 'psnr', 'f1'].find(k => k in a) ?? '—'
+    lines.push(`| ${name} | ${metric} | ${String(a[metric] ?? '—')} |`)
+  }
+  lines.push('', '_(demo data — generated client-side)_', '')
+  return lines.join('\n')
 }

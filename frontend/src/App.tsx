@@ -70,6 +70,9 @@ const ApiDocsPage = lazy(() =>
 const LabPage = lazy(() =>
   import('./pages/lab/LabPage').then(module => ({ default: module.LabPage })),
 )
+const RunDetailPage = lazy(() =>
+  import('./pages/lab/RunDetailPage').then(module => ({ default: module.RunDetailPage })),
+)
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -116,6 +119,7 @@ export default function App() {
                 <Route path="changelog/:slug" element={<ChangelogDetailPage />} />
                 <Route path="api-docs" element={<ApiDocsPage />} />
                 <Route path="lab" element={<LabPage />} />
+                <Route path="lab/runs/:runId" element={<RunDetailPage />} />
                 <Route path="lab/:tab" element={<LabPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>

@@ -16,11 +16,12 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from ..config import load_config
 from ..core.run_store import compare_runs, list_runs, load_run
 from ..core.scenario import SCENARIO_REGISTRY
+from ..report.markdown import run_to_markdown
 from ..datasets import DATASET_REGISTRY, get_dataset
 from .. import scenarios as _scenarios  # noqa: F401 — registers scenarios
 
@@ -79,6 +80,19 @@ def api_run_detail(run_id: str) -> dict[str, Any]:
     if not (run_dir / "run-manifest.json").is_file():
         raise HTTPException(status_code=404, detail=f"run not found: {run_id}")
     return load_run(run_dir)
+
+
+@app.get("/api/lab/runs/{run_id}/report.md")
+def api_run_report(run_id: str) -> PlainTextResponse:
+    """Markdown report for a run (download)."""
+    run_dir = load_config().runs_dir / run_id
+    if not (run_dir / "run-manifest.json").is_file():
+        raise HTTPException(status_code=404, detail=f"run not found: {run_id}")
+    md = run_to_markdown(load_run(run_dir))
+    return PlainTextResponse(
+        md, media_type="text/markdown",
+        headers={"Content-Disposition": f'attachment; filename="{run_id}.md"'},
+    )
 
 
 @app.get("/api/lab/compare")
