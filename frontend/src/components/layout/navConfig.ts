@@ -251,11 +251,10 @@ export function useNavConfig(): NavConfig {
       },
       lab: {
         key: 'lab',
-        to: LAB_URL,
+        to: '/lab',
         label: t.nav.lab,
         icon: FlaskConical,
-        isActive: false,
-        external: true,
+        isActive: currentPath === '/lab' || currentPath.startsWith('/lab/'),
       },
       settings: {
         key: 'settings',

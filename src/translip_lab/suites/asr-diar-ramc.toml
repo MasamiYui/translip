@@ -1,0 +1,29 @@
+# MagicData-RAMC (OpenSLR SLR123): spontaneous 2-party Mandarin conversation with
+# manual transcripts + per-speaker timestamps → CER (asr) and DER (diarization) from
+# ONE corpus. Extends the lab's open CER/DER GT from meetings into the dialogue
+# domain (closer to film/TV dialogue than AISHELL-4 / AliMeeting).
+#
+# Place data first: extract the OpenSLR SLR123 archive (~15G) under
+# <datasets>/magicdata-ramc/test/ (License: CC BY-NC-ND 4.0, academic/eval only).
+# collar 0.25 + expected_speakers 2 match the official DER 7.96% baseline.
+name = "asr-diar-ramc"
+dataset = "magicdata-ramc"
+scenarios = ["asr", "diarization"]
+limit = 5
+timeout_sec = 3600
+
+[dataset_params]
+subset = "test"
+
+[scenario_config.asr]
+asr_backend = "funasr"
+asr_model = "paraformer-zh"
+language = "zh"
+
+[scenario_config.diarization]
+diarizer_backend = "ecapa"
+asr_backend = "funasr"
+asr_model = "paraformer-zh"
+expected_speakers = 2
+collar = 0.25
+ignore_overlap = true

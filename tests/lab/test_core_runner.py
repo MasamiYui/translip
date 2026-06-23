@@ -72,6 +72,19 @@ def test_caching_skips_second_invocation(tmp_path):
     assert sc.invocations == 1  # second run hit the cache → no new invocation
 
 
+def test_cache_invalidated_by_version_bump(tmp_path):
+    cfg = _cfg(tmp_path)
+    m = _manifest(tmp_path)
+    sc = CountingScenario()
+    run_suite(manifest=m, scenarios=[sc], suite="s", invoker=FakeInvoker(),
+              lab_config=cfg, use_cache=True, run_id="r1")
+    assert sc.invocations == 1
+    sc.version = 2  # e.g. the scoring logic changed → cached r1 result must not be reused
+    run_suite(manifest=m, scenarios=[sc], suite="s", invoker=FakeInvoker(),
+              lab_config=cfg, use_cache=True, run_id="r2")
+    assert sc.invocations == 2  # cache miss → re-invoked under the new version
+
+
 def test_skipped_when_missing_ground_truth(tmp_path):
     cfg = _cfg(tmp_path)
 

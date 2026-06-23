@@ -277,7 +277,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("scenarios", help="list capability scenarios")
 
     g = sub.add_parser("gen-synthetic", help="generate synthetic GT datasets into the cache")
-    g.add_argument("--kind", choices=["subtitle", "mix", "both"], default="both")
+    g.add_argument("--kind", choices=["subtitle", "mix", "clone", "both"], default="both")
     g.add_argument("--clips", type=int, default=1)
     g.add_argument("--duration", type=float, default=4.0)
 

@@ -70,6 +70,10 @@ class Scenario(ABC):
     name: str = "scenario"
     primary_metric_key: str = "score"
     higher_is_better: bool = True
+    # Scorer version — feeds the cache key. Bump when this scenario's invoke/score
+    # logic (or a metric it relies on) changes, so cached results from the old logic
+    # are invalidated instead of silently reused.
+    version: int = 1
 
     def required_gt(self) -> list[str]:
         """GroundTruth attribute names that must be present for this scenario."""

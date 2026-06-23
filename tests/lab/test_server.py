@@ -51,6 +51,38 @@ def test_runs_listing_and_detail(monkeypatch, tmp_path):
     assert client.get("/api/lab/runs/r1").json()["aggregates"]["asr"]["mean"] == 0.2
 
 
+def test_run_report_markdown(monkeypatch, tmp_path):
+    client = _client(monkeypatch, tmp_path)
+    assert client.get("/api/lab/runs/nope/report.md").status_code == 404
+    run_dir = tmp_path / "runs" / "r1"
+    run_dir.mkdir(parents=True)
+    (run_dir / "run-manifest.json").write_text(json.dumps({
+        "run_id": "r1", "suite": "s", "dataset": "d", "sample_count": 1,
+        "aggregates": {"asr": {"scenario": "asr", "primary_metric": "cer", "higher_is_better": False, "mean": 0.2}},
+        "results": [{"sample_id": "x", "scenario": "asr", "status": "succeeded", "primary_metric": 0.2, "cached": False}],
+    }), encoding="utf-8")
+    r = client.get("/api/lab/runs/r1/report.md")
+    assert r.status_code == 200
+    assert "text/markdown" in r.headers["content-type"]
+    assert "# Lab run `r1`" in r.text and "## Aggregates" in r.text
+    assert 'filename="r1.md"' in r.headers.get("content-disposition", "")
+
+
+def test_trigger_job_and_jobs_endpoints(monkeypatch, tmp_path):
+    client = _client(monkeypatch, tmp_path)
+    assert client.post("/api/lab/runs", json={}).status_code == 400  # missing args
+
+    body = client.post("/api/lab/runs", json={"suite": "asr-diar-ramc", "limit": 1}).json()
+    assert body["job_id"] and body["run_id"] == body["job_id"]
+    assert "--run-id" in body["cmd"] and "--suite" in body["cmd"]  # job id == run id
+
+    jobs = client.get("/api/lab/jobs").json()
+    assert any(j["job_id"] == body["job_id"] for j in jobs)
+    detail = client.get(f"/api/lab/jobs/{body['job_id']}")
+    assert detail.status_code == 200 and "log_tail" in detail.json()
+    assert client.get("/api/lab/jobs/does-not-exist").status_code == 404
+
+
 def test_compare_endpoint(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     for rid, mean in (("a", 0.2), ("b", 0.3)):

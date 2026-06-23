@@ -74,6 +74,7 @@ def run_suite(
                 key = scenario_cache_key(
                     scenario=scenario.name, sample_id=sample.sample_id, config=cfg,
                     input_paths=[str(p) for p in scenario.input_paths(sample)],
+                    code_version=scenario.version,
                 )
                 cache_file = cache_results_dir / f"{key}.json"
 
@@ -111,7 +112,8 @@ def run_suite(
                     })
 
     scenario_meta = {
-        s.name: {"primary_metric_key": s.primary_metric_key, "higher_is_better": s.higher_is_better}
+        s.name: {"primary_metric_key": s.primary_metric_key, "higher_is_better": s.higher_is_better,
+                 "version": s.version}
         for s in scenarios
     }
     aggregates = summarize_aggregates(results, scenario_meta)

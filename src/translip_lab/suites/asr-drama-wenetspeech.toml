@@ -1,0 +1,42 @@
+# Mandarin film/TV (drama) ASR on the WenetSpeech "D" subset — translip's
+# first real film/TV benchmark (meetings are AISHELL-4/AliMeeting; this fills
+# the drama domain gap noted in translip_lab/README.md).
+#
+# Setup (one-time, EULA-gated):
+#   1. Register at https://wenet.org.cn/WenetSpeech/ and download WenetSpeech.json.
+#   2. Filter segments with `"D" in segment.subsets`, slice the matching opus
+#      audio into per-segment WAVs (16kHz mono), and write a `manifest.json`
+#      matching translip_lab/datasets/wenetspeech_drama.py's schema.
+#   3. Place the result under <datasets>/wenetspeech-drama/<subset>/.
+#
+# This suite sweeps translip's two Mandarin ASR backends on the drama subset so
+# we can answer "does paraformer-zh's meeting-domain win hold on film/TV?".
+name = "asr-drama-wenetspeech"
+dataset = "wenetspeech-drama"
+scenarios = ["asr"]
+timeout_sec = 7200
+
+[dataset_params]
+subset = "mini"
+max_samples = 10
+
+[scenario_config.asr]
+language = "zh"
+
+[[arms]]
+label = "paraformer-zh"
+[arms.scenario_config.asr]
+asr_backend = "funasr"
+asr_model = "paraformer-zh"
+
+[[arms]]
+label = "whisper-small"
+[arms.scenario_config.asr]
+asr_backend = "faster-whisper"
+asr_model = "small"
+
+[[arms]]
+label = "whisper-medium"
+[arms.scenario_config.asr]
+asr_backend = "faster-whisper"
+asr_model = "medium"
