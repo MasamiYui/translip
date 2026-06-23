@@ -669,8 +669,8 @@ function renderControls(
   if (toolId === 'mixing') {
     return (
       <div className="grid gap-4 md:grid-cols-3">
-        <TextField label={atomicTools.fields.backgroundGain} type="number" value={String(params.background_gain_db)} onChange={value => setField('background_gain_db', Number(value))} />
-        <SelectField label={atomicTools.fields.duckingMode} value={String(params.ducking_mode)} options={['static', 'sidechain']} onChange={value => setField('ducking_mode', value)} />
+        <TextField label={atomicTools.fields.backgroundGain} hint={atomicTools.hints.backgroundGain} hintAriaLabel={atomicTools.hints.termHintAria} type="number" value={String(params.background_gain_db)} onChange={value => setField('background_gain_db', Number(value))} />
+        <SelectField label={atomicTools.fields.duckingMode} hint={atomicTools.hints.duckingMode} hintAriaLabel={atomicTools.hints.termHintAria} value={String(params.ducking_mode)} options={['static', 'sidechain']} onChange={value => setField('ducking_mode', value)} />
         <SelectField label={atomicTools.fields.outputFormat} value={String(params.output_format)} options={['wav', 'mp3']} onChange={value => setField('output_format', value)} />
       </div>
     )
@@ -703,6 +703,8 @@ function renderControls(
         <div className="grid gap-4 md:grid-cols-2">
           <TextField
             label={atomicTools.fields.asrMaxSegmentSec}
+            hint={atomicTools.hints.asrMaxSegmentSec}
+            hintAriaLabel={atomicTools.hints.termHintAria}
             type="number"
             value={String(params.vad_max_segment_sec ?? 30)}
             onChange={value => setField('vad_max_segment_sec', Number(value))}
@@ -911,12 +913,16 @@ function renderControls(
           />
           <TextField
             label={atomicTools.fields.watermarkMargin}
+            hint={atomicTools.hints.watermarkMargin}
+            hintAriaLabel={atomicTools.hints.termHintAria}
             type="number"
             value={String(params.margin ?? 24)}
             onChange={value => setField('margin', value === '' ? 0 : Number(value))}
           />
           <TextField
             label={atomicTools.fields.watermarkOpacity}
+            hint={atomicTools.hints.watermarkOpacity}
+            hintAriaLabel={atomicTools.hints.termHintAria}
             type="number"
             value={String(params.opacity ?? 0.8)}
             onChange={value => setField('opacity', value === '' ? 0 : Number(value))}
@@ -941,6 +947,8 @@ function renderControls(
               />
               <SelectField
                 label={atomicTools.fields.watermarkFontColor}
+                hint={atomicTools.hints.watermarkFontColor}
+                hintAriaLabel={atomicTools.hints.termHintAria}
                 value={String(params.font_color ?? 'white')}
                 options={(
                   ['white', 'black', 'yellow', 'red', 'green', 'blue', 'gray', '#ff6600'] as const
@@ -949,6 +957,8 @@ function renderControls(
               />
               <SelectField
                 label={atomicTools.fields.watermarkStrokeColor}
+                hint={atomicTools.hints.watermarkStrokeColor}
+                hintAriaLabel={atomicTools.hints.termHintAria}
                 value={String(params.stroke_color ?? 'black')}
                 options={(
                   ['white', 'black', 'yellow', 'red', 'green', 'blue', 'gray', '#ff6600'] as const
@@ -991,24 +1001,32 @@ function renderControls(
         />
         <TextField
           label={atomicTools.fields.sampleInterval}
+          hint={atomicTools.hints.sampleIntervalSubDetect}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           type="number"
           value={String(params.sample_interval ?? 0.4)}
           onChange={value => setField('sample_interval', Number(value))}
         />
         <TextField
           label={atomicTools.fields.previewFrames}
+          hint={atomicTools.hints.previewFrames}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           type="number"
           value={String(params.preview_frames ?? 3)}
           onChange={value => setField('preview_frames', Number(value))}
         />
         <SelectField
           label={atomicTools.fields.positionMode}
+          hint={atomicTools.hints.positionMode}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           value={String(params.position_mode ?? 'auto')}
           options={['auto', 'bottom', 'middle', 'top']}
           onChange={value => setField('position_mode', value)}
         />
         <SelectField
           label={atomicTools.fields.extractionMode}
+          hint={atomicTools.hints.extractionMode}
+          hintAriaLabel={atomicTools.hints.termHintAria}
           value={String(params.extraction_mode ?? 'conservative')}
           options={['conservative', 'balanced', 'variety_recall']}
           onChange={value => setField('extraction_mode', value)}
@@ -1056,18 +1074,24 @@ function renderControls(
         <div className="grid gap-4 md:grid-cols-3">
           <TextField
             label={atomicTools.fields.sampleInterval}
+            hint={atomicTools.hints.sampleIntervalVision}
+            hintAriaLabel={atomicTools.hints.termHintAria}
             type="number"
             value={String(params.sample_interval ?? 10)}
             onChange={value => setField('sample_interval', Number(value))}
           />
           <TextField
             label={atomicTools.fields.framesPerUnit}
+            hint={atomicTools.hints.framesPerUnit}
+            hintAriaLabel={atomicTools.hints.termHintAria}
             type="number"
             value={String(params.frames_per_unit ?? 4)}
             onChange={value => setField('frames_per_unit', Number(value))}
           />
           <TextField
             label={atomicTools.fields.maxUnits}
+            hint={atomicTools.hints.maxUnits}
+            hintAriaLabel={atomicTools.hints.termHintAria}
             type="number"
             value={String(params.max_units ?? '')}
             onChange={value => setField('max_units', value === '' ? '' : Number(value))}
@@ -1159,6 +1183,8 @@ function renderControls(
             />
             <TextField
               label={atomicTools.fields.maxLoad}
+              hint={atomicTools.hints.maxLoad}
+              hintAriaLabel={atomicTools.hints.termHintAria}
               type="number"
               value={String(params.max_load ?? '')}
               onChange={value => setField('max_load', value === '' ? '' : Number(value))}
