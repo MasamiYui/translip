@@ -15,6 +15,7 @@ export const MOCK_SCENARIOS: LabScenario[] = [
   { name: 'ocr_detect', primary_metric: 'f1', higher_is_better: true, required_gt: ['ocr_boxes'] },
   { name: 'separation', primary_metric: 'si_sdr', higher_is_better: true, required_gt: ['stem_audio'] },
   { name: 'e2e_dub', primary_metric: 'mcd', higher_is_better: false, required_gt: ['reference_dub'] },
+  { name: 'tts-clone', primary_metric: 'sim', higher_is_better: true, required_gt: ['clone_text'] },
 ]
 
 export const MOCK_SUITES: string[] = [
@@ -26,6 +27,8 @@ export const MOCK_SUITES: string[] = [
   'subtitle-erase-synthetic',
   'ocr-detect-synthetic',
   'e2e-dub-folder',
+  'tts-clone-synthetic',
+  'asr-diar-ramc',
 ]
 
 export const MOCK_DATASETS: LabDataset[] = [
@@ -63,6 +66,17 @@ export const MOCK_DATASETS: LabDataset[] = [
     total_duration_min: 180,
   },
   {
+    name: 'magicdata-ramc',
+    license: 'CC BY-NC-ND 4.0 (SLR123)',
+    provides: ['asr (CER)', 'diarization (DER)'],
+    subset: 'test',
+    subset_root: '/Users/lab/datasets/magicdata-ramc/test',
+    subset_exists: false,
+    expected_layout: 'magicdata-ramc/<subset>/**/*.wav + <stem>.txt',
+    samples: 43,
+    total_duration_min: 1238,
+  },
+  {
     name: 'synthetic-subtitle',
     license: 'CC0',
     provides: ['ocr_detect (F1)', 'subtitle_erase (PSNR)'],
@@ -83,6 +97,17 @@ export const MOCK_DATASETS: LabDataset[] = [
     expected_layout: 'auto-generated at runtime',
     samples: 24,
     total_duration_min: 0.8,
+  },
+  {
+    name: 'synthetic-clone',
+    license: 'CC0',
+    provides: ['tts-clone (SIM)'],
+    subset: 'mini',
+    subset_root: '/Users/lab/cache/synthetic-clone/mini',
+    subset_exists: true,
+    expected_layout: 'auto-generated at runtime',
+    samples: 2,
+    total_duration_min: 0.13,
   },
   {
     name: 'folder',
@@ -171,6 +196,36 @@ export const MOCK_RUNS: LabRunSummary[] = [
     arm_label: 'mdx-net',
   },
   {
+    run_id: '20260623-1012-tts-clone-synthetic',
+    suite: 'tts-clone-synthetic',
+    dataset: 'synthetic-clone',
+    scenarios: ['tts-clone'],
+    status: 'finished',
+    created_at: '2026-06-23 10:12:30',
+    duration_sec: 96,
+    num_samples: 2,
+    aggregates: {
+      'tts-clone': { sim: 0.812, cer_micro: 0.104, samples: 2 },
+    },
+    arm_label: 'qwen3tts',
+    notes: 'voice-clone SIM + intelligibility',
+  },
+  {
+    run_id: '20260623-0930-asr-diar-ramc',
+    suite: 'asr-diar-ramc',
+    dataset: 'magicdata-ramc',
+    scenarios: ['asr', 'diarization'],
+    status: 'finished',
+    created_at: '2026-06-23 09:30:14',
+    duration_sec: 540,
+    num_samples: 5,
+    aggregates: {
+      asr: { cer_micro: 0.191, rtf: 0.21 },
+      diarization: { der: 0.0796, jer: 0.102 },
+    },
+    arm_label: 'paraformer-zh + ecapa',
+  },
+  {
     run_id: '20260622-0805-asr-drama-paraformer-rerun',
     suite: 'asr-drama-wenetspeech',
     dataset: 'wenetspeech-drama',
@@ -224,7 +279,7 @@ const _runById = new Map(MOCK_RUNS.map(r => [r.run_id, r]))
 function pickPrimary(run: LabRunSummary | undefined, scenario = 'asr'): number | null {
   if (!run) return null
   const m = run.aggregates?.[scenario] ?? {}
-  const v = m.cer_micro ?? m.cer ?? m.der ?? m.si_sdr ?? m.f1 ?? m.psnr ?? m.mcd
+  const v = m.sim ?? m.cer_micro ?? m.cer ?? m.der ?? m.si_sdr ?? m.f1 ?? m.psnr ?? m.mcd
   return typeof v === 'number' ? v : null
 }
 

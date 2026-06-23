@@ -107,8 +107,11 @@ function ScenarioTag({ name }: { name: string }) {
     ocr_detect: { label: t.lab.experiments.tagOcr, cls: 'bg-emerald-50 text-emerald-700' },
     subtitle_erase: { label: t.lab.experiments.tagErase, cls: 'bg-pink-50 text-pink-700' },
     e2e_dub: { label: t.lab.experiments.tagDub, cls: 'bg-amber-50 text-amber-700' },
+    tts_clone: { label: t.lab.experiments.tagClone, cls: 'bg-sky-50 text-sky-700' },
   }
-  const m = map[name] ?? { label: name, cls: 'bg-[#f3f4f6] text-[#6b7280]' }
+  // backend scenario names are hyphenated (e2e-dub, tts-clone); normalize to the
+  // underscore keys so both live and mock data render a localized tag.
+  const m = map[name.replace(/-/g, '_')] ?? { label: name, cls: 'bg-[#f3f4f6] text-[#6b7280]' }
   return (
     <span className={cn('inline-flex shrink-0 items-center rounded-md px-1.5 py-0.5 text-[11px] font-semibold', m.cls)}>
       {m.label}
@@ -132,7 +135,7 @@ function StatCard({ icon: Icon, label, value, hint }: { icon: typeof Database; l
 function pickPrimaryMetric(run: LabRunSummary): { scenario: string; key: string; value: number } | null {
   const aggregates = run.aggregates ?? {}
   for (const [scenario, metrics] of Object.entries(aggregates)) {
-    for (const k of ['cer_micro', 'cer', 'der', 'mcd', 'si_sdr', 'f1', 'psnr']) {
+    for (const k of ['sim', 'cer_micro', 'cer', 'der', 'mcd', 'si_sdr', 'f1', 'psnr']) {
       const v = metrics[k]
       if (typeof v === 'number') return { scenario, key: k, value: v }
     }
@@ -299,13 +302,16 @@ function ExperimentsTab() {
     if (suite.includes('ocr')) tags.push('ocr_detect')
     if (suite.includes('erase')) tags.push('subtitle_erase')
     if (suite.includes('dub')) tags.push('e2e_dub')
+    if (suite.includes('tts') || suite.includes('clone')) tags.push('tts_clone')
     return tags
   }
 
   function inferDataset(suite: string): string {
     if (suite.includes('wenetspeech')) return 'wenetspeech-drama'
+    if (suite.includes('ramc')) return 'magicdata-ramc'
     if (suite.includes('aishell4')) return 'aishell4'
     if (suite.includes('alimeeting')) return 'alimeeting'
+    if (suite.includes('clone')) return 'synthetic-clone'
     if (suite.includes('synthetic-mix')) return 'synthetic-mix'
     if (suite.includes('synthetic')) return 'synthetic-subtitle'
     return 'folder'

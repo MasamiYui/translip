@@ -2169,6 +2169,7 @@ const zhMessages = {
       tagOcr: 'OCR',
       tagErase: '字幕擦除',
       tagDub: '配音端到端',
+      tagClone: '音色克隆',
     },
     leaderboard: {
       heading: '历史 Run',
@@ -4401,6 +4402,7 @@ const enMessages: LocaleMessages = {
       tagOcr: 'OCR',
       tagErase: 'Erase',
       tagDub: 'End-to-end Dub',
+      tagClone: 'Voice Clone',
     },
     leaderboard: {
       heading: 'Past runs',
