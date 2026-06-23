@@ -190,3 +190,18 @@ from translip.dubbing.qwen_tts_backend import (
 3. **ChaLearn Decaptioning** 适配器（subtitle-erase 跨集校验；调研 P1）。
 4. **缓存键纳入 scorer 版本**（`cache.py` 现仅按 config+input 哈希，改打分逻辑不失效——既有 footgun；加 `Scenario.version` 进 key）。
 5. 自建中文影视音色小集（走 §3.3 的 `folder` 边车）。
+
+---
+
+## 10. 前端可见性与浏览器验证（已完成）
+
+lab 服务端的 scenarios/datasets/suites 均按注册表**动态列出**，故新增的 `tts-clone` 场景、`synthetic-clone`/`magicdata-ramc` 数据集、`tts-clone-synthetic`/`asr-diar-ramc` 套件在**实时模式自动出现**。前端（`frontend/src/pages/lab/LabPage.tsx` · `api/labMock.ts` · `i18n/messages.ts`）补齐：
+- `ScenarioTag` 渲染「音色克隆 / Voice Clone」标签，并把连字符后端名（`e2e-dub`/`tts-clone`）归一到下划线标签键 —— 实时数据也能本地化渲染标签；
+- 排行榜/回归把 `sim`（越大越好）纳入主指标选取，tts-clone run 能展示 SIM；
+- 实验页为新套件推断数据集与标签；
+- `labMock.ts` 离线演示补齐新场景/数据集/套件 + 两条示例 run；i18n 加 `tagClone`（中英）。
+
+**浏览器验证**（系统 Chrome via Playwright，覆盖 mock + live 两模式）：
+- mock（lab 服务端关闭→兜底演示数据）：四个 Tab 均渲染新数据集/套件/「音色克隆」标签，排行榜显示 tts-clone run 的 `sim=0.812`；
+- live（lab 服务端 :8799）：徽标显示「实时数据」、0 控制台错误，数据集表显示 `magicdata-ramc` 的真实 describe 元数据（license / 提供指标 / `[start,end] speaker 性别,方言 text` 布局）；
+- 前端 `npm run build`（tsc 全量类型检查）通过、`vitest` 189 测试通过、ESLint 0 报错。
