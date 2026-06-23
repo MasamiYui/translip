@@ -2195,6 +2195,8 @@ const zhMessages = {
       tagErase: '字幕擦除',
       tagDub: '配音端到端',
       tagClone: '音色克隆',
+      viewResults: '查看结果',
+      jobFailed: '运行失败',
     },
     leaderboard: {
       heading: '历史 Run',
@@ -4453,6 +4455,8 @@ const enMessages: LocaleMessages = {
       tagErase: 'Erase',
       tagDub: 'End-to-end Dub',
       tagClone: 'Voice Clone',
+      viewResults: 'View results',
+      jobFailed: 'Run failed',
     },
     leaderboard: {
       heading: 'Past runs',

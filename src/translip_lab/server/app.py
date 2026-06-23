@@ -8,7 +8,6 @@ translip app only needs a link to this server's URL.
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 import threading
 from pathlib import Path
@@ -24,6 +23,7 @@ from ..core.scenario import SCENARIO_REGISTRY
 from ..report.markdown import run_to_markdown
 from ..datasets import DATASET_REGISTRY, get_dataset
 from .. import scenarios as _scenarios  # noqa: F401 — registers scenarios
+from .jobs import JobManager
 
 _WEB_DIR = Path(__file__).parent / "web"
 _SUITES_DIR = Path(__file__).resolve().parent.parent / "suites"
@@ -33,6 +33,22 @@ app.add_middleware(
     CORSMiddleware, allow_origins=["*"], allow_credentials=True,
     allow_methods=["*"], allow_headers=["*"],
 )
+
+# One JobManager per runs_dir, created lazily — so tests with isolated
+# TRANSLIP_LAB_HOME don't share a worker/queue, and a deployed server keeps one.
+_job_managers: dict[str, JobManager] = {}
+_jm_lock = threading.Lock()
+
+
+def get_job_manager() -> JobManager:
+    runs_dir = load_config().runs_dir
+    key = str(runs_dir)
+    with _jm_lock:
+        jm = _job_managers.get(key)
+        if jm is None:
+            jm = JobManager(runs_dir=runs_dir)
+            _job_managers[key] = jm
+        return jm
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -106,23 +122,43 @@ def api_compare(baseline: str, candidate: str) -> dict[str, Any]:
 
 @app.post("/api/lab/runs")
 def api_trigger_run(payload: dict[str, Any]) -> dict[str, Any]:
-    """Launch a run in the background (subprocess → translip-lab run)."""
-    cmd = [sys.executable, "-m", "translip_lab", "run"]
-    if payload.get("suite"):
-        cmd += ["--suite", str(payload["suite"])]
-    elif payload.get("dataset") and payload.get("scenarios"):
-        scenarios = payload["scenarios"]
-        scenarios = ",".join(scenarios) if isinstance(scenarios, list) else str(scenarios)
-        cmd += ["--dataset", str(payload["dataset"]), "--scenario", scenarios]
+    """Submit a tracked run job (queued → running → succeeded/failed; serialized)."""
+    suite = payload.get("suite")
+    dataset = payload.get("dataset")
+    raw_scenarios = payload.get("scenarios")
+    tail: list[str] = []
+    if suite:
+        tail += ["--suite", str(suite)]
+    elif dataset and raw_scenarios:
+        joined = ",".join(raw_scenarios) if isinstance(raw_scenarios, list) else str(raw_scenarios)
+        tail += ["--dataset", str(dataset), "--scenario", joined]
     else:
         raise HTTPException(status_code=400, detail="provide 'suite' or ('dataset' and 'scenarios')")
     if payload.get("limit") is not None:
-        cmd += ["--limit", str(payload["limit"])]
+        tail += ["--limit", str(payload["limit"])]
     if payload.get("no_cache"):
-        cmd += ["--no-cache"]
+        tail += ["--no-cache"]
 
-    threading.Thread(target=lambda: subprocess.run(cmd, cwd=os.getcwd()), daemon=True).start()
-    return {"status": "started", "cmd": cmd}
+    scenarios = raw_scenarios if isinstance(raw_scenarios, list) else ([raw_scenarios] if raw_scenarios else [])
+    jm = get_job_manager()
+    job_id = jm.new_job_id(suite or dataset)
+    cmd = [sys.executable, "-m", "translip_lab", "run", "--run-id", job_id, *tail]
+    job = jm.submit(cmd=cmd, job_id=job_id, suite=suite, dataset=dataset, scenarios=scenarios)
+    return {"status": job.status, "job_id": job.job_id, "run_id": job.job_id, "cmd": job.cmd}
+
+
+@app.get("/api/lab/jobs")
+def api_jobs() -> list[dict[str, Any]]:
+    return get_job_manager().list_jobs()
+
+
+@app.get("/api/lab/jobs/{job_id}")
+def api_job_detail(job_id: str) -> dict[str, Any]:
+    jm = get_job_manager()
+    job = jm.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail=f"job not found: {job_id}")
+    return {**job.to_dict(), "log_tail": jm.tail_log(job_id)}
 
 
 def run_server(host: str | None = None, port: int | None = None) -> None:

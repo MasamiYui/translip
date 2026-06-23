@@ -68,6 +68,21 @@ def test_run_report_markdown(monkeypatch, tmp_path):
     assert 'filename="r1.md"' in r.headers.get("content-disposition", "")
 
 
+def test_trigger_job_and_jobs_endpoints(monkeypatch, tmp_path):
+    client = _client(monkeypatch, tmp_path)
+    assert client.post("/api/lab/runs", json={}).status_code == 400  # missing args
+
+    body = client.post("/api/lab/runs", json={"suite": "asr-diar-ramc", "limit": 1}).json()
+    assert body["job_id"] and body["run_id"] == body["job_id"]
+    assert "--run-id" in body["cmd"] and "--suite" in body["cmd"]  # job id == run id
+
+    jobs = client.get("/api/lab/jobs").json()
+    assert any(j["job_id"] == body["job_id"] for j in jobs)
+    detail = client.get(f"/api/lab/jobs/{body['job_id']}")
+    assert detail.status_code == 200 and "log_tail" in detail.json()
+    assert client.get("/api/lab/jobs/does-not-exist").status_code == 404
+
+
 def test_compare_endpoint(monkeypatch, tmp_path):
     client = _client(monkeypatch, tmp_path)
     for rid, mean in (("a", 0.2), ("b", 0.3)):

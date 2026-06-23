@@ -1,6 +1,7 @@
 import type {
   LabCompareResult,
   LabDataset,
+  LabJob,
   LabRunDetail,
   LabRunSummary,
   LabScenario,
@@ -353,14 +354,61 @@ export function buildMockCompare(baseline: string, candidate: string): LabCompar
   }
 }
 
+const _mockJobStart = new Map<string, number>()
+
 export function buildMockTriggerResponse(payload: LabTriggerRunPayload): LabTriggerRunResponse {
-  const cmd = ['translip-lab', 'run']
+  const label = payload.suite ?? payload.dataset ?? 'run'
+  const jobId = `mock-${label}-${Date.now()}`
+  const cmd = ['translip-lab', 'run', '--run-id', jobId]
   if (payload.suite) cmd.push('--suite', payload.suite)
   if (payload.dataset) cmd.push('--dataset', payload.dataset)
   if (payload.limit) cmd.push('--limit', String(payload.limit))
   if (payload.no_cache) cmd.push('--no-cache')
-  return { status: 'started', cmd }
+  _mockJobStart.set(jobId, Date.now())
+  return { status: 'queued', cmd, job_id: jobId, run_id: jobId }
 }
+
+// A tiny client-side state machine so the offline demo shows queued → running →
+// succeeded without a backend (the real flow polls GET /api/lab/jobs/{id}).
+export function buildMockJob(jobId: string): LabJob {
+  if (!_mockJobStart.has(jobId)) _mockJobStart.set(jobId, Date.now())
+  const t0 = _mockJobStart.get(jobId) ?? Date.now()
+  const elapsed = Date.now() - t0
+  const status = elapsed < 1600 ? 'running' : 'succeeded'
+  const suite = jobId.replace(/^mock-/, '').replace(/-\d+$/, '')
+  const matchRun = MOCK_RUNS.find(r => r.suite === suite)
+  return {
+    job_id: jobId,
+    status,
+    suite,
+    run_id: status === 'succeeded' ? (matchRun?.run_id ?? jobId) : null,
+    created_at: new Date(t0).toISOString(),
+    started_at: new Date(t0).toISOString(),
+    finished_at: status === 'succeeded' ? new Date().toISOString() : null,
+    log_tail:
+      status === 'succeeded'
+        ? '$ translip-lab run …\n[3/3] sample · scenario → succeeded\n\nreport: …/report.html\n'
+        : '$ translip-lab run …\n[1/3] sample · scenario → running…\n',
+  }
+}
+
+export const MOCK_JOBS: LabJob[] = [
+  {
+    job_id: 'mock-tts-clone-synthetic-001',
+    status: 'running',
+    suite: 'tts-clone-synthetic',
+    run_id: null,
+    created_at: '2026-06-23 10:12:00',
+  },
+  {
+    job_id: 'mock-asr-drama-wenetspeech-002',
+    status: 'succeeded',
+    suite: 'asr-drama-wenetspeech',
+    run_id: '20260621-1842-asr-drama-paraformer',
+    created_at: '2026-06-23 09:00:00',
+    finished_at: '2026-06-23 09:05:26',
+  },
+]
 
 export function buildMockReport(runId: string): string {
   const r = MOCK_RUN_DETAILS[runId] ?? MOCK_RUNS.find(x => x.run_id === runId)

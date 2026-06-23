@@ -22,6 +22,7 @@ import {
   labApi,
   type LabCompareResult,
   type LabDataset,
+  type LabJob,
   type LabRunSummary,
   type LabSource,
 } from '../../api/lab'
@@ -46,7 +47,7 @@ const TABLE_WRAPPER =
 
 function mapStatusForBadge(status?: string): string {
   const key = (status ?? 'pending').toLowerCase()
-  if (key === 'finished') return 'completed'
+  if (key === 'finished' || key === 'succeeded') return 'completed'
   if (key === 'queued') return 'pending'
   return key
 }
@@ -273,6 +274,36 @@ function DatasetsTab() {
   )
 }
 
+function JobStatus({ jobId }: { jobId: string }) {
+  const { t } = useI18n()
+  const { data } = useQuery({
+    queryKey: ['lab', 'job', jobId],
+    queryFn: () => labApi.jobDetail(jobId),
+    retry: false,
+    refetchInterval: query => {
+      const s = (query.state.data as LabJob | undefined)?.status
+      return s === 'succeeded' || s === 'failed' ? false : 1200
+    },
+  })
+  const status = data?.status ?? 'queued'
+  return (
+    <div className="flex w-full items-center justify-between gap-2">
+      <StatusBadge status={mapStatusForBadge(status)} size="sm" />
+      {status === 'succeeded' && data?.run_id ? (
+        <Link
+          to={`/lab/runs/${data.run_id}`}
+          className="inline-flex items-center gap-1 text-xs font-semibold text-[#3b5bdb] hover:underline"
+        >
+          {t.lab.experiments.viewResults}
+          <ArrowUpRight className="h-3.5 w-3.5" />
+        </Link>
+      ) : status === 'failed' ? (
+        <span className="text-xs font-medium text-rose-600">{t.lab.experiments.jobFailed}</span>
+      ) : null}
+    </div>
+  )
+}
+
 function ExperimentsTab() {
   const { t } = useI18n()
   const suitesQuery = useQuery({
@@ -281,8 +312,12 @@ function ExperimentsTab() {
     staleTime: 60_000,
     retry: false,
   })
+  const [jobs, setJobs] = useState<Record<string, string>>({})
   const triggerMutation = useMutation({
     mutationFn: (suite: string) => labApi.triggerRun({ suite, limit: 3 }),
+    onSuccess: (data, suite) => {
+      if (data.job_id) setJobs(prev => ({ ...prev, [suite]: data.job_id! }))
+    },
   })
 
   if (suitesQuery.isLoading) return <div className={cn(TABLE_WRAPPER)}><LoadingState label={t.lab.loading} /></div>
@@ -322,7 +357,6 @@ function ExperimentsTab() {
       <p className="text-xs text-[#6b7280]">{t.lab.experiments.hint}</p>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {suites.map(suite => {
-          const started = triggerMutation.isSuccess && triggerMutation.variables === suite
           const tags = inferTags(suite)
           const dataset = inferDataset(suite)
           return (
@@ -338,21 +372,25 @@ function ExperimentsTab() {
                 </div>
               </div>
               <div className="mt-3 flex items-center justify-between gap-2">
-                <p className="text-xs text-[#9ca3af]">{t.lab.experiments.smokeRun}</p>
-                <button
-                  type="button"
-                  disabled={triggerMutation.isPending}
-                  onClick={() => triggerMutation.mutate(suite)}
-                  className={cn(
-                    started
-                      ? 'inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-[0_1px_3px_rgba(16,185,129,.35)] transition-all hover:bg-emerald-700'
-                      : 'inline-flex items-center gap-1.5 rounded-lg bg-[#3b5bdb] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7]',
-                    triggerMutation.isPending && 'opacity-50',
-                  )}
-                >
-                  {started ? <CheckCircle2 className="h-3.5 w-3.5" /> : <PlayCircle className="h-3.5 w-3.5" />}
-                  {started ? t.lab.experiments.running : t.lab.experiments.run}
-                </button>
+                {jobs[suite] ? (
+                  <JobStatus jobId={jobs[suite]} />
+                ) : (
+                  <>
+                    <p className="text-xs text-[#9ca3af]">{t.lab.experiments.smokeRun}</p>
+                    <button
+                      type="button"
+                      disabled={triggerMutation.isPending}
+                      onClick={() => triggerMutation.mutate(suite)}
+                      className={cn(
+                        'inline-flex items-center gap-1.5 rounded-lg bg-[#3b5bdb] px-3 py-1.5 text-xs font-semibold text-white shadow-[0_1px_3px_rgba(59,91,219,.35)] transition-all hover:bg-[#3451c7]',
+                        triggerMutation.isPending && 'opacity-50',
+                      )}
+                    >
+                      <PlayCircle className="h-3.5 w-3.5" />
+                      {t.lab.experiments.run}
+                    </button>
+                  </>
+                )}
               </div>
             </div>
           )

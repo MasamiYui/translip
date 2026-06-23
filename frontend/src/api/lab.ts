@@ -1,11 +1,13 @@
 import axios, { type AxiosError } from 'axios'
 import {
   MOCK_DATASETS,
+  MOCK_JOBS,
   MOCK_RUNS,
   MOCK_RUN_DETAILS,
   MOCK_SCENARIOS,
   MOCK_SUITES,
   buildMockCompare,
+  buildMockJob,
   buildMockReport,
   buildMockTriggerResponse,
 } from './labMock'
@@ -140,6 +142,23 @@ export interface LabTriggerRunPayload {
 export interface LabTriggerRunResponse {
   status: string
   cmd: string[]
+  job_id?: string
+  run_id?: string
+}
+
+export interface LabJob {
+  job_id: string
+  status: string // queued | running | succeeded | failed
+  suite?: string | null
+  dataset?: string | null
+  scenarios?: string[]
+  run_id?: string | null
+  returncode?: number | null
+  created_at?: string
+  started_at?: string | null
+  finished_at?: string | null
+  error?: string | null
+  log_tail?: string
 }
 
 export const labApi = {
@@ -188,5 +207,15 @@ export const labApi = {
     callOrFallback(
       () => labClient.post<LabTriggerRunResponse>('/api/lab/runs', payload).then(r => r.data),
       () => buildMockTriggerResponse(payload),
+    ),
+  jobs: () =>
+    callOrFallback(
+      () => labClient.get<LabJob[]>('/api/lab/jobs').then(r => r.data),
+      () => MOCK_JOBS,
+    ),
+  jobDetail: (jobId: string) =>
+    callOrFallback(
+      () => labClient.get<LabJob>(`/api/lab/jobs/${jobId}`).then(r => r.data),
+      () => buildMockJob(jobId),
     ),
 }
