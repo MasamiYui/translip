@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 340" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ba" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="bsh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.10"/>
+    </filter>
+    <style>
+      .lbl{font-size:11.5px;fill:#64748b;}
+      .mono{font-family:'SF Mono',ui-monospace,Menlo,Consolas,monospace;}
+    </style>
+  </defs>
+  <rect x="0" y="0" width="960" height="340" fill="#fbfcfe"/>
+
+  <text x="480" y="46" text-anchor="middle" font-size="16" fill="#475569">产物即文件：接力，只是把上一步的 <tspan class="mono" fill="#4338ca">file_id</tspan>，当下一步的 <tspan class="mono" fill="#4338ca">*_file_id</tspan></text>
+
+  <!-- step N -->
+  <rect x="56" y="104" width="224" height="132" rx="14" fill="#ffffff" stroke="#c7d2fe" stroke-width="1.6" filter="url(#bsh)"/>
+  <text x="168" y="140" text-anchor="middle" font-size="15" font-weight="700" fill="#4338ca">步骤 N</text>
+  <text x="168" y="164" text-anchor="middle" class="mono lbl" fill="#475569">separation</text>
+  <text x="168" y="190" text-anchor="middle" class="lbl" font-size="10.5">一个原子任务 · 有 job_id</text>
+  <text x="168" y="216" text-anchor="middle" class="lbl" fill="#94a3b8">产出 ↓</text>
+
+  <!-- artifact file (stored file with file_id) -->
+  <path d="M280,170 L364,170" stroke="#94a3b8" stroke-width="1.6" fill="none" marker-end="url(#ba)"/>
+  <text x="322" y="160" text-anchor="middle" class="lbl">产出</text>
+  <rect x="368" y="122" width="224" height="96" rx="12" fill="#0f172a"/>
+  <text x="480" y="152" text-anchor="middle" class="mono" font-size="14" fill="#e2e8f0">voice.wav</text>
+  <text x="480" y="176" text-anchor="middle" class="mono" font-size="12.5" fill="#93c5fd">file_id = f_2a9c…</text>
+  <text x="480" y="198" text-anchor="middle" font-size="10.5" fill="#94a3b8">带 file_id 的存储文件</text>
+
+  <!-- step N+1 -->
+  <path d="M592,170 L676,170" stroke="#94a3b8" stroke-width="1.6" fill="none" marker-end="url(#ba)"/>
+  <text x="634" y="160" text-anchor="middle" class="lbl">当 file_id 传入</text>
+  <rect x="680" y="104" width="224" height="132" rx="14" fill="#ffffff" stroke="#6366f1" stroke-width="2" filter="url(#bsh)"/>
+  <text x="792" y="140" text-anchor="middle" font-size="15" font-weight="700" fill="#4338ca">步骤 N+1</text>
+  <text x="792" y="164" text-anchor="middle" class="mono lbl" fill="#475569">transcription</text>
+  <rect x="696" y="180" width="192" height="34" rx="8" fill="#eef2ff" stroke="#c7d2fe" stroke-width="1.2"/>
+  <text x="792" y="201" text-anchor="middle" class="mono" font-size="11.5" fill="#4338ca">file_id = f_2a9c…</text>
+</svg>
