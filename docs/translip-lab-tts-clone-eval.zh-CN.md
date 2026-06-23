@@ -188,7 +188,7 @@ from translip.dubbing.qwen_tts_backend import (
 1. **moss/voxcpm2** 后端的 worker 路径 + 真实模型 smoke test。
 2. **MagicData-RAMC** 适配器 — **✅ 已落地**：`datasets/magicdata_ramc.py`（专用 `[start,end] speaker 性别,方言 text` 解析器，复用 RTTM/SRT 发射器）+ `suites/asr-diar-ramc.toml` + `tests/lab/test_datasets_ramc.py`（6 个 fixture 测试验证解析逻辑）。CER+DER 扩到自发对话域。⚠️ 解析格式据官方发布示例构建，**真数据首跑前抽一条 `.txt` 逐字节对照**（解析器已隔离便于微调）。
 3. **ChaLearn Decaptioning** 适配器（subtitle-erase 跨集校验；调研 P1）。
-4. **缓存键纳入 scorer 版本**（`cache.py` 现仅按 config+input 哈希，改打分逻辑不失效——既有 footgun；加 `Scenario.version` 进 key）。
+4. **缓存键纳入 scorer 版本** — **✅ 已落地**：`Scenario.version`（默认 1）进 `scenario_cache_key`，改打分逻辑时 bump 即让旧缓存失效（`--no-cache` 仍可绕过），并写入每个 run 的 `scenario_meta` 便于溯源；含单测（键敏感性 + 默认值）与集成测试（bump version → 缓存 miss → 重跑）。
 5. 自建中文影视音色小集（走 §3.3 的 `folder` 边车）。
 
 ---
