@@ -1688,15 +1688,37 @@ function languageOptions(
 }
 
 function TermHint({ hint, ariaLabel }: { hint: string; ariaLabel: string }) {
+  const [open, setOpen] = useState(false)
+  const tooltipId = useStableId('term-hint')
+  const show = () => setOpen(true)
+  const hide = () => setOpen(false)
   return (
-    <span
-      role="img"
-      aria-label={`${ariaLabel}: ${hint}`}
-      title={hint}
-      tabIndex={0}
-      className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
-    >
-      <Info size={14} aria-hidden="true" />
+    <span className="relative inline-flex">
+      <span
+        role="button"
+        aria-label={ariaLabel}
+        aria-describedby={open ? tooltipId : undefined}
+        tabIndex={0}
+        onMouseEnter={show}
+        onMouseLeave={hide}
+        onFocus={show}
+        onBlur={hide}
+        onKeyDown={event => {
+          if (event.key === 'Escape') hide()
+        }}
+        className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      >
+        <Info size={14} aria-hidden="true" />
+      </span>
+      {open && (
+        <span
+          id={tooltipId}
+          role="tooltip"
+          className="pointer-events-none absolute left-1/2 top-full z-50 mt-2 w-64 -translate-x-1/2 rounded-lg bg-slate-900 px-3 py-2 text-xs leading-5 text-white shadow-lg"
+        >
+          {hint}
+        </span>
+      )}
     </span>
   )
 }
