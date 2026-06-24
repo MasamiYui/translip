@@ -12,6 +12,27 @@ interface ResultPanelProps {
   artifacts: ArtifactInfo[]
   getDownloadUrl: (filename: string) => string
   originalVideoUrl?: string | null
+  /**
+   * Render the flat artifacts card list at the bottom of this panel.
+   *
+   * Default `true` keeps the live ToolPage experience unchanged. The job
+   * detail page passes `false` because it owns a richer, grouped ArtifactsPanel
+   * directly below and we want to avoid showing the same artifacts twice.
+   */
+  showArtifactsList?: boolean
+}
+
+export type ArtifactActionLabels = {
+  toTts: string
+  toTranscription: string
+  toMixing: string
+  toTranslation: string
+  toMuxing: string
+  toSubtitleErase: string
+  toTranscriptCorrection: string
+  toVideoAnalyze: string
+  toProbe: string
+  toSeparation: string
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
@@ -21,7 +42,14 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string 
   pending: { label: 'PENDING', color: 'text-[#9ca3af]', dot: 'bg-[#d1d5db]' },
 }
 
-export function ResultPanel({ toolId, job, artifacts, getDownloadUrl, originalVideoUrl }: ResultPanelProps) {
+export function ResultPanel({
+  toolId,
+  job,
+  artifacts,
+  getDownloadUrl,
+  originalVideoUrl,
+  showArtifactsList = true,
+}: ResultPanelProps) {
   const { t } = useI18n()
   if (!job) return null
 
@@ -122,7 +150,7 @@ export function ResultPanel({ toolId, job, artifacts, getDownloadUrl, originalVi
       {subtitleDetectPreview}
 
       {/* Artifacts */}
-      {artifacts.length > 0 && (
+      {showArtifactsList && artifacts.length > 0 && (
         <div className="space-y-3">
           <div className="text-xs font-semibold uppercase tracking-wide text-[#9ca3af]">输出文件</div>
           {artifacts.map(artifact => (
@@ -177,22 +205,11 @@ function isVideoFile(filename: string, contentType: string) {
   return contentType.startsWith('video/') || /\.(mp4|mov|mkv|webm)$/i.test(filename)
 }
 
-function buildArtifactActions(
+export function buildArtifactActions(
   toolId: string,
   artifact: ArtifactInfo,
   translatedText: string | null,
-  labels: {
-    toTts: string
-    toTranscription: string
-    toMixing: string
-    toTranslation: string
-    toMuxing: string
-    toSubtitleErase: string
-    toTranscriptCorrection: string
-    toVideoAnalyze: string
-    toProbe: string
-    toSeparation: string
-  },
+  labels: ArtifactActionLabels,
 ) {
   const fileId = artifact.file_id ?? undefined
   if (!fileId) return []

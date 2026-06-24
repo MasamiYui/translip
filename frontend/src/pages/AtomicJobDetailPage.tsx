@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   ArrowLeft,
   ChevronDown,
+  ChevronRight,
   CircleStop,
   Download,
   ExternalLink,
@@ -21,7 +22,8 @@ import { atomicToolsApi } from '../api/atomic-tools'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { ProgressBar } from '../components/shared/ProgressBar'
 import { StatusBadge } from '../components/shared/StatusBadge'
-import { ResultPanel } from '../components/atomic-tools/ResultPanel'
+import { ResultPanel, buildArtifactActions } from '../components/atomic-tools/ResultPanel'
+import { CrossToolAction } from '../components/atomic-tools/CrossToolAction'
 import { formatBytes } from '../lib/utils'
 import { useI18n } from '../i18n/useI18n'
 import type { ArtifactInfo } from '../types/atomic-tools'
@@ -164,7 +166,9 @@ export function AtomicJobDetailPage() {
 
         {/* Rich result preview (e.g. SubtitleDetectPreview): reuse the same
             ResultPanel as the live tool page so historical jobs opened from
-            the atomic tasks list can still see the OCR overlay video. */}
+            the atomic tasks list can still see the OCR overlay video. The
+            flat artifacts list is suppressed here because the grouped
+            ArtifactsPanel below covers the same data more thoughtfully. */}
         <ResultPanel
           toolId={job.tool_id}
           job={job}
@@ -173,10 +177,19 @@ export function AtomicJobDetailPage() {
             job.artifacts.find(item => item.filename === filename)?.download_url ?? ''
           }
           originalVideoUrl={null}
+          showArtifactsList={false}
         />
 
-        {/* Outputs — full width so long paths and the preview/download actions have room */}
-        <ArtifactsPanel artifacts={job.artifacts} title={t.atomicJobs.sections.artifacts} />
+        {/* Outputs — grouped by purpose (primary / preview / diagnostic) so
+            the user is not flooded with every keyframe and manifest. */}
+        <ArtifactsPanel
+          toolId={job.tool_id}
+          artifacts={job.artifacts}
+          translatedText={
+            typeof job.result?.translated_text === 'string' ? job.result.translated_text : null
+          }
+          title={t.atomicJobs.sections.artifacts}
+        />
 
         {/* Data — params + result are similar-height JSON, so they pair well side by side */}
         <div className="grid gap-5 xl:grid-cols-2">
@@ -216,9 +229,68 @@ type ArtifactPreview =
   | { kind: 'audio' | 'video' | 'image'; key: string; href: string }
   | { kind: 'text'; key: string; body: string | null; isLoading: boolean; error: string | null; isRaw: boolean }
 
-function ArtifactsPanel({ artifacts, title }: { artifacts: ArtifactInfo[]; title: string }) {
+type ArtifactCategory = 'primary' | 'preview' | 'diagnostic'
+
+/**
+ * Classify an artifact by its filename so we can group the (often noisy) flat
+ * list into 3 buckets:
+ *
+ *   primary    — what downstream pipelines actually consume
+ *                (detection.json / erased.mp4 / voice.wav / *.srt / segments.json …)
+ *   preview    — visual aids the in-page preview already renders
+ *                (kf_*.jpg / keyframes.json / annotated_*.jpg)
+ *   diagnostic — reproducibility/debug breadcrumbs
+ *                (*-manifest.json / *.log / *_debug.* / raw_*.*)
+ *
+ * Heuristic-only on purpose: the backend does not yet emit a `category` field
+ * on ArtifactInfo, and shipping that would mean a schema change + per-adapter
+ * migration. The rules below cover every artifact currently produced by the
+ * adapters in src/translip/server/atomic_tools/adapters/. A future revision
+ * can replace this with a server-supplied category without changing the UI.
+ */
+function classifyArtifact(artifact: ArtifactInfo): ArtifactCategory {
+  const name = artifact.filename.toLowerCase()
+  if (/^kf_\d+\./.test(name) || name === 'keyframes.json' || /^annotated[_-]/.test(name)) {
+    return 'preview'
+  }
+  if (
+    /-manifest\.json$/.test(name) ||
+    /\.log$/.test(name) ||
+    /^raw[_-]/.test(name) ||
+    /_debug\./.test(name)
+  ) {
+    return 'diagnostic'
+  }
+  return 'primary'
+}
+
+const GROUP_ORDER: ArtifactCategory[] = ['primary', 'preview', 'diagnostic']
+
+function ArtifactsPanel({
+  toolId,
+  artifacts,
+  translatedText,
+  title,
+}: {
+  toolId: string
+  artifacts: ArtifactInfo[]
+  translatedText: string | null
+  title: string
+}) {
   const { t } = useI18n()
   const [preview, setPreview] = useState<ArtifactPreview | null>(null)
+
+  const grouped = useMemo(() => {
+    const buckets: Record<ArtifactCategory, ArtifactInfo[]> = {
+      primary: [],
+      preview: [],
+      diagnostic: [],
+    }
+    for (const artifact of artifacts) {
+      buckets[classifyArtifact(artifact)].push(artifact)
+    }
+    return buckets
+  }, [artifacts])
 
   async function togglePreview(artifact: ArtifactInfo, kind: PreviewKind) {
     const key = `${kind}:${artifact.filename}`
@@ -248,13 +320,80 @@ function ArtifactsPanel({ artifacts, title }: { artifacts: ArtifactInfo[]; title
       {artifacts.length === 0 ? (
         <div className="text-sm text-[#9ca3af]">{t.common.notAvailable}</div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
+          {GROUP_ORDER.map(category => {
+            const items = grouped[category]
+            if (items.length === 0) return null
+            return (
+              <ArtifactGroup
+                key={category}
+                category={category}
+                artifacts={items}
+                toolId={toolId}
+                translatedText={translatedText}
+                preview={preview}
+                onPreview={togglePreview}
+              />
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ArtifactGroup({
+  category,
+  artifacts,
+  toolId,
+  translatedText,
+  preview,
+  onPreview,
+}: {
+  category: ArtifactCategory
+  artifacts: ArtifactInfo[]
+  toolId: string
+  translatedText: string | null
+  preview: ArtifactPreview | null
+  onPreview: (artifact: ArtifactInfo, kind: PreviewKind) => void
+}) {
+  // Primary is the result the user actually came for: show it expanded. The
+  // other two buckets are noisy by nature, so default them to collapsed so
+  // the panel starts visually quiet.
+  const [open, setOpen] = useState(category === 'primary')
+
+  const groupCfg = useGroupCopy(category)
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-[#f3f4f6]">
+      <button
+        type="button"
+        onClick={() => setOpen(prev => !prev)}
+        className="flex w-full items-center justify-between gap-3 bg-[#fafbfc] px-3 py-2 text-left transition-colors hover:bg-[#f3f4f6]"
+      >
+        <div className="flex items-center gap-2">
+          {open ? (
+            <ChevronDown size={13} className="text-[#9ca3af]" />
+          ) : (
+            <ChevronRight size={13} className="text-[#9ca3af]" />
+          )}
+          <span className={`text-xs font-semibold ${groupCfg.titleColor}`}>{groupCfg.title}</span>
+          <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-mono text-[#6b7280] ring-1 ring-inset ring-[#e5e7eb]">
+            {artifacts.length}
+          </span>
+        </div>
+        <span className="truncate text-[11px] text-[#9ca3af]">{groupCfg.hint}</span>
+      </button>
+      {open && (
+        <div className="space-y-2 border-t border-[#f3f4f6] p-2">
           {artifacts.map(artifact => (
             <ArtifactRow
               key={artifact.filename}
               artifact={artifact}
+              toolId={toolId}
+              translatedText={translatedText}
               preview={preview}
-              onPreview={togglePreview}
+              onPreview={onPreview}
             />
           ))}
         </div>
@@ -263,18 +402,46 @@ function ArtifactsPanel({ artifacts, title }: { artifacts: ArtifactInfo[]; title
   )
 }
 
+function useGroupCopy(category: ArtifactCategory) {
+  const { t } = useI18n()
+  if (category === 'primary') {
+    return {
+      title: t.atomicJobs.groups.primary.title,
+      hint: t.atomicJobs.groups.primary.hint,
+      titleColor: 'text-[#111827]',
+    }
+  }
+  if (category === 'preview') {
+    return {
+      title: t.atomicJobs.groups.preview.title,
+      hint: t.atomicJobs.groups.preview.hint,
+      titleColor: 'text-[#4b5563]',
+    }
+  }
+  return {
+    title: t.atomicJobs.groups.diagnostic.title,
+    hint: t.atomicJobs.groups.diagnostic.hint,
+    titleColor: 'text-[#4b5563]',
+  }
+}
+
 function ArtifactRow({
   artifact,
+  toolId,
+  translatedText,
   preview,
   onPreview,
 }: {
   artifact: ArtifactInfo
+  toolId: string
+  translatedText: string | null
   preview: ArtifactPreview | null
   onPreview: (artifact: ArtifactInfo, kind: PreviewKind) => void
 }) {
   const { t } = useI18n()
   const kind = detectPreviewKind(artifact.filename, artifact.content_type)
   const isOpen = kind !== null && preview?.key === `${kind}:${artifact.filename}`
+  const crossActions = buildArtifactActions(toolId, artifact, translatedText, t.atomicTools.result)
 
   return (
     <div className="overflow-hidden rounded-lg border border-[#f3f4f6]">
@@ -325,6 +492,18 @@ function ArtifactRow({
           </a>
         </div>
       </div>
+      {crossActions.length > 0 && (
+        <div className="flex flex-wrap gap-2 border-t border-[#f3f4f6] bg-[#fafbfc] px-3 py-2">
+          {crossActions.map(action => (
+            <CrossToolAction
+              key={`${artifact.filename}-${action.targetToolId}-${action.label}`}
+              label={action.label}
+              targetToolId={action.targetToolId}
+              payload={action.payload}
+            />
+          ))}
+        </div>
+      )}
       {isOpen && preview && <ArtifactPreviewPanel preview={preview} />}
     </div>
   )

@@ -1521,6 +1521,20 @@ const zhMessages = {
       result: '运行结果',
       artifacts: '输出产物',
     },
+    groups: {
+      primary: {
+        title: '主结果',
+        hint: '下游流水线消费的核心输出',
+      },
+      preview: {
+        title: '预览资源',
+        hint: '上方浮层已使用，通常无需单独下载',
+      },
+      diagnostic: {
+        title: '调试信息',
+        hint: '清单、日志等可复现性资料',
+      },
+    },
     columns: {
       tool: '工具',
       status: '状态',
@@ -3860,6 +3874,20 @@ const enMessages: LocaleMessages = {
       params: 'Run Params',
       result: 'Result',
       artifacts: 'Artifacts',
+    },
+    groups: {
+      primary: {
+        title: 'Primary outputs',
+        hint: 'What downstream pipelines actually consume',
+      },
+      preview: {
+        title: 'Preview assets',
+        hint: 'Already used by the overlay above — rarely needed standalone',
+      },
+      diagnostic: {
+        title: 'Diagnostics',
+        hint: 'Manifests, logs and other reproducibility breadcrumbs',
+      },
     },
     columns: {
       tool: 'Tool',
