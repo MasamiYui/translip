@@ -117,6 +117,23 @@ class Settings(BaseSettings):
     # produced a single confident line (the fallback path uses the same data).
     SUBTITLE_SECONDARY_RECOGNITION_SKIP_ENABLED: bool = True
     SUBTITLE_SECONDARY_RECOGNITION_SKIP_MIN_CONFIDENCE: float = 0.93
+    # Adaptive resize before recognition (Phase 1)
+    # Normalises cropped subtitle patches towards PP-OCRv5 rec model's native
+    # input height (48px, fixed by image_shape=[3,48,320] in inference.yml).
+    # Only affects recognize_text_line (already-cropped patches); full-frame
+    # detect_text remains unchanged so multi-line scale semantics are preserved.
+    SUBTITLE_ADAPTIVE_RESIZE_ENABLED: bool = True
+    # Trigger upscaling when crop height < this value. Recommended 32-44.
+    # Below 32 px the rec model accuracy drops sharply (PP-OCR paper).
+    SUBTITLE_ADAPTIVE_RESIZE_UPSCALE_TRIGGER_H: int = 36
+    # Trigger downscaling when crop height > this value. Recommended 64-96.
+    # Above ~1.67x the native height the in-model LINEAR resize starts to
+    # lose thin-stroke detail; we take over with INTER_AREA.
+    SUBTITLE_ADAPTIVE_RESIZE_DOWNSCALE_TRIGGER_H: int = 80
+    # Additionally apply Unsharp Mask when crop height < this value (set 0 to disable).
+    # Targets severely low-res sources (e.g. 480p subtitles ~18px) where pure
+    # CUBIC upsampling is not enough to counter the low-pass blur of interpolation.
+    SUBTITLE_ADAPTIVE_RESIZE_SHARPEN_THRESHOLD_H: int = 22
     # Skip OCR entirely while the search region stays pixel-identical to a frame
     # that was already confirmed empty (bounded by MAX_CONSECUTIVE re-verification).
     SUBTITLE_EMPTY_REGION_SKIP_ENABLED: bool = True

@@ -17,6 +17,10 @@ from translip.ocr.utils.geometry import (
     shift_polygon,
     shift_rotated_box,
 )
+from translip.ocr.utils.image_normalize import (
+    ADAPTIVE_RESIZE_VERSION,
+    adaptive_resize_for_recognition,
+)
 from translip.ocr.utils.model_paths import current_runtime_supported, current_runtime_tag, resolve_model_dir
 from translip.ocr.utils.runtime_diagnostics import log_runtime_snapshot
 
@@ -70,11 +74,17 @@ class OCREngine:
         self._runtime_profile: Optional[Dict[str, Any]] = None
 
         logger.info(
-            "OCREngine initialized lang=%s use_angle_cls=%s det_db_thresh=%s det_db_box_thresh=%s",
+            "OCREngine initialized lang=%s use_angle_cls=%s det_db_thresh=%s det_db_box_thresh=%s "
+            "adaptive_resize=%s(version=%s,up<%s,down>%s,sharpen<%s)",
             lang,
             int(use_angle_cls),
             self.det_db_thresh,
             self.det_db_box_thresh,
+            int(bool(getattr(settings, "SUBTITLE_ADAPTIVE_RESIZE_ENABLED", False))),
+            ADAPTIVE_RESIZE_VERSION,
+            getattr(settings, "SUBTITLE_ADAPTIVE_RESIZE_UPSCALE_TRIGGER_H", None),
+            getattr(settings, "SUBTITLE_ADAPTIVE_RESIZE_DOWNSCALE_TRIGGER_H", None),
+            getattr(settings, "SUBTITLE_ADAPTIVE_RESIZE_SHARPEN_THRESHOLD_H", None),
         )
 
     @staticmethod
@@ -356,12 +366,21 @@ class OCREngine:
         Recognize text from an already cropped subtitle patch.
 
         This is used for secondary recognition after choosing a geometry mode.
+
+        Notes:
+            When ``SUBTITLE_ADAPTIVE_RESIZE_ENABLED`` is set, the cropped patch
+            is first normalised towards PP-OCRv5 rec model's native height
+            (48 px) via :func:`adaptive_resize_for_recognition`. The geometry
+            of the *caller* is not affected: this function never returns
+            coordinates, only ``{"text", "confidence"}``.
         """
         if image is None or image.size == 0:
             return None
 
+        recog_image = self._maybe_adaptive_resize(image)
+
         if self._is_v3_runtime():
-            detections = self.detect_text(image, lang)
+            detections = self.detect_text(recog_image, lang)
             if not detections:
                 return None
             merged_text = " ".join(det["text"] for det in detections if det.get("text")).strip()
@@ -374,7 +393,7 @@ class OCREngine:
 
         ocr = self._get_ocr_instance(lang)
         try:
-            result = ocr.ocr(image, det=False, rec=True, cls=self.use_angle_cls)
+            result = ocr.ocr(recog_image, det=False, rec=True, cls=self.use_angle_cls)
         except Exception as e:
             log_runtime_snapshot(logger, logging.ERROR, "OCR failed during cropped-line recognition lang=%s", lang or self.lang)
             logger.exception("OCR failed during cropped-line recognition")
@@ -390,6 +409,27 @@ class OCREngine:
             return None
         confidence = float(np.mean([item["confidence"] for item in recognized]))
         return {"text": text, "confidence": confidence}
+
+    def _maybe_adaptive_resize(self, image: np.ndarray) -> np.ndarray:
+        """Apply adaptive resize when enabled; return original image otherwise.
+
+        Kept as a thin wrapper so callers stay readable and the resize step
+        is the single overridable seam for future strategies (TTA, super-res).
+        """
+        if not getattr(settings, "SUBTITLE_ADAPTIVE_RESIZE_ENABLED", False):
+            return image
+        try:
+            return adaptive_resize_for_recognition(
+                image,
+                upscale_trigger_h=int(settings.SUBTITLE_ADAPTIVE_RESIZE_UPSCALE_TRIGGER_H),
+                downscale_trigger_h=int(settings.SUBTITLE_ADAPTIVE_RESIZE_DOWNSCALE_TRIGGER_H),
+                sharpen_threshold_h=int(settings.SUBTITLE_ADAPTIVE_RESIZE_SHARPEN_THRESHOLD_H),
+            )
+        except Exception:
+            # Never let a preprocessing failure break recognition; fall back to
+            # the original crop so the caller still gets a result.
+            logger.exception("adaptive_resize_for_recognition failed; using original crop")
+            return image
 
     def _get_ocr_instance(self, lang: Optional[str] = None) -> 'PaddleOCR':
         """
