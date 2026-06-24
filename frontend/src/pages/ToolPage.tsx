@@ -132,7 +132,11 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
       : 'grid gap-4'
 
   async function handleFileSelected(slot: string, file: File) {
-    if (toolId === 'subtitle-erase' && slot === 'file' && file.type.startsWith('video/')) {
+    if (
+      (toolId === 'subtitle-erase' || toolId === 'subtitle-detect') &&
+      slot === 'file' &&
+      file.type.startsWith('video/')
+    ) {
       setOriginalVideoUrl(prev => {
         if (prev) URL.revokeObjectURL(prev)
         return URL.createObjectURL(file)

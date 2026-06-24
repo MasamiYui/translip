@@ -235,6 +235,14 @@ class SubtitleDetectToolRequest(BaseModel):
     preview_frames: int = 3
     position_mode: Literal["auto", "bottom", "middle", "top"] = "auto"
     extraction_mode: Literal["conservative", "balanced", "variety_recall"] = "conservative"
+    # Render the legacy red-box annotated preview JPGs alongside detection.json.
+    # The interactive overlay UI does not need them, but lab snapshots / CLI
+    # consumers still rely on them. Set to False to skip and save ~30KB/frame.
+    preview_with_annotations: bool = True
+    # Number of clean keyframes (without burned-in boxes) emitted as kf_NN.jpg,
+    # used by the interactive preview overlay in the UI. Set to 0 to opt out
+    # entirely (the preview panel will then fall back to artifact list only).
+    preview_keyframe_density: int = 3
 
 
 VideoAnalyzeTask = Literal["scene-context", "erase-qc", "ocr-classify", "freeform"]

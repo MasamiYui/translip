@@ -69,12 +69,43 @@ class SubtitleDetectAdapter(ToolAdapter):
         detection_payload = json.loads(detection_path.read_text(encoding="utf-8"))
         events = detection_payload.get("events") or detection_payload.get("results") or []
 
-        preview_files = _render_previews(
+        # Carry video geometry forward to the frontend overlay. The OCR extractor
+        # already writes `video.{width,height,fps,total_frames}` into detection.json,
+        # but we surface it on the tool result so the UI does not have to fetch
+        # detection.json just to read intrinsic size.
+        video_block = detection_payload.get("video") or {}
+        video_meta = {
+            "width": int(video_block.get("width") or 0),
+            "height": int(video_block.get("height") or 0),
+            "fps": float(video_block.get("fps") or 0.0),
+            "total_frames": int(video_block.get("total_frames") or 0),
+        }
+
+        preview_files, keyframe_files, keyframes_index = _render_previews(
             video_path=input_file,
             events=events,
             output_dir=stage_dir,
             max_previews=int(params.get("preview_frames", 3)),
+            keyframe_density=int(params.get("preview_keyframe_density", 3)),
+            with_annotations=bool(params.get("preview_with_annotations", True)),
         )
+
+        # Persist the keyframe ↔ events mapping so the interactive preview can
+        # restore its state without re-deriving it on the client. Only written
+        # when at least one keyframe was produced.
+        keyframes_file_name: str | None = None
+        if keyframe_files:
+            keyframes_path = stage_dir / "keyframes.json"
+            keyframes_path.write_text(
+                json.dumps(
+                    {"video": video_meta, "frames": keyframes_index},
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            keyframes_file_name = keyframes_path.name
 
         # The per-event language guess + consolidated source_language live in
         # ocr_events.json, not detection.json — read them for the language tally.
@@ -102,6 +133,16 @@ class SubtitleDetectAdapter(ToolAdapter):
             "subtitle_language": summary["subtitle_language"],
             "language_breakdown": summary["language_breakdown"],
             "preview_files": [p.name for p in preview_files],
+            # New: clean keyframes + their event mapping power the interactive
+            # overlay in the UI. Old consumers ignore unknown fields.
+            "keyframe_files": [k.name for k in keyframe_files],
+            "keyframes_file": keyframes_file_name,
+            "video_meta": video_meta,
+            # Observability hint for the UI: which uploaded file was processed.
+            # No HTTP route currently serves this file_id directly, so the
+            # frontend still primarily relies on its blob URL from the upload step.
+            "source_filename": input_file.name,
+            "source_file_id": str(params.get("file_id") or ""),
         }
 
 
@@ -151,53 +192,103 @@ def _render_previews(
     events: list[dict],
     output_dir: Path,
     max_previews: int,
-) -> list[Path]:
-    if max_previews <= 0 or not events:
-        return []
+    keyframe_density: int = 0,
+    with_annotations: bool = True,
+) -> tuple[list[Path], list[Path], list[dict]]:
+    """Render preview frames for the subtitle-detect atomic tool.
+
+    Returns a 3-tuple ``(annotated_paths, clean_keyframe_paths, keyframes_index)``:
+
+    * ``annotated_paths``  — legacy ``preview_NN.jpg`` with the red box / text
+      burned in. Kept for backward-compatible CLI / lab consumers; controlled by
+      ``with_annotations``.
+    * ``clean_keyframe_paths`` — ``kf_NN.jpg`` without any overlay. The interactive
+      preview UI loads these and draws an SVG overlay on top.
+    * ``keyframes_index`` — list of ``{frame_index, timestamp, image, event_ids}``
+      records, one per clean keyframe, persisted as ``keyframes.json``.
+
+    Either branch can be disabled by passing 0 to the corresponding density.
+    """
+    sample_count = max(max_previews if with_annotations else 0, keyframe_density)
+    if sample_count <= 0 or not events:
+        return [], [], []
     try:
         import cv2  # type: ignore
     except ImportError:
-        return []
+        return [], [], []
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
-        return []
+        return [], [], []
     fps = float(cap.get(cv2.CAP_PROP_FPS) or 25.0)
     total = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-    preview_paths: list[Path] = []
+    annotated_paths: list[Path] = []
+    keyframe_paths: list[Path] = []
+    keyframes_index: list[dict] = []
     try:
-        step = max(1, len(events) // max_previews)
-        picked = events[::step][:max_previews]
+        step = max(1, len(events) // sample_count)
+        picked = events[::step][:sample_count]
         for idx, ev in enumerate(picked):
             start = float(ev.get("start_time") or ev.get("start") or 0.0)
             end = float(ev.get("end_time") or ev.get("end") or start + 0.1)
-            mid_frame = int(((start + end) / 2.0) * fps)
+            mid_time = (start + end) / 2.0
+            mid_frame = int(mid_time * fps)
             mid_frame = max(0, min(total - 1, mid_frame)) if total > 0 else max(0, mid_frame)
             cap.set(cv2.CAP_PROP_POS_FRAMES, mid_frame)
             ok, frame = cap.read()
             if not ok or frame is None:
                 continue
-            box = ev.get("box") or ev.get("bbox") or ev.get("region_box")
-            if box and len(box) == 4:
-                x1, y1, x2, y2 = (int(v) for v in box)
-                cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                text = str(ev.get("text", "")).strip()
-                if text:
-                    cv2.putText(
-                        frame,
-                        text[:30],
-                        (x1, max(0, y1 - 6)),
-                        cv2.FONT_HERSHEY_SIMPLEX,
-                        0.6,
-                        (0, 0, 255),
-                        2,
-                        cv2.LINE_AA,
-                    )
-            out_path = output_dir / f"preview_{idx:02d}.jpg"
-            cv2.imwrite(str(out_path), frame)
-            preview_paths.append(out_path)
+
+            # Clean keyframe (no overlay) — used by the interactive UI as a
+            # poster image + frame-by-frame fallback before the <video> seeks.
+            if idx < keyframe_density:
+                kf_path = output_dir / f"kf_{idx:02d}.jpg"
+                cv2.imwrite(str(kf_path), frame)
+                keyframe_paths.append(kf_path)
+                # Collect every event whose [start_time, end_time] window covers
+                # this keyframe — that is exactly what the overlay shows when
+                # the video is paused at this timestamp.
+                event_ids = [
+                    str(other.get("event_id") or "")
+                    for other in events
+                    if str(other.get("event_id") or "")
+                    and float(other.get("start_time") or other.get("start") or 0.0) <= mid_time
+                    <= float(other.get("end_time") or other.get("end") or 0.0)
+                ]
+                keyframes_index.append(
+                    {
+                        "frame_index": mid_frame,
+                        "timestamp": round(mid_time, 3),
+                        "image": kf_path.name,
+                        "event_ids": event_ids,
+                    }
+                )
+
+            # Legacy annotated preview (red box + truncated text) — only emitted
+            # when the caller still wants it.
+            if with_annotations and idx < max_previews:
+                annotated = frame.copy()
+                box = ev.get("box") or ev.get("bbox") or ev.get("region_box")
+                if box and len(box) == 4:
+                    x1, y1, x2, y2 = (int(v) for v in box)
+                    cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 0, 255), 2)
+                    text = str(ev.get("text", "")).strip()
+                    if text:
+                        cv2.putText(
+                            annotated,
+                            text[:30],
+                            (x1, max(0, y1 - 6)),
+                            cv2.FONT_HERSHEY_SIMPLEX,
+                            0.6,
+                            (0, 0, 255),
+                            2,
+                            cv2.LINE_AA,
+                        )
+                out_path = output_dir / f"preview_{idx:02d}.jpg"
+                cv2.imwrite(str(out_path), annotated)
+                annotated_paths.append(out_path)
     finally:
         cap.release()
-    return preview_paths
+    return annotated_paths, keyframe_paths, keyframes_index
 
 
 register_tool(

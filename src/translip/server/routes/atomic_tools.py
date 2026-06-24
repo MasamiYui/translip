@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from dataclasses import asdict
 from typing import Annotated
+from urllib.parse import quote
 
 from fastapi import APIRouter, File, HTTPException, Path, Query, UploadFile
 from fastapi.responses import FileResponse
@@ -187,3 +188,27 @@ def download_artifact(
     if path is None or not path.exists():
         raise HTTPException(status_code=404, detail="Artifact not found")
     return FileResponse(path, filename=path.name)
+
+
+@router.get("/files/{file_id}", summary="下载上传的原始文件")
+def download_uploaded_file(
+    file_id: Annotated[str, Path(description="已上传文件的 ID")],
+):
+    """按 file_id 回放/下载之前上传到原子工具存储中的原始文件。
+    主要用于历史任务详情页中重新加载源视频（subtitle-detect 的预览面板）。
+    FileResponse 默认支持 HTTP Range，<video> 元素可正常 seek。
+    """
+    stored = job_manager._get_stored_file(file_id)
+    if stored is None or not stored.path.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    # Force inline disposition so the <video> element streams the file in place
+    # instead of triggering a download prompt (FileResponse's default is
+    # `attachment` whenever the `filename` arg is passed).
+    safe_name = quote(stored.filename, safe="")
+    return FileResponse(
+        stored.path,
+        media_type=stored.content_type or "application/octet-stream",
+        headers={
+            "Content-Disposition": f"inline; filename*=utf-8''{safe_name}",
+        },
+    )

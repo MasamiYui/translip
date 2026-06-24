@@ -21,6 +21,7 @@ import { atomicToolsApi } from '../api/atomic-tools'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { ProgressBar } from '../components/shared/ProgressBar'
 import { StatusBadge } from '../components/shared/StatusBadge'
+import { ResultPanel } from '../components/atomic-tools/ResultPanel'
 import { formatBytes } from '../lib/utils'
 import { useI18n } from '../i18n/useI18n'
 import type { ArtifactInfo } from '../types/atomic-tools'
@@ -160,6 +161,19 @@ export function AtomicJobDetailPage() {
             ))}
           </div>
         </div>
+
+        {/* Rich result preview (e.g. SubtitleDetectPreview): reuse the same
+            ResultPanel as the live tool page so historical jobs opened from
+            the atomic tasks list can still see the OCR overlay video. */}
+        <ResultPanel
+          toolId={job.tool_id}
+          job={job}
+          artifacts={job.artifacts}
+          getDownloadUrl={filename =>
+            job.artifacts.find(item => item.filename === filename)?.download_url ?? ''
+          }
+          originalVideoUrl={null}
+        />
 
         {/* Outputs — full width so long paths and the preview/download actions have room */}
         <ArtifactsPanel artifacts={job.artifacts} title={t.atomicJobs.sections.artifacts} />

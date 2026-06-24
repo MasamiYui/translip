@@ -215,6 +215,11 @@ class SubtitleEraseAdapter(ToolAdapter):
             {
                 "file_id": "__auto__",
                 "sample_interval": params.get("sample_interval") or 0.25,
+                # subtitle-erase only needs detection.json; skip the preview
+                # artifacts (annotated jpg + clean keyframes + keyframes.json)
+                # to avoid ~100KB of throwaway IO under auto_detect/output.
+                "preview_frames": 0,
+                "preview_keyframe_density": 0,
             }
         )
         detect_adapter.run(

@@ -2,6 +2,7 @@ import { Download, FileText, CheckCircle2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../../i18n/useI18n'
 import { CrossToolAction } from './CrossToolAction'
+import { SubtitleDetectPreview, type SubtitleDetectPreviewLabels } from './SubtitleDetectPreview'
 import type { ArtifactInfo, AtomicJob } from '../../types/atomic-tools'
 import type { AtomicToolPrefill } from '../../lib/atomicToolPrefill'
 
@@ -35,6 +36,36 @@ export function ResultPanel({ toolId, job, artifacts, getDownloadUrl, originalVi
     compareErased: t.atomicTools.result.compareErased,
     quickMetrics: t.atomicTools.result.quickMetrics,
   }, originalVideoUrl ?? null)
+
+  const subtitleDetectPreview = buildSubtitleDetectPreview(
+    toolId,
+    job,
+    artifacts,
+    getDownloadUrl,
+    originalVideoUrl ?? null,
+    {
+      panelTitle: t.atomicTools.result.subtitleDetectPreview.panelTitle,
+      showBox: t.atomicTools.result.subtitleDetectPreview.showBox,
+      showText: t.atomicTools.result.subtitleDetectPreview.showText,
+      usePolygon: t.atomicTools.result.subtitleDetectPreview.usePolygon,
+      activeOnly: t.atomicTools.result.subtitleDetectPreview.activeOnly,
+      eventListTitle: t.atomicTools.result.subtitleDetectPreview.eventListTitle,
+      emptyEvents: t.atomicTools.result.subtitleDetectPreview.emptyEvents,
+      keyframeSelect: t.atomicTools.result.subtitleDetectPreview.keyframeSelect,
+      noSource: t.atomicTools.result.subtitleDetectPreview.noSource,
+      loading: t.atomicTools.result.subtitleDetectPreview.loading,
+      confidence: t.atomicTools.result.subtitleDetectPreview.confidence,
+      position: t.atomicTools.result.subtitleDetectPreview.position,
+      language: t.atomicTools.result.subtitleDetectPreview.language,
+      errorLoad: t.atomicTools.result.subtitleDetectPreview.errorLoad,
+      play: t.atomicTools.result.subtitleDetectPreview.play,
+      pause: t.atomicTools.result.subtitleDetectPreview.pause,
+      mute: t.atomicTools.result.subtitleDetectPreview.mute,
+      unmute: t.atomicTools.result.subtitleDetectPreview.unmute,
+      playbackRate: t.atomicTools.result.subtitleDetectPreview.playbackRate,
+      fullscreen: t.atomicTools.result.subtitleDetectPreview.fullscreen,
+    },
+  )
 
   return (
     <section className="space-y-4">
@@ -87,6 +118,8 @@ export function ResultPanel({ toolId, job, artifacts, getDownloadUrl, originalVi
       )}
 
       {sideBySide}
+
+      {subtitleDetectPreview}
 
       {/* Artifacts */}
       {artifacts.length > 0 && (
@@ -452,4 +485,55 @@ function SubtitleEraseCompare({
 
 function buildArtifactAction(label: string, targetToolId: string, payload: AtomicToolPrefill) {
   return { label, targetToolId, payload }
+}
+
+function buildSubtitleDetectPreview(
+  toolId: string,
+  job: AtomicJob,
+  artifacts: ArtifactInfo[],
+  getDownloadUrl: (filename: string) => string,
+  originalVideoUrl: string | null,
+  labels: SubtitleDetectPreviewLabels,
+) {
+  if (toolId !== 'subtitle-detect') return null
+  if (job.status !== 'completed') return null
+
+  const detectionArtifact = artifacts.find(item => /detection\.json$/i.test(item.filename))
+  // Without detection.json there is nothing to draw on top of the video.
+  if (!detectionArtifact) return null
+
+  const keyframesArtifact = artifacts.find(item => /keyframes\.json$/i.test(item.filename))
+  const result = (job.result ?? {}) as Record<string, unknown>
+  const resultSource = typeof result.source_url === 'string' ? result.source_url : null
+  // When the user lands on a historical job from the atomic tasks list, the
+  // in-memory blob URL from the upload step is long gone. Fall back to the
+  // dedicated backend route that streams the originally uploaded file by id.
+  const sourceFileId =
+    typeof result.source_file_id === 'string' && result.source_file_id.length > 0
+      ? result.source_file_id
+      : null
+  const remoteFallback = sourceFileId ? `/api/atomic-tools/files/${sourceFileId}` : null
+  const videoUrl = resultSource ?? originalVideoUrl ?? remoteFallback
+
+  const videoMetaRaw = result.video_meta as Record<string, unknown> | undefined
+  const videoMeta =
+    videoMetaRaw && typeof videoMetaRaw === 'object'
+      ? {
+          width: Number(videoMetaRaw.width) || 0,
+          height: Number(videoMetaRaw.height) || 0,
+          fps: Number(videoMetaRaw.fps) || 0,
+          total_frames: Number(videoMetaRaw.total_frames) || 0,
+        }
+      : null
+
+  return (
+    <SubtitleDetectPreview
+      labels={labels}
+      videoUrl={videoUrl ?? null}
+      detectionUrl={getDownloadUrl(detectionArtifact.filename)}
+      keyframesUrl={keyframesArtifact ? getDownloadUrl(keyframesArtifact.filename) : null}
+      resolveKeyframeUrl={filename => getDownloadUrl(filename)}
+      videoMeta={videoMeta}
+    />
+  )
 }
