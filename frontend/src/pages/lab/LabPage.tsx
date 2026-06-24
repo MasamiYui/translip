@@ -6,7 +6,6 @@ import {
   ArrowUpRight,
   CheckCircle2,
   Database,
-  ExternalLink,
   Filter,
   FlaskConical,
   Loader2,
@@ -750,7 +749,6 @@ export function LabPage() {
     setSearchParams(params, { replace: true })
   }
 
-  const labUrl = useMemo(() => labApi.baseUrl(), [])
   const tabLabels: Record<TabKey, string> = {
     datasets: t.lab.tabs.datasets,
     experiments: t.lab.tabs.experiments,
@@ -773,15 +771,6 @@ export function LabPage() {
             <p className="mt-1 max-w-2xl text-sm text-[#6b7280]">{t.lab.subtitle}</p>
           </div>
         </div>
-        <a
-          href={labUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={SECONDARY_BUTTON}
-        >
-          {t.lab.advancedDashboard}
-          <ExternalLink className="h-3.5 w-3.5" />
-        </a>
       </header>
 
       <OverviewCards datasets={datasetsQ.data} suites={suitesQ.data} runs={runsQ.data} />

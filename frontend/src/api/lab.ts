@@ -162,7 +162,6 @@ export interface LabJob {
 }
 
 export const labApi = {
-  baseUrl: getLabBaseUrl,
   source: getLabSource,
   subscribeSource: subscribeLabSource,
   scenarios: () =>
