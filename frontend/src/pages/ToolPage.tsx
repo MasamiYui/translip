@@ -39,6 +39,19 @@ const ASR_BACKEND_OPTIONS: SelectOption[] = [
   { value: 'funasr', label: 'FunASR' },
 ]
 
+// Commentary genre options: the backend keys on the Chinese genre string (it maps
+// each to a narrative-focus hint), so the option *value* stays Chinese while the
+// label is localized via t.atomicTools.commentary.genreOptions[key].
+const COMMENTARY_GENRES: readonly { key: string; value: string }[] = [
+  { key: 'drama', value: '剧情' },
+  { key: 'mystery', value: '悬疑' },
+  { key: 'action', value: '动作' },
+  { key: 'comedy', value: '喜剧' },
+  { key: 'scifi', value: '科幻' },
+  { key: 'history', value: '历史' },
+  { key: 'horror', value: '恐怖' },
+]
+
 function selectOptionValue(option: SelectOption): string {
   return typeof option === 'string' ? option : option.value
 }
@@ -128,6 +141,8 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     toolId === 'subtitle-burn' ||
     toolId === 'subtitle-embed' ||
     toolId === 'dub-render' ||
+    toolId === 'commentary-script' ||
+    toolId === 'commentary-render' ||
     (toolId === 'watermark' && String(params.mode ?? 'image') === 'image')
       ? 'grid gap-4 md:grid-cols-2'
       : 'grid gap-4'
@@ -634,6 +649,59 @@ function renderUploadZones(
         value={fileRefs.file ?? null}
         onFileSelected={file => onFileSelected('file', file)}
       />
+    )
+  }
+
+  if (toolId === 'commentary-script') {
+    return (
+      <>
+        <FileUploadZone
+          label={hints.segmentsLabel}
+          hint={hints.segmentsHint}
+          accept=".json"
+          value={fileRefs.segments_file ?? null}
+          onFileSelected={file => onFileSelected('segments_file', file)}
+        />
+        <FileUploadZone
+          label={hints.visualContextLabel}
+          hint={hints.visualContextHint}
+          accept=".json"
+          value={fileRefs.visual_context_file ?? null}
+          onFileSelected={file => onFileSelected('visual_context_file', file)}
+          optional
+          optionalLabel={hints.optionalBadge}
+        />
+      </>
+    )
+  }
+
+  if (toolId === 'commentary-render') {
+    return (
+      <>
+        <FileUploadZone
+          label={hints.commentaryLabel}
+          hint={hints.commentaryHint}
+          accept=".json"
+          value={fileRefs.commentary_file ?? null}
+          onFileSelected={file => onFileSelected('commentary_file', file)}
+        />
+        <FileUploadZone
+          label={hints.commentaryVideoLabel}
+          hint={hints.commentaryVideoHint}
+          accept=".mp4,.mkv,.mov,.avi,.webm"
+          value={fileRefs.video_file ?? null}
+          onFileSelected={file => onFileSelected('video_file', file)}
+        />
+        <FileUploadZone
+          label={hints.referenceLabel}
+          hint={hints.referenceHint}
+          accept=".wav,.mp3,.flac,.m4a,.ogg"
+          value={fileRefs.reference_audio_file ?? null}
+          onFileSelected={file => onFileSelected('reference_audio_file', file)}
+          optional
+          optionalLabel={hints.optionalBadge}
+        />
+      </>
     )
   }
 
@@ -1563,6 +1631,79 @@ function renderControls(
     )
   }
 
+  if (toolId === 'commentary-script') {
+    const genreOptions = COMMENTARY_GENRES.map(genre => ({
+      value: genre.value,
+      label: atomicTools.commentary.genreOptions[genre.key as keyof typeof atomicTools.commentary.genreOptions],
+    }))
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        <SelectField
+          label={atomicTools.commentary.fields.style}
+          hint={atomicTools.commentary.hints.style}
+          hintAriaLabel={atomicTools.hints.termHintAria}
+          value={String(params.commentary_style ?? 'plot_recap')}
+          options={(['plot_recap', 'frame_riff'] as const).map(value => ({
+            value,
+            label: atomicTools.commentary.styleOptions[value],
+          }))}
+          onChange={value => setField('commentary_style', value)}
+        />
+        <SelectField
+          label={atomicTools.commentary.fields.genre}
+          value={String(params.drama_genre ?? '剧情')}
+          options={genreOptions}
+          onChange={value => setField('drama_genre', value)}
+        />
+        <SelectField
+          label={atomicTools.commentary.fields.language}
+          value={String(params.narration_language ?? 'zh')}
+          options={targetLanguageOptions}
+          onChange={value => setField('narration_language', value)}
+        />
+        <TextField
+          label={atomicTools.commentary.fields.soundRatio}
+          hint={atomicTools.commentary.hints.soundRatio}
+          hintAriaLabel={atomicTools.hints.termHintAria}
+          type="number"
+          value={String(params.original_sound_ratio ?? 20)}
+          onChange={value => setField('original_sound_ratio', value === '' ? 0 : Number(value))}
+        />
+      </div>
+    )
+  }
+
+  if (toolId === 'commentary-render') {
+    return (
+      <div className="grid gap-4 md:grid-cols-3">
+        <SelectField
+          label={atomicTools.commentary.fields.backend}
+          hint={atomicTools.hints.ttsBackend}
+          hintAriaLabel={atomicTools.hints.termHintAria}
+          value={String(params.backend ?? 'qwen3tts')}
+          options={['qwen3tts', 'moss-tts-nano-onnx', 'voxcpm2']}
+          onChange={value => setField('backend', value)}
+        />
+        <SelectField
+          label={atomicTools.commentary.fields.language}
+          hint={atomicTools.commentary.hints.language}
+          hintAriaLabel={atomicTools.hints.termHintAria}
+          value={String(params.narration_language ?? '')}
+          options={[{ value: '', label: atomicTools.commentary.languageFollow }, ...targetLanguageOptions]}
+          onChange={value => setField('narration_language', value)}
+        />
+        <TextField
+          label={atomicTools.commentary.fields.gain}
+          hint={atomicTools.commentary.hints.gain}
+          hintAriaLabel={atomicTools.hints.termHintAria}
+          type="number"
+          value={String(params.original_gain_db ?? -15)}
+          onChange={value => setField('original_gain_db', value === '' ? 0 : Number(value))}
+        />
+      </div>
+    )
+  }
+
   return null
 }
 
@@ -1734,6 +1875,34 @@ function buildRunPayload(
     return cleaned
   }
 
+  if (toolId === 'commentary-script') {
+    const cleaned: Record<string, unknown> = { segments_file_id: fileRefs.segments_file?.file_id }
+    if (fileRefs.visual_context_file?.file_id) {
+      cleaned.visual_context_file_id = fileRefs.visual_context_file.file_id
+    }
+    for (const [key, value] of Object.entries(params)) {
+      if (value === '' || value === undefined || value === null) continue
+      cleaned[key] = value
+    }
+    return cleaned
+  }
+
+  if (toolId === 'commentary-render') {
+    const cleaned: Record<string, unknown> = {
+      commentary_file_id: fileRefs.commentary_file?.file_id,
+      video_file_id: fileRefs.video_file?.file_id,
+    }
+    if (fileRefs.reference_audio_file?.file_id) {
+      cleaned.reference_audio_file_id = fileRefs.reference_audio_file.file_id
+    }
+    for (const [key, value] of Object.entries(params)) {
+      // An empty narration_language ('') means "follow the commentary JSON" — omit it.
+      if (value === '' || value === undefined || value === null) continue
+      cleaned[key] = value
+    }
+    return cleaned
+  }
+
   return params
 }
 
@@ -1870,6 +2039,17 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
         output_format: 'mp4',
         quality: 'balanced',
       }
+      break
+    case 'commentary-script':
+      params = {
+        commentary_style: 'plot_recap',
+        drama_genre: '剧情',
+        narration_language: 'zh',
+        original_sound_ratio: 20,
+      }
+      break
+    case 'commentary-render':
+      params = { backend: 'qwen3tts', narration_language: '', original_gain_db: -15 }
       break
     default:
       params = {}

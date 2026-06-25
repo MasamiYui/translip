@@ -27,6 +27,8 @@ def test_atomic_tools_registry_exposes_all_tools() -> None:
         "m3u8-to-mp4",
         "watermark",
         "video-trim",
+        "commentary-script",
+        "commentary-render",
     }
     assert {tool.category for tool in tools} == {"audio", "speech", "video"}
     trim = next(tool for tool in tools if tool.tool_id == "video-trim")
@@ -51,3 +53,15 @@ def test_atomic_tools_registry_exposes_all_tools() -> None:
     detect = next(tool for tool in tools if tool.tool_id == "subtitle-detect")
     assert detect.category == "video"
     assert detect.max_file_size_mb == 4096
+    commentary = next(tool for tool in tools if tool.tool_id == "commentary-script")
+    assert commentary.name_zh == "解说文案"
+    assert commentary.category == "speech"
+    assert commentary.max_files == 2
+    assert commentary.accept_formats == [".json"]
+    assert commentary.heavy is False
+    render = next(tool for tool in tools if tool.tool_id == "commentary-render")
+    assert render.name_zh == "解说渲染"
+    assert render.category == "video"
+    assert render.max_files == 3
+    assert render.heavy is True
+    assert render.max_file_size_mb == 4096

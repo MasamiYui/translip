@@ -72,6 +72,8 @@ def test_atomic_tools_api_supports_upload_run_status_and_artifacts(tmp_path: Pat
         "m3u8-to-mp4",
         "watermark",
         "video-trim",
+        "commentary-script",
+        "commentary-render",
     }
 
     upload_response = client.post(

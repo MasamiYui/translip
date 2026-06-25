@@ -487,3 +487,80 @@ class WatermarkToolRequest(BaseModel):
             _validate_ffmpeg_color(self.font_color, "font_color")
             _validate_ffmpeg_color(self.stroke_color, "stroke_color")
         return self
+
+
+CommentaryStyle = Literal["plot_recap", "frame_riff"]
+
+
+class CommentaryScriptToolRequest(BaseModel):
+    """Generate an OST-interleaved movie-recap narration script (commentary.json).
+
+    Consumes the transcript ``segments.{lang}.json`` (fact source, from the
+    transcription tool) and, optionally, ``visual_context.json`` (scene cues, from
+    the video-analyze scene-context task). Runs a 3-stage LLM chain (understand →
+    plan clips → write narration) and emits a reviewable script where each item is
+    either narration-over-picture (``ost=0``) or original-sound passthrough
+    (``ost=1``); ``original_sound_ratio`` is the OST=1 target share.
+    """
+
+    segments_file_id: str = Field(
+        description="转写结果 segments JSON 文件 ID（来自「语音转文字」，提供带时间戳的台词，作为事实源）"
+    )
+    visual_context_file_id: str | None = Field(
+        default=None,
+        description="可选：视频内容分析 visual_context.json 文件 ID（来自「视频内容分析」scene-context），提供则解说更贴合画面",
+    )
+    commentary_style: CommentaryStyle = Field(
+        default="plot_recap",
+        description="解说类型：plot_recap=剧情解说/recap；frame_riff=逐帧吐槽（暂未实现，预留接口）",
+    )
+    drama_genre: str = Field(
+        default="剧情", description="影视类型（剧情/悬疑/动作/喜剧/科幻/历史/恐怖等），影响叙事重点"
+    )
+    narration_language: str = Field(default="zh", description="解说台词语言（如 zh/en）")
+    original_sound_ratio: int = Field(
+        default=20, ge=0, le=90, description="保留原声(OST=1)的目标时长占比（%）；0=全程解说旁白"
+    )
+    model: str | None = Field(
+        default=None, description="LLM 模型名；留空用 DEEPSEEK_MODEL 默认（deepseek-v4-pro）"
+    )
+
+
+class CommentaryRenderToolRequest(BaseModel):
+    """Assemble a reviewed ``commentary.json`` + the source video into a recap MP4.
+
+    OST=0 items are voiced with the chosen TTS backend and laid over the original
+    audio attenuated by ``original_gain_db`` (ducking); OST=1 items keep the
+    original audio. The narration language defaults to the one recorded in
+    ``commentary.json`` and can be overridden here.
+    """
+
+    commentary_file_id: str = Field(
+        description="解说文案 commentary.json 文件 ID（来自「解说文案」工具，可人工审阅修改后再渲染）"
+    )
+    video_file_id: str = Field(description="源视频文件 ID（被解说的原片）")
+    reference_audio_file_id: str | None = Field(
+        default=None,
+        description="参考音色音频文件 ID；moss-tts-nano-onnx / voxcpm2 后端必填（音色克隆）",
+    )
+    backend: str = Field(default="qwen3tts", description="解说配音 TTS 后端")
+    narration_language: str | None = Field(
+        default=None, description="解说配音语言；留空则沿用 commentary.json 中记录的语言"
+    )
+    original_gain_db: float = Field(
+        default=-15.0,
+        description="OST=0 片段里原声被压低到的增益(dB)，越低原声越弱（默认 -15）",
+    )
+
+    @model_validator(mode="after")
+    def validate_backend(self) -> "CommentaryRenderToolRequest":
+        if self.backend not in SUPPORTED_DUBBING_BACKENDS:
+            raise ValueError(
+                f"Unsupported TTS backend: {self.backend}. "
+                f"Choose one of: {', '.join(SUPPORTED_DUBBING_BACKENDS)}"
+            )
+        if self.backend in {"moss-tts-nano-onnx", "voxcpm2"} and not self.reference_audio_file_id:
+            raise ValueError(
+                f"The {self.backend} backend requires a reference audio upload for voice cloning."
+            )
+        return self

@@ -1,6 +1,7 @@
 import { Download, FileText, CheckCircle2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useI18n } from '../../i18n/useI18n'
+import { CommentaryReview } from './CommentaryReview'
 import { CrossToolAction } from './CrossToolAction'
 import { SubtitleDetectPreview, type SubtitleDetectPreviewLabels } from './SubtitleDetectPreview'
 import type { ArtifactInfo, AtomicJob } from '../../types/atomic-tools'
@@ -95,6 +96,11 @@ export function ResultPanel({
     },
   )
 
+  const commentaryReviewArtifact =
+    toolId === 'commentary-script' && job.status === 'completed'
+      ? artifacts.find(item => /commentary\.json$/i.test(item.filename))
+      : undefined
+
   return (
     <section className="space-y-4">
       {/* Result header card */}
@@ -148,6 +154,14 @@ export function ResultPanel({
       {sideBySide}
 
       {subtitleDetectPreview}
+
+      {commentaryReviewArtifact && (
+        <CommentaryReview
+          key={commentaryReviewArtifact.filename}
+          commentaryUrl={getDownloadUrl(commentaryReviewArtifact.filename)}
+          labels={t.atomicTools.commentary.review}
+        />
+      )}
 
       {/* Artifacts */}
       {showArtifactsList && artifacts.length > 0 && (

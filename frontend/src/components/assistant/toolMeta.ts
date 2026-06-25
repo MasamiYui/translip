@@ -2,6 +2,7 @@ import {
   AudioLines,
   Blend,
   Captions,
+  Clapperboard,
   Eraser,
   FileVideo,
   Film,
@@ -13,6 +14,7 @@ import {
   ScanEye,
   ScanText,
   Scissors,
+  ScrollText,
   SpellCheck,
   Subtitles,
   type LucideIcon,
@@ -44,6 +46,8 @@ export const TOOL_META: Record<string, ToolMeta> = {
   probe: { icon: Gauge, zh: '媒体探测', en: 'Probe' },
   'm3u8-to-mp4': { icon: FileVideo, zh: 'HLS 转 MP4', en: 'M3U8 → MP4' },
   'video-trim': { icon: Scissors, zh: '视频裁剪', en: 'Video Trim' },
+  'commentary-script': { icon: ScrollText, zh: '解说文案', en: 'Commentary Script' },
+  'commentary-render': { icon: Clapperboard, zh: '解说渲染', en: 'Commentary Render' },
 }
 
 export const FALLBACK_TOOL_ICON: LucideIcon = Gauge
