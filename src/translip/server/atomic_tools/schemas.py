@@ -359,6 +359,63 @@ class M3u8ToMp4ToolRequest(BaseModel):
         return self
 
 
+VideoTrimMode = Literal["fast", "accurate"]
+VideoTrimContainer = Literal["mp4", "mkv"]
+# Minimum trim window length (seconds). Matches the frontend MIN_GAP so the
+# preview slider and direct API callers agree on the smallest legal cut.
+VIDEO_TRIM_MIN_WINDOW_SEC = 0.1
+
+
+class VideoTrimToolRequest(BaseModel):
+    """Cut a ``[start, end)`` window out of one video into a new MP4/MKV.
+
+    The window is given as ``start_sec`` plus *exactly one* upper bound —
+    ``end_sec`` (an absolute timestamp) or ``duration_sec`` (a length). Supplying
+    neither trims from ``start_sec`` to the end of the file; supplying both is
+    rejected. ``mode=fast`` stream-copies (lossless, near-instant, but the start
+    snaps to the nearest keyframe), while ``mode=accurate`` re-encodes for a
+    frame-exact cut (``quality`` only matters there).
+    """
+
+    file_id: str = Field(description="待裁剪的视频文件 ID")
+    start_sec: float = Field(default=0.0, ge=0, description="起始时间（秒）")
+    end_sec: float | None = Field(
+        default=None,
+        ge=0,
+        description="结束时间（秒，不含）；与 duration_sec 二选一，留空则裁到片尾",
+    )
+    duration_sec: float | None = Field(
+        default=None,
+        ge=VIDEO_TRIM_MIN_WINDOW_SEC,
+        description="截取时长（秒）；与 end_sec 二选一",
+    )
+    mode: VideoTrimMode = Field(
+        default="accurate",
+        description="fast=流复制（极快无损，起点对齐到最近关键帧）；accurate=重新编码（精确到帧）",
+    )
+    output_format: VideoTrimContainer = Field(default="mp4", description="输出容器：mp4 或 mkv")
+    quality: Literal["balanced", "high"] = Field(
+        default="balanced",
+        description="accurate 模式的编码画质：balanced=较快，high=更清晰但更慢（fast 模式忽略）",
+    )
+
+    @model_validator(mode="after")
+    def validate_window(self) -> "VideoTrimToolRequest":
+        if self.end_sec is not None and self.duration_sec is not None:
+            raise ValueError("Provide either end_sec or duration_sec, not both.")
+        # Enforce a minimum window in both end_sec / duration_sec branches so
+        # ffmpeg never receives a degenerate request that would silently produce
+        # a 0-frame clip.
+        if self.end_sec is not None and (
+            self.end_sec - self.start_sec
+        ) < VIDEO_TRIM_MIN_WINDOW_SEC:
+            raise ValueError(
+                "end_sec must be at least "
+                f"{VIDEO_TRIM_MIN_WINDOW_SEC}s greater than start_sec."
+            )
+        return self
+
+
 WatermarkPosition = Literal[
     "top-left", "top-right", "bottom-left", "bottom-right", "center"
 ]

@@ -325,6 +325,21 @@ export function buildArtifactActions(
     ]
   }
 
+  if (toolId === 'video-trim' && /\.(mp4|mkv)$/i.test(artifact.filename)) {
+    // The trimmed clip is a fresh source for the rest of the pipeline.
+    return [
+      buildArtifactAction(labels.toProbe, 'probe', {
+        files: { file: { file_id: fileId, filename: artifact.filename } },
+      }),
+      buildArtifactAction(labels.toTranscription, 'transcription', {
+        files: { file: { file_id: fileId, filename: artifact.filename } },
+      }),
+      buildArtifactAction(labels.toSeparation, 'separation', {
+        files: { file: { file_id: fileId, filename: artifact.filename } },
+      }),
+    ]
+  }
+
   return []
 }
 

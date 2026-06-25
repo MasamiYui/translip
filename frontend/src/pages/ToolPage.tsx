@@ -7,6 +7,7 @@ import { configApi } from '../api/config'
 import { FileUploadZone } from '../components/atomic-tools/FileUploadZone'
 import { ResultPanel } from '../components/atomic-tools/ResultPanel'
 import { ToolProgressBar } from '../components/atomic-tools/ToolProgressBar'
+import { VideoTrimPreview } from '../components/atomic-tools/VideoTrimPreview'
 import { WatermarkPreview } from '../components/atomic-tools/WatermarkPreview'
 import { PageContainer } from '../components/layout/PageContainer'
 import { useAtomicTool } from '../hooks/useAtomicTool'
@@ -133,14 +134,13 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
 
   async function handleFileSelected(slot: string, file: File) {
     if (
-      (toolId === 'subtitle-erase' || toolId === 'subtitle-detect') &&
+      (toolId === 'subtitle-erase' || toolId === 'subtitle-detect' || toolId === 'video-trim') &&
       slot === 'file' &&
       file.type.startsWith('video/')
     ) {
-      setOriginalVideoUrl(prev => {
-        if (prev) URL.revokeObjectURL(prev)
-        return URL.createObjectURL(file)
-      })
+      // The previous object URL is released by the useEffect cleanup below
+      // (keyed on originalVideoUrl) — keep ownership in one place.
+      setOriginalVideoUrl(URL.createObjectURL(file))
     }
     if (toolId === 'watermark' && slot === 'video_file' && file.type.startsWith('video/')) {
       setWatermarkVideoUrl(prev => {
@@ -184,10 +184,8 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
     setTextInput('')
     setTranslationInputMode('text')
     setParams(getDefaultParams(toolId, globalDefaults))
-    setOriginalVideoUrl(prev => {
-      if (prev) URL.revokeObjectURL(prev)
-      return null
-    })
+    // The previous originalVideoUrl is released by the useEffect cleanup.
+    setOriginalVideoUrl(null)
     setWatermarkVideoUrl(prev => {
       if (prev) URL.revokeObjectURL(prev)
       return null
@@ -292,6 +290,39 @@ function ToolPageContent({ toolId, prefillParam }: { toolId: string; prefillPara
                   unsupportedVideo: t.atomicTools.watermarkPreview.unsupportedVideo,
                   fontHint: t.atomicTools.watermarkPreview.fontHint,
                   resolutionLabel: t.atomicTools.watermarkPreview.resolutionLabel,
+                }}
+              />
+            </div>
+          )}
+          {toolId === 'video-trim' && (
+            <div className="mb-4">
+              <VideoTrimPreview
+                videoUrl={originalVideoUrl}
+                startSec={Number(params.start_sec) || 0}
+                endSec={params.end_sec === '' || params.end_sec == null ? null : Number(params.end_sec)}
+                onChange={(start, end) =>
+                  setParams(prev => ({ ...prev, start_sec: start, end_sec: end == null ? '' : end }))
+                }
+                copy={{
+                  title: t.atomicTools.videoTrimPreview.title,
+                  uploadFirst: t.atomicTools.videoTrimPreview.uploadFirst,
+                  unsupported: t.atomicTools.videoTrimPreview.unsupported,
+                  hint: t.atomicTools.videoTrimPreview.hint,
+                  setIn: t.atomicTools.videoTrimPreview.setIn,
+                  setOut: t.atomicTools.videoTrimPreview.setOut,
+                  jumpToIn: t.atomicTools.videoTrimPreview.jumpToIn,
+                  jumpToOut: t.atomicTools.videoTrimPreview.jumpToOut,
+                  playSelection: t.atomicTools.videoTrimPreview.playSelection,
+                  reset: t.atomicTools.videoTrimPreview.reset,
+                  startLabel: t.atomicTools.fields.trimStart,
+                  endLabel: t.atomicTools.fields.trimEnd,
+                  durationLabel: t.atomicTools.fields.trimDuration,
+                  play: t.atomicTools.videoTrimPreview.play,
+                  pause: t.atomicTools.videoTrimPreview.pause,
+                  mute: t.atomicTools.videoTrimPreview.mute,
+                  unmute: t.atomicTools.videoTrimPreview.unmute,
+                  playbackRate: t.atomicTools.videoTrimPreview.playbackRate,
+                  fullscreen: t.atomicTools.videoTrimPreview.fullscreen,
                 }}
               />
             </div>
@@ -590,6 +621,18 @@ function renderUploadZones(
         accept=".m3u8"
         value={fileRefs.playlist_file ?? null}
         onFileSelected={file => onFileSelected('playlist_file', file)}
+      />
+    )
+  }
+
+  if (toolId === 'video-trim') {
+    return (
+      <FileUploadZone
+        label={hints.videoLabel}
+        hint={hints.videoHint}
+        accept=".mp4,.mkv,.mov,.avi,.webm"
+        value={fileRefs.file ?? null}
+        onFileSelected={file => onFileSelected('file', file)}
       />
     )
   }
@@ -1467,6 +1510,59 @@ function renderControls(
     )
   }
 
+  if (toolId === 'video-trim') {
+    const mode = String(params.mode ?? 'accurate')
+    return (
+      <div className="space-y-4">
+        <div>
+          <div className="mb-2 text-sm font-medium text-slate-700">{atomicTools.fields.trimMode}</div>
+          <div className="grid gap-2 md:grid-cols-2">
+            {(['accurate', 'fast'] as const).map(option => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setField('mode', option)}
+                className={`rounded-2xl border p-3 text-left transition ${
+                  mode === option
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-slate-200 bg-white hover:border-slate-300'
+                }`}
+              >
+                <div className="text-sm font-semibold text-slate-900">
+                  {atomicTools.options.trimMode[option]}
+                </div>
+                <div className="mt-1 text-xs leading-5 text-slate-500">
+                  {atomicTools.hints.trimMode[option]}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <SelectField
+            label={atomicTools.fields.outputFormat}
+            hint={atomicTools.hints.trimOutputFormat}
+            hintAriaLabel={atomicTools.hints.termHintAria}
+            value={String(params.output_format ?? 'mp4')}
+            options={['mp4', 'mkv']}
+            onChange={value => setField('output_format', value)}
+          />
+          {mode === 'accurate' && (
+            <SelectField
+              label={atomicTools.fields.quality}
+              hint={atomicTools.hints.trimQuality}
+              hintAriaLabel={atomicTools.hints.termHintAria}
+              value={String(params.quality ?? 'balanced')}
+              options={(['balanced', 'high'] as const).map(value => ({ value, label: atomicTools.options.quality[value] }))}
+              onChange={value => setField('quality', value)}
+            />
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return null
 }
 
@@ -1628,6 +1724,16 @@ function buildRunPayload(
     return cleaned
   }
 
+  if (toolId === 'video-trim') {
+    const cleaned: Record<string, unknown> = { file_id: fileRefs.file?.file_id }
+    for (const [key, value] of Object.entries(params)) {
+      // An empty end_sec ('') means "trim to the end of the file" — omit it.
+      if (value === '' || value === undefined || value === null) continue
+      cleaned[key] = value
+    }
+    return cleaned
+  }
+
   return params
 }
 
@@ -1754,6 +1860,15 @@ function getDefaultParams(toolId: string, globalDefaults?: Partial<TaskConfig>):
         crf: 20,
         preset: 'veryfast',
         audio_bitrate: '192k',
+      }
+      break
+    case 'video-trim':
+      params = {
+        mode: 'accurate',
+        start_sec: 0,
+        end_sec: '',
+        output_format: 'mp4',
+        quality: 'balanced',
       }
       break
     default:

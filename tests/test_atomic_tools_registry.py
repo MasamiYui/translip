@@ -26,8 +26,14 @@ def test_atomic_tools_registry_exposes_all_tools() -> None:
         "video-analyze",
         "m3u8-to-mp4",
         "watermark",
+        "video-trim",
     }
     assert {tool.category for tool in tools} == {"audio", "speech", "video"}
+    trim = next(tool for tool in tools if tool.tool_id == "video-trim")
+    assert trim.category == "video"
+    assert trim.icon == "Scissors"
+    assert trim.max_file_size_mb == 4096
+    assert trim.max_files == 1
     m3u8 = next(tool for tool in tools if tool.tool_id == "m3u8-to-mp4")
     assert m3u8.category == "video"
     assert m3u8.accept_formats == [".m3u8"]

@@ -12,6 +12,7 @@ import {
   Mic,
   ScanEye,
   ScanText,
+  Scissors,
   SpellCheck,
   Subtitles,
   type LucideIcon,
@@ -42,6 +43,7 @@ export const TOOL_META: Record<string, ToolMeta> = {
   'video-analyze': { icon: ScanEye, zh: '视频分析', en: 'Video Analyze' },
   probe: { icon: Gauge, zh: '媒体探测', en: 'Probe' },
   'm3u8-to-mp4': { icon: FileVideo, zh: 'HLS 转 MP4', en: 'M3U8 → MP4' },
+  'video-trim': { icon: Scissors, zh: '视频裁剪', en: 'Video Trim' },
 }
 
 export const FALLBACK_TOOL_ICON: LucideIcon = Gauge

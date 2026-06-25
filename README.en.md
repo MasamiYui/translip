@@ -68,6 +68,10 @@
 | --- | --- |
 | ![Atomic tools](docs/assets/readme/atomic-tools.png) | ![Separation tool](docs/assets/readme/tool-separation.png) |
 
+| A single atomic tool · video trim · timeline scrubbing + precise / fast-lossless modes | |
+| --- | --- |
+| ![Video trim tool](docs/assets/readme/tool-video-trim.png) | |
+
 | Behind-the-scenes blog · architecture / algorithms / decisions | API docs · live OpenAPI, auto-generated |
 | --- | --- |
 | ![Blog](docs/assets/readme/blog.png) | ![API docs](docs/assets/readme/api-docs.png) |
@@ -99,7 +103,7 @@ The orchestrator holds no task logic: it resolves a node DAG, checks a cache, an
 
 - Audio: dialogue/background separation, audio mixing.
 - Speech: speech-to-text, language detection, transcript correction, text translation, text-to-speech, dub render (timeline alignment).
-- Video: subtitle detection, subtitle burn/embed, subtitle erase, watermark, video content analysis (scene description / on-screen text triage / erase QC / free-form Q&A), audio/video muxing, M3U8→MP4, and media probe.
+- Video: subtitle detection, subtitle burn/embed, subtitle erase, watermark, video content analysis (scene description / on-screen text triage / erase QC / free-form Q&A), audio/video muxing, M3U8→MP4, video trim, and media probe.
 
 **C. Collaboration & assets**
 
@@ -127,7 +131,7 @@ The UI is the primary day-to-day entry point. The left navigation is grouped int
 
 - **Dashboard**: unified counts and recent activity across pipeline tasks and atomic jobs (total / running / completed / failed).
 - **Task Center**: three task lists + the create entry — **Pipeline Tasks**, **Atomic Tasks**, **AI Tasks** (AI-assistant runs), and Create Pipeline Task (stepped wizard + grouped advanced config). Opening a pipeline task exposes the stage DAG / progress / artifacts, rerun-from-any-stage, the **Dubbing Editor**, and the speaker-review harness.
-- **Atomic Tools**: 16 standalone single-tool jobs grouped by audio / speech / video (separation, mixing | transcription, language detection, correction, translation, synthesis, dub render | subtitle detect, subtitle burn/embed, subtitle erase, watermark, video content analysis, muxing, M3U8→MP4, probe), each with its own upload + parameter panel; outputs can flow straight into the next tool.
+- **Atomic Tools**: 17 standalone single-tool jobs grouped by audio / speech / video (separation, mixing | transcription, language detection, correction, translation, synthesis, dub render | subtitle detect, subtitle burn/embed, subtitle erase, watermark, video content analysis, muxing, M3U8→MP4, video trim, probe), each with its own upload + parameter panel; outputs can flow straight into the next tool.
 - **Works Library**: cross-task "work → episode" assets, with TMDB metadata and posters.
 - **Character Library**: the "character → speaker" ledger, with reusable global personas.
 - **Dub Evaluation**: pick a finished task to compare source vs dub segment by segment, locating missing-dub / voice / dropped-word / translation issues with an overall score; optionally score translations with a DeepSeek LLM.
@@ -401,7 +405,7 @@ translip is fast-moving beta software. Here is the **honest scope** — what has
 **Available now**
 
 - End-to-end dubbing pipeline (separate → transcribe → translate → synthesize → re-fit → deliver), cache-aware and re-runnable from any stage.
-- 16 atomic tools + AI-assistant orchestration; Dubbing Editor, dub evaluation, one-click auto-fix, speaker review.
+- 17 atomic tools + AI-assistant orchestration; Dubbing Editor, dub evaluation, one-click auto-fix, speaker review.
 - OCR hard-subtitle detection / translation / erasure; Qwen3-VL visual perception injected into translation context.
 - Speaker profiles / registry, Works / Character libraries, model & token management, bilingual UI.
 
