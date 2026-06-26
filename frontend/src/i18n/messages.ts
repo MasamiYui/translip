@@ -1053,6 +1053,7 @@ const zhMessages = {
       'ocr-subtitles': 'OCR 字幕线',
       'visual-perception': '画面感知线',
       'video-cleanup': '视频净化线',
+      commentary: '解说线',
       delivery: '交付线',
     },
     templates: {
@@ -1060,6 +1061,7 @@ const zhMessages = {
       'asr-dub+visual': 'ASR Dub + 画面感知',
       'asr-dub+ocr-subs': 'ASR Dub + OCR Subs',
       'asr-dub+ocr-subs+erase': 'ASR Dub + OCR Subs + Erase',
+      'asr-commentary': 'ASR 解说',
     },
     legend: {
       title: '状态图例',
@@ -3492,6 +3494,7 @@ const enMessages: LocaleMessages = {
       'ocr-subtitles': 'OCR Subtitle Line',
       'visual-perception': 'Visual Perception',
       'video-cleanup': 'Video Cleanup',
+      commentary: 'Commentary',
       delivery: 'Delivery',
     },
     templates: {
@@ -3499,6 +3502,7 @@ const enMessages: LocaleMessages = {
       'asr-dub+visual': 'ASR Dub + Visual',
       'asr-dub+ocr-subs': 'ASR Dub + OCR Subs',
       'asr-dub+ocr-subs+erase': 'ASR Dub + OCR Subs + Erase',
+      'asr-commentary': 'ASR Commentary',
     },
     legend: {
       title: 'Legend',

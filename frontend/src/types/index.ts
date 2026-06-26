@@ -2,7 +2,7 @@ export type TaskStatus = 'pending' | 'running' | 'succeeded' | 'partial_success'
 export type StageStatus = 'pending' | 'running' | 'succeeded' | 'cached' | 'failed' | 'skipped'
 export type WorkflowStatus = TaskStatus
 export type WorkflowEdgeState = 'inactive' | 'active' | 'completed' | 'blocked'
-export type WorkflowNodeGroup = 'audio-spine' | 'ocr-subtitles' | 'visual-perception' | 'video-cleanup' | 'delivery'
+export type WorkflowNodeGroup = 'audio-spine' | 'ocr-subtitles' | 'visual-perception' | 'video-cleanup' | 'commentary' | 'delivery'
 export type TaskOutputIntent = 'dub_final' | 'bilingual_review' | 'english_subtitle' | 'fast_validation'
 export type TaskQualityPreset = 'fast' | 'standard' | 'high_quality'
 export type TaskExportProfile = 'dub_no_subtitles' | 'bilingual_review' | 'english_subtitle_burned' | 'preview_only'
@@ -162,7 +162,7 @@ export interface TaskConfig {
   device: string
   output_intent: TaskOutputIntent
   quality_preset: TaskQualityPreset
-  template: 'asr-dub-basic' | 'asr-dub+visual' | 'asr-dub+ocr-subs' | 'asr-dub+ocr-subs+erase'
+  template: 'asr-dub-basic' | 'asr-dub+visual' | 'asr-dub+ocr-subs' | 'asr-dub+ocr-subs+erase' | 'asr-commentary'
   run_from_stage: string
   run_to_stage: string
   use_cache: boolean
@@ -232,6 +232,13 @@ export interface TaskConfig {
   vision_backend?: 'auto' | 'mlx' | 'ollama'
   vision_frames_per_unit?: number
   vision_lang?: 'zh' | 'en'
+  // Commentary pipeline (asr-commentary template)
+  commentary_style?: 'plot_recap' | 'frame_riff'
+  commentary_genre?: string
+  commentary_original_sound_ratio?: number
+  commentary_backend?: string
+  commentary_narration_language?: string
+  commentary_original_gain_db?: number
   ocr_classify_text?: boolean
   erase_qc_enabled?: boolean
   erase_qc_max_units?: number

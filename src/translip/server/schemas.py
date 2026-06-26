@@ -92,6 +92,19 @@ class TaskConfigInput(BaseModel):
     vision_backend: Literal["auto", "mlx", "ollama"] = Field(default="auto", description="画面感知推理后端")
     vision_frames_per_unit: int = Field(default=4, ge=1, le=8, description="画面感知每单元抽帧数")
     vision_lang: Literal["zh", "en"] = Field(default="zh", description="画面感知输出语言")
+    # Commentary pipeline (asr-commentary template)
+    commentary_style: Literal["plot_recap", "frame_riff"] = Field(
+        default="plot_recap", description="解说类型：plot_recap=剧情解说；frame_riff=逐帧吐槽（暂未实现）"
+    )
+    commentary_genre: str = Field(default="剧情", description="解说影视类型（剧情/悬疑/动作等），影响叙事重点")
+    commentary_original_sound_ratio: int = Field(
+        default=20, ge=0, le=90, description="保留原声(OST=1)的目标时长占比（%）"
+    )
+    commentary_backend: str = Field(default="qwen3tts", description="解说配音 TTS 后端")
+    commentary_narration_language: str = Field(default="zh", description="解说配音语言")
+    commentary_original_gain_db: float = Field(
+        default=-15.0, description="OST=0 片段里原声被压低到的增益(dB)"
+    )
     ocr_classify_text: bool = Field(
         default=False,
         description="字幕识别后用视觉模型给每条 OCR 事件分类（对白字幕/场景文字/水印/标题），擦除与字幕翻译将跳过非字幕文字。默认关闭",

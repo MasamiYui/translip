@@ -13,6 +13,7 @@ export const WORKFLOW_LANES: Array<{ id: WorkflowGraphNode['group']; columnCount
   { id: 'ocr-subtitles', columnCount: 7 },
   { id: 'visual-perception', columnCount: 7 },
   { id: 'video-cleanup', columnCount: 7 },
+  { id: 'commentary', columnCount: 7 },
   { id: 'delivery', columnCount: 7 },
 ]
 
@@ -27,6 +28,8 @@ export const WORKFLOW_NODE_DEFINITIONS: Record<string, NodeDefinition> = {
   'ocr-translate': { group: 'ocr-subtitles', dependencies: ['ocr-detect'], column: 4 },
   'synthesis': { group: 'audio-spine', dependencies: ['translation'], column: 6 },
   'render': { group: 'audio-spine', dependencies: ['synthesis'], column: 6 },
+  'commentary-script': { group: 'commentary', dependencies: ['transcription'], column: 5 },
+  'commentary-render': { group: 'commentary', dependencies: ['commentary-script'], column: 6 },
   'subtitle-erase': { group: 'video-cleanup', dependencies: ['ocr-detect'], column: 5 },
   'erase-qc': { group: 'visual-perception', dependencies: ['subtitle-erase'], column: 6 },
   'delivery': { group: 'delivery', dependencies: ['render', 'ocr-translate', 'subtitle-erase'], column: 7 },
@@ -53,6 +56,10 @@ const TEMPLATE_DEFINITIONS: Record<
     nodeIds: ['separation', 'ocr-detect', 'transcription', 'asr-ocr-correct', 'speaker-registry', 'translation', 'ocr-translate', 'synthesis', 'render', 'subtitle-erase', 'delivery'],
     requiredIds: ['separation', 'ocr-detect', 'transcription', 'asr-ocr-correct', 'speaker-registry', 'translation', 'synthesis', 'render', 'delivery'],
     dependencyOverrides: { 'speaker-registry': ['asr-ocr-correct'] },
+  },
+  'asr-commentary': {
+    nodeIds: ['separation', 'transcription', 'visual-context', 'commentary-script', 'commentary-render'],
+    requiredIds: ['separation', 'transcription', 'commentary-script', 'commentary-render'],
   },
 }
 

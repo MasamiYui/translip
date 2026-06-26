@@ -733,6 +733,9 @@ export function NewTaskPage() {
   const outputIntent = (config.output_intent ?? 'dub_final') as TaskOutputIntent
   const qualityPreset = (config.quality_preset ?? 'standard') as TaskQualityPreset
   const supportsCorrection = supportsTranscriptCorrection(normalizeTemplateId(config.template))
+  // Commentary (解说) vs dubbing (配音) mode — derived from the template so the
+  // toggle, gated sections, and preview graph all stay in sync.
+  const isCommentary = normalizeTemplateId(config.template) === 'asr-commentary'
   const summary = useMemo(
     () => buildTaskSummary(outputIntent, sourceLang, targetLang, locale, getLanguageLabel),
     [getLanguageLabel, locale, outputIntent, sourceLang, targetLang],
@@ -744,6 +747,25 @@ export function NewTaskPage() {
 
   const stepOne = (
     <div className="space-y-5">
+      <SectionCard title={locale === 'zh-CN' ? '模式' : 'Mode'} minimal>
+        <SegmentedControl
+          value={isCommentary ? 'commentary' : 'dubbing'}
+          options={[
+            { value: 'dubbing', label: locale === 'zh-CN' ? '配音（多说话人翻译配音）' : 'Dubbing' },
+            { value: 'commentary', label: locale === 'zh-CN' ? '解说（影视解说成片）' : 'Commentary' },
+          ]}
+          onChange={value => patchConfig({ template: value === 'commentary' ? 'asr-commentary' : 'asr-dub-basic' })}
+        />
+        <p className="mt-2 text-xs leading-5 text-slate-500">
+          {isCommentary
+            ? locale === 'zh-CN'
+              ? '解说：转写原片 → 生成解说文案 → 配音并剪辑成解说成片（recap）。'
+              : 'Commentary: transcribe → write narration → render a recap video.'
+            : locale === 'zh-CN'
+              ? '配音：多说话人翻译 + 单说话人 TTS + 时间轴重拟合混音。'
+              : 'Dubbing: multi-speaker translation + per-speaker TTS + timeline remix.'}
+        </p>
+      </SectionCard>
       <SectionCard title={locale === 'zh-CN' ? '素材与语言' : 'Source'}>
         <Field label={t.newTask.fields.taskName}>
           <TextInput value={name} onChange={setName} placeholder={t.newTask.placeholders.taskName} />
@@ -838,25 +860,78 @@ export function NewTaskPage() {
   const stepTwo = (
     <div className="space-y-6">
       <div className="space-y-5">
-        <SectionCard title={locale === 'zh-CN' ? '成品目标' : 'Intent'} minimal>
-          <div className="grid gap-4 md:grid-cols-2">
-            {getIntentOptions(locale).map(option => (
-              <IntentCard
-                key={option.value}
-                title={option.title}
-                description={option.description}
-                badges={option.badges}
-                selected={outputIntent === option.value}
-                onClick={() => applyOutputIntent(option.value)}
+        {isCommentary ? (
+          <SectionCard title={locale === 'zh-CN' ? '解说设置' : 'Commentary'} minimal>
+            <Field label={locale === 'zh-CN' ? '解说类型' : 'Commentary Type'}>
+              <SegmentedControl
+                value={(config.commentary_style ?? 'plot_recap') as 'plot_recap' | 'frame_riff'}
+                options={[
+                  { value: 'plot_recap', label: locale === 'zh-CN' ? '剧情解说' : 'Plot Recap' },
+                  { value: 'frame_riff', label: locale === 'zh-CN' ? '逐帧吐槽（暂未实现）' : 'Frame Riff (soon)' },
+                ]}
+                onChange={value => patchConfig({ commentary_style: value })}
               />
-            ))}
-          </div>
-          <IntentCapabilityCard
-            title={capabilitySummary.title}
-            capabilities={capabilitySummary.capabilities}
-            helper={capabilitySummary.helper}
-          />
-        </SectionCard>
+            </Field>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label={locale === 'zh-CN' ? '影视类型' : 'Genre'}>
+                <Select
+                  value={config.commentary_genre ?? '剧情'}
+                  options={[
+                    { value: '剧情', label: locale === 'zh-CN' ? '剧情' : 'Drama' },
+                    { value: '悬疑', label: locale === 'zh-CN' ? '悬疑' : 'Mystery' },
+                    { value: '动作', label: locale === 'zh-CN' ? '动作' : 'Action' },
+                    { value: '喜剧', label: locale === 'zh-CN' ? '喜剧' : 'Comedy' },
+                    { value: '科幻', label: locale === 'zh-CN' ? '科幻' : 'Sci-Fi' },
+                    { value: '历史', label: locale === 'zh-CN' ? '历史' : 'History' },
+                    { value: '恐怖', label: locale === 'zh-CN' ? '恐怖' : 'Horror' },
+                  ]}
+                  onChange={value => patchConfig({ commentary_genre: value })}
+                />
+              </Field>
+              <Field label={locale === 'zh-CN' ? '解说语言' : 'Narration Language'}>
+                <Select
+                  value={config.commentary_narration_language ?? 'zh'}
+                  options={[
+                    { value: 'zh', label: locale === 'zh-CN' ? '中文' : 'Chinese' },
+                    { value: 'en', label: 'English' },
+                    { value: 'ja', label: locale === 'zh-CN' ? '日语' : 'Japanese' },
+                  ]}
+                  onChange={value => patchConfig({ commentary_narration_language: value })}
+                />
+              </Field>
+            </div>
+            <Field
+              label={locale === 'zh-CN' ? '原片占比（%）' : 'Original Sound %'}
+              hint={locale === 'zh-CN' ? '保留原声片段的目标时长占比，0 = 全程解说旁白' : 'Target share of kept original-sound clips; 0 = narration only'}
+            >
+              <TextInput
+                type="number"
+                value={String(config.commentary_original_sound_ratio ?? 20)}
+                onChange={value => patchConfig({ commentary_original_sound_ratio: value === '' ? 0 : Number(value) })}
+              />
+            </Field>
+          </SectionCard>
+        ) : (
+          <SectionCard title={locale === 'zh-CN' ? '成品目标' : 'Intent'} minimal>
+            <div className="grid gap-4 md:grid-cols-2">
+              {getIntentOptions(locale).map(option => (
+                <IntentCard
+                  key={option.value}
+                  title={option.title}
+                  description={option.description}
+                  badges={option.badges}
+                  selected={outputIntent === option.value}
+                  onClick={() => applyOutputIntent(option.value)}
+                />
+              ))}
+            </div>
+            <IntentCapabilityCard
+              title={capabilitySummary.title}
+              capabilities={capabilitySummary.capabilities}
+              helper={capabilitySummary.helper}
+            />
+          </SectionCard>
+        )}
 
         <SectionCard
           title={locale === 'zh-CN' ? '处理预览' : 'Workflow Preview'}
@@ -881,7 +956,7 @@ export function NewTaskPage() {
     </div>
   )
 
-  const stepThree = (
+  const stepThreeDubbing = (
     <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
       <div className="space-y-5">
         <SectionCard title={locale === 'zh-CN' ? '质量与设置' : 'Quality'}>
@@ -1225,6 +1300,34 @@ export function NewTaskPage() {
     </div>
   )
 
+  const stepThree = isCommentary ? (
+    <div className="space-y-5">
+      <SectionCard title={locale === 'zh-CN' ? '高级设置' : 'Advanced'}>
+        <p className="text-sm leading-6 text-slate-500">
+          {locale === 'zh-CN'
+            ? '解说模式：转写 → 解说文案 → 解说渲染，无需翻译/配音/混音配置。解说参数已在上一步设置。'
+            : 'Commentary runs transcribe → narration → render; no translation/dubbing/mix config. Commentary options are in the previous step.'}
+        </p>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label={locale === 'zh-CN' ? '计算设备' : 'Device'}>
+            <Select
+              value={config.device ?? 'auto'}
+              options={['auto', 'cpu', 'cuda', 'mps'].map(value => ({ value, label: value }))}
+              onChange={value => patchConfig({ device: value })}
+            />
+          </Field>
+          <Field label={locale === 'zh-CN' ? '复用缓存' : 'Reuse Cache'}>
+            <Checkbox
+              checked={config.use_cache ?? true}
+              onChange={value => patchConfig({ use_cache: value })}
+              label={locale === 'zh-CN' ? '复用各阶段缓存' : 'Reuse per-stage cache'}
+            />
+          </Field>
+        </div>
+      </SectionCard>
+    </div>
+  ) : stepThreeDubbing
+
   const stepFour = (
     <div className="space-y-6">
       <SectionCard
@@ -1258,8 +1361,18 @@ export function NewTaskPage() {
             <ConfirmRow label={t.newTask.summary.taskName} value={name || t.newTask.summary.autoGenerated} />
             <ConfirmRow label={t.newTask.summary.inputVideo} value={inputPath || t.common.notAvailable} />
             <ConfirmRow label={t.newTask.summary.direction} value={`${getLanguageLabel(sourceLang)} → ${getLanguageLabel(targetLang)}`} />
-            <ConfirmRow label={locale === 'zh-CN' ? '成品目标' : 'Intent'} value={getOutputIntentLabel(outputIntent, locale)} />
-            <ConfirmRow label={locale === 'zh-CN' ? '质量档位' : 'Quality'} value={getQualityPresetLabel(qualityPreset, locale)} />
+            {isCommentary ? (
+              <>
+                <ConfirmRow label={locale === 'zh-CN' ? '解说类型' : 'Commentary'} value={config.commentary_style ?? 'plot_recap'} />
+                <ConfirmRow label={locale === 'zh-CN' ? '影视类型' : 'Genre'} value={config.commentary_genre ?? '剧情'} />
+                <ConfirmRow label={locale === 'zh-CN' ? '原片占比' : 'Original Sound %'} value={`${config.commentary_original_sound_ratio ?? 20}%`} />
+              </>
+            ) : (
+              <>
+                <ConfirmRow label={locale === 'zh-CN' ? '成品目标' : 'Intent'} value={getOutputIntentLabel(outputIntent, locale)} />
+                <ConfirmRow label={locale === 'zh-CN' ? '质量档位' : 'Quality'} value={getQualityPresetLabel(qualityPreset, locale)} />
+              </>
+            )}
             <ConfirmRow label={t.newTask.summary.device} value={config.device ?? 'auto'} />
             <ConfirmRow label={t.newTask.summary.cacheReuse} value={config.use_cache ? t.common.yes : t.common.no} />
           </div>
@@ -1425,7 +1538,8 @@ function normalizeTemplateId(value: unknown): TaskConfig['template'] {
     value === 'asr-dub-basic' ||
     value === 'asr-dub+visual' ||
     value === 'asr-dub+ocr-subs' ||
-    value === 'asr-dub+ocr-subs+erase'
+    value === 'asr-dub+ocr-subs+erase' ||
+    value === 'asr-commentary'
   ) {
     return value
   }
