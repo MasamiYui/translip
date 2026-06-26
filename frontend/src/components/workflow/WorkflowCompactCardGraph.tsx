@@ -835,7 +835,12 @@ export function WorkflowCompactCardGraph({
             edges={flowModel.edges}
             nodeTypes={NODE_TYPES}
             fitView
-            fitViewOptions={{ padding: 0.14 }}
+            // Cap the auto-fit zoom so short graphs (e.g. asr-commentary, 4 nodes)
+            // don't blow up larger than the wider templates — without a cap, fitView
+            // scales a short DAG up toward native size while a long one (asr-dub-basic,
+            // 7 nodes) is scaled down to ~0.6, making node/text sizes inconsistent
+            // across templates. Manual zoom still goes up to the global maxZoom.
+            fitViewOptions={{ padding: 0.14, maxZoom: 0.65 }}
             nodesDraggable={false}
             nodesConnectable={false}
             elementsSelectable={false}
