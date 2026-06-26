@@ -133,6 +133,15 @@ class PipelineRequest:
     vision_backend: str = "auto"  # auto | mlx | ollama
     vision_frames_per_unit: int = 4
     vision_lang: str = "zh"
+    # Commentary pipeline (asr-commentary template): commentary-script generates an
+    # OST-interleaved narration script (LLM), commentary-render assembles it with
+    # the source video into a recap (TTS over ducked original / original passthrough).
+    commentary_style: str = "plot_recap"  # plot_recap | frame_riff (not yet built)
+    commentary_genre: str = "剧情"
+    commentary_original_sound_ratio: int = 20
+    commentary_backend: str = "qwen3tts"  # narration TTS backend
+    commentary_narration_language: str = "zh"
+    commentary_original_gain_db: float = -15.0  # OST=0 original-audio ducking
     # Classify OCR events with the vision model after ocr-detect (subtitle vs
     # scene_text vs watermark vs title_card). Default off: it changes erase /
     # ocr-translate / asr-ocr-correct behavior, so it is opt-in until the

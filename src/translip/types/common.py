@@ -25,7 +25,9 @@ RenderQualityGate = Literal["loose", "strict"]
 CorrectionPreset = Literal["conservative", "standard", "aggressive"]
 PipelineStageName = Literal["separation", "transcription", "asr-ocr-correct", "speaker-registry", "translation", "synthesis", "render", "delivery"]
 PipelineStageStatus = Literal["pending", "running", "succeeded", "cached", "failed", "skipped"]
-WorkflowTemplateName = Literal["asr-dub-basic", "asr-dub+visual", "asr-dub+ocr-subs", "asr-dub+ocr-subs+erase"]
+WorkflowTemplateName = Literal[
+    "asr-dub-basic", "asr-dub+visual", "asr-dub+ocr-subs", "asr-dub+ocr-subs+erase", "asr-commentary"
+]
 WorkflowNodeName = Literal[
     "separation",
     "ocr-detect",
@@ -37,11 +39,15 @@ WorkflowNodeName = Literal[
     "ocr-translate",
     "synthesis",
     "render",
+    "commentary-script",
+    "commentary-render",
     "subtitle-erase",
     "erase-qc",
     "delivery",
 ]
-WorkflowNodeGroup = Literal["audio-spine", "ocr-subtitles", "visual-perception", "video-cleanup", "delivery"]
+WorkflowNodeGroup = Literal[
+    "audio-spine", "ocr-subtitles", "visual-perception", "video-cleanup", "commentary", "delivery"
+]
 WorkflowNodeStatus = Literal["pending", "running", "succeeded", "cached", "failed", "skipped"]
 WorkflowStatus = Literal["pending", "running", "succeeded", "partial_success", "failed"]
 DeliveryVideoSource = Literal["original", "clean", "clean_if_available"]

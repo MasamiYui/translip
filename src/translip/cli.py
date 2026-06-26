@@ -636,7 +636,31 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument(
         "--template",
         default=None,
-        choices=["asr-dub-basic", "asr-dub+visual", "asr-dub+ocr-subs", "asr-dub+ocr-subs+erase"],
+        choices=[
+            "asr-dub-basic",
+            "asr-dub+visual",
+            "asr-dub+ocr-subs",
+            "asr-dub+ocr-subs+erase",
+            "asr-commentary",
+        ],
+    )
+    pipeline_parser.add_argument(
+        "--commentary-style",
+        default=None,
+        choices=["plot_recap", "frame_riff"],
+        help="Commentary type for the asr-commentary template (default plot_recap)",
+    )
+    pipeline_parser.add_argument(
+        "--commentary-genre",
+        default=None,
+        help="Genre focus for commentary narration (剧情/悬疑/动作/喜剧/科幻/历史/恐怖, default 剧情)",
+    )
+    pipeline_parser.add_argument(
+        "--commentary-sound-ratio",
+        dest="commentary_original_sound_ratio",
+        type=int,
+        default=None,
+        help="Target %% of kept original-sound (OST=1) clips for the recap (default 20)",
     )
     pipeline_parser.add_argument(
         "--vision-backend",

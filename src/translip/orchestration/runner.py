@@ -38,8 +38,14 @@ from .vision_bridge import (
     visual_context_manifest_path,
     visual_context_path,
 )
+from .commentary_bridge import run_commentary_render, run_commentary_script
 from .commands import (
     build_asr_ocr_correction_command,
+    commentary_path,
+    commentary_recap_path,
+    commentary_render_manifest_path,
+    commentary_render_report_path,
+    commentary_script_manifest_path,
     build_stage1_command,
     build_task_a_command,
     build_task_b_command,
@@ -317,6 +323,30 @@ def _stage_cache_payload(request: PipelineRequest, stage_name: str) -> dict[str,
                 "segments": _file_fingerprint(effective_task_a_segments_path(request)),
             }
         )
+    elif stage_name == "commentary-script":
+        common.update(
+            {
+                "segments": _file_fingerprint(effective_task_a_segments_path(request)),
+                # Optional scene cues cascade into the script (missing → stable
+                # {exists: False}, so no-vision runs stay deterministic).
+                "visual_context": _file_fingerprint(visual_context_path(request)),
+                "commentary_style": request.commentary_style,
+                "commentary_genre": request.commentary_genre,
+                "commentary_original_sound_ratio": int(request.commentary_original_sound_ratio),
+                "commentary_narration_language": request.commentary_narration_language,
+            }
+        )
+    elif stage_name == "commentary-render":
+        common.update(
+            {
+                # The script content drives every clip + narration, so it must
+                # cascade into render's key.
+                "commentary": _file_fingerprint(commentary_path(request)),
+                "commentary_backend": request.commentary_backend,
+                "commentary_original_gain_db": request.commentary_original_gain_db,
+                "commentary_narration_language": request.commentary_narration_language,
+            }
+        )
     elif stage_name == "erase-qc":
         common.update(
             {
@@ -452,6 +482,16 @@ def _node_cache_spec(
     elif stage_name == "visual-context":
         manifest_path = visual_context_manifest_path(request)
         artifact_paths = [visual_context_path(request), manifest_path]
+    elif stage_name == "commentary-script":
+        manifest_path = commentary_script_manifest_path(request)
+        artifact_paths = [commentary_path(request), manifest_path]
+    elif stage_name == "commentary-render":
+        manifest_path = commentary_render_manifest_path(request)
+        artifact_paths = [
+            commentary_recap_path(request),
+            commentary_render_report_path(request),
+            manifest_path,
+        ]
     elif stage_name == "erase-qc":
         manifest_path = erase_qc_manifest_path(request)
         artifact_paths = [erase_qc_report_path(request), manifest_path]
@@ -930,6 +970,12 @@ def execute_node(
     if node_name == "visual-context":
         monitor.update_stage_progress(node_name, 5.0, "analyzing video scenes")
         return run_visual_context(request, log_path=_node_log_path(request, node_name), monitor=monitor, should_cancel=should_cancel)
+    if node_name == "commentary-script":
+        monitor.update_stage_progress(node_name, 5.0, "writing commentary script")
+        return run_commentary_script(request, log_path=_node_log_path(request, node_name), monitor=monitor, should_cancel=should_cancel)
+    if node_name == "commentary-render":
+        monitor.update_stage_progress(node_name, 5.0, "rendering recap video")
+        return run_commentary_render(request, log_path=_node_log_path(request, node_name), monitor=monitor, should_cancel=should_cancel)
     if node_name == "erase-qc":
         monitor.update_stage_progress(node_name, 5.0, "checking erased video for residual text")
         return run_erase_qc(request, log_path=_node_log_path(request, node_name), monitor=monitor, should_cancel=should_cancel)

@@ -166,6 +166,7 @@ def build_pipeline_request(raw: dict[str, Any]) -> PipelineRequest:
         ),
         **_erase_overrides(merged),
         **_vision_overrides(merged),
+        **_commentary_overrides(merged),
     ).normalized()
 
 
@@ -202,6 +203,21 @@ _VISION_KEYS = (
 
 def _vision_overrides(merged: dict[str, Any]) -> dict[str, Any]:
     return {key: merged[key] for key in _VISION_KEYS if merged.get(key) is not None}
+
+
+# Commentary tunables (asr-commentary template), same pass-through pattern.
+_COMMENTARY_KEYS = (
+    "commentary_style",
+    "commentary_genre",
+    "commentary_original_sound_ratio",
+    "commentary_backend",
+    "commentary_narration_language",
+    "commentary_original_gain_db",
+)
+
+
+def _commentary_overrides(merged: dict[str, Any]) -> dict[str, Any]:
+    return {key: merged[key] for key in _COMMENTARY_KEYS if merged.get(key) is not None}
 
 
 __all__ = ["build_pipeline_request"]

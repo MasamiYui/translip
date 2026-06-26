@@ -78,6 +78,16 @@ TEMPLATE_REGISTRY: dict[WorkflowTemplateName, TemplateDef] = {
         optional_nodes=("ocr-translate", "subtitle-erase", "erase-qc"),
         dependency_overrides={"speaker-registry": ("asr-ocr-correct",)},
     ),
+    "asr-commentary": TemplateDef(
+        template_id="asr-commentary",
+        # Upload a video -> recap: separation+transcription give the grounded
+        # transcript, commentary-script writes the OST-interleaved script,
+        # commentary-render assembles the recap. visual-context is optional (the
+        # script degrades gracefully without scene cues / a vision backend).
+        selected_nodes=("separation", "transcription", "visual-context", "commentary-script", "commentary-render"),
+        required_nodes=("separation", "transcription", "commentary-script", "commentary-render"),
+        optional_nodes=("visual-context",),
+    ),
 }
 
 

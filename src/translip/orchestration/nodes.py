@@ -26,6 +26,12 @@ NODE_REGISTRY: dict[WorkflowNodeName, WorkflowNodeDef] = {
     "ocr-translate": WorkflowNodeDef("ocr-translate", "ocr-subtitles", ("ocr-detect",), 60),
     "synthesis": WorkflowNodeDef("synthesis", "audio-spine", ("speaker-registry", "translation"), 70),
     "render": WorkflowNodeDef("render", "audio-spine", ("separation", "transcription", "translation", "synthesis"), 80),
+    # Commentary stages (asr-commentary template). commentary-script reads the
+    # effective transcription segments (+ optional visual_context.json by file
+    # existence, like translation); commentary-render assembles its commentary.json
+    # with the source video into recap.mp4 (terminal node, hint < delivery).
+    "commentary-script": WorkflowNodeDef("commentary-script", "commentary", ("transcription",), 55),
+    "commentary-render": WorkflowNodeDef("commentary-render", "commentary", ("commentary-script",), 85),
     "subtitle-erase": WorkflowNodeDef("subtitle-erase", "video-cleanup", ("ocr-detect",), 90),
     # Vision QC of the erased video: samples the original subtitle spans on
     # clean_video.mp4 and reports leftover text / inpainting artifacts.

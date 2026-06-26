@@ -119,6 +119,34 @@ def visual_context_manifest_path(request: PipelineRequest) -> Path:
     return visual_context_dir(request) / "scene-context-manifest.json"
 
 
+def commentary_script_dir(request: PipelineRequest) -> Path:
+    return request.output_root / "commentary-script"
+
+
+def commentary_path(request: PipelineRequest) -> Path:
+    return commentary_script_dir(request) / "commentary.json"
+
+
+def commentary_script_manifest_path(request: PipelineRequest) -> Path:
+    return commentary_script_dir(request) / "commentary-script-manifest.json"
+
+
+def commentary_render_dir(request: PipelineRequest) -> Path:
+    return request.output_root / "commentary-render"
+
+
+def commentary_recap_path(request: PipelineRequest) -> Path:
+    return commentary_render_dir(request) / "recap.mp4"
+
+
+def commentary_render_report_path(request: PipelineRequest) -> Path:
+    return commentary_render_dir(request) / "commentary_render_report.json"
+
+
+def commentary_render_manifest_path(request: PipelineRequest) -> Path:
+    return commentary_render_dir(request) / "commentary-render-manifest.json"
+
+
 def task_c_bundle_dir(request: PipelineRequest) -> Path:
     return request.output_root / "translation" / "voice"
 
@@ -460,6 +488,13 @@ __all__ = [
     "visual_context_dir",
     "visual_context_manifest_path",
     "visual_context_path",
+    "commentary_script_dir",
+    "commentary_path",
+    "commentary_script_manifest_path",
+    "commentary_render_dir",
+    "commentary_recap_path",
+    "commentary_render_report_path",
+    "commentary_render_manifest_path",
     "effective_task_a_segments_path",
     "task_a_corrected_segments_path",
     "task_a_corrected_srt_path",
