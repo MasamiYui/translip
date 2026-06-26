@@ -1643,7 +1643,9 @@ function renderControls(
           hint={atomicTools.commentary.hints.style}
           hintAriaLabel={atomicTools.hints.termHintAria}
           value={String(params.commentary_style ?? 'plot_recap')}
-          options={(['plot_recap', 'frame_riff'] as const).map(value => ({
+          // frame_riff is not implemented yet (the backend rejects it) — only
+          // offer plot_recap so a run never fails on an unbuilt style.
+          options={(['plot_recap'] as const).map(value => ({
             value,
             label: atomicTools.commentary.styleOptions[value],
           }))}
@@ -1681,7 +1683,9 @@ function renderControls(
           hint={atomicTools.hints.ttsBackend}
           hintAriaLabel={atomicTools.hints.termHintAria}
           value={String(params.backend ?? 'qwen3tts')}
-          options={['qwen3tts', 'moss-tts-nano-onnx', 'voxcpm2']}
+          // Only qwen3tts is wired for one-shot narration synthesis; the clone
+          // backends (moss/voxcpm) need a reference upload and aren't supported here.
+          options={['qwen3tts']}
           onChange={value => setField('backend', value)}
         />
         <SelectField

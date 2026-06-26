@@ -75,11 +75,29 @@ class CommentaryRenderAdapter(ToolAdapter):
 
         with tempfile.TemporaryDirectory(prefix="commentary-render-") as work_str:
             work = Path(work_str)
+            should_cancel = cancel_checker(on_progress)
+            ffmpeg = ffmpeg_binary()
 
             # --- 1. synthesize narration for OST=0 items -------------------
             ost0 = [it for it in items if int(it.get("ost", 0) or 0) == 0 and str(it.get("narration") or "").strip()]
             narration_durations: dict[int, float] = {}
             narration_paths: dict[int, Path] = {}
+            # qwen3tts is clone-only: narration synth needs a reference voice. When
+            # the user didn't upload one, borrow a clean ~8s speech slice from the
+            # source as a fallback timbre so the tool works out of the box (matches
+            # the asr-commentary pipeline's behaviour).
+            if reference_path is None and ost0:
+                reference_path = work / "narrator_ref.wav"
+                ref_start = max(0.0, min(source_duration * 0.25, max(0.0, source_duration - 8.0)))
+                self._run_ffmpeg(
+                    [
+                        ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+                        "-ss", f"{ref_start:.3f}", "-i", str(video_path), "-t", "8",
+                        "-vn", "-ac", "1", "-ar", "24000", str(reference_path),
+                    ],
+                    work / "narrator_ref.log",
+                    should_cancel,
+                )
             for index, item in enumerate(ost0):
                 item_id = int(item["id"])
                 narration_wav = work / f"narration_{item_id}.wav"
@@ -102,9 +120,6 @@ class CommentaryRenderAdapter(ToolAdapter):
                 raise RuntimeError(
                     "没有可渲染的片段（检查 commentary.json 的 src 时间区间是否落在视频时长内）。"
                 )
-
-            should_cancel = cancel_checker(on_progress)
-            ffmpeg = ffmpeg_binary()
 
             # --- 3. render each clip to a normalised intermediate ---------
             clip_paths: list[Path] = []

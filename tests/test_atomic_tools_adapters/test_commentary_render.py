@@ -258,8 +258,8 @@ def test_adapter_assembles_recap(tmp_path: Path, monkeypatch) -> None:
     report = json.loads((output_dir / "commentary_render_report.json").read_text(encoding="utf-8"))
     assert report["clip_count"] == 3
     assert report["clips"][1]["ost"] == 1
-    # 3 per-clip renders + 1 concat
-    assert len(captured["commands"]) == 4
+    # 1 narrator-reference extract (no reference uploaded) + 3 per-clip renders + 1 concat
+    assert len(captured["commands"]) == 5
 
 
 def test_adapter_raises_without_source_audio(tmp_path: Path, monkeypatch) -> None:

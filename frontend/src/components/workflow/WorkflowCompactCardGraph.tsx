@@ -15,6 +15,7 @@ import {
   AudioWaveform,
   Clapperboard,
   Eraser,
+  Eye,
   Pin,
   FileOutput,
   Film,
@@ -23,6 +24,7 @@ import {
   MicVocal,
   ScanText,
   Scissors,
+  ScrollText,
   Users,
   X,
   type LucideIcon,
@@ -45,10 +47,13 @@ const NODE_ICON: Record<string, LucideIcon> = {
   'transcription': MicVocal,
   'asr-ocr-correct': ScanText,
   'speaker-registry': Users,
+  'visual-context': Eye,
   'translation': Languages,
   'ocr-translate': FileOutput,
   'synthesis': Headphones,
   'render': Clapperboard,
+  'commentary-script': ScrollText,
+  'commentary-render': Clapperboard,
   'subtitle-erase': Eraser,
   'delivery': Film,
 }
@@ -59,10 +64,13 @@ const NODE_CODE: Record<string, string> = {
   'transcription': 'A1',
   'asr-ocr-correct': 'A2',
   'speaker-registry': 'B1',
+  'visual-context': 'P1',
   'translation': 'C1',
   'ocr-translate': 'O2',
   'synthesis': 'D1',
   'render': 'E1',
+  'commentary-script': 'M1',
+  'commentary-render': 'M2',
   'subtitle-erase': 'V1',
   'delivery': 'G1',
 }
@@ -73,10 +81,13 @@ const PREVIEW_HINTS: Record<string, { zh: string; en: string }> = {
   'transcription': { zh: '生成时间对齐转写。', en: 'Create aligned transcript segments.' },
   'asr-ocr-correct': { zh: '用 OCR 字幕校正 ASR 文稿。', en: 'Correct ASR transcript text with OCR subtitles.' },
   'speaker-registry': { zh: '补全说话人身份。', en: 'Register and reconcile speakers.' },
+  'visual-context': { zh: '识别画面场景，辅助理解。', en: 'Describe on-screen scenes.' },
   'translation': { zh: '翻译配音文本。', en: 'Translate dubbing text.' },
   'ocr-translate': { zh: '翻译展示字幕。', en: 'Translate display subtitles.' },
   'synthesis': { zh: '合成目标语音轨。', en: 'Synthesize the target voice track.' },
   'render': { zh: '回贴时间线并混音。', en: 'Fit the dub back to timeline.' },
+  'commentary-script': { zh: '据剧情生成解说文案。', en: 'Write the recap narration script.' },
+  'commentary-render': { zh: '配音剪辑成解说成片。', en: 'Voice + cut into the recap.' },
   'subtitle-erase': { zh: '清理原字幕画面。', en: 'Remove subtitles from video.' },
   'delivery': { zh: '汇总支线并导出。', en: 'Package branch outputs for delivery.' },
 }
@@ -172,7 +183,7 @@ const ANCHOR_HEIGHT = 52
 const HANDLE_STYLE = { width: 8, height: 8, opacity: 0, pointerEvents: 'none' as const }
 const START_NODE_ID = '__dag-start__'
 const END_NODE_ID = '__dag-end__'
-const MAINLINE_NODE_IDS = ['separation', 'transcription', 'asr-ocr-correct', 'speaker-registry', 'translation', 'synthesis', 'render', 'delivery'] as const
+const MAINLINE_NODE_IDS = ['separation', 'transcription', 'asr-ocr-correct', 'speaker-registry', 'translation', 'synthesis', 'render', 'commentary-script', 'commentary-render', 'delivery'] as const
 
 interface CompactNodeChromeProps {
   node: WorkflowGraphNode
@@ -441,6 +452,16 @@ function buildCompactDagLayout(graph: WorkflowGraphPayload, previewOnly: boolean
     }
   }
 
+  // Visual perception runs off the transcription mainline (like the OCR branch),
+  // so anchor it on the branch row below transcription instead of leaving it at
+  // the (0,0) fallback. Applies to asr-dub+visual and asr-commentary.
+  if (presentNodeIds.has('visual-context')) {
+    positions['visual-context'] = {
+      x: positions['transcription']?.x ?? firstNodeX + nodeWidth + gapX,
+      y: branchY,
+    }
+  }
+
   if (presentNodeIds.has('ocr-translate')) {
     positions['ocr-translate'] = {
       x: positions['translation']?.x ?? positions['ocr-detect']?.x ?? firstNodeX + (nodeWidth + gapX) * 2,
@@ -553,8 +574,12 @@ function getMetaLabel(group: WorkflowNodeGroup, locale: 'zh-CN' | 'en-US') {
         return '音频主干'
       case 'ocr-subtitles':
         return 'OCR 支线'
+      case 'visual-perception':
+        return '画面感知'
       case 'video-cleanup':
         return '净化支线'
+      case 'commentary':
+        return '解说线'
       case 'delivery':
         return '终态输出'
       default:
@@ -567,8 +592,12 @@ function getMetaLabel(group: WorkflowNodeGroup, locale: 'zh-CN' | 'en-US') {
       return 'Audio spine'
     case 'ocr-subtitles':
       return 'OCR branch'
+    case 'visual-perception':
+      return 'Visual perception'
     case 'video-cleanup':
       return 'Cleanup branch'
+    case 'commentary':
+      return 'Commentary'
     case 'delivery':
       return 'Final output'
     default:
