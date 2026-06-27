@@ -49,7 +49,27 @@ def _load_qwen_model(model_name: str, device: str):
     attn_impl = _attn_implementation_for(device)
     if attn_impl is not None:
         kwargs["attn_implementation"] = attn_impl
-    return model_cls.from_pretrained(model_name, **kwargs)
+    # Prefer the resolved local snapshot over the repo id: from_pretrained accepts
+    # a local dir and then never touches the network. qwen-tts otherwise re-checks
+    # the Hub on every load (and AutoProcessor makes its own API call), which
+    # crashes when huggingface.co is unreachable even though the model is fully
+    # cached. Falls back to the repo id (normal online download) when absent.
+    target = _resolve_local_model_path(model_name) or model_name
+    return model_cls.from_pretrained(target, **kwargs)
+
+
+def _resolve_local_model_path(model_name: str) -> str | None:
+    """Return a local model dir if fully cached, else None (never hits network)."""
+    if Path(model_name).exists():
+        return model_name
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError:
+        return None
+    try:
+        return snapshot_download(model_name, local_files_only=True)
+    except Exception:
+        return None
 
 
 def _device_map_for(device: str) -> str:

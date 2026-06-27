@@ -37,8 +37,37 @@ class MlxVisionBackend:
                 "mlx-vlm is required for the 'mlx' vision backend. "
                 "Install it with: uv sync --extra vision"
             ) from exc
-        self._model, self._processor = mlx_load(self.model_id)
-        self._config = load_config(self.model_id)
+        # If the model is already fully cached, hand mlx-vlm the resolved local
+        # *path* instead of the repo id: get_model_path() skips snapshot_download
+        # for a path that exists, so we never hit huggingface_hub's network
+        # revision check — which it runs even on a cache hit and crashes when the
+        # Hub is unreachable (firewall/offline). A missing or partial snapshot
+        # resolves to None and falls through to the normal online download.
+        target = self._resolve_cached_path() or self.model_id
+        self._model, self._processor = mlx_load(target)
+        self._config = load_config(target)
+
+    def _resolve_cached_path(self) -> str | None:
+        """Return the local model dir if fully cached (never touches network).
+
+        Probes the HF cache with ``local_files_only``; any failure (not cached,
+        partial download, hub error) returns None so the caller falls back to
+        the repo id and the normal download path.
+        """
+        if Path(self.model_id).exists():
+            return self.model_id  # already a filesystem path
+        try:
+            from huggingface_hub import snapshot_download
+        except ImportError:
+            return None
+        try:
+            return snapshot_download(
+                self.model_id,
+                local_files_only=True,
+                cache_dir=os.environ.get("HF_HUB_CACHE") or None,
+            )
+        except Exception:
+            return None
 
     def chat(self, images: list[Path], prompt: str) -> str:
         if self._model is None:
