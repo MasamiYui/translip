@@ -240,6 +240,7 @@ export interface TaskConfig {
   commentary_backend?: string
   commentary_narration_language?: string
   commentary_original_gain_db?: number
+  commentary_narrator_voice?: string
   ocr_classify_text?: boolean
   erase_qc_enabled?: boolean
   erase_qc_max_units?: number

@@ -43,9 +43,11 @@ def test_schema_rejects_unknown_backend() -> None:
         CommentaryRenderToolRequest(commentary_file_id="c", video_file_id="v", backend="nope")
 
 
-def test_schema_clone_backend_requires_reference() -> None:
-    with pytest.raises(ValueError):
-        CommentaryRenderToolRequest(commentary_file_id="c", video_file_id="v", backend="voxcpm2")
+def test_schema_clone_backend_no_longer_requires_upload() -> None:
+    # A built-in narrator voice (or "source") resolves to a reference for the
+    # clone-only backends, so a manual reference upload is no longer required.
+    req = CommentaryRenderToolRequest(commentary_file_id="c", video_file_id="v", backend="voxcpm2")
+    assert req.backend == "voxcpm2"
 
 
 # --- plan_render -------------------------------------------------------------
@@ -220,8 +222,16 @@ def _patch_render(monkeypatch, captured: dict, *, audio_streams: int = 1) -> Non
         captured.setdefault("commands", []).append(command)
         Path(command[-1]).write_bytes(b"video")
 
+    def fake_resolve(voice, **kwargs):
+        ref = Path(kwargs["work_dir"]) / "narrator_ref.wav"
+        ref.parent.mkdir(parents=True, exist_ok=True)
+        ref.write_bytes(b"wav")
+        captured["resolved_voice"] = voice
+        return ref
+
     monkeypatch.setattr(f"{_MODULE}.generate_speech", fake_speech)
     monkeypatch.setattr(f"{_MODULE}.run_stage_command", fake_run)
+    monkeypatch.setattr("translip.commentary.voices.resolve_narrator_reference", fake_resolve)
     monkeypatch.setattr(f"{_MODULE}.ffmpeg_binary", lambda: "ffmpeg")
     monkeypatch.setattr(
         f"{_MODULE}.probe_media",
@@ -258,8 +268,34 @@ def test_adapter_assembles_recap(tmp_path: Path, monkeypatch) -> None:
     report = json.loads((output_dir / "commentary_render_report.json").read_text(encoding="utf-8"))
     assert report["clip_count"] == 3
     assert report["clips"][1]["ost"] == 1
-    # 1 narrator-reference extract (no reference uploaded) + 3 per-clip renders + 1 concat
-    assert len(captured["commands"]) == 5
+    # Narrator reference is resolved by the voice library (built-in designed voice,
+    # mocked) — no ffmpeg borrow; so just 3 per-clip renders + 1 concat.
+    assert len(captured["commands"]) == 4
+    assert captured["resolved_voice"] is None  # default selector threaded through
+
+
+def test_adapter_threads_narrator_voice(tmp_path: Path, monkeypatch) -> None:
+    commentary_dir = tmp_path / "input" / "commentary_file"
+    video_dir = tmp_path / "input" / "video_file"
+    commentary_dir.mkdir(parents=True)
+    video_dir.mkdir(parents=True)
+    _write_commentary(commentary_dir / "commentary.json")
+    (video_dir / "src.mp4").write_bytes(b"video")
+
+    captured: dict = {}
+    _patch_render(monkeypatch, captured)
+    CommentaryRenderAdapter().run(
+        {
+            "commentary_file_id": "c",
+            "video_file_id": "v",
+            "backend": "qwen3tts",
+            "narrator_voice": "narrator-female-bright",
+        },
+        tmp_path / "input",
+        tmp_path / "output",
+        lambda *_a, **_k: None,
+    )
+    assert captured["resolved_voice"] == "narrator-female-bright"
 
 
 def test_adapter_raises_without_source_audio(tmp_path: Path, monkeypatch) -> None:
@@ -331,8 +367,11 @@ def test_render_really_produces_playable_recap(tmp_path: Path, monkeypatch) -> N
     monkeypatch.setattr(f"{_MODULE}.generate_speech", fake_speech)
 
     output_dir = tmp_path / "output"
+    # Use the "source" narrator voice so the reference comes from the real source
+    # audio via ffmpeg — this exercises the render pipeline without loading the
+    # VoiceDesign model (which the built-in voices would otherwise require).
     result = CommentaryRenderAdapter().run(
-        {"commentary_file_id": "c", "video_file_id": "v", "backend": "qwen3tts"},
+        {"commentary_file_id": "c", "video_file_id": "v", "backend": "qwen3tts", "narrator_voice": "source"},
         tmp_path / "input",
         output_dir,
         lambda *_a, **_k: None,

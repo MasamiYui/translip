@@ -15,8 +15,17 @@ export type GlobalConfigUpdate = {
   [K in keyof TaskConfig]?: TaskConfig[K] | null
 }
 
+export interface NarratorVoiceInfo {
+  id: string
+  name_zh: string
+  name_en: string
+  gender: string
+}
+
 export const configApi = {
   getDefaults: () => api.get('/api/config/defaults').then(r => r.data),
+  narratorVoices: () =>
+    api.get<NarratorVoiceInfo[]>('/api/config/narrator-voices').then(r => r.data),
   getGlobal: () => api.get<Partial<TaskConfig>>('/api/config/global').then(r => r.data),
   updateGlobal: (config: GlobalConfigUpdate) =>
     api.put<{ ok: boolean; config: Partial<TaskConfig> }>('/api/config/global', config).then(r => r.data),

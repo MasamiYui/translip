@@ -142,6 +142,10 @@ class PipelineRequest:
     commentary_backend: str = "qwen3tts"  # narration TTS backend
     commentary_narration_language: str = "zh"
     commentary_original_gain_db: float = -15.0  # OST=0 original-audio ducking
+    # Built-in designed narrator voice id (see commentary/voices.py); "source"
+    # borrows the cast's voice. Default is the built-in calm-male voice — the
+    # narrator is never the cast unless "source" is chosen explicitly.
+    commentary_narrator_voice: str = "narrator-male-calm"
     # Classify OCR events with the vision model after ocr-detect (subtitle vs
     # scene_text vs watermark vs title_card). Default off: it changes erase /
     # ocr-translate / asr-ocr-correct behavior, so it is opt-in until the

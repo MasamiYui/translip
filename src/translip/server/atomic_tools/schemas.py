@@ -541,7 +541,11 @@ class CommentaryRenderToolRequest(BaseModel):
     video_file_id: str = Field(description="源视频文件 ID（被解说的原片）")
     reference_audio_file_id: str | None = Field(
         default=None,
-        description="参考音色音频文件 ID；moss-tts-nano-onnx / voxcpm2 后端必填（音色克隆）",
+        description="参考音色音频文件 ID（上传自己的解说员录音做克隆）；提供时优先于 narrator_voice",
+    )
+    narrator_voice: str | None = Field(
+        default=None,
+        description="内置解说音色 id（如 narrator-male-calm）/ 'source'（借用源片音色）/ 留空用默认内置音色；上传 reference_audio_file 时以上传为准",
     )
     backend: str = Field(default="qwen3tts", description="解说配音 TTS 后端")
     narration_language: str | None = Field(
@@ -559,8 +563,6 @@ class CommentaryRenderToolRequest(BaseModel):
                 f"Unsupported TTS backend: {self.backend}. "
                 f"Choose one of: {', '.join(SUPPORTED_DUBBING_BACKENDS)}"
             )
-        if self.backend in {"moss-tts-nano-onnx", "voxcpm2"} and not self.reference_audio_file_id:
-            raise ValueError(
-                f"The {self.backend} backend requires a reference audio upload for voice cloning."
-            )
+        # No reference upload is required anymore: a built-in narrator voice (or
+        # "source") always resolves to a reference clip for clone-only backends.
         return self

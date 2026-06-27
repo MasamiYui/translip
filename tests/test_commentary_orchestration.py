@@ -93,6 +93,9 @@ def test_build_render_command_carries_inputs(tmp_path: Path) -> None:
     assert _arg(cmd, "--commentary").endswith("commentary.json")
     assert str(request.input_path) == _arg(cmd, "--input")
     assert _arg(cmd, "--original-gain-db") == "-15.0"
+    # Pipeline now threads the narrator voice (defaults to the built-in designed
+    # voice — never borrows the cast's voice unless "source" is chosen).
+    assert _arg(cmd, "--narrator-voice") == "narrator-male-calm"
 
 
 def test_parse_progress_line() -> None:

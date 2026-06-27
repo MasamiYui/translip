@@ -82,21 +82,19 @@ class CommentaryRenderAdapter(ToolAdapter):
             ost0 = [it for it in items if int(it.get("ost", 0) or 0) == 0 and str(it.get("narration") or "").strip()]
             narration_durations: dict[int, float] = {}
             narration_paths: dict[int, Path] = {}
-            # qwen3tts is clone-only: narration synth needs a reference voice. When
-            # the user didn't upload one, borrow a clean ~8s speech slice from the
-            # source as a fallback timbre so the tool works out of the box (matches
-            # the asr-commentary pipeline's behaviour).
+            # Resolve the narrator timbre: an uploaded reference wins; otherwise the
+            # narrator_voice selector (built-in designed voice / "source" / default)
+            # decides. The default is a built-in designed voice — it never borrows
+            # the cast's voice from the source.
             if reference_path is None and ost0:
-                reference_path = work / "narrator_ref.wav"
-                ref_start = max(0.0, min(source_duration * 0.25, max(0.0, source_duration - 8.0)))
-                self._run_ffmpeg(
-                    [
-                        ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
-                        "-ss", f"{ref_start:.3f}", "-i", str(video_path), "-t", "8",
-                        "-vn", "-ac", "1", "-ar", "24000", str(reference_path),
-                    ],
-                    work / "narrator_ref.log",
-                    should_cancel,
+                from translip.commentary.voices import resolve_narrator_reference
+
+                reference_path = resolve_narrator_reference(
+                    params.get("narrator_voice"),
+                    language=language,
+                    work_dir=work,
+                    source_path=video_path,
+                    source_duration=source_duration,
                 )
             for index, item in enumerate(ost0):
                 item_id = int(item["id"])

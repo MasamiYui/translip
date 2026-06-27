@@ -73,6 +73,8 @@ def build_commentary_render_command(request: PipelineRequest) -> list[str]:
         str(request.commentary_narration_language),
         "--original-gain-db",
         str(float(request.commentary_original_gain_db)),
+        "--narrator-voice",
+        str(request.commentary_narrator_voice),
     ]
 
 

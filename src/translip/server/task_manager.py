@@ -65,6 +65,7 @@ def _build_pipeline_request(task: Task) -> PipelineRequest:
         commentary_backend=cfg.get("commentary_backend", "qwen3tts"),
         commentary_narration_language=cfg.get("commentary_narration_language", "zh"),
         commentary_original_gain_db=float(cfg.get("commentary_original_gain_db", -15.0)),
+        commentary_narrator_voice=cfg.get("commentary_narrator_voice", "narrator-male-calm"),
         ocr_classify_text=bool(cfg.get("ocr_classify_text", False)),
         erase_qc_enabled=bool(cfg.get("erase_qc_enabled", False)),
         erase_qc_max_units=int(cfg.get("erase_qc_max_units", 40)),

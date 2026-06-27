@@ -30,6 +30,7 @@ from typing import Any
 from .chain import CommentaryOptions, generate_commentary_script
 from .inputs import build_story_document, load_segments, load_visual_units
 from .render import build_clip_command, build_concat_command, plan_render, write_concat_list
+from .voices import DEFAULT_NARRATOR_VOICE, resolve_narrator_reference
 
 # Parsed by orchestration/commentary_bridge.py to drive progress bars. Kept as a
 # literal there too so the bridge stays free of this module at import time.
@@ -132,29 +133,6 @@ def _make_narrator_backend():
     return QwenTTSBackend(requested_device="auto", clone_mode="xvec")
 
 
-def _prepare_narrator_reference(
-    *, source_path: Path, work_dir: Path, source_duration: float, provided: Path | None
-) -> Path:
-    """Return a reference voice for narration cloning.
-
-    Uses ``provided`` (a user-supplied narrator voice) when given; otherwise borrows
-    a clean ~8s speech slice from the source as a fallback timbre, so the one-click
-    pipeline works without a separate narrator upload.
-    """
-    if provided is not None and provided.exists():
-        return provided
-    from ..utils.ffmpeg import ffmpeg_binary
-
-    reference = work_dir / "narrator_ref.wav"
-    start = max(0.0, min(source_duration * 0.25, max(0.0, source_duration - 8.0)))
-    _run_ffmpeg([
-        ffmpeg_binary(), "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
-        "-ss", f"{start:.3f}", "-i", str(source_path), "-t", "8",
-        "-vn", "-ac", "1", "-ar", "24000", str(reference),
-    ])
-    return reference
-
-
 def _synthesize_narration(
     backend, reference_path: Path, text: str, language: str, output_path: Path
 ) -> float:
@@ -197,6 +175,7 @@ def run_render(
     backend: str,
     language: str | None,
     original_gain_db: float,
+    narrator_voice: str | None = None,
     reference_audio_path: Path | None = None,
 ) -> Path:
     from ..utils.ffmpeg import ffmpeg_binary, probe_media, probe_video_resolution
@@ -225,11 +204,16 @@ def run_render(
     narration_durations: dict[int, float] = {}
     narration_paths: dict[int, Path] = {}
     if ost0:
-        reference_path = _prepare_narrator_reference(
-            source_path=input_path,
+        # An explicit uploaded reference (CLI --reference) wins; otherwise the
+        # narrator-voice selector (built-in id / "source" / path) decides. The
+        # default is a built-in designed voice — never borrow the cast's voice.
+        selector = str(reference_audio_path) if reference_audio_path else narrator_voice
+        reference_path = resolve_narrator_reference(
+            selector,
+            language=narration_language,
             work_dir=work_dir,
+            source_path=input_path,
             source_duration=source_duration,
-            provided=reference_audio_path,
         )
         narrator_backend = _make_narrator_backend()
         for index, item in enumerate(ost0):
@@ -275,6 +259,7 @@ def run_render(
 
     report = {
         "backend": backend,
+        "narrator_voice": narrator_voice or DEFAULT_NARRATOR_VOICE,
         "narration_language": narration_language,
         "timeline_duration_sec": round(sum(spec.av_duration for spec in specs), 3),
         "clip_count": len(specs),
@@ -301,7 +286,7 @@ def run_render(
         node="commentary-render",
         task="render",
         artifacts=[recap_path.name, report_path.name, manifest_path.name],
-        params={"backend": backend, "narration_language": narration_language, "original_gain_db": float(original_gain_db)},
+        params={"backend": backend, "narrator_voice": narrator_voice or DEFAULT_NARRATOR_VOICE, "narration_language": narration_language, "original_gain_db": float(original_gain_db)},
     )
     _progress(100.0, "recap ready")
     return manifest_path
@@ -324,7 +309,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--commentary", default=None, help="commentary.json (task=render)")
     parser.add_argument("--input", default=None, help="source video (task=render)")
     parser.add_argument("--backend", default="qwen3tts", help="TTS backend (task=render)")
-    parser.add_argument("--reference", default=None, help="narrator voice reference audio (task=render); auto-borrowed from source if omitted")
+    parser.add_argument("--narrator-voice", default=None, help="built-in narrator voice id, 'source' (borrow from video), or a reference audio path (task=render); defaults to the built-in default voice")
+    parser.add_argument("--reference", default=None, help="explicit narrator reference audio path (task=render); overrides --narrator-voice when given")
     parser.add_argument("--original-gain-db", type=float, default=-15.0)
     # shared
     parser.add_argument("--language", default="zh", help="narration language")
@@ -356,6 +342,7 @@ def main(argv: list[str] | None = None) -> int:
             backend=args.backend,
             language=args.language,
             original_gain_db=float(args.original_gain_db),
+            narrator_voice=args.narrator_voice,
             reference_audio_path=Path(args.reference) if args.reference else None,
         )
     return 0

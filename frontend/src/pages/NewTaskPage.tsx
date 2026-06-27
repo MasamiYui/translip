@@ -605,6 +605,12 @@ export function NewTaskPage() {
     queryFn: configApi.getDefaults,
   })
 
+  const { data: narratorVoices } = useQuery({
+    queryKey: ['narrator-voices'],
+    queryFn: configApi.narratorVoices,
+    staleTime: Infinity,
+  })
+
   // Seed the form with saved global defaults once they load, exactly once.
   // Adjusted during render (guarded by the applied flag so it converges) rather
   // than in an effect, which would be a set-state-in-effect.
@@ -916,6 +922,22 @@ export function NewTaskPage() {
                 />
               </Field>
             </div>
+            <Field
+              label={locale === 'zh-CN' ? '解说音色' : 'Narrator Voice'}
+              hint={locale === 'zh-CN' ? '内置 AI 解说音色；「借用源片音色」用原片人声' : 'Built-in AI narrator voice; "Borrow from source" reuses the cast voice'}
+            >
+              <Select
+                value={config.commentary_narrator_voice ?? 'narrator-male-calm'}
+                options={[
+                  ...(narratorVoices ?? [
+                    { id: 'narrator-male-calm', name_zh: '沉稳男声', name_en: 'Calm Male', gender: 'male' },
+                    { id: 'narrator-female-bright', name_zh: '知性女声', name_en: 'Bright Female', gender: 'female' },
+                  ]).map(v => ({ value: v.id, label: locale === 'zh-CN' ? v.name_zh : v.name_en })),
+                  { value: 'source', label: locale === 'zh-CN' ? '借用源片音色' : 'Borrow from source' },
+                ]}
+                onChange={value => patchConfig({ commentary_narrator_voice: value })}
+              />
+            </Field>
             <Field
               label={locale === 'zh-CN' ? '原片占比（%）' : 'Original Sound %'}
               hint={locale === 'zh-CN' ? '保留原声片段的目标时长占比，0 = 全程解说旁白' : 'Target share of kept original-sound clips; 0 = narration only'}

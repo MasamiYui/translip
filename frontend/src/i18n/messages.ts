@@ -1456,6 +1456,7 @@ const zhMessages = {
         soundRatio: '原片占比 (%)',
         backend: '配音音色后端',
         gain: '原声压低 (dB)',
+        narratorVoice: '解说音色',
       },
       styleOptions: {
         plot_recap: '剧情解说',
@@ -1475,8 +1476,11 @@ const zhMessages = {
         soundRatio: '保留原声(OST=1)片段的目标时长占比，0=全程解说旁白',
         language: '留空则沿用解说文案 JSON 中记录的语言',
         gain: 'OST=0 解说段落里原声被压低到的增益，越低原声越弱',
+        narratorVoice: '内置 AI 解说音色（VoiceDesign 设计音色）；选「借用源片音色」用原片人声，或上方上传自己的解说员录音克隆',
       },
       languageFollow: '跟随文案',
+      narratorVoiceOptions: { maleCalm: '沉稳男声', femaleBright: '知性女声' },
+      voiceBorrowSource: '借用源片音色',
       review: {
         title: '解说文案审稿',
         hint: '可逐段修改解说词、切换「解说 / 原声」、删除片段；确认后一键保存并用于渲染成片。',
@@ -3923,6 +3927,7 @@ const enMessages: LocaleMessages = {
         soundRatio: 'Original Sound %',
         backend: 'Voice Backend',
         gain: 'Duck Original (dB)',
+        narratorVoice: 'Narrator Voice',
       },
       styleOptions: {
         plot_recap: 'Plot Recap',
@@ -3942,8 +3947,11 @@ const enMessages: LocaleMessages = {
         soundRatio: 'Target share of kept original-sound (OST=1) clips; 0 = narration over everything',
         language: 'Leave blank to use the language recorded in the commentary JSON',
         gain: 'How far the original audio is ducked under narration (OST=0); lower = quieter original',
+        narratorVoice: 'Built-in AI narrator voice (VoiceDesign); pick "Borrow from source" to reuse the cast voice, or upload your own narrator clip above',
       },
       languageFollow: 'Follow script',
+      narratorVoiceOptions: { maleCalm: 'Calm Male', femaleBright: 'Bright Female' },
+      voiceBorrowSource: 'Borrow from source',
       review: {
         title: 'Review Commentary Script',
         hint: 'Edit each line, toggle Narration / Original, or drop a clip — then save and send to render.',

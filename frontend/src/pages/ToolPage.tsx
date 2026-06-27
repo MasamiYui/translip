@@ -1679,6 +1679,18 @@ function renderControls(
     return (
       <div className="grid gap-4 md:grid-cols-3">
         <SelectField
+          label={atomicTools.commentary.fields.narratorVoice}
+          hint={atomicTools.commentary.hints.narratorVoice}
+          hintAriaLabel={atomicTools.hints.termHintAria}
+          value={String(params.narrator_voice ?? 'narrator-male-calm')}
+          options={[
+            { value: 'narrator-male-calm', label: atomicTools.commentary.narratorVoiceOptions.maleCalm },
+            { value: 'narrator-female-bright', label: atomicTools.commentary.narratorVoiceOptions.femaleBright },
+            { value: 'source', label: atomicTools.commentary.voiceBorrowSource },
+          ]}
+          onChange={value => setField('narrator_voice', value)}
+        />
+        <SelectField
           label={atomicTools.commentary.fields.backend}
           hint={atomicTools.hints.ttsBackend}
           hintAriaLabel={atomicTools.hints.termHintAria}

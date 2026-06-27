@@ -153,6 +153,16 @@ def migrate_deepseek_base_url_to_user_settings() -> None:
     _save_config(config)
 
 
+@router.get("/narrator-voices", summary="内置解说音色列表")
+def list_narrator_voices_endpoint() -> list[dict[str, str]]:
+    from translip.commentary.voices import list_narrator_voices
+
+    return [
+        {"id": v.id, "name_zh": v.name_zh, "name_en": v.name_en, "gender": v.gender}
+        for v in list_narrator_voices()
+    ]
+
+
 @router.get("/defaults", summary="默认全局配置")
 def get_defaults():
     """获取全局默认配置（内置默认值叠加已保存的全局覆盖项），用于初始化表单。"""
