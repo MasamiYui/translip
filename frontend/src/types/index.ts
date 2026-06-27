@@ -3,9 +3,9 @@ export type StageStatus = 'pending' | 'running' | 'succeeded' | 'cached' | 'fail
 export type WorkflowStatus = TaskStatus
 export type WorkflowEdgeState = 'inactive' | 'active' | 'completed' | 'blocked'
 export type WorkflowNodeGroup = 'audio-spine' | 'ocr-subtitles' | 'visual-perception' | 'video-cleanup' | 'commentary' | 'delivery'
-export type TaskOutputIntent = 'dub_final' | 'bilingual_review' | 'english_subtitle' | 'fast_validation'
+export type TaskOutputIntent = 'dub_final' | 'bilingual_review' | 'english_subtitle' | 'fast_validation' | 'commentary_recap'
 export type TaskQualityPreset = 'fast' | 'standard' | 'high_quality'
-export type TaskExportProfile = 'dub_no_subtitles' | 'bilingual_review' | 'english_subtitle_burned' | 'preview_only'
+export type TaskExportProfile = 'dub_no_subtitles' | 'bilingual_review' | 'english_subtitle_burned' | 'preview_only' | 'commentary_recap'
 export type TaskExportReadinessStatus = 'not_ready' | 'ready' | 'exported' | 'blocked' | 'exporting'
 export type HardSubtitleStatus = 'none' | 'confirmed'
 export type BilingualExportStrategy =
@@ -36,6 +36,7 @@ export interface TaskAssetSummary {
     subtitle_preview: TaskAssetEntry
     final_preview: TaskAssetEntry
     final_dub: TaskAssetEntry
+    recap: TaskAssetEntry
   }
 }
 

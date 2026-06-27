@@ -91,6 +91,7 @@ function mockTask(id: string) {
         subtitle_preview: { status: 'missing', path: null },
         final_preview: { status: 'missing', path: null },
         final_dub: { status: 'missing', path: null },
+        recap: { status: 'missing', path: null },
       },
     },
     export_readiness: {
@@ -174,6 +175,56 @@ describe('TaskDetailPage export workflow', () => {
         episode_label: 'E03',
       })
     })
+  })
+
+  it('shows a commentary recap delivery card and hides dubbing delivery UI', async () => {
+    const base = mockTask('task-commentary')
+    const commentaryTask = {
+      ...base,
+      output_intent: 'commentary_recap',
+      config: { template: 'asr-commentary', commentary_style: 'plot_recap' },
+      asset_summary: {
+        ...base.asset_summary,
+        exports: {
+          ...base.asset_summary.exports,
+          recap: { status: 'available', path: 'commentary-render/recap.mp4' },
+        },
+      },
+      export_readiness: {
+        status: 'exported',
+        recommended_profile: 'commentary_recap',
+        summary: 'already_exported',
+        blockers: [],
+      },
+      last_export_summary: {
+        status: 'exported',
+        profile: 'commentary_recap',
+        updated_at: '2026-06-27T00:00:00Z',
+        files: [{ kind: 'recap', label: '解说成片', path: 'commentary-render/recap.mp4' }],
+      },
+    }
+    vi.mocked(tasksApi.get).mockResolvedValue(commentaryTask as never)
+    vi.mocked(tasksApi.listArtifacts).mockResolvedValue({ artifacts: [] } as never)
+    vi.mocked(tasksApi.getGraph).mockResolvedValue({
+      workflow: { template_id: 'asr-commentary', status: 'succeeded' },
+      nodes: [{ id: 'commentary-render', label: '解说渲染', group: 'commentary', required: true, status: 'succeeded', progress_percent: 100 }],
+      edges: [],
+    } as never)
+    vi.mocked(tasksApi.getSpeakerReview).mockResolvedValue({ task_id: 'task-commentary', status: 'missing' } as never)
+    vi.mocked(worksApi.list).mockResolvedValue({ ok: true, path: '/tmp/works.json', works: [], unassigned_count: 0, version: 1 } as never)
+
+    render(<TaskDetailPage />, { wrapper: createWrapper() })
+
+    // 解说成品卡：标题 + recap 下载链接（复用通用 artifacts 下载 URL）
+    await screen.findByText('解说成品')
+    const recapLink = await screen.findByRole('link', { name: '下载解说成片' })
+    expect(recapLink).toHaveAttribute('href', '/api/tasks/task-commentary/artifacts/commentary-render/recap.mp4')
+
+    // 解说任务隐藏所有配音交付 UI
+    expect(screen.queryByText('说话人核对')).not.toBeInTheDocument()
+    expect(screen.queryByText('专业配音编辑台')).not.toBeInTheDocument()
+    expect(screen.queryByText('成品素材清单')).not.toBeInTheDocument()
+    expect(screen.queryByText('纯配音音轨')).not.toBeInTheDocument()
   })
 
   it('opens speaker review drawer and saves speaker decisions', async () => {

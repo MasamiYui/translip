@@ -181,6 +181,16 @@ const PROFILE_CONFIG: Record<
     audioLabel: '预览混音音轨',
     description: '快速生成可看片预览，优先验证整体结果。',
   },
+  // 解说成片由 commentary-render 直接产出，不走配音导出抽屉；此条目仅用于类型完整，
+  // 在导出抽屉的 profile 列表中被过滤掉（见下方 PROFILE_CONFIG 遍历）。
+  commentary_recap: {
+    subtitleMode: 'none',
+    exportPreview: false,
+    exportDub: false,
+    videoLabel: '解说成片',
+    audioLabel: '解说混音',
+    description: '解说成片由解说渲染阶段直接产出，可在交付区预览与下载。',
+  },
 }
 
 export function TaskDetailPage() {
@@ -429,7 +439,12 @@ export function TaskDetailPage() {
     )
   }
 
-  const readinessMessage = getReadinessMessage(task)
+  const isCommentary = task.output_intent === 'commentary_recap'
+  const commentaryReadinessMessage =
+    task.export_readiness.status === 'exported'
+      ? '解说成片已生成，可直接预览或下载。'
+      : '解说成片尚未生成，请补跑解说渲染。'
+  const readinessMessage = isCommentary ? commentaryReadinessMessage : getReadinessMessage(task)
   const canOpenExportDrawer = task.export_readiness.status === 'ready' || task.export_readiness.status === 'exported'
   const effectiveBilingualExportStrategy = resolveEffectiveBilingualStrategy(task, exportProfile, bilingualExportStrategy)
   const shouldShowHardSubtitleWarning = shouldWarnAboutHardSubtitles(task, exportProfile)
@@ -689,16 +704,18 @@ export function TaskDetailPage() {
             <ReadinessPill status={task.export_readiness.status} />
           </div>
 
-          {/* 三步流程 */}
-          <DeliveryFlowStrip
-            taskId={task.id}
-            status={speakerReviewStatus}
-            canOpenExportDrawer={canOpenExportDrawer}
-            onOpenSpeakerReview={openSpeakerReview}
-            onOpenExport={() => setExportDrawerOpen(true)}
-            onRerunFromTaskB={speakerReviewStatus.state === 'applied' ? () => rerunMutation.mutate('speaker-registry') : undefined}
-            isRerunPending={rerunMutation.isPending}
-          />
+          {/* 三步流程（配音任务专属；解说任务直接展示成品，无说话人/编辑台环节） */}
+          {!isCommentary && (
+            <DeliveryFlowStrip
+              taskId={task.id}
+              status={speakerReviewStatus}
+              canOpenExportDrawer={canOpenExportDrawer}
+              onOpenSpeakerReview={openSpeakerReview}
+              onOpenExport={() => setExportDrawerOpen(true)}
+              onRerunFromTaskB={speakerReviewStatus.state === 'applied' ? () => rerunMutation.mutate('speaker-registry') : undefined}
+              isRerunPending={rerunMutation.isPending}
+            />
+          )}
 
           {/* 状态 + 最近导出 */}
           <div className="mt-6 space-y-4">
@@ -745,11 +762,11 @@ export function TaskDetailPage() {
 
             {/* 最近导出结果 */}
             {exportFiles.length === 0 ? (
-              <p className="text-sm text-slate-400">当前还没有导出的成品文件。</p>
+              <p className="text-sm text-slate-400">{isCommentary ? '解说成片尚未生成。' : '当前还没有导出的成品文件。'}</p>
             ) : (
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
                 <div className="mb-2.5 flex items-center gap-2">
-                  <span className="text-xs font-semibold text-slate-700">最近导出结果</span>
+                  <span className="text-xs font-semibold text-slate-700">{isCommentary ? '解说成品' : '最近导出结果'}</span>
                   {lastExportStrategyLabel && (
                     <span className="text-xs text-slate-400">— {lastExportStrategyLabel}</span>
                   )}
@@ -803,7 +820,8 @@ export function TaskDetailPage() {
             )}
           </div>
 
-          {/* 成品素材清单：紧凑 checklist */}
+          {/* 成品素材清单：紧凑 checklist（配音任务专属，解说任务隐藏） */}
+          {!isCommentary && (
           <div className="mt-6 border-t border-slate-100 pt-5">
             {(() => {
               const assetItems: Array<{ icon: LucideIcon; title: string; description: string; entry: TaskAssetEntry; href: string | null }> = [
@@ -876,6 +894,7 @@ export function TaskDetailPage() {
               )
             })()}
           </div>
+          )}
         </div>
       </div>
 
@@ -952,7 +971,7 @@ export function TaskDetailPage() {
                   {showProfileOverrides && (
                     <div id="delivery-profile-overrides" className="mt-4 border-t border-slate-200 pt-4">
                       <div className="grid gap-3 md:grid-cols-2">
-                        {(Object.keys(PROFILE_CONFIG) as TaskExportProfile[]).map(profile => (
+                        {(Object.keys(PROFILE_CONFIG) as TaskExportProfile[]).filter(profile => profile !== 'commentary_recap').map(profile => (
                           <button
                             key={profile}
                             type="button"
@@ -1209,8 +1228,10 @@ export function TaskDetailPage() {
 function normalizeTemplateId(value: unknown): TaskConfig['template'] {
   if (
     value === 'asr-dub-basic' ||
+    value === 'asr-dub+visual' ||
     value === 'asr-dub+ocr-subs' ||
-    value === 'asr-dub+ocr-subs+erase'
+    value === 'asr-dub+ocr-subs+erase' ||
+    value === 'asr-commentary'
   ) {
     return value
   }
@@ -1311,6 +1332,8 @@ function blockerActionToStage(action: string, fallbackStage: string): string | n
       return 'translation'
     case 'rerun_audio_pipeline':
       return 'render'
+    case 'rerun_commentary_render':
+      return 'commentary-render'
     case 'rerun_task':
       return fallbackStage
     default:

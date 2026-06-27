@@ -12,12 +12,14 @@ const outputIntentLabels = {
     bilingual_review: '双语审片版',
     english_subtitle: '英文字幕版',
     fast_validation: '快速验证版',
+    commentary_recap: '解说视频',
   },
   'en-US': {
     dub_final: 'English Dub Master',
     bilingual_review: 'Bilingual Review',
     english_subtitle: 'English Subtitle',
     fast_validation: 'Fast Validation',
+    commentary_recap: 'Commentary Recap',
   },
 } as const
 
@@ -40,12 +42,14 @@ const exportProfileLabels = {
     bilingual_review: '双语审片版',
     english_subtitle_burned: '英文字幕版',
     preview_only: '预览版',
+    commentary_recap: '解说成片',
   },
   'en-US': {
     dub_no_subtitles: 'Dub Only',
     bilingual_review: 'Bilingual Review',
     english_subtitle_burned: 'English Subtitle',
     preview_only: 'Preview Only',
+    commentary_recap: 'Commentary Recap',
   },
 } as const
 

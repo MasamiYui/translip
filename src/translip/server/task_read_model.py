@@ -13,16 +13,27 @@ _INTENT_TO_PROFILE = {
     "bilingual_review": "bilingual_review",
     "english_subtitle": "english_subtitle_burned",
     "fast_validation": "preview_only",
+    "commentary_recap": "commentary_recap",
 }
+
+
+def _is_commentary_task(config: Mapping[str, Any] | None) -> bool:
+    """True for asr-commentary (解说/recap) tasks — their deliverable is recap.mp4."""
+    return normalize_task_config(config).get("template") == "asr-commentary"
 
 
 def infer_output_intent(config: Mapping[str, Any] | None) -> str:
     pipeline = normalize_task_config(config)
+    template = pipeline.get("template")
+    # Commentary tasks only ever produce a recap. Decide BEFORE the explicit
+    # output_intent check: normalize_task_config injects a default
+    # output_intent="dub_final" that would otherwise mislabel a commentary task.
+    if template == "asr-commentary":
+        return "commentary_recap"
     explicit = pipeline.get("output_intent")
     if isinstance(explicit, str) and explicit:
         return explicit
 
-    template = pipeline.get("template")
     video_source = pipeline.get("video_source")
     if template == "asr-dub+ocr-subs+erase" or video_source in {"clean", "clean_if_available"}:
         return "english_subtitle"
@@ -56,6 +67,7 @@ def build_asset_summary(task: Task) -> dict[str, dict[str, dict[str, str | None]
     preview_video = _first_glob(root, f"final_preview.{target_lang}.mp4")
     dub_video = _first_glob(root, f"final_dub.{target_lang}.mp4")
     subtitle_preview = _first_glob(root, "subtitle-preview.mp4")
+    recap_video = root / "commentary-render" / "recap.mp4"
 
     return {
         "video": {
@@ -74,6 +86,7 @@ def build_asset_summary(task: Task) -> dict[str, dict[str, dict[str, str | None]
             "subtitle_preview": _asset_entry(subtitle_preview, root),
             "final_preview": _asset_entry(preview_video, root),
             "final_dub": _asset_entry(dub_video, root),
+            "recap": _asset_entry(recap_video, root),
         },
     }
 
@@ -109,6 +122,30 @@ def build_export_readiness(
                     "message": "任务尚未成功完成，当前无法导出。",
                     "action": "rerun_task",
                     "action_label": "从失败阶段重跑",
+                }
+            ],
+        }
+
+    if _is_commentary_task(task.config):
+        # Commentary tasks deliver recap.mp4 directly (no export-video step). The
+        # recap IS the finished product, so existence => ready-to-download.
+        if _available(asset_summary, "exports", "recap"):
+            return {
+                "status": "exported",
+                "recommended_profile": recommended_profile,
+                "summary": "already_exported",
+                "blockers": [],
+            }
+        return {
+            "status": "blocked",
+            "recommended_profile": recommended_profile,
+            "summary": "missing_required_assets",
+            "blockers": [
+                {
+                    "code": "missing_recap",
+                    "message": "解说成片尚未生成。",
+                    "action": "rerun_commentary_render",
+                    "action_label": "补跑解说渲染",
                 }
             ],
         }
@@ -239,6 +276,20 @@ def build_last_export_summary(
     asset_summary: Mapping[str, Any],
 ) -> dict[str, Any]:
     root = Path(task.output_root)
+    if _is_commentary_task(task.config):
+        recap = asset_summary["exports"]["recap"]
+        if recap.get("status") != "available" or not recap.get("path"):
+            return {"status": "not_exported", "profile": None, "updated_at": None, "files": []}
+        recap_path = root / recap["path"]
+        updated_at = (
+            datetime.fromtimestamp(recap_path.stat().st_mtime) if recap_path.exists() else None
+        )
+        return {
+            "status": "exported",
+            "profile": "commentary_recap",
+            "updated_at": updated_at,
+            "files": [{"kind": "recap", "label": "解说成片", "path": recap["path"]}],
+        }
     delivery_config = normalize_task_delivery_config(task.config)
     report_summary = _last_export_files_from_report(root, delivery_config=delivery_config)
     report_path: Path | None = None

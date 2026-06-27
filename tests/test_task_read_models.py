@@ -300,3 +300,99 @@ def test_task_read_model_surfaces_transcription_correction_summary(tmp_path: Pat
     assert payload["transcription_correction_summary"]["corrected_count"] == 6
     assert payload["transcription_correction_summary"]["ocr_only_count"] == 1
     assert payload["transcription_correction_summary"]["algorithm_version"] == "ocr-guided-asr-correction-v1"
+
+
+def test_task_read_marks_commentary_recap_as_exported(tmp_path: Path) -> None:
+    db_path = tmp_path / "task-read-commentary.db"
+    engine = create_engine(
+        f"sqlite:///{db_path}",
+        connect_args={"check_same_thread": False},
+    )
+    SQLModel.metadata.create_all(engine)
+
+    output_root = tmp_path / "output"
+    (output_root / "commentary-render").mkdir(parents=True)
+    (output_root / "commentary-render" / "recap.mp4").write_bytes(b"recap-video")
+    (tmp_path / "input.mp4").write_bytes(b"video")
+
+    with Session(engine) as session:
+        session.add(
+            Task(
+                id="task-commentary-ready",
+                name="Commentary Ready",
+                status="succeeded",
+                input_path=str(tmp_path / "input.mp4"),
+                output_root=str(output_root),
+                source_lang="zh",
+                target_lang="en",
+                # Inject output_intent="dub_final" to mirror normalize_task_config's
+                # default injection — commentary detection must win over it.
+                config={"pipeline": {"template": "asr-commentary", "commentary_style": "plot_recap", "output_intent": "dub_final"}},
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+            )
+        )
+        session.commit()
+
+    app.dependency_overrides[get_session] = _override_session(engine)
+    try:
+        client = TestClient(app)
+        response = client.get("/api/tasks/task-commentary-ready")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["output_intent"] == "commentary_recap"
+    assert payload["asset_summary"]["exports"]["recap"]["status"] == "available"
+    assert payload["asset_summary"]["exports"]["recap"]["path"] == "commentary-render/recap.mp4"
+    assert payload["export_readiness"]["status"] == "exported"
+    assert payload["export_readiness"]["recommended_profile"] == "commentary_recap"
+    assert payload["export_readiness"]["blockers"] == []
+    files = payload["last_export_summary"]["files"]
+    assert files and files[0]["path"] == "commentary-render/recap.mp4"
+    assert payload["last_export_summary"]["status"] == "exported"
+
+
+def test_task_read_marks_commentary_blocked_without_recap(tmp_path: Path) -> None:
+    db_path = tmp_path / "task-read-commentary-missing.db"
+    engine = create_engine(
+        f"sqlite:///{db_path}",
+        connect_args={"check_same_thread": False},
+    )
+    SQLModel.metadata.create_all(engine)
+
+    output_root = tmp_path / "output"
+    output_root.mkdir(parents=True)
+    (tmp_path / "input.mp4").write_bytes(b"video")
+
+    with Session(engine) as session:
+        session.add(
+            Task(
+                id="task-commentary-missing",
+                name="Commentary Missing",
+                status="succeeded",
+                input_path=str(tmp_path / "input.mp4"),
+                output_root=str(output_root),
+                source_lang="zh",
+                target_lang="en",
+                config={"pipeline": {"template": "asr-commentary"}},
+                created_at=datetime.now(),
+                updated_at=datetime.now(),
+            )
+        )
+        session.commit()
+
+    app.dependency_overrides[get_session] = _override_session(engine)
+    try:
+        client = TestClient(app)
+        response = client.get("/api/tasks/task-commentary-missing")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["output_intent"] == "commentary_recap"
+    assert payload["export_readiness"]["status"] == "blocked"
+    assert any(b["code"] == "missing_recap" for b in payload["export_readiness"]["blockers"])
+    assert payload["last_export_summary"]["status"] == "not_exported"
