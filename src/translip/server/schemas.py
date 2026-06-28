@@ -93,8 +93,11 @@ class TaskConfigInput(BaseModel):
     vision_frames_per_unit: int = Field(default=4, ge=1, le=8, description="画面感知每单元抽帧数")
     vision_lang: Literal["zh", "en"] = Field(default="zh", description="画面感知输出语言")
     # Commentary pipeline (asr-commentary template)
-    commentary_style: Literal["plot_recap", "frame_riff"] = Field(
-        default="plot_recap", description="解说类型：plot_recap=剧情解说；frame_riff=逐帧吐槽（暂未实现）"
+    commentary_style: Literal[
+        "plot_recap", "plot_tease", "analysis", "roast", "reaction", "tutorial", "frame_riff"
+    ] = Field(
+        default="plot_recap",
+        description="解说模式：plot_recap=剧情解说；plot_tease=悬念预告；analysis=影视解读；roast=吐槽锐评；reaction=实时反应；tutorial=教学科普；frame_riff=逐帧吐槽（预留）",
     )
     commentary_genre: str = Field(default="剧情", description="解说影视类型（剧情/悬疑/动作等），影响叙事重点")
     commentary_original_sound_ratio: int = Field(
@@ -104,6 +107,25 @@ class TaskConfigInput(BaseModel):
     commentary_narration_language: str = Field(default="zh", description="解说配音语言")
     commentary_original_gain_db: float = Field(
         default=-15.0, description="OST=0 片段里原声被压低到的增益(dB)"
+    )
+    commentary_narrator_voice: str = Field(
+        default="narrator-male-calm",
+        description="内置解说音色 id（如 narrator-male-calm）/ 'source' 借用源片音色 / 任意上传参考音频路径",
+    )
+    commentary_tone_preset: Literal[
+        "objective", "passionate", "humorous", "sarcastic", "suspenseful", "chill", "dramatic", "professional"
+    ] = Field(default="objective", description="解说语气人格")
+    commentary_pacing_preset: Literal["sparse", "balanced", "dense"] = Field(
+        default="balanced", description="解说节奏密度：sparse 克制 / balanced 标准 / dense 密集"
+    )
+    commentary_perspective: Literal[
+        "third_person", "first_person_narrator", "first_person_protagonist", "second_person", "god_view"
+    ] = Field(default="third_person", description="解说叙事人称")
+    commentary_audience: Literal[
+        "generic", "bilibili", "douyin", "xiaohongshu", "youtube_long", "wechat_video", "professional_b2b"
+    ] = Field(default="generic", description="解说受众/平台风格")
+    commentary_style_intensity: float = Field(
+        default=0.6, ge=0.0, le=1.0, description="解说风格强度（0=轻度，1=强烈）"
     )
     ocr_classify_text: bool = Field(
         default=False,

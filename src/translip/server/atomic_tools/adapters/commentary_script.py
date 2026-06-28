@@ -42,6 +42,11 @@ class CommentaryScriptAdapter(ToolAdapter):
             language=params.get("narration_language", "zh"),
             original_sound_ratio=int(params.get("original_sound_ratio", 20)),
             model=params.get("model"),
+            tone_preset=params.get("tone_preset", "objective"),
+            pacing_preset=params.get("pacing_preset", "balanced"),
+            perspective=params.get("perspective", "third_person"),
+            audience=params.get("audience", "generic"),
+            style_intensity=float(params.get("style_intensity", 0.6)),
         )
 
         # Raises BackendUnavailableError (clear message) when DEEPSEEK_API_KEY is unset.
@@ -68,6 +73,11 @@ class CommentaryScriptAdapter(ToolAdapter):
             "realized_ost1_ratio": script.realized_ost1_ratio(),
             "commentary_style": script.style,
             "narration_language": script.language,
+            "tone_preset": script.tone_preset,
+            "pacing_preset": script.pacing_preset,
+            "perspective": script.perspective,
+            "audience": script.audience,
+            "style_intensity": script.style_intensity,
             "model": script.model,
             "source_truncated": story.truncated,
         }

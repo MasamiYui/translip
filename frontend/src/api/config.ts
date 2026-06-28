@@ -20,6 +20,15 @@ export interface NarratorVoiceInfo {
   name_zh: string
   name_en: string
   gender: string
+  native_language?: string
+  description_zh?: string
+  description_en?: string
+  preview_url?: string
+}
+
+export const narratorVoicePreviewUrl = (voiceId: string, language?: string) => {
+  const base = `/api/config/narrator-voices/${encodeURIComponent(voiceId)}/preview`
+  return language ? `${base}?language=${encodeURIComponent(language)}` : base
 }
 
 export const configApi = {

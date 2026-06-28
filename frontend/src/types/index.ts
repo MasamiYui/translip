@@ -234,13 +234,45 @@ export interface TaskConfig {
   vision_frames_per_unit?: number
   vision_lang?: 'zh' | 'en'
   // Commentary pipeline (asr-commentary template)
-  commentary_style?: 'plot_recap' | 'frame_riff'
+  commentary_style?:
+    | 'plot_recap'
+    | 'plot_tease'
+    | 'analysis'
+    | 'roast'
+    | 'reaction'
+    | 'tutorial'
+    | 'frame_riff'
   commentary_genre?: string
   commentary_original_sound_ratio?: number
   commentary_backend?: string
   commentary_narration_language?: string
   commentary_original_gain_db?: number
   commentary_narrator_voice?: string
+  commentary_tone_preset?:
+    | 'objective'
+    | 'passionate'
+    | 'humorous'
+    | 'sarcastic'
+    | 'suspenseful'
+    | 'chill'
+    | 'dramatic'
+    | 'professional'
+  commentary_pacing_preset?: 'sparse' | 'balanced' | 'dense'
+  commentary_perspective?:
+    | 'third_person'
+    | 'first_person_narrator'
+    | 'first_person_protagonist'
+    | 'second_person'
+    | 'god_view'
+  commentary_audience?:
+    | 'generic'
+    | 'bilibili'
+    | 'douyin'
+    | 'xiaohongshu'
+    | 'youtube_long'
+    | 'wechat_video'
+    | 'professional_b2b'
+  commentary_style_intensity?: number
   ocr_classify_text?: boolean
   erase_qc_enabled?: boolean
   erase_qc_max_units?: number

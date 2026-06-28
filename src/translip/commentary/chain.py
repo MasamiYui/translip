@@ -1,9 +1,12 @@
 """Orchestrate the 3-stage commentary-script chain: understand → plan → write.
 
-MVP is single-block (no map-reduce) and ``plot_recap`` only. The planner owns the
-timeline + OST assignment; the writer only fills narration text into the planned
-``ost=0`` slots (locked structure, mirroring NarratoAI's split). We then merge the
-two by id into the final OST-interleaved :class:`CommentaryScript`.
+MVP is single-block (no map-reduce). Phase-1 enables 6 modes (plot_recap,
+plot_tease, analysis, roast, reaction, tutorial) plus tone / pacing /
+perspective / audience knobs — all are *prompt-side* customizations. The
+planner owns the timeline + OST assignment; the writer only fills narration text
+into the planned ``ost=0`` slots (locked structure, mirroring NarratoAI's
+split). We then merge the two by id into the final OST-interleaved
+:class:`CommentaryScript`.
 """
 
 from __future__ import annotations
@@ -13,6 +16,7 @@ from typing import Any, Callable
 from ..config import DEFAULT_DEEPSEEK_MODEL
 from . import llm, prompts
 from .inputs import StoryDocument
+from .style_profiles import MODE_PROFILES, chars_per_second, resolve_pacing
 from .types import CommentaryItem, CommentaryOptions, CommentaryScript
 
 ProgressFn = Callable[[float, str | None], None]
@@ -20,8 +24,6 @@ ProgressFn = Callable[[float, str | None], None]
 # Items shorter than this (after clamping) are dropped — a degenerate window can't
 # host a clip. Matches video-trim's VIDEO_TRIM_MIN_WINDOW_SEC.
 _MIN_WINDOW_SEC = 0.1
-# Spoken-narration pacing: ~5 Chinese chars per second of video (字数/5 ≈ 秒数).
-_CHARS_PER_SEC = 5.0
 
 
 def generate_commentary_script(
@@ -30,9 +32,11 @@ def generate_commentary_script(
     options: CommentaryOptions,
     on_progress: ProgressFn | None = None,
 ) -> CommentaryScript:
-    if options.style != "plot_recap":
+    options = options.normalized()
+    if options.style not in MODE_PROFILES:
+        valid = ", ".join(sorted(MODE_PROFILES))
         raise ValueError(
-            f"commentary_style={options.style!r} 暂未实现（MVP 仅支持 plot_recap）。"
+            f"commentary_style={options.style!r} 暂未支持；可选：{valid}。"
         )
     progress = on_progress or (lambda _pct, _step=None: None)
 
@@ -55,7 +59,10 @@ def generate_commentary_script(
     )
     narration_by_id = _index_narration(items_raw)
 
-    items = _merge(plan, narration_by_id)
+    items = _merge(plan, narration_by_id, options=options)
+    if not items:
+        raise ValueError("script_generation 未产出任何 commentary item。请检查 LLM 输出格式。")
+
     return CommentaryScript(
         items=items,
         plot_analysis=plot,
@@ -64,6 +71,11 @@ def generate_commentary_script(
         language=options.language,
         original_sound_ratio=options.original_sound_ratio,
         model=options.model or DEFAULT_DEEPSEEK_MODEL,
+        tone_preset=options.tone_preset,
+        pacing_preset=options.pacing_preset,
+        perspective=options.perspective,
+        audience=options.audience,
+        style_intensity=options.style_intensity,
     )
 
 
@@ -131,7 +143,11 @@ def _index_narration(raw: dict[str, Any]) -> dict[str, tuple[str, str]]:
 def _merge(
     plan: list[dict[str, Any]],
     narration_by_id: dict[str, tuple[str, str]],
+    *,
+    options: CommentaryOptions,
 ) -> list[CommentaryItem]:
+    pacing = resolve_pacing(options.pacing_preset)
+    cps = chars_per_second(pacing, options.language)
     items: list[CommentaryItem] = []
     for new_id, seg in enumerate(plan, start=1):
         narration, picture = narration_by_id.get(str(seg["id"]), ("", ""))
@@ -141,7 +157,7 @@ def _merge(
             narration = ""
             est = seg["end"] - seg["start"]
         else:
-            est = round(len(narration) / _CHARS_PER_SEC, 2) if narration else 0.0
+            est = round(len(narration) / cps, 2) if narration else 0.0
         items.append(
             CommentaryItem(
                 id=new_id,

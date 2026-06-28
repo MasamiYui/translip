@@ -99,6 +99,7 @@ export const tasksApi = {
     status?: string
     target_lang?: string
     search?: string
+    intent?: 'dub' | 'commentary' | 'all'
     page?: number
     size?: number
   }) => api.get<TaskListResponse>('/api/tasks', { params }).then(r => r.data),

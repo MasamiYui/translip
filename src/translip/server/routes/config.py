@@ -11,7 +11,8 @@ import os
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
-from fastapi import APIRouter, HTTPException, Path as PathParam
+from fastapi import APIRouter, HTTPException, Path as PathParam, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from ...config import DEFAULT_RENDER_OUTPUT_SAMPLE_RATE
@@ -158,9 +159,85 @@ def list_narrator_voices_endpoint() -> list[dict[str, str]]:
     from translip.commentary.voices import list_narrator_voices
 
     return [
-        {"id": v.id, "name_zh": v.name_zh, "name_en": v.name_en, "gender": v.gender}
+        {
+            "id": v.id,
+            "name_zh": v.name_zh,
+            "name_en": v.name_en,
+            "gender": v.gender,
+            "native_language": v.native_language,
+            "description_zh": v.description_zh,
+            "description_en": v.description_en,
+            "preview_url": f"/api/config/narrator-voices/{v.id}/preview",
+        }
         for v in list_narrator_voices()
     ]
+
+
+@router.get(
+    "/narrator-voices/{voice_id}/preview",
+    summary="试听解说音色",
+    responses={
+        200: {"content": {"audio/wav": {}}},
+        404: {"description": "Voice id not found"},
+        500: {"description": "Failed to render preview audio"},
+    },
+)
+def preview_narrator_voice(
+    voice_id: Annotated[str, PathParam(description="解说音色 ID")],
+    language: Annotated[
+        Optional[str],
+        Query(description="试听语种（默认按该音色的母语；可显式传入 zh/en/ja/ko）"),
+    ] = None,
+) -> FileResponse:
+    """按需生成并缓存音色试听片段。
+
+    复用 ``translip.commentary.voices`` 中的缓存机制：首轮调用会渲染
+    ``Qwen3-TTS-12Hz-0.6B-CustomVoice`` 一次（落盘约 10 秒的中性解说样片），
+    之后所有请求都直接复用缓存 WAV，无需再次推理。
+    """
+    from translip.commentary import voices as narrator_voices
+
+    voice = narrator_voices.get_narrator_voice(voice_id)
+    if voice is None:
+        raise HTTPException(status_code=404, detail=f"Unknown narrator voice {voice_id!r}")
+
+    lang = language or voice.native_language or "zh"
+    cache_path = narrator_voices._reference_path(voice.id, lang)
+    if not (cache_path.exists() and cache_path.stat().st_size > 0):
+        try:
+            narrator_voices._generate_voice_reference(voice, lang, cache_path)
+        except Exception as exc:  # pragma: no cover - depends on model download
+            message = str(exc).strip() or exc.__class__.__name__
+            hint = ""
+            low = message.lower()
+            if any(
+                key in low
+                for key in (
+                    "connection",
+                    "timeout",
+                    "resolve",
+                    "huggingface.co",
+                    "hf-mirror",
+                    "proxy",
+                )
+            ):
+                hint = (
+                    " 提示：模型下载失败，请设置 HF_ENDPOINT=https://hf-mirror.com "
+                    "或检查网络连接后重试。"
+                )
+            elif "no module" in low or "import" in low:
+                hint = " 提示：依赖未安装，请运行 `uv sync` 后重试。"
+            raise HTTPException(
+                status_code=500,
+                detail=f"音色 {voice_id!r} 试听生成失败：{message}.{hint}",
+            ) from exc
+
+    return FileResponse(
+        path=str(cache_path),
+        media_type="audio/wav",
+        filename=f"{voice_id}.{narrator_voices._lang_key(lang)}.wav",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
 
 
 @router.get("/defaults", summary="默认全局配置")

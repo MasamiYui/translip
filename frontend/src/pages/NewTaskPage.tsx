@@ -1,10 +1,11 @@
-import { useId, useMemo, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronLeft, ChevronRight, Cpu, FolderOpen, Loader2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Cpu, FolderOpen, Loader2, Pause, Play } from 'lucide-react'
 import { tasksApi } from '../api/tasks'
 import { worksApi } from '../api/works'
-import { configApi, systemApi } from '../api/config'
+import { configApi, narratorVoicePreviewUrl, systemApi } from '../api/config'
+import type { NarratorVoiceInfo } from '../api/config'
 import { APP_CONTENT_MAX_WIDTH, PageContainer } from '../components/layout/PageContainer'
 import { buildTemplatePreviewGraph } from '../lib/workflowPreview'
 import { DUBBING_BACKEND_OPTIONS } from '../lib/dubbingBackends'
@@ -368,6 +369,292 @@ function SectionCard({
       </div>
       <div className={minimal ? 'space-y-4' : 'space-y-4 p-4'}>{children}</div>
     </section>
+  )
+}
+
+const NATIVE_LANGUAGE_LABELS: Record<string, { zh: string; en: string }> = {
+  zh: { zh: '中文', en: 'Chinese' },
+  en: { zh: '英文', en: 'English' },
+  ja: { zh: '日语', en: 'Japanese' },
+  ko: { zh: '韩语', en: 'Korean' },
+}
+
+export function NarratorVoicePicker({
+  value,
+  voices,
+  locale,
+  onChange,
+}: {
+  value: string
+  voices: NarratorVoiceInfo[] | undefined
+  locale: 'zh-CN' | 'en-US'
+  onChange: (id: string) => void
+}) {
+  const isZh = locale === 'zh-CN'
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
+  const objectUrlRef = useRef<string | null>(null)
+  const [previewing, setPreviewing] = useState<string | null>(null)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [previewLoading, setPreviewLoading] = useState<string | null>(null)
+
+  const fallbackVoices: NarratorVoiceInfo[] = useMemo(
+    () => [
+      { id: 'narrator-male-calm', name_zh: '沉稳男声', name_en: 'Calm Male', gender: 'male', native_language: 'zh' },
+      { id: 'narrator-female-bright', name_zh: '知性女声', name_en: 'Bright Female', gender: 'female', native_language: 'zh' },
+    ],
+    [],
+  )
+
+  const items = voices && voices.length > 0 ? voices : fallbackVoices
+
+  const releaseObjectUrl = () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current)
+      objectUrlRef.current = null
+    }
+  }
+
+  const cancelInflight = () => {
+    if (abortRef.current) {
+      abortRef.current.abort()
+      abortRef.current = null
+    }
+  }
+
+  const stopPreview = () => {
+    cancelInflight()
+    if (audioRef.current) {
+      audioRef.current.pause()
+      audioRef.current.removeAttribute('src')
+      audioRef.current.load()
+    }
+    releaseObjectUrl()
+    setPreviewing(null)
+    setPreviewLoading(null)
+  }
+
+  useEffect(() => {
+    return () => {
+      cancelInflight()
+      if (audioRef.current) {
+        audioRef.current.pause()
+        audioRef.current.removeAttribute('src')
+      }
+      releaseObjectUrl()
+    }
+  }, [])
+
+  const handlePreview = async (voiceId: string) => {
+    if (previewing === voiceId || previewLoading === voiceId) {
+      stopPreview()
+      return
+    }
+    cancelInflight()
+    releaseObjectUrl()
+    setPreviewError(null)
+    setPreviewLoading(voiceId)
+    setPreviewing(null)
+    if (!audioRef.current) {
+      audioRef.current = new Audio()
+      audioRef.current.addEventListener('ended', () => setPreviewing(null))
+    }
+    audioRef.current.pause()
+
+    const controller = new AbortController()
+    abortRef.current = controller
+
+    let response: Response
+    try {
+      response = await fetch(narratorVoicePreviewUrl(voiceId), {
+        signal: controller.signal,
+        headers: { Accept: 'audio/wav' },
+      })
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') {
+        return
+      }
+      setPreviewError(
+        isZh
+          ? '无法连接到后端服务，请确认服务正在运行'
+          : 'Unable to reach backend; please check the server is running',
+      )
+      setPreviewLoading(null)
+      return
+    }
+
+    if (abortRef.current !== controller) return
+
+    if (!response.ok) {
+      let detail = ''
+      try {
+        const data = (await response.clone().json()) as { detail?: unknown }
+        if (typeof data?.detail === 'string') detail = data.detail
+      } catch {
+        try {
+          detail = (await response.text()).slice(0, 240)
+        } catch {
+          /* noop */
+        }
+      }
+      const fallback = isZh
+        ? `试听生成失败（HTTP ${response.status}）`
+        : `Preview failed (HTTP ${response.status})`
+      setPreviewError(detail ? `${fallback}：${detail}` : fallback)
+      setPreviewLoading(null)
+      return
+    }
+
+    let blob: Blob
+    try {
+      blob = await response.blob()
+    } catch {
+      setPreviewError(
+        isZh ? '试听音频解析失败，请稍后再试' : 'Failed to decode preview audio',
+      )
+      setPreviewLoading(null)
+      return
+    }
+    if (abortRef.current !== controller) return
+
+    const url = URL.createObjectURL(blob)
+    objectUrlRef.current = url
+    audioRef.current.src = url
+    try {
+      await audioRef.current.play()
+      if (abortRef.current !== controller) return
+      setPreviewing(voiceId)
+      setPreviewLoading(null)
+    } catch (err) {
+      if ((err as DOMException)?.name === 'AbortError') {
+        return
+      }
+      const name = (err as DOMException)?.name
+      if (name === 'NotAllowedError') {
+        setPreviewError(
+          isZh
+            ? '浏览器拒绝了自动播放，请再次点击播放按钮以继续。'
+            : 'Browser blocked autoplay — click the play button again to continue.',
+        )
+      } else {
+        setPreviewError(
+          isZh
+            ? `试听播放失败：${(err as Error).message || name || 'unknown error'}`
+            : `Preview playback failed: ${(err as Error).message || name || 'unknown error'}`,
+        )
+      }
+      setPreviewing(null)
+      setPreviewLoading(null)
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {items.map(voice => {
+          const selected = value === voice.id
+          const isPreviewing = previewing === voice.id
+          const isLoading = previewLoading === voice.id
+          const name = isZh ? voice.name_zh : voice.name_en
+          const description = isZh ? voice.description_zh : voice.description_en
+          const langLabel = voice.native_language
+            ? NATIVE_LANGUAGE_LABELS[voice.native_language]?.[isZh ? 'zh' : 'en']
+            : undefined
+          return (
+            <div
+              key={voice.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onChange(voice.id)}
+              onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  onChange(voice.id)
+                }
+              }}
+              className={`group flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2.5 text-left transition-all ${
+                selected
+                  ? 'border-[#3b5bdb] bg-[#3b5bdb]/5 ring-2 ring-[#3b5bdb]/20'
+                  : 'border-[#e5e7eb] bg-white hover:border-slate-300'
+              }`}
+              aria-pressed={selected}
+            >
+              <button
+                type="button"
+                onClick={event => {
+                  event.stopPropagation()
+                  handlePreview(voice.id)
+                }}
+                aria-label={
+                  isPreviewing
+                    ? isZh ? '停止试听' : 'Stop preview'
+                    : isZh ? '试听' : 'Preview'
+                }
+                className={`mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-white shadow-sm transition-colors ${
+                  isPreviewing ? 'bg-rose-500 hover:bg-rose-600' : 'bg-[#3b5bdb] hover:bg-[#3046b8]'
+                }`}
+              >
+                {isLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : isPreviewing ? (
+                  <Pause className="h-3.5 w-3.5" />
+                ) : (
+                  <Play className="h-3.5 w-3.5" />
+                )}
+              </button>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-1.5">
+                  <span className="text-sm font-medium text-slate-800">{name}</span>
+                  {langLabel && (
+                    <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">
+                      {langLabel}
+                    </span>
+                  )}
+                  {voice.gender && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                        voice.gender === 'male'
+                          ? 'bg-sky-50 text-sky-600'
+                          : 'bg-pink-50 text-pink-600'
+                      }`}
+                    >
+                      {voice.gender === 'male' ? (isZh ? '男' : 'M') : (isZh ? '女' : 'F')}
+                    </span>
+                  )}
+                </span>
+                {description && (
+                  <span className="mt-0.5 block text-xs text-slate-500 line-clamp-2">
+                    {description}
+                  </span>
+                )}
+              </span>
+            </div>
+          )
+        })}
+        <button
+          type="button"
+          onClick={() => onChange('source')}
+          className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-all ${
+            value === 'source'
+              ? 'border-[#3b5bdb] bg-[#3b5bdb]/5 text-[#3b5bdb] ring-2 ring-[#3b5bdb]/20'
+              : 'border-dashed border-slate-300 bg-white text-slate-500 hover:border-slate-400 hover:text-slate-700'
+          }`}
+          aria-pressed={value === 'source'}
+        >
+          {isZh ? '借用源片音色' : 'Borrow from source'}
+        </button>
+      </div>
+      {previewError && (
+        <p className="text-xs text-rose-500" role="alert">
+          {previewError}
+        </p>
+      )}
+      <p className="text-[11px] text-slate-400">
+        {isZh
+          ? '首轮试听会即时生成约 10 秒的样本（基于 Qwen3-TTS CustomVoice），随后会复用本地缓存。'
+          : 'The first preview synthesizes ~10s sample via Qwen3-TTS CustomVoice and then reuses the local cache.'}
+      </p>
+    </div>
   )
 }
 
@@ -886,12 +1173,23 @@ export function NewTaskPage() {
       <div className="space-y-5">
         {isCommentary ? (
           <SectionCard title={locale === 'zh-CN' ? '解说设置' : 'Commentary'} minimal>
-            <Field label={locale === 'zh-CN' ? '解说类型' : 'Commentary Type'}>
-              <SegmentedControl
-                value={(config.commentary_style ?? 'plot_recap') as 'plot_recap'}
+            <Field label={locale === 'zh-CN' ? '解说模式' : 'Commentary Mode'}>
+              <Select
+                value={(config.commentary_style ?? 'plot_recap') as string}
                 // frame_riff is not implemented yet (the backend rejects it).
-                options={[{ value: 'plot_recap', label: locale === 'zh-CN' ? '剧情解说' : 'Plot Recap' }]}
-                onChange={value => patchConfig({ commentary_style: value })}
+                options={[
+                  { value: 'plot_recap', label: locale === 'zh-CN' ? '剧情解说' : 'Plot Recap' },
+                  { value: 'plot_tease', label: locale === 'zh-CN' ? '悬念预告' : 'Plot Tease' },
+                  { value: 'analysis', label: locale === 'zh-CN' ? '影视解读' : 'Analysis' },
+                  { value: 'roast', label: locale === 'zh-CN' ? '吐槽锐评' : 'Roast' },
+                  { value: 'reaction', label: locale === 'zh-CN' ? '实时反应' : 'Reaction' },
+                  { value: 'tutorial', label: locale === 'zh-CN' ? '教学科普' : 'Tutorial' },
+                ]}
+                onChange={value =>
+                  patchConfig({
+                    commentary_style: value as NonNullable<TaskConfig['commentary_style']>,
+                  })
+                }
               />
             </Field>
             <div className="grid gap-4 md:grid-cols-2">
@@ -926,15 +1224,10 @@ export function NewTaskPage() {
               label={locale === 'zh-CN' ? '解说音色' : 'Narrator Voice'}
               hint={locale === 'zh-CN' ? '内置 AI 解说音色；「借用源片音色」用原片人声' : 'Built-in AI narrator voice; "Borrow from source" reuses the cast voice'}
             >
-              <Select
+              <NarratorVoicePicker
                 value={config.commentary_narrator_voice ?? 'narrator-male-calm'}
-                options={[
-                  ...(narratorVoices ?? [
-                    { id: 'narrator-male-calm', name_zh: '沉稳男声', name_en: 'Calm Male', gender: 'male' },
-                    { id: 'narrator-female-bright', name_zh: '知性女声', name_en: 'Bright Female', gender: 'female' },
-                  ]).map(v => ({ value: v.id, label: locale === 'zh-CN' ? v.name_zh : v.name_en })),
-                  { value: 'source', label: locale === 'zh-CN' ? '借用源片音色' : 'Borrow from source' },
-                ]}
+                voices={narratorVoices}
+                locale={locale}
                 onChange={value => patchConfig({ commentary_narrator_voice: value })}
               />
             </Field>
@@ -948,6 +1241,108 @@ export function NewTaskPage() {
                 onChange={value => patchConfig({ commentary_original_sound_ratio: value === '' ? 0 : Number(value) })}
               />
             </Field>
+            <details className="group rounded-lg border border-slate-200 bg-slate-50/60">
+              <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 marker:hidden">
+                {locale === 'zh-CN' ? '进阶 · 风格定制' : 'Advanced · Style'}
+              </summary>
+              <div className="space-y-4 px-3 pb-3 pt-1">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label={locale === 'zh-CN' ? '语气人格' : 'Tone'}>
+                    <Select
+                      value={config.commentary_tone_preset ?? 'objective'}
+                      options={[
+                        { value: 'objective', label: locale === 'zh-CN' ? '客观稳重' : 'Objective' },
+                        { value: 'passionate', label: locale === 'zh-CN' ? '热血激昂' : 'Passionate' },
+                        { value: 'humorous', label: locale === 'zh-CN' ? '轻松幽默' : 'Humorous' },
+                        { value: 'sarcastic', label: locale === 'zh-CN' ? '辛辣吐槽' : 'Sarcastic' },
+                        { value: 'suspenseful', label: locale === 'zh-CN' ? '悬念冷峻' : 'Suspenseful' },
+                        { value: 'chill', label: locale === 'zh-CN' ? '松弛佛系' : 'Chill' },
+                        { value: 'dramatic', label: locale === 'zh-CN' ? '戏剧夸张' : 'Dramatic' },
+                        { value: 'professional', label: locale === 'zh-CN' ? '专业讲解' : 'Professional' },
+                      ]}
+                      onChange={value =>
+                        patchConfig({
+                          commentary_tone_preset: value as NonNullable<TaskConfig['commentary_tone_preset']>,
+                        })
+                      }
+                    />
+                  </Field>
+                  <Field label={locale === 'zh-CN' ? '节奏密度' : 'Pacing'}>
+                    <SegmentedControl
+                      value={(config.commentary_pacing_preset ?? 'balanced') as NonNullable<TaskConfig['commentary_pacing_preset']>}
+                      options={[
+                        { value: 'sparse', label: locale === 'zh-CN' ? '克制' : 'Sparse' },
+                        { value: 'balanced', label: locale === 'zh-CN' ? '标准' : 'Balanced' },
+                        { value: 'dense', label: locale === 'zh-CN' ? '密集' : 'Dense' },
+                      ]}
+                      onChange={value => patchConfig({ commentary_pacing_preset: value })}
+                    />
+                  </Field>
+                </div>
+                <Field
+                  label={locale === 'zh-CN' ? '风格强度' : 'Style Intensity'}
+                  hint={locale === 'zh-CN' ? '0 = 风格轻度收敛；1 = 强烈贯彻' : '0 = subtle; 1 = bold'}
+                >
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.05}
+                    value={config.commentary_style_intensity ?? 0.6}
+                    onChange={event =>
+                      patchConfig({ commentary_style_intensity: Number(event.target.value) })
+                    }
+                    className="w-full"
+                  />
+                  <div className="text-xs text-slate-500">
+                    {(config.commentary_style_intensity ?? 0.6).toFixed(2)}
+                  </div>
+                </Field>
+              </div>
+            </details>
+            <details className="group rounded-lg border border-slate-200 bg-slate-50/60">
+              <summary className="cursor-pointer list-none px-3 py-2 text-xs font-semibold uppercase tracking-[0.24em] text-slate-500 marker:hidden">
+                {locale === 'zh-CN' ? '专家 · 叙事视角与受众' : 'Expert · Perspective & Audience'}
+              </summary>
+              <div className="grid gap-4 px-3 pb-3 pt-1 md:grid-cols-2">
+                <Field label={locale === 'zh-CN' ? '叙事人称' : 'Perspective'}>
+                  <Select
+                    value={config.commentary_perspective ?? 'third_person'}
+                    options={[
+                      { value: 'third_person', label: locale === 'zh-CN' ? '第三人称客观' : 'Third Person' },
+                      { value: 'first_person_narrator', label: locale === 'zh-CN' ? '第一人称·解说' : 'First Person · Narrator' },
+                      { value: 'first_person_protagonist', label: locale === 'zh-CN' ? '第一人称·主角' : 'First Person · Protagonist' },
+                      { value: 'second_person', label: locale === 'zh-CN' ? '第二人称·代入观众' : 'Second Person' },
+                      { value: 'god_view', label: locale === 'zh-CN' ? '上帝视角' : 'God View' },
+                    ]}
+                    onChange={value =>
+                      patchConfig({
+                        commentary_perspective: value as NonNullable<TaskConfig['commentary_perspective']>,
+                      })
+                    }
+                  />
+                </Field>
+                <Field label={locale === 'zh-CN' ? '受众/平台' : 'Audience'}>
+                  <Select
+                    value={config.commentary_audience ?? 'generic'}
+                    options={[
+                      { value: 'generic', label: locale === 'zh-CN' ? '通用' : 'Generic' },
+                      { value: 'bilibili', label: 'Bilibili' },
+                      { value: 'douyin', label: locale === 'zh-CN' ? '抖音' : 'Douyin' },
+                      { value: 'xiaohongshu', label: locale === 'zh-CN' ? '小红书' : 'Xiaohongshu' },
+                      { value: 'youtube_long', label: 'YouTube (Long)' },
+                      { value: 'wechat_video', label: locale === 'zh-CN' ? '视频号' : 'WeChat Video' },
+                      { value: 'professional_b2b', label: locale === 'zh-CN' ? '专业 B2B' : 'Professional B2B' },
+                    ]}
+                    onChange={value =>
+                      patchConfig({
+                        commentary_audience: value as NonNullable<TaskConfig['commentary_audience']>,
+                      })
+                    }
+                  />
+                </Field>
+              </div>
+            </details>
           </SectionCard>
         ) : (
           <SectionCard title={locale === 'zh-CN' ? '成品目标' : 'Intent'} minimal>
@@ -1405,9 +1800,17 @@ export function NewTaskPage() {
             )}
             {isCommentary ? (
               <>
-                <ConfirmRow label={locale === 'zh-CN' ? '解说类型' : 'Commentary'} value={config.commentary_style ?? 'plot_recap'} />
+                <ConfirmRow label={locale === 'zh-CN' ? '解说模式' : 'Mode'} value={config.commentary_style ?? 'plot_recap'} />
                 <ConfirmRow label={locale === 'zh-CN' ? '影视类型' : 'Genre'} value={config.commentary_genre ?? '剧情'} />
                 <ConfirmRow label={locale === 'zh-CN' ? '原片占比' : 'Original Sound %'} value={`${config.commentary_original_sound_ratio ?? 20}%`} />
+                <ConfirmRow
+                  label={locale === 'zh-CN' ? '语气/节奏' : 'Tone/Pacing'}
+                  value={`${config.commentary_tone_preset ?? 'objective'} · ${config.commentary_pacing_preset ?? 'balanced'}`}
+                />
+                <ConfirmRow
+                  label={locale === 'zh-CN' ? '受众/强度' : 'Audience/Intensity'}
+                  value={`${config.commentary_audience ?? 'generic'} · ${(config.commentary_style_intensity ?? 0.6).toFixed(2)}`}
+                />
               </>
             ) : (
               <>
@@ -1722,20 +2125,82 @@ function buildCommentarySummary(
   const genre = config.commentary_genre ?? '剧情'
   const ratio = `${config.commentary_original_sound_ratio ?? 20}%`
   const lang = getLanguageLabel(sourceLang)
+  const modeLabels: Record<string, { zh: string; en: string }> = {
+    plot_recap: { zh: '剧情解说', en: 'Plot Recap' },
+    plot_tease: { zh: '悬念预告', en: 'Plot Tease' },
+    analysis: { zh: '影视解读', en: 'Analysis' },
+    roast: { zh: '吐槽锐评', en: 'Roast' },
+    reaction: { zh: '实时反应', en: 'Reaction' },
+    tutorial: { zh: '教学科普', en: 'Tutorial' },
+    frame_riff: { zh: '逐帧吐槽', en: 'Frame Riff' },
+  }
+  const toneLabels: Record<string, { zh: string; en: string }> = {
+    objective: { zh: '客观', en: 'Objective' },
+    passionate: { zh: '热血', en: 'Passionate' },
+    humorous: { zh: '幽默', en: 'Humorous' },
+    sarcastic: { zh: '吐槽', en: 'Sarcastic' },
+    suspenseful: { zh: '悬念', en: 'Suspenseful' },
+    chill: { zh: '松弛', en: 'Chill' },
+    dramatic: { zh: '戏剧', en: 'Dramatic' },
+    professional: { zh: '专业', en: 'Professional' },
+  }
+  const pacingLabels: Record<string, { zh: string; en: string }> = {
+    sparse: { zh: '克制', en: 'Sparse' },
+    balanced: { zh: '标准', en: 'Balanced' },
+    dense: { zh: '密集', en: 'Dense' },
+  }
+  const audienceLabels: Record<string, { zh: string; en: string }> = {
+    generic: { zh: '通用', en: 'Generic' },
+    bilibili: { zh: 'B 站', en: 'Bilibili' },
+    douyin: { zh: '抖音', en: 'Douyin' },
+    xiaohongshu: { zh: '小红书', en: 'Xiaohongshu' },
+    youtube_long: { zh: 'YouTube 长视频', en: 'YouTube Long' },
+    wechat_video: { zh: '视频号', en: 'WeChat Video' },
+    professional_b2b: { zh: '专业 B2B', en: 'Professional B2B' },
+  }
+  const mode = modeLabels[config.commentary_style ?? 'plot_recap'] ?? modeLabels.plot_recap
+  const tone = toneLabels[config.commentary_tone_preset ?? 'objective'] ?? toneLabels.objective
+  const pacing = pacingLabels[config.commentary_pacing_preset ?? 'balanced'] ?? pacingLabels.balanced
+  const audience = audienceLabels[config.commentary_audience ?? 'generic'] ?? audienceLabels.generic
+  const modeLabel = zh ? mode.zh : mode.en
+  const toneLabel = zh ? tone.zh : tone.en
+  const pacingLabel = zh ? pacing.zh : pacing.en
+  const audienceLabel = zh ? audience.zh : audience.en
+  const intensity = (config.commentary_style_intensity ?? 0.6).toFixed(2)
   return {
     lines: zh
-      ? [`视频语言：${lang}`, `影视类型：${genre}`, `原片占比：${ratio}`]
-      : [`Video language: ${lang}`, `Genre: ${genre}`, `Original sound: ${ratio}`],
+      ? [
+          `视频语言：${lang}`,
+          `解说模式：${modeLabel}`,
+          `影视类型：${genre}`,
+          `原片占比：${ratio}`,
+          `语气 · 节奏：${toneLabel} · ${pacingLabel}`,
+          `受众：${audienceLabel}（强度 ${intensity}）`,
+        ]
+      : [
+          `Video language: ${lang}`,
+          `Mode: ${modeLabel}`,
+          `Genre: ${genre}`,
+          `Original sound: ${ratio}`,
+          `Tone · Pacing: ${toneLabel} · ${pacingLabel}`,
+          `Audience: ${audienceLabel} (intensity ${intensity})`,
+        ],
     items: zh
       ? [
           { label: '视频语言', value: lang },
+          { label: '解说模式', value: modeLabel },
           { label: '影视类型', value: genre },
           { label: '原片占比', value: ratio },
+          { label: '语气/节奏', value: `${toneLabel} · ${pacingLabel}` },
+          { label: '受众', value: `${audienceLabel} · ${intensity}` },
         ]
       : [
           { label: 'Video language', value: lang },
+          { label: 'Mode', value: modeLabel },
           { label: 'Genre', value: genre },
           { label: 'Original sound', value: ratio },
+          { label: 'Tone/Pacing', value: `${toneLabel} · ${pacingLabel}` },
+          { label: 'Audience', value: `${audienceLabel} · ${intensity}` },
         ],
     tip: zh ? '转写 → 解说文案 → 配音剪辑成解说成片（recap）。' : 'Transcribe → narration → recap render.',
     warning: undefined as string | undefined,

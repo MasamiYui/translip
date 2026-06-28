@@ -12,6 +12,8 @@ import { useI18n } from '../i18n/useI18n'
 
 const DEFAULT_PAGE_SIZE = 20
 
+type IntentFilter = 'all' | 'dub' | 'commentary'
+
 type BulkBanner =
   | { tone: 'success'; message: string }
   | { tone: 'warning'; message: string }
@@ -23,6 +25,7 @@ export function TaskListPage() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [intentFilter, setIntentFilter] = useState<IntentFilter>('all')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -30,10 +33,11 @@ export function TaskListPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
   const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: ['tasks', statusFilter, search, page, pageSize],
+    queryKey: ['tasks', statusFilter, intentFilter, search, page, pageSize],
     queryFn: () =>
       tasksApi.list({
         status: statusFilter === 'all' ? undefined : statusFilter,
+        intent: intentFilter === 'all' ? undefined : intentFilter,
         search: search || undefined,
         page,
         size: pageSize,
@@ -61,6 +65,11 @@ export function TaskListPage() {
     { value: 'pending', label: t.tasks.filters.pending },
     { value: 'succeeded', label: t.tasks.filters.succeeded },
     { value: 'failed', label: t.tasks.filters.failed },
+  ]
+  const intentOptions: Array<{ value: IntentFilter; label: string }> = [
+    { value: 'all', label: t.tasks.intentFilters.all },
+    { value: 'dub', label: t.tasks.intentFilters.dub },
+    { value: 'commentary', label: t.tasks.intentFilters.commentary },
   ]
 
   function toggleSelect(id: string) {
@@ -105,6 +114,39 @@ export function TaskListPage() {
           <PlusCircle size={14} />
           {t.common.createTask}
         </Link>
+      </div>
+
+      {/* Intent tabs */}
+      <div
+        role="tablist"
+        aria-label={t.tasks.intentFilters.label}
+        className="flex items-center gap-1 border-b border-[#e5e7eb]"
+      >
+        {intentOptions.map(opt => {
+          const active = intentFilter === opt.value
+          return (
+            <button
+              key={opt.value}
+              role="tab"
+              aria-selected={active}
+              data-testid={`intent-tab-${opt.value}`}
+              onClick={() => { setIntentFilter(opt.value); setPage(1) }}
+              className={`relative px-4 py-2 text-sm font-semibold transition-colors ${
+                active
+                  ? 'text-[#3b5bdb]'
+                  : 'text-[#6b7280] hover:text-[#111827]'
+              }`}
+            >
+              {opt.label}
+              {active && (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-[#3b5bdb]"
+                />
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* Filters */}
@@ -250,7 +292,7 @@ function TaskRow({ task, selected, onSelect, onDelete, onClick }: {
   onDelete: () => void
   onClick: () => void
 }) {
-  const { formatDuration, formatRelativeTime, getLanguageLabel, t } = useI18n()
+  const { formatDuration, formatRelativeTime, t } = useI18n()
 
   const elapsedSec = computeElapsedSec(task)
 
@@ -270,7 +312,10 @@ function TaskRow({ task, selected, onSelect, onDelete, onClick }: {
         />
       </td>
       <td className="px-4 py-3.5" onClick={onClick}>
-        <div className="font-medium text-[#111827]">{task.name}</div>
+        <div className="flex items-center gap-2">
+          <IntentBadge intent={task.output_intent} />
+          <span className="font-medium text-[#111827]">{task.name}</span>
+        </div>
         <div className="text-[11px] text-[#9ca3af] font-normal mt-0.5 truncate max-w-[200px]">
           {task.id}
         </div>
@@ -285,7 +330,7 @@ function TaskRow({ task, selected, onSelect, onDelete, onClick }: {
         </div>
       </td>
       <td className="px-4 py-3.5 text-[#6b7280] whitespace-nowrap hidden lg:table-cell" onClick={onClick}>
-        {getLanguageLabel(task.source_lang)} → {getLanguageLabel(task.target_lang)}
+        <TaskLanguageCell task={task} />
       </td>
       <td className="px-4 py-3.5 text-[#6b7280] tabular-nums whitespace-nowrap hidden lg:table-cell" onClick={onClick}>
         {formatDuration(elapsedSec)}
@@ -320,4 +365,47 @@ function computeElapsedSec(task: Task): number | undefined {
   if (Number.isNaN(endMs)) return undefined
   const diff = (endMs - startMs) / 1000
   return diff >= 0 ? diff : undefined
+}
+
+function IntentBadge({ intent }: { intent: Task['output_intent'] }) {
+  const { t } = useI18n()
+  const isCommentary = intent === 'commentary_recap'
+  const label = isCommentary ? t.tasks.intentBadge.commentary : t.tasks.intentBadge.dub
+  // Dubbing = blue (matches primary tone); Commentary = purple (matches the
+  // commentary picker pill elsewhere in the app).
+  const classes = isCommentary
+    ? 'bg-violet-50 text-violet-700 ring-violet-200'
+    : 'bg-blue-50 text-blue-700 ring-blue-200'
+  return (
+    <span
+      data-testid={`intent-badge-${isCommentary ? 'commentary' : 'dub'}`}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${classes}`}
+    >
+      {label}
+    </span>
+  )
+}
+
+function TaskLanguageCell({ task }: { task: Task }) {
+  const { getLanguageLabel, t } = useI18n()
+  const isCommentary =
+    task.output_intent === 'commentary_recap' ||
+    task.config?.template === 'asr-commentary'
+  if (isCommentary) {
+    const narrationLang =
+      task.config?.commentary_narration_language ?? task.source_lang
+    return (
+      <span
+        data-testid="task-language-commentary"
+        title={t.tasks.narrationLanguageTooltip}
+      >
+        {getLanguageLabel(narrationLang)}
+      </span>
+    )
+  }
+  return (
+    <span data-testid="task-language-dub">
+      {getLanguageLabel(task.source_lang)} → {getLanguageLabel(task.target_lang)}
+    </span>
+  )
 }

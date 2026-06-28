@@ -213,6 +213,13 @@ _COMMENTARY_KEYS = (
     "commentary_backend",
     "commentary_narration_language",
     "commentary_original_gain_db",
+    "commentary_narrator_voice",
+    # Phase-1 style customization knobs.
+    "commentary_tone_preset",
+    "commentary_pacing_preset",
+    "commentary_perspective",
+    "commentary_audience",
+    "commentary_style_intensity",
 )
 
 

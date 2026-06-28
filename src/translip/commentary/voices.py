@@ -40,6 +40,16 @@ _READING_TEXT = {
         "choice pushes everyone toward a point of no return, and what happens "
         "next is beyond anyone's expectations."
     ),
+    "ja": (
+        "この映画では、運命の歯車が静かに回り始める。"
+        "何気ない選択が、すべての登場人物を引き返せない場所へと押し進めていく。"
+        "この先に待っているのは、誰もが予想しなかった展開だ。"
+    ),
+    "ko": (
+        "이 영화에서, 운명의 톱니바퀴가 조용히 돌아가기 시작한다. "
+        "사소해 보였던 선택 하나가 모두를 돌이킬 수 없는 길로 이끌고, "
+        "이어지는 이야기는 누구도 예상하지 못한 방향으로 흘러간다."
+    ),
 }
 
 
@@ -51,6 +61,9 @@ class NarratorVoice:
     gender: str  # "male" | "female"
     speaker: str  # CustomVoice named speaker (validated case-insensitively)
     instruct: str  # optional natural-language commentary-style instruction
+    native_language: str  # ISO-639-1 hint for the speaker's native language (zh/en/ja/ko)
+    description_zh: str = ""
+    description_en: str = ""
 
 
 BUILTIN_NARRATOR_VOICES: tuple[NarratorVoice, ...] = (
@@ -61,6 +74,9 @@ BUILTIN_NARRATOR_VOICES: tuple[NarratorVoice, ...] = (
         gender="male",
         speaker="Uncle_Fu",  # seasoned male voice, mellow timbre
         instruct="语气沉稳、有磁性，娓娓道来、略带悬念的影视解说口吻。",
+        native_language="zh",
+        description_zh="醇厚成熟的男声，适合悬疑、剧情、纪录片解说。",
+        description_en="Mellow, seasoned male voice — fits drama, mystery and documentary.",
     ),
     NarratorVoice(
         id="narrator-female-bright",
@@ -69,6 +85,86 @@ BUILTIN_NARRATOR_VOICES: tuple[NarratorVoice, ...] = (
         gender="female",
         speaker="Vivian",  # bright young female voice
         instruct="语气清亮、知性，节奏自然、富有代入感的影视解说口吻。",
+        native_language="zh",
+        description_zh="明亮通透的年轻女声，知性而有代入感。",
+        description_en="Bright, articulate young female voice with strong narrative presence.",
+    ),
+    NarratorVoice(
+        id="narrator-female-warm",
+        name_zh="温柔女声",
+        name_en="Warm Female",
+        gender="female",
+        speaker="Serena",  # warm, gentle young female voice
+        instruct="语气温柔治愈、娓娓道来，节奏舒缓而带有情感色彩的影视解说口吻。",
+        native_language="zh",
+        description_zh="温柔治愈的年轻女声，适合情感、爱情、治愈系内容。",
+        description_en="Warm, gentle young female voice — great for romance and feel-good stories.",
+    ),
+    NarratorVoice(
+        id="narrator-male-beijing",
+        name_zh="京片儿少年",
+        name_en="Beijing Youth",
+        gender="male",
+        speaker="Dylan",  # youthful Beijing male voice
+        instruct="带北京口音的年轻男声，语气活泼、随性，像老炮儿一样讲故事的影视解说口吻。",
+        native_language="zh",
+        description_zh="带京味儿的年轻男声，幽默接地气，适合喜剧、市井题材。",
+        description_en="Youthful Beijing male voice — lively and casual, great for comedy.",
+    ),
+    NarratorVoice(
+        id="narrator-male-sichuan",
+        name_zh="川味儿大哥",
+        name_en="Sichuan Bro",
+        gender="male",
+        speaker="Eric",  # lively Chengdu male voice
+        instruct="带成都口音的男声，语气活泼幽默、富有生活气息的影视解说口吻。",
+        native_language="zh",
+        description_zh="带四川口音的活泼男声，自带烟火气，适合搞笑、地方风味内容。",
+        description_en="Lively Chengdu male voice — playful flair, perfect for comedic recaps.",
+    ),
+    NarratorVoice(
+        id="narrator-en-male-dynamic",
+        name_zh="英文磁性男声",
+        name_en="Dynamic English Male",
+        gender="male",
+        speaker="Ryan",  # dynamic male with rhythm
+        instruct="A dynamic, well-paced English male voice, like a film recap narrator — rhythmic and engaging.",
+        native_language="en",
+        description_zh="富有节奏感的英文男声，适合英文解说、影评、纪录片。",
+        description_en="Dynamic English male voice with strong rhythm — ideal for recaps and docs.",
+    ),
+    NarratorVoice(
+        id="narrator-en-male-sunny",
+        name_zh="英文阳光男声",
+        name_en="Sunny American Male",
+        gender="male",
+        speaker="Aiden",  # sunny American male voice
+        instruct="A sunny, friendly American male voice with a warm narrative tone for film commentary.",
+        native_language="en",
+        description_zh="阳光友好的美式男声，亲和力强，适合英文 vlog、轻松题材。",
+        description_en="Sunny, friendly American male voice — approachable and warm.",
+    ),
+    NarratorVoice(
+        id="narrator-ja-female",
+        name_zh="日语少女音",
+        name_en="Japanese Female",
+        gender="female",
+        speaker="Ono_Anna",  # playful japanese female voice
+        instruct="明るく親しみやすい日本語女性ナレーション。映画やアニメの解説に合う、自然なテンポで語る口調。",
+        native_language="ja",
+        description_zh="活泼亲切的日语女声，适合日漫、日剧解说。",
+        description_en="Playful Japanese female voice — perfect for anime and J-drama recaps.",
+    ),
+    NarratorVoice(
+        id="narrator-ko-female",
+        name_zh="韩语温柔女声",
+        name_en="Korean Female",
+        gender="female",
+        speaker="Sohee",  # warm korean female voice
+        instruct="따뜻하고 부드러운 한국어 여성 내레이션. 영화 해설에 어울리는 자연스러운 톤.",
+        native_language="ko",
+        description_zh="温暖柔和的韩语女声，适合韩剧、爱情题材解说。",
+        description_en="Warm, gentle Korean female voice — fits K-drama and romance.",
     ),
 )
 
@@ -90,7 +186,14 @@ def narrator_voices_cache_dir() -> Path:
 
 
 def _lang_key(language: str) -> str:
-    return "en" if (language or "zh").lower().startswith("en") else "zh"
+    key = (language or "zh").lower()
+    if key.startswith("ja"):
+        return "ja"
+    if key.startswith("ko"):
+        return "ko"
+    if key.startswith("en"):
+        return "en"
+    return "zh"
 
 
 def _reading_text(language: str) -> str:
@@ -103,6 +206,8 @@ def _language_name(language: str) -> str:
         return "Chinese"
     if key.startswith("ja"):
         return "Japanese"
+    if key.startswith("ko"):
+        return "Korean"
     if key.startswith("en"):
         return "English"
     return "Auto"

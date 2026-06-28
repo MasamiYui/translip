@@ -136,7 +136,7 @@ class PipelineRequest:
     # Commentary pipeline (asr-commentary template): commentary-script generates an
     # OST-interleaved narration script (LLM), commentary-render assembles it with
     # the source video into a recap (TTS over ducked original / original passthrough).
-    commentary_style: str = "plot_recap"  # plot_recap | frame_riff (not yet built)
+    commentary_style: str = "plot_recap"  # plot_recap | plot_tease | analysis | roast | reaction | tutorial | frame_riff (placeholder)
     commentary_genre: str = "剧情"
     commentary_original_sound_ratio: int = 20
     commentary_backend: str = "qwen3tts"  # narration TTS backend
@@ -146,6 +146,12 @@ class PipelineRequest:
     # borrows the cast's voice. Default is the built-in calm-male voice — the
     # narrator is never the cast unless "source" is chosen explicitly.
     commentary_narrator_voice: str = "narrator-male-calm"
+    # Phase-1 commentary style customization knobs (prompt-side only).
+    commentary_tone_preset: str = "objective"  # narrator persona
+    commentary_pacing_preset: str = "balanced"  # sparse | balanced | dense
+    commentary_perspective: str = "third_person"
+    commentary_audience: str = "generic"
+    commentary_style_intensity: float = 0.6  # 0..1
     # Classify OCR events with the vision model after ocr-detect (subtitle vs
     # scene_text vs watermark vs title_card). Default off: it changes erase /
     # ocr-translate / asr-ocr-correct behavior, so it is opt-in until the

@@ -489,7 +489,19 @@ class WatermarkToolRequest(BaseModel):
         return self
 
 
-CommentaryStyle = Literal["plot_recap", "frame_riff"]
+CommentaryStyle = Literal[
+    "plot_recap", "plot_tease", "analysis", "roast", "reaction", "tutorial", "frame_riff"
+]
+CommentaryTonePreset = Literal[
+    "objective", "passionate", "humorous", "sarcastic", "suspenseful", "chill", "dramatic", "professional"
+]
+CommentaryPacingPreset = Literal["sparse", "balanced", "dense"]
+CommentaryPerspective = Literal[
+    "third_person", "first_person_narrator", "first_person_protagonist", "second_person", "god_view"
+]
+CommentaryAudience = Literal[
+    "generic", "bilibili", "douyin", "xiaohongshu", "youtube_long", "wechat_video", "professional_b2b"
+]
 
 
 class CommentaryScriptToolRequest(BaseModel):
@@ -512,7 +524,7 @@ class CommentaryScriptToolRequest(BaseModel):
     )
     commentary_style: CommentaryStyle = Field(
         default="plot_recap",
-        description="解说类型：plot_recap=剧情解说/recap；frame_riff=逐帧吐槽（暂未实现，预留接口）",
+        description="解说模式：plot_recap=剧情解说；plot_tease=悬念预告；analysis=影视解读；roast=吐槽锐评；reaction=实时反应；tutorial=教学科普；frame_riff=逐帧吐槽（预留）",
     )
     drama_genre: str = Field(
         default="剧情", description="影视类型（剧情/悬疑/动作/喜剧/科幻/历史/恐怖等），影响叙事重点"
@@ -523,6 +535,25 @@ class CommentaryScriptToolRequest(BaseModel):
     )
     model: str | None = Field(
         default=None, description="LLM 模型名；留空用 DEEPSEEK_MODEL 默认（deepseek-v4-pro）"
+    )
+    # --- Phase-1 style customization ---
+    tone_preset: CommentaryTonePreset = Field(
+        default="objective",
+        description="语气人格：objective/passionate/humorous/sarcastic/suspenseful/chill/dramatic/professional",
+    )
+    pacing_preset: CommentaryPacingPreset = Field(
+        default="balanced", description="节奏密度：sparse 克制 / balanced 标准 / dense 密集"
+    )
+    perspective: CommentaryPerspective = Field(
+        default="third_person",
+        description="叙事人称：third_person/first_person_narrator/first_person_protagonist/second_person/god_view",
+    )
+    audience: CommentaryAudience = Field(
+        default="generic",
+        description="受众/平台：generic/bilibili/douyin/xiaohongshu/youtube_long/wechat_video/professional_b2b",
+    )
+    style_intensity: float = Field(
+        default=0.6, ge=0.0, le=1.0, description="风格强度（0=轻度，1=强烈）"
     )
 
 

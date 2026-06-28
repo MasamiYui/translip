@@ -48,6 +48,18 @@ def build_commentary_script_command(request: PipelineRequest) -> list[str]:
         str(request.commentary_narration_language),
         "--original-sound-ratio",
         str(int(request.commentary_original_sound_ratio)),
+        # Phase-1 style customization — every knob is forwarded so the in-tree
+        # extractor honors the same prompt-side profile the API request asked for.
+        "--tone-preset",
+        str(request.commentary_tone_preset),
+        "--pacing-preset",
+        str(request.commentary_pacing_preset),
+        "--perspective",
+        str(request.commentary_perspective),
+        "--audience",
+        str(request.commentary_audience),
+        "--style-intensity",
+        f"{float(request.commentary_style_intensity):.3f}",
     ]
     if visual_context_path(request).exists():
         command.extend(["--visual-context", str(visual_context_path(request))])

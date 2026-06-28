@@ -16,13 +16,54 @@ from typing import Any
 
 @dataclass(slots=True)
 class CommentaryOptions:
-    """User-facing knobs for one commentary-script run."""
+    """User-facing knobs for one commentary-script run.
+
+    Phase-1 style customization adds five orthogonal axes on top of ``style``
+    (the original "mode" knob, kept under that name for backwards compatibility
+    with persisted commentary.json files):
+
+    * ``style`` (alias: mode) — script structure: plot_recap / plot_tease /
+      analysis / roast / reaction / tutorial. Drives prompt template selection.
+    * ``tone_preset`` — narrator persona: objective / passionate / humorous /
+      sarcastic / suspenseful / chill / dramatic / professional. Drives
+      writing-stage voice.
+    * ``pacing_preset`` — segment density: sparse / balanced / dense. Drives
+      avg segment seconds + chars-per-second + sentence style.
+    * ``perspective`` — narrative person: third_person / first_person_narrator
+      / first_person_protagonist / second_person / god_view.
+    * ``audience`` — platform tone: bilibili / douyin / xiaohongshu /
+      youtube_long / wechat_video / generic.
+    * ``style_intensity`` — 0.0..1.0 slider, how strongly the tone overrides
+      the neutral baseline.
+    """
 
     style: str = "plot_recap"
     genre: str = "剧情"
     language: str = "zh"
     original_sound_ratio: int = 20
     model: str | None = None
+    # --- Phase-1 style customization ---
+    tone_preset: str = "objective"
+    pacing_preset: str = "balanced"
+    perspective: str = "third_person"
+    audience: str = "generic"
+    style_intensity: float = 0.6
+
+    def normalized(self) -> "CommentaryOptions":
+        """Clamp ``style_intensity`` and lower-case enum-like fields."""
+        clamped = max(0.0, min(1.0, float(self.style_intensity)))
+        return CommentaryOptions(
+            style=str(self.style or "plot_recap").strip() or "plot_recap",
+            genre=str(self.genre or "剧情").strip() or "剧情",
+            language=str(self.language or "zh").strip() or "zh",
+            original_sound_ratio=int(self.original_sound_ratio),
+            model=self.model,
+            tone_preset=str(self.tone_preset or "objective").strip() or "objective",
+            pacing_preset=str(self.pacing_preset or "balanced").strip() or "balanced",
+            perspective=str(self.perspective or "third_person").strip() or "third_person",
+            audience=str(self.audience or "generic").strip() or "generic",
+            style_intensity=clamped,
+        )
 
 
 @dataclass(slots=True)
@@ -66,6 +107,12 @@ class CommentaryScript:
     language: str
     original_sound_ratio: int
     model: str
+    # Phase-1 style customization echoed into the artifact for traceability.
+    tone_preset: str = "objective"
+    pacing_preset: str = "balanced"
+    perspective: str = "third_person"
+    audience: str = "generic"
+    style_intensity: float = 0.6
 
     @property
     def ost0_count(self) -> int:
@@ -90,6 +137,15 @@ class CommentaryScript:
                 "drama_genre": self.genre,
                 "narration_language": self.language,
                 "original_sound_ratio": self.original_sound_ratio,
+                # Phase-1: persist the chosen style profile so commentary.json
+                # round-trips through review/edit without losing user intent.
+                "style_profile": {
+                    "tone_preset": self.tone_preset,
+                    "pacing_preset": self.pacing_preset,
+                    "perspective": self.perspective,
+                    "audience": self.audience,
+                    "style_intensity": round(float(self.style_intensity), 2),
+                },
                 "model": {"backend": "deepseek", "model": self.model},
                 "source": source,
                 "stats": {

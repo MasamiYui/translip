@@ -136,11 +136,15 @@ def list_tasks(
     status: Optional[str] = Query(None, description="按任务状态过滤；传 all 或留空表示不过滤"),
     target_lang: Optional[str] = Query(None, description="按目标语言过滤；留空表示不过滤"),
     search: Optional[str] = Query(None, description="按任务名称模糊搜索；留空表示不过滤"),
+    intent: Optional[str] = Query(
+        None,
+        description="按任务用途过滤：dub=配音任务，commentary=解说任务；传 all 或留空表示不过滤",
+    ),
     page: int = Query(1, ge=1, description="页码，从 1 开始"),
     size: int = Query(20, ge=1, le=100, description="每页条数，取值 1~100"),
     session: Session = Depends(get_session),
 ):
-    """分页查询任务列表，支持按状态、目标语言和名称过滤，按创建时间倒序返回。"""
+    """分页查询任务列表，支持按状态、目标语言、用途（配音/解说）和名称过滤，按创建时间倒序返回。"""
     stmt = select(Task)
     if status and status != "all":
         stmt = stmt.where(Task.status == status)
@@ -148,6 +152,39 @@ def list_tasks(
         stmt = stmt.where(Task.target_lang == target_lang)
     if search:
         stmt = stmt.where(Task.name.contains(search))
+    if isinstance(intent, str) and intent and intent != "all":
+        # SQLite JSON column: `Task.config` 经 normalize_task_storage 后形态为
+        # `{pipeline: {...}, delivery: {...}}`，但历史/老任务可能存的是扁平结构。
+        # 用 COALESCE 两种形态兼容兜底，保持与 `infer_output_intent` 同口径。
+        # NOTE: COALESCE down to '' (not NULL) so the boolean composition
+        # below cannot evaluate to NULL — otherwise `NOT (NULL OR NULL)` in
+        # SQLite is NULL, which would silently drop legacy rows whose config
+        # has neither pipeline.template nor a top-level template key.
+        template_expr = func.coalesce(
+            func.json_extract(Task.config, "$.pipeline.template"),
+            func.json_extract(Task.config, "$.template"),
+            "",
+        )
+        explicit_intent_expr = func.coalesce(
+            func.json_extract(Task.config, "$.pipeline.output_intent"),
+            func.json_extract(Task.config, "$.output_intent"),
+            "",
+        )
+        # 与前端 IntentBadge / infer_output_intent 同口径：
+        #   commentary = template == 'asr-commentary' OR explicit output_intent == 'commentary_recap'
+        #   dub        = 其它一切（含 legacy 无 template、无 output_intent）
+        is_commentary = (template_expr == "asr-commentary") | (
+            explicit_intent_expr == "commentary_recap"
+        )
+        if intent == "commentary":
+            stmt = stmt.where(is_commentary)
+        elif intent == "dub":
+            stmt = stmt.where(~is_commentary)
+        else:
+            raise HTTPException(
+                status_code=422,
+                detail=f"未知的 intent 取值 {intent!r}，仅支持 dub / commentary / all",
+            )
 
     # Count + page in SQL instead of loading the whole table and slicing in
     # Python (which got slower every day as the task table grew).

@@ -68,6 +68,11 @@ def run_script(
     language: str,
     original_sound_ratio: int,
     model: str | None,
+    tone_preset: str = "objective",
+    pacing_preset: str = "balanced",
+    perspective: str = "third_person",
+    audience: str = "generic",
+    style_intensity: float = 0.6,
 ) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     _progress(5.0, "loading transcript")
@@ -86,6 +91,11 @@ def run_script(
         language=language,
         original_sound_ratio=int(original_sound_ratio),
         model=model,
+        tone_preset=tone_preset,
+        pacing_preset=pacing_preset,
+        perspective=perspective,
+        audience=audience,
+        style_intensity=float(style_intensity),
     )
     _progress(20.0, "writing commentary script")
     script = generate_commentary_script(
@@ -116,7 +126,17 @@ def run_script(
         node="commentary-script",
         task="script",
         artifacts=[commentary_path.name, manifest_path.name],
-        params={"style": style, "genre": genre, "language": language, "original_sound_ratio": int(original_sound_ratio)},
+        params={
+            "style": style,
+            "genre": genre,
+            "language": language,
+            "original_sound_ratio": int(original_sound_ratio),
+            "tone_preset": tone_preset,
+            "pacing_preset": pacing_preset,
+            "perspective": perspective,
+            "audience": audience,
+            "style_intensity": float(style_intensity),
+        },
     )
     _progress(100.0, "commentary script ready")
     return manifest_path
@@ -305,6 +325,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--genre", default="剧情")
     parser.add_argument("--original-sound-ratio", type=int, default=20)
     parser.add_argument("--model", default=None, help="LLM model override (task=script)")
+    # script — Phase-1 style customization
+    parser.add_argument("--tone-preset", default="objective", help="narrator persona id (task=script)")
+    parser.add_argument("--pacing-preset", default="balanced", help="segment density id (task=script)")
+    parser.add_argument("--perspective", default="third_person", help="narrative person id (task=script)")
+    parser.add_argument("--audience", default="generic", help="platform audience id (task=script)")
+    parser.add_argument("--style-intensity", type=float, default=0.6, help="0..1 strength of the tone (task=script)")
     # render
     parser.add_argument("--commentary", default=None, help="commentary.json (task=render)")
     parser.add_argument("--input", default=None, help="source video (task=render)")
@@ -331,6 +357,11 @@ def main(argv: list[str] | None = None) -> int:
             language=args.language,
             original_sound_ratio=int(args.original_sound_ratio),
             model=args.model,
+            tone_preset=args.tone_preset,
+            pacing_preset=args.pacing_preset,
+            perspective=args.perspective,
+            audience=args.audience,
+            style_intensity=float(args.style_intensity),
         )
     else:
         if not args.commentary or not args.input:
