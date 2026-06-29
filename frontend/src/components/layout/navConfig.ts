@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
+  Atom,
   AudioLines,
   BookOpen,
   BookUser,
@@ -17,6 +18,7 @@ import {
   GraduationCap,
   Languages,
   LayoutDashboard,
+  Library,
   ListChecks,
   MessageSquareText,
   Mic,
@@ -28,6 +30,7 @@ import {
   Settings,
   Stamp,
   Subtitles,
+  Workflow,
   Wrench,
   type LucideIcon,
 } from 'lucide-react'
@@ -163,13 +166,13 @@ export function useNavConfig(): NavConfig {
       {
         to: '/tasks',
         label: t.nav.pipelineTasks,
-        icon: ListChecks,
+        icon: Workflow,
         isActive: isPipelineTaskRoute,
       },
       {
         to: '/tools/jobs',
         label: t.nav.atomicTasks,
-        icon: ListChecks,
+        icon: Atom,
         isActive: isAtomicJobsRoute,
       },
       {
@@ -190,7 +193,7 @@ export function useNavConfig(): NavConfig {
       {
         to: '/tools',
         label: t.atomicJobs.library,
-        icon: Wrench,
+        icon: Library,
         isActive: currentPath === '/tools',
       },
       ...toolNavItems,
