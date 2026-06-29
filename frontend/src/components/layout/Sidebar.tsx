@@ -84,6 +84,7 @@ export function Sidebar({
     'works-library',
     'character-library',
     'evaluation',
+    'user-guide',
     'blog',
     'api-docs',
     'lab',
@@ -310,6 +311,7 @@ export function Sidebar({
         {renderSimpleItem(nav.worksLibrary)}
         {renderSimpleItem(nav.characterLibrary)}
         {renderSimpleItem(nav.evaluation)}
+        {renderSimpleItem(nav.userGuide)}
         {renderSimpleItem(nav.blog)}
         {renderSimpleItem(nav.apiDocs)}
         {renderSimpleItem(nav.lab)}

@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 326" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="sh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#sh);}
+      .nm{font-size:14px;font-weight:700;fill:#0f172a;}
+      .rl{font-size:10.5px;fill:#64748b;}
+      .bn{font-size:11px;font-weight:700;fill:#fff;}
+      .pg{font-size:10px;font-weight:700;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="326" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="44" class="h" font-size="21">一条配音成片的完整旅程</text>
+  <text x="32" y="69" class="s" font-size="13.5">从新建任务到导出成片，界面里走六步——每一步都有专门的页面接住你。</text>
+
+  <!-- 6 journey steps -->
+  <!-- 1 -->
+  <rect class="box" x="32" y="104" width="138" height="150" rx="13"/>
+  <rect x="32" y="104" width="6" height="150" rx="3" fill="#4f46e5"/>
+  <circle cx="101" cy="134" r="13" fill="#4f46e5"/><text x="101" y="138" class="bn" text-anchor="middle">1</text>
+  <text x="101" y="170" class="nm" text-anchor="middle">新建任务</text>
+  <text x="101" y="192" class="rl" text-anchor="middle">4 步向导，选定</text>
+  <text x="101" y="208" class="rl" text-anchor="middle">素材 / 语言 / 模板 / 质量</text>
+  <rect x="49" y="222" width="104" height="20" rx="10" fill="#eef2ff"/>
+  <text x="101" y="236" class="pg" fill="#4338ca" text-anchor="middle">新建流水线任务</text>
+
+  <!-- 2 -->
+  <rect class="box" x="182" y="104" width="138" height="150" rx="13"/>
+  <rect x="182" y="104" width="6" height="150" rx="3" fill="#4f46e5"/>
+  <circle cx="251" cy="134" r="13" fill="#4f46e5"/><text x="251" y="138" class="bn" text-anchor="middle">2</text>
+  <text x="251" y="170" class="nm" text-anchor="middle">运行与监控</text>
+  <text x="251" y="192" class="rl" text-anchor="middle">阶段 DAG 实时进度</text>
+  <text x="251" y="208" class="rl" text-anchor="middle">可重跑 / 看日志 / 下载</text>
+  <rect x="207" y="222" width="88" height="20" rx="10" fill="#eef2ff"/>
+  <text x="251" y="236" class="pg" fill="#4338ca" text-anchor="middle">任务详情</text>
+
+  <!-- 3 -->
+  <rect class="box" x="332" y="104" width="138" height="150" rx="13"/>
+  <rect x="332" y="104" width="6" height="150" rx="3" fill="#0d9488"/>
+  <circle cx="401" cy="134" r="13" fill="#0d9488"/><text x="401" y="138" class="bn" text-anchor="middle">3</text>
+  <text x="401" y="170" class="nm" text-anchor="middle">说话人核对</text>
+  <text x="401" y="192" class="rl" text-anchor="middle">复核分离出的说话人</text>
+  <text x="401" y="208" class="rl" text-anchor="middle">纠正归并 / 标记不可克隆</text>
+  <rect x="357" y="222" width="88" height="20" rx="10" fill="#ccfbf1"/>
+  <text x="401" y="236" class="pg" fill="#0f766e" text-anchor="middle">说话人核对</text>
+
+  <!-- 4 -->
+  <rect class="box" x="482" y="104" width="138" height="150" rx="13"/>
+  <rect x="482" y="104" width="6" height="150" rx="3" fill="#0d9488"/>
+  <circle cx="551" cy="134" r="13" fill="#0d9488"/><text x="551" y="138" class="bn" text-anchor="middle">4</text>
+  <text x="551" y="170" class="nm" text-anchor="middle">配音编辑台</text>
+  <text x="551" y="192" class="rl" text-anchor="middle">问题队列逐段处理</text>
+  <text x="551" y="208" class="rl" text-anchor="middle">试听 / 改文本 / 重合成</text>
+  <rect x="507" y="222" width="88" height="20" rx="10" fill="#ccfbf1"/>
+  <text x="551" y="236" class="pg" fill="#0f766e" text-anchor="middle">配音工坊</text>
+
+  <!-- 5 -->
+  <rect class="box" x="632" y="104" width="138" height="150" rx="13"/>
+  <rect x="632" y="104" width="6" height="150" rx="3" fill="#f59e0b"/>
+  <circle cx="701" cy="134" r="13" fill="#f59e0b"/><text x="701" y="138" class="bn" text-anchor="middle">5</text>
+  <text x="701" y="170" class="nm" text-anchor="middle">评测与修复</text>
+  <text x="701" y="192" class="rl" text-anchor="middle">逐段质检打分</text>
+  <text x="701" y="208" class="rl" text-anchor="middle">一键自动修复</text>
+  <rect x="657" y="222" width="88" height="20" rx="10" fill="#fef3c7"/>
+  <text x="701" y="236" class="pg" fill="#b45309" text-anchor="middle">配音评测</text>
+
+  <!-- 6 -->
+  <rect class="box" x="782" y="104" width="138" height="150" rx="13"/>
+  <rect x="782" y="104" width="6" height="150" rx="3" fill="#059669"/>
+  <circle cx="851" cy="134" r="13" fill="#059669"/><text x="851" y="138" class="bn" text-anchor="middle">6</text>
+  <text x="851" y="170" class="nm" text-anchor="middle">交付导出</text>
+  <text x="851" y="192" class="rl" text-anchor="middle">选底板 / 音轨 / 字幕样式</text>
+  <text x="851" y="208" class="rl" text-anchor="middle">预览后导出成片</text>
+  <rect x="807" y="222" width="88" height="20" rx="10" fill="#d1fae5"/>
+  <text x="851" y="236" class="pg" fill="#047857" text-anchor="middle">导出向导</text>
+
+  <!-- arrows -->
+  <path class="ln" d="M170,179 L182,179" marker-end="url(#ar)"/>
+  <path class="ln" d="M320,179 L332,179" marker-end="url(#ar)"/>
+  <path class="ln" d="M470,179 L482,179" marker-end="url(#ar)"/>
+  <path class="ln" d="M620,179 L632,179" marker-end="url(#ar)"/>
+  <path class="ln" d="M770,179 L782,179" marker-end="url(#ar)"/>
+
+  <text x="32" y="298" class="s" font-size="12.5">第 3–5 步可按需跳过：只想快速验证就直接看监控产物；要精修就走核对 → 编辑台 → 评测的闭环。</text>
+</svg>

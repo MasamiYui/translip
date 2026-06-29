@@ -14,6 +14,7 @@ import {
   FlaskConical,
   Gauge,
   Globe,
+  GraduationCap,
   Languages,
   LayoutDashboard,
   ListChecks,
@@ -99,6 +100,7 @@ export interface NavConfig {
   worksLibrary: NavSimpleItem
   characterLibrary: NavSimpleItem
   evaluation: NavSimpleItem
+  userGuide: NavSimpleItem
   blog: NavSimpleItem
   apiDocs: NavSimpleItem
   lab: NavSimpleItem
@@ -234,6 +236,13 @@ export function useNavConfig(): NavConfig {
         label: t.nav.evaluation,
         icon: Gauge,
         isActive: currentPath === '/evaluation' || currentPath.startsWith('/evaluation/'),
+      },
+      userGuide: {
+        key: 'user-guide',
+        to: '/guide',
+        label: t.nav.guide,
+        icon: GraduationCap,
+        isActive: currentPath === '/guide' || currentPath.startsWith('/guide/'),
       },
       blog: {
         key: 'blog',

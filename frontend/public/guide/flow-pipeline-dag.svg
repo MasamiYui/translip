@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 446" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="sh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .dash{stroke:#cbd5e1;stroke-width:1.4;fill:none;stroke-dasharray:4 4;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#sh);}
+      .nm{font-size:14px;font-weight:700;fill:#0f172a;}
+      .rl{font-size:11px;fill:#64748b;}
+      .bn{font-size:10.5px;font-weight:700;fill:#fff;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="446" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="44" class="h" font-size="21">配音流水线：七个阶段，每个都是独立子进程</text>
+  <text x="32" y="69" class="s" font-size="13.5">产物落盘 + manifest；改一个后端 / 模型只选择性重算，可从任意阶段重跑。</text>
+
+  <!-- spine of 7 stages -->
+  <!-- node template: x, name, role, accent -->
+  <g>
+    <!-- 1 separation -->
+    <rect class="box" x="32" y="104" width="110" height="86" rx="12"/>
+    <circle cx="50" cy="124" r="11" fill="#4f46e5"/><text x="50" y="128" class="bn" text-anchor="middle">1</text>
+    <text x="87" y="152" class="nm" text-anchor="middle">分离</text>
+    <text x="87" y="172" class="rl" text-anchor="middle">人声 · 背景</text>
+    <!-- 2 transcription -->
+    <rect class="box" x="160" y="104" width="110" height="86" rx="12"/>
+    <circle cx="178" cy="124" r="11" fill="#4f46e5"/><text x="178" y="128" class="bn" text-anchor="middle">2</text>
+    <text x="215" y="152" class="nm" text-anchor="middle">转写</text>
+    <text x="215" y="172" class="rl" text-anchor="middle">说话人归因</text>
+    <!-- 3 speaker-registry -->
+    <rect class="box" x="288" y="104" width="110" height="86" rx="12"/>
+    <circle cx="306" cy="124" r="11" fill="#4f46e5"/><text x="306" y="128" class="bn" text-anchor="middle">3</text>
+    <text x="343" y="152" class="nm" text-anchor="middle">说话人注册</text>
+    <text x="343" y="172" class="rl" text-anchor="middle">音色档案</text>
+    <!-- 4 translation -->
+    <rect class="box" x="416" y="104" width="110" height="86" rx="12"/>
+    <circle cx="434" cy="124" r="11" fill="#4f46e5"/><text x="434" y="128" class="bn" text-anchor="middle">4</text>
+    <text x="471" y="152" class="nm" text-anchor="middle">翻译</text>
+    <text x="471" y="172" class="rl" text-anchor="middle">按单元对齐</text>
+    <!-- 5 synthesis -->
+    <rect class="box" x="544" y="104" width="110" height="86" rx="12"/>
+    <circle cx="562" cy="124" r="11" fill="#4f46e5"/><text x="562" y="128" class="bn" text-anchor="middle">5</text>
+    <text x="599" y="152" class="nm" text-anchor="middle">合成</text>
+    <text x="599" y="172" class="rl" text-anchor="middle">单说话人 TTS</text>
+    <!-- 6 render -->
+    <rect class="box" x="672" y="104" width="110" height="86" rx="12"/>
+    <circle cx="690" cy="124" r="11" fill="#4f46e5"/><text x="690" y="128" class="bn" text-anchor="middle">6</text>
+    <text x="727" y="152" class="nm" text-anchor="middle">回贴</text>
+    <text x="727" y="172" class="rl" text-anchor="middle">时间轴对齐</text>
+    <!-- 7 delivery -->
+    <rect class="box" x="800" y="104" width="110" height="86" rx="12"/>
+    <circle cx="818" cy="124" r="11" fill="#0d9488"/><text x="818" y="128" class="bn" text-anchor="middle">7</text>
+    <text x="855" y="152" class="nm" text-anchor="middle">交付</text>
+    <text x="855" y="172" class="rl" text-anchor="middle">混音 · 封装</text>
+  </g>
+
+  <!-- spine arrows -->
+  <path class="ln" d="M142,147 L160,147" marker-end="url(#ar)"/>
+  <path class="ln" d="M270,147 L288,147" marker-end="url(#ar)"/>
+  <path class="ln" d="M398,147 L416,147" marker-end="url(#ar)"/>
+  <path class="ln" d="M526,147 L544,147" marker-end="url(#ar)"/>
+  <path class="ln" d="M654,147 L672,147" marker-end="url(#ar)"/>
+  <path class="ln" d="M782,147 L800,147" marker-end="url(#ar)"/>
+
+  <!-- optional branches -->
+  <text x="32" y="252" class="s" font-size="13" font-weight="700" fill="#475569">可选支线（由模板点亮）</text>
+
+  <path class="dash" d="M182,288 L210,192"/>
+  <rect class="box" x="70" y="288" width="226" height="58" rx="12"/>
+  <rect x="70" y="288" width="6" height="58" rx="3" fill="#f59e0b"/>
+  <text x="92" y="312" class="nm" font-size="13">OCR 字幕检测 + 台词校正</text>
+  <text x="92" y="332" class="rl">用原片硬字幕校正 ASR 文稿</text>
+
+  <path class="dash" d="M480,288 L471,192"/>
+  <rect class="box" x="368" y="288" width="226" height="58" rx="12"/>
+  <rect x="368" y="288" width="6" height="58" rx="3" fill="#7c3aed"/>
+  <text x="390" y="312" class="nm" font-size="13">画面感知（Qwen3-VL）</text>
+  <text x="390" y="332" class="rl">场景描述注入翻译，减少误译</text>
+
+  <path class="dash" d="M778,288 L853,192"/>
+  <rect class="box" x="666" y="288" width="224" height="58" rx="12"/>
+  <rect x="666" y="288" width="6" height="58" rx="3" fill="#e11d48"/>
+  <text x="688" y="312" class="nm" font-size="13">硬字幕擦除</text>
+  <text x="688" y="332" class="rl">擦掉原片烧录字幕，重建干净底板</text>
+
+  <text x="32" y="404" class="s" font-size="12.5">模板决定点亮哪些支线：</text>
+  <text x="150" y="404" font-size="12.5" font-family="'SF Mono',ui-monospace,Menlo,Consolas,monospace" fill="#4338ca">asr-dub-basic</text>
+  <text x="252" y="404" class="s" font-size="12.5">（仅主干）·</text>
+  <text x="338" y="404" font-size="12.5" font-family="'SF Mono',ui-monospace,Menlo,Consolas,monospace" fill="#6d28d9">+visual</text>
+  <text x="396" y="404" class="s" font-size="12.5">·</text>
+  <text x="406" y="404" font-size="12.5" font-family="'SF Mono',ui-monospace,Menlo,Consolas,monospace" fill="#b45309">+ocr-subs</text>
+  <text x="478" y="404" class="s" font-size="12.5">·</text>
+  <text x="488" y="404" font-size="12.5" font-family="'SF Mono',ui-monospace,Menlo,Consolas,monospace" fill="#be123c">+ocr-subs+erase</text>
+  <text x="32" y="428" class="s" font-size="12.5">每个阶段也能作为「原子工具」单独运行——流水线只是把它们按依赖编排起来。</text>
+</svg>

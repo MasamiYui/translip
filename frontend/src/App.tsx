@@ -67,6 +67,9 @@ const ChangelogDetailPage = lazy(() =>
 const ApiDocsPage = lazy(() =>
   import('./pages/ApiDocsPage').then(module => ({ default: module.ApiDocsPage })),
 )
+const UserGuidePage = lazy(() =>
+  import('./pages/UserGuidePage').then(module => ({ default: module.UserGuidePage })),
+)
 const LabPage = lazy(() =>
   import('./pages/lab/LabPage').then(module => ({ default: module.LabPage })),
 )
@@ -118,6 +121,8 @@ export default function App() {
                 <Route path="blog/:slug" element={<BlogPostPage />} />
                 <Route path="changelog/:slug" element={<ChangelogDetailPage />} />
                 <Route path="api-docs" element={<ApiDocsPage />} />
+                <Route path="guide" element={<UserGuidePage />} />
+                <Route path="guide/:slug" element={<UserGuidePage />} />
                 <Route path="lab" element={<LabPage />} />
                 <Route path="lab/runs/:runId" element={<RunDetailPage />} />
                 <Route path="lab/:tab" element={<LabPage />} />

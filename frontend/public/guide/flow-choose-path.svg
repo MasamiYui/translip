@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 470" font-family="'Inter','PingFang SC','Microsoft YaHei',ui-sans-serif,system-ui,sans-serif">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L7,3 L0,6 Z" fill="#94a3b8"/>
+    </marker>
+    <filter id="sh" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#0f172a" flood-opacity="0.08"/>
+    </filter>
+    <style>
+      .h{fill:#0f172a;font-weight:700;}
+      .s{fill:#64748b;}
+      .ln{stroke:#94a3b8;stroke-width:1.6;fill:none;}
+      .box{fill:#fff;stroke:#e2e8f0;stroke-width:1.5;filter:url(#sh);}
+      .t1{font-size:15px;font-weight:700;}
+      .t2{font-size:12.5px;fill:#475569;}
+      .tag{font-size:11.5px;font-weight:700;}
+    </style>
+  </defs>
+
+  <rect x="0" y="0" width="960" height="470" rx="16" fill="#fbfcfe"/>
+  <text x="32" y="44" class="h" font-size="21">三种使用方式，按你的目标选</text>
+  <text x="32" y="69" class="s" font-size="13.5">同一套能力，三个入口：要成片走「流水线」，只要某一步用「原子工具」，说不清就交给「AI 助手」。</text>
+
+  <!-- input node -->
+  <rect class="box" x="32" y="190" width="156" height="96" rx="14"/>
+  <rect x="32" y="190" width="6" height="96" rx="3" fill="#0f172a"/>
+  <text x="54" y="232" class="t1" fill="#0f172a">输入素材</text>
+  <text x="54" y="256" class="t2">一段视频 / 音频</text>
+
+  <!-- connectors from input to three lanes -->
+  <path class="ln" d="M188,222 C236,222 236,118 280,118" marker-end="url(#ar)"/>
+  <path class="ln" d="M188,238 L280,238" marker-end="url(#ar)"/>
+  <path class="ln" d="M188,254 C236,254 236,358 280,358" marker-end="url(#ar)"/>
+
+  <!-- lane 1: pipeline -->
+  <rect class="box" x="280" y="92" width="648" height="92" rx="14"/>
+  <rect x="280" y="92" width="6" height="92" rx="3" fill="#4f46e5"/>
+  <text x="304" y="124" class="t1" fill="#4338ca">完整配音流水线</text>
+  <rect x="470" y="108" width="92" height="22" rx="11" fill="#eef2ff"/>
+  <text x="516" y="123" class="tag" fill="#4338ca" text-anchor="middle">一键端到端</text>
+  <text x="304" y="150" class="t2">一条命令跑完：分离 → 转写 → 翻译 → 配音 → 回贴 → 交付</text>
+  <text x="304" y="172" class="t2" fill="#6366f1" font-weight="700">适合：想要一条可直接发布的成片</text>
+
+  <!-- lane 2: atomic tools -->
+  <rect class="box" x="280" y="212" width="648" height="92" rx="14"/>
+  <rect x="280" y="212" width="6" height="92" rx="3" fill="#0d9488"/>
+  <text x="304" y="244" class="t1" fill="#0f766e">原子工具</text>
+  <rect x="386" y="228" width="106" height="22" rx="11" fill="#ccfbf1"/>
+  <text x="439" y="243" class="tag" fill="#0f766e" text-anchor="middle">单步可独立跑</text>
+  <text x="304" y="270" class="t2">把任意单个环节单独跑：分离 / 转写 / 翻译 / 合成 / 混音 / 字幕识别·擦除 …</text>
+  <text x="304" y="292" class="t2" fill="#0d9488" font-weight="700">适合：只想要某一步的产物，或手动串联流程</text>
+
+  <!-- lane 3: assistant -->
+  <rect class="box" x="280" y="332" width="648" height="92" rx="14"/>
+  <rect x="280" y="332" width="6" height="92" rx="3" fill="#7c3aed"/>
+  <text x="304" y="364" class="t1" fill="#6d28d9">AI 助手</text>
+  <rect x="372" y="348" width="120" height="22" rx="11" fill="#f3e8ff"/>
+  <text x="432" y="363" class="tag" fill="#6d28d9" text-anchor="middle">一句话自动编排</text>
+  <text x="304" y="390" class="t2">用一句话描述目标，助手自动把多个原子工具串成调用链，先展示计划再执行</text>
+  <text x="304" y="412" class="t2" fill="#7c3aed" font-weight="700">适合：说不清具体步骤，想让系统替你规划</text>
+
+  <text x="32" y="456" class="s" font-size="12.5">三者共用同一批后端与模型——流水线是「编排好的原子工具」，AI 助手是「会自己编排的原子工具」。</text>
+</svg>
