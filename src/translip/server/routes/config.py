@@ -240,6 +240,69 @@ def preview_narrator_voice(
     )
 
 
+@router.get("/bgm-presets", summary="内置解说 BGM 预设列表")
+def list_bgm_presets_endpoint() -> list[dict[str, Any]]:
+    from translip.commentary.bgm import list_bgm_presets
+
+    return [
+        {
+            "id": p.id,
+            "name_zh": p.name_zh,
+            "name_en": p.name_en,
+            "mood": p.mood,
+            "gain_db": p.gain_db,
+            "duck_db": p.duck_db,
+            "description_zh": p.description_zh,
+            "description_en": p.description_en,
+            "license": p.license,
+            "license_note": p.license_note,
+            "preview_url": f"/api/config/bgm-presets/{p.id}/preview",
+        }
+        for p in list_bgm_presets()
+    ]
+
+
+@router.get(
+    "/bgm-presets/{preset_id}/preview",
+    summary="试听内置 BGM 预设",
+    responses={
+        200: {"content": {"audio/wav": {}}},
+        404: {"description": "BGM preset not found"},
+        500: {"description": "Failed to read BGM preview audio"},
+    },
+)
+def preview_bgm_preset(
+    preset_id: Annotated[str, PathParam(description="BGM 预设 ID")],
+) -> FileResponse:
+    """Stream the bundled placeholder WAV for ``preset_id``.
+
+    The placeholders are committed under ``assets/bgm/`` and are
+    algorithmically synthesised (no third-party copyright); production tracks
+    can be dropped at the same path to override the preview.
+    """
+    from translip.commentary import bgm as bgm_lib
+
+    preset = bgm_lib.get_bgm_preset(preset_id)
+    if preset is None:
+        raise HTTPException(status_code=404, detail=f"Unknown BGM preset {preset_id!r}")
+
+    path = bgm_lib.bgm_asset_path(preset)
+    if not path.exists() or path.stat().st_size == 0:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"BGM preset {preset_id!r} placeholder file is missing at {path}. "
+                f"Run scripts/build_bgm_placeholders.py to (re)generate it."
+            ),
+        )
+    return FileResponse(
+        path=str(path),
+        media_type="audio/wav",
+        filename=preset.asset_filename,
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @router.get("/defaults", summary="默认全局配置")
 def get_defaults():
     """获取全局默认配置（内置默认值叠加已保存的全局覆盖项），用于初始化表单。"""

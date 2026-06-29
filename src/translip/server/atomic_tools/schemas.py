@@ -586,6 +586,28 @@ class CommentaryRenderToolRequest(BaseModel):
         default=-15.0,
         description="OST=0 片段里原声被压低到的增益(dB)，越低原声越弱（默认 -15）",
     )
+    bgm_preset: str | None = Field(
+        default=None,
+        description=(
+            "OST=0 片段背景音乐（BGM）预设 id（如 bgm-suspense-dark）；留空 / 'none' 则不加 BGM。"
+            "提供 bgm_file_id 时以上传文件为准。"
+        ),
+    )
+    bgm_file_id: str | None = Field(
+        default=None,
+        description="自定义 BGM 音频文件 ID（用户上传）；提供时优先于 bgm_preset",
+    )
+    bgm_gain_db: float = Field(
+        default=-15.0,
+        description="BGM 在最终混音里的基础电平(dB)，越低越弱（默认 -15）",
+    )
+    bgm_duck_db: float = Field(
+        default=-9.0,
+        description=(
+            "解说说话时 BGM 在基础电平之上再被压低的深度(dB，应为负值)；"
+            "由 sidechaincompress 触发实现自动 ducking（默认 -9）"
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_backend(self) -> "CommentaryRenderToolRequest":
@@ -596,4 +618,9 @@ class CommentaryRenderToolRequest(BaseModel):
             )
         # No reference upload is required anymore: a built-in narrator voice (or
         # "source") always resolves to a reference clip for clone-only backends.
+        if self.bgm_duck_db > 0:
+            raise ValueError(
+                f"bgm_duck_db must be <= 0 (it is the extra attenuation while "
+                f"the narrator is speaking), got {self.bgm_duck_db}."
+            )
         return self

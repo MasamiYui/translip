@@ -166,6 +166,86 @@ BUILTIN_NARRATOR_VOICES: tuple[NarratorVoice, ...] = (
         description_zh="温暖柔和的韩语女声，适合韩剧、爱情题材解说。",
         description_en="Warm, gentle Korean female voice — fits K-drama and romance.",
     ),
+    # ---- Short-video "viral recap" style packs ---------------------------
+    # All of the entries below reuse the 9 Qwen3-TTS CustomVoice speakers
+    # above; only ``instruct`` is rewritten to capture the cadence /
+    # delivery patterns popularised by Douyin / TikTok / YouTube recap
+    # channels. No external model or API key is required.
+    NarratorVoice(
+        id="narrator-recap-classic",
+        name_zh="经典爆款解说",
+        name_en="Viral Recap Classic",
+        gender="male",
+        speaker="Uncle_Fu",
+        instruct=(
+            "经典短视频影视解说腔：语气压低、低频饱满、节奏紧凑而克制；"
+            "每 5-8 个字一个轻微停顿，句末略上扬以制造悬念；"
+            "像「注意看，这个男人叫小帅」那种钩子式开头，全程带轻微的叙述张力。"
+        ),
+        native_language="zh",
+        description_zh="抖音爆款影视解说同款腔调：低音、紧凑、钩子式停顿。",
+        description_en="Douyin viral-recap delivery — low-pitched, tight pacing, hook-style pauses.",
+    ),
+    NarratorVoice(
+        id="narrator-recap-suspense",
+        name_zh="悬疑神秘男声",
+        name_en="Suspense Whisper",
+        gender="male",
+        speaker="Uncle_Fu",
+        instruct=(
+            "悬疑纪录片旁白：声音压得更低、几近耳语，气声明显；"
+            "节奏放慢，重要词前后留出 1-2 拍停顿；"
+            "每一段都带「你不知道的是…」「然而真相是…」式的揭秘语气。"
+        ),
+        native_language="zh",
+        description_zh="低声耳语 + 慢节奏揭秘腔，适合悬疑、犯罪、未解之谜题材。",
+        description_en="Low, near-whisper conspiracy-doc narration — great for mystery / true-crime recaps.",
+    ),
+    NarratorVoice(
+        id="narrator-recap-hype",
+        name_zh="热血燃向男声",
+        name_en="Hype Trailer Male",
+        gender="male",
+        speaker="Ryan",
+        instruct=(
+            "Movie-trailer hype style: confident, punchy, slightly aggressive cadence; "
+            "short bursts followed by deliberate pauses; emphasise verbs and numbers "
+            "as if narrating a blockbuster trailer or a sports highlight reel."
+        ),
+        native_language="en",
+        description_zh="电影预告片式热血燃向男声，适合燃向混剪、运动剪辑、爆款英文 recap。",
+        description_en="Blockbuster-trailer cadence — punchy, confident, perfect for hype reels.",
+    ),
+    NarratorVoice(
+        id="narrator-recap-gossip",
+        name_zh="八卦吐槽女声",
+        name_en="Gossip Roast Female",
+        gender="female",
+        speaker="Vivian",
+        instruct=(
+            "短视频吐槽 / 八卦解说腔：语速偏快、句末上扬，带轻微的「无语」「离谱」式情绪；"
+            "穿插「就这？」「不是吧家人们」式口头禅的节奏感；"
+            "整体亲切、口语化，像和朋友吐槽刚看完的剧。"
+        ),
+        native_language="zh",
+        description_zh="抖音/小红书吐槽风女声，语速偏快、情绪外放，适合娱乐八卦、剧情吐槽。",
+        description_en="Snappy gossip / roast delivery — colloquial, fast-paced, fits gossip & drama recaps.",
+    ),
+    NarratorVoice(
+        id="narrator-recap-sichuan-funny",
+        name_zh="川味儿搞笑解说",
+        name_en="Sichuan Comedy Recap",
+        gender="male",
+        speaker="Eric",
+        instruct=(
+            "带成都口音的搞笑短视频解说腔：节奏明快、句末爱拖音卖萌；"
+            "夸张地强调形容词（「巴适得很」「莫得办法」），自带烟火气；"
+            "像在和老朋友龙门阵摆电影剧情。"
+        ),
+        native_language="zh",
+        description_zh="四川话搞笑解说腔，自带烟火气，适合喜剧片、综艺、地方风味盘点。",
+        description_en="Sichuanese-flavoured comedic recap — playful, casual, great for comedy reels.",
+    ),
 )
 
 DEFAULT_NARRATOR_VOICE = "narrator-male-calm"

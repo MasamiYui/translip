@@ -248,6 +248,9 @@ export interface TaskConfig {
   commentary_narration_language?: string
   commentary_original_gain_db?: number
   commentary_narrator_voice?: string
+  commentary_bgm_preset?: string
+  commentary_bgm_gain_db?: number
+  commentary_bgm_duck_db?: number
   commentary_tone_preset?:
     | 'objective'
     | 'passionate'

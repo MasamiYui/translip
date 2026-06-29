@@ -26,15 +26,34 @@ export interface NarratorVoiceInfo {
   preview_url?: string
 }
 
+export interface BgmPresetInfo {
+  id: string
+  name_zh: string
+  name_en: string
+  mood: string
+  gain_db: number
+  duck_db: number
+  description_zh?: string
+  description_en?: string
+  license?: string
+  license_note?: string
+  preview_url?: string
+}
+
 export const narratorVoicePreviewUrl = (voiceId: string, language?: string) => {
   const base = `/api/config/narrator-voices/${encodeURIComponent(voiceId)}/preview`
   return language ? `${base}?language=${encodeURIComponent(language)}` : base
 }
 
+export const bgmPresetPreviewUrl = (presetId: string) =>
+  `/api/config/bgm-presets/${encodeURIComponent(presetId)}/preview`
+
 export const configApi = {
   getDefaults: () => api.get('/api/config/defaults').then(r => r.data),
   narratorVoices: () =>
-    api.get<NarratorVoiceInfo[]>('/api/config/narrator-voices').then(r => r.data),
+    api.get<NarratorVoiceInfo[]>('/api/config/narrator-voices').then(r => (Array.isArray(r.data) ? r.data : [])),
+  bgmPresets: () =>
+    api.get<BgmPresetInfo[]>('/api/config/bgm-presets').then(r => (Array.isArray(r.data) ? r.data : [])),
   getGlobal: () => api.get<Partial<TaskConfig>>('/api/config/global').then(r => r.data),
   updateGlobal: (config: GlobalConfigUpdate) =>
     api.put<{ ok: boolean; config: Partial<TaskConfig> }>('/api/config/global', config).then(r => r.data),

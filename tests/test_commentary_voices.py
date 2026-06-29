@@ -23,6 +23,42 @@ def test_builtin_voices_and_default() -> None:
     assert "narrator-ko-female" in ids
 
 
+VIRAL_RECAP_VOICE_IDS = (
+    "narrator-recap-classic",
+    "narrator-recap-suspense",
+    "narrator-recap-hype",
+    "narrator-recap-gossip",
+    "narrator-recap-sichuan-funny",
+)
+
+
+def test_viral_recap_packs_are_registered() -> None:
+    """The short-video recap voice packs must be discoverable via the listing."""
+    ids = {v.id for v in voices.list_narrator_voices()}
+    for pack_id in VIRAL_RECAP_VOICE_IDS:
+        assert pack_id in ids, f"missing viral-recap pack {pack_id!r}"
+
+
+def test_viral_recap_packs_reuse_existing_speakers() -> None:
+    """Recap packs must reuse one of the 9 existing Qwen3-TTS speakers; no new
+    timbres are introduced (only instruct/style variations)."""
+    known_speakers = {
+        v.speaker
+        for v in voices.list_narrator_voices()
+        if v.id not in VIRAL_RECAP_VOICE_IDS
+    }
+    for pack_id in VIRAL_RECAP_VOICE_IDS:
+        pack = voices.get_narrator_voice(pack_id)
+        assert pack is not None
+        assert pack.speaker in known_speakers
+        # the differentiator IS the instruct text
+        assert pack.instruct
+        # picker UI metadata is populated
+        assert pack.name_zh and pack.name_en
+        assert pack.description_zh and pack.description_en
+        assert pack.native_language in {"zh", "en", "ja", "ko"}
+
+
 def test_voice_metadata_fields_populated() -> None:
     for v in voices.list_narrator_voices():
         assert v.native_language in {"zh", "en", "ja", "ko"}

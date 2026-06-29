@@ -36,6 +36,21 @@ def test_schema_defaults() -> None:
     assert dumped["backend"] == "qwen3tts"
     assert dumped["original_gain_db"] == -15.0
     assert dumped["narration_language"] is None
+    # BGM fields default to "no BGM" so the pre-BGM behaviour is preserved.
+    assert dumped["bgm_preset"] is None
+    assert dumped["bgm_file_id"] is None
+    assert dumped["bgm_gain_db"] == -15.0
+    assert dumped["bgm_duck_db"] == -9.0
+
+
+def test_schema_rejects_positive_bgm_duck_db() -> None:
+    # duck_db represents *attenuation* applied during narration → must be <= 0.
+    with pytest.raises(ValueError, match="bgm_duck_db must be <= 0"):
+        CommentaryRenderToolRequest(
+            commentary_file_id="c",
+            video_file_id="v",
+            bgm_duck_db=3.0,
+        )
 
 
 def test_schema_rejects_unknown_backend() -> None:
@@ -167,6 +182,60 @@ def test_build_clip_command_ost1_passthrough_single_input() -> None:
     assert "amix" not in fc and "volume=" not in fc
     assert "[0:a]atrim=duration=4.000" in fc
     assert _arg_value(cmd, "-t") == "4.000"
+
+
+def test_build_clip_command_ost0_with_bgm_adds_third_input_and_sidechain() -> None:
+    spec = ClipSpec(index=0, item_id=1, ost=0, src_start=0.0, take_duration=2.0, av_duration=2.0)
+    cmd = build_clip_command(
+        ffmpeg="ffmpeg",
+        spec=spec,
+        source_path=Path("s.mp4"),
+        narration_path=Path("n.wav"),
+        output_path=Path("c.mp4"),
+        width=640,
+        height=360,
+        crf=20,
+        preset="medium",
+        original_gain_db=-15.0,
+        bgm_path=Path("bgm.wav"),
+        bgm_gain_db=-15.0,
+        bgm_duck_db=-9.0,
+    )
+    # Three inputs: source + narration + bgm (looped).
+    assert cmd.count("-i") == 3
+    # ``-stream_loop -1`` immediately precedes the BGM ``-i`` so the placeholder
+    # loops indefinitely under the clip.
+    assert "-stream_loop" in cmd
+    sl_idx = cmd.index("-stream_loop")
+    assert cmd[sl_idx + 1] == "-1"
+    assert cmd[sl_idx + 2] == "-i" and cmd[sl_idx + 3] == "bgm.wav"
+
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    # 3-input amix replaces the legacy 2-input mix, side-chain compressor
+    # pinned by the narration label drives the duck.
+    assert "amix=inputs=3" in fc
+    assert "amix=inputs=2" not in fc
+    assert "sidechaincompress" in fc
+    assert "[bgm_raw][narr]sidechaincompress" in fc
+    # Limiter caps the final bus so amix overshoots can't clip.
+    assert "alimiter" in fc
+
+
+def test_build_clip_command_ost0_without_bgm_keeps_legacy_two_input_mix() -> None:
+    # Backwards-compat: omitting bgm_path keeps the original 2-input filtergraph
+    # (source + narration), no sidechain, no third input — so existing tasks
+    # render byte-identically to the pre-BGM behaviour.
+    spec = ClipSpec(index=0, item_id=1, ost=0, src_start=0.0, take_duration=2.0, av_duration=2.0)
+    cmd = build_clip_command(
+        ffmpeg="ffmpeg", spec=spec, source_path=Path("s.mp4"), narration_path=Path("n.wav"),
+        output_path=Path("c.mp4"), width=640, height=360, crf=20, preset="medium",
+        original_gain_db=-15.0,
+    )
+    assert cmd.count("-i") == 2
+    assert "-stream_loop" not in cmd
+    fc = cmd[cmd.index("-filter_complex") + 1]
+    assert "amix=inputs=2" in fc
+    assert "sidechaincompress" not in fc
 
 
 def test_build_clip_command_ost0_requires_narration() -> None:

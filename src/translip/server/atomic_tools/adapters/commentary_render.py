@@ -57,6 +57,17 @@ class CommentaryRenderAdapter(ToolAdapter):
             if params.get("reference_audio_file_id")
             else None
         )
+        # Resolve the BGM bed: uploaded file > built-in preset > none. ``None``
+        # signals "no BGM" and the renderer falls back to the legacy 2-input mix.
+        bgm_path = (
+            self.first_input(input_dir, "bgm_file")
+            if params.get("bgm_file_id")
+            else None
+        )
+        if bgm_path is None and params.get("bgm_preset"):
+            from translip.commentary.bgm import resolve_bgm_path
+
+            bgm_path = resolve_bgm_path(params.get("bgm_preset"))
         items, meta = _load_items(commentary_path)
 
         media = probe_media(video_path)
@@ -134,6 +145,9 @@ class CommentaryRenderAdapter(ToolAdapter):
                     crf=_CRF,
                     preset=_PRESET,
                     original_gain_db=float(params.get("original_gain_db", -15.0)),
+                    bgm_path=bgm_path,
+                    bgm_gain_db=float(params.get("bgm_gain_db", -15.0)),
+                    bgm_duck_db=float(params.get("bgm_duck_db", -9.0)),
                 )
                 self._run_ffmpeg(command, work / f"clip_{spec.index:04d}.log", should_cancel)
                 clip_paths.append(clip_path)

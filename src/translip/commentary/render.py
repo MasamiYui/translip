@@ -125,6 +125,9 @@ def build_clip_command(
     original_gain_db: float,
     fps: int = FPS,
     sample_rate: int = SAMPLE_RATE,
+    bgm_path: Path | None = None,
+    bgm_gain_db: float = -15.0,
+    bgm_duck_db: float = -9.0,
 ) -> list[str]:
     """ffmpeg argv producing one normalised clip for ``spec``.
 
@@ -133,6 +136,11 @@ def build_clip_command(
     the original audio through. Both scale-pad to ``width×height`` (letterbox,
     even dims), force ``fps`` / yuv420p / stereo ``sample_rate`` so all clips share
     one profile and the final concat can ``-c copy``.
+
+    When ``bgm_path`` is supplied and ``spec.ost == 0``, a third input (looped to
+    cover the clip duration) is mixed in at ``bgm_gain_db`` and **side-chain
+    compressed** by the narration: while the narrator speaks the BGM is pushed
+    down by an additional ``|bgm_duck_db|`` dB so the voice always sits on top.
     """
     w, h = _even(width), _even(height)
     scale_pad = (
@@ -149,6 +157,12 @@ def build_clip_command(
         if narration_path is None:
             raise ValueError(f"ost=0 clip {spec.item_id} requires a narration_path")
         cmd += ["-i", str(narration_path)]
+        # Loop the BGM with the demuxer-level ``-stream_loop -1`` flag so a short
+        # placeholder still covers the full clip. The amix ``duration=longest``
+        # below ensures we stop precisely when the longest of source/narration
+        # ends (then -t caps the output at av_duration).
+        if bgm_path is not None:
+            cmd += ["-stream_loop", "-1", "-i", str(bgm_path)]
         gain = db_to_linear(original_gain_db)
         video_chain = (
             f"[0:v]trim=duration={spec.take_duration:.3f},setpts=PTS-STARTPTS,{scale_pad}"
@@ -158,13 +172,34 @@ def build_clip_command(
             # fill the remainder so the clip's video lasts the full narration length.
             video_chain += f",tpad=stop_mode=clone:stop_duration={spec.pad_duration:.3f}"
         video_chain += "[v]"
-        audio_chain = (
-            f"[0:a]atrim=duration={spec.take_duration:.3f},asetpts=PTS-STARTPTS,"
-            f"volume={gain:.4f},aresample={sample_rate},apad[bg];"
-            f"[1:a]asetpts=PTS-STARTPTS,aresample={sample_rate},apad[narr];"
-            f"[bg][narr]amix=inputs=2:duration=longest:normalize=0,"
-            f"aformat=sample_fmts=fltp:channel_layouts=stereo[a]"
-        )
+        if bgm_path is not None:
+            bgm_base_lin = db_to_linear(bgm_gain_db)
+            # Side-chain compressor ratio chosen so the narration drives an extra
+            # ~|bgm_duck_db| dB of attenuation on top of the static bgm_gain_db.
+            # threshold=0.05 (~-26 dB) trips on normal speech; release=600 ms
+            # gives a natural duck-and-recover envelope (matches the dub-stage
+            # ``build_sidechain_preview_mix`` profile).
+            duck_ratio = max(2.0, min(20.0, abs(bgm_duck_db) / 1.5))
+            audio_chain = (
+                f"[0:a]atrim=duration={spec.take_duration:.3f},asetpts=PTS-STARTPTS,"
+                f"volume={gain:.4f},aresample={sample_rate},apad[src];"
+                f"[1:a]asetpts=PTS-STARTPTS,aresample={sample_rate},apad[narr];"
+                f"[2:a]volume={bgm_base_lin:.4f},aresample={sample_rate},"
+                f"aformat=sample_fmts=fltp:channel_layouts=stereo[bgm_raw];"
+                f"[bgm_raw][narr]sidechaincompress="
+                f"threshold=0.05:ratio={duck_ratio:.2f}:attack=150:release=600[bgm];"
+                f"[src][bgm][narr]amix=inputs=3:duration=longest:normalize=0,"
+                f"alimiter=limit=0.97,"
+                f"aformat=sample_fmts=fltp:channel_layouts=stereo[a]"
+            )
+        else:
+            audio_chain = (
+                f"[0:a]atrim=duration={spec.take_duration:.3f},asetpts=PTS-STARTPTS,"
+                f"volume={gain:.4f},aresample={sample_rate},apad[bg];"
+                f"[1:a]asetpts=PTS-STARTPTS,aresample={sample_rate},apad[narr];"
+                f"[bg][narr]amix=inputs=2:duration=longest:normalize=0,"
+                f"aformat=sample_fmts=fltp:channel_layouts=stereo[a]"
+            )
         out_duration = spec.av_duration
     else:
         video_chain = (
