@@ -30,7 +30,11 @@ PRESETS: dict[SubtitleErasePreset, PresetProfile] = {
     # balanced: STTN video inpainting — temporal coherence, best general default.
     "balanced": PresetProfile(backend="sttn", mask_dilate_x=12, mask_dilate_y=8, neighbor_stride=5, reference_length=10, max_load=50),
     # quality: big-LaMa single-frame — sharpest fills (animation/stills); heavier.
-    "quality": PresetProfile(backend="lama", mask_dilate_x=12, mask_dilate_y=8, neighbor_stride=5, reference_length=10, max_load=30),
+    # Higher dilation than balanced because LaMa has no temporal averaging to
+    # hide a leaking subtitle outline/shadow — the extra margin covers the
+    # original glyph's drop-shadow / outer-glow that otherwise survives as a
+    # dim grey haze along the caption row.
+    "quality": PresetProfile(backend="lama", mask_dilate_x=20, mask_dilate_y=14, neighbor_stride=5, reference_length=10, max_load=30),
 }
 
 

@@ -24,6 +24,13 @@ def create_mask(
     Each box is dilated outward by ``dilate_x``/``dilate_y`` pixels so the
     inpainter also covers anti-aliased glyph edges. Overlapping boxes merge
     naturally as filled pixels.
+
+    After painting, a morphological *close* (kernel scaled from the dilation
+    radii) fuses the per-character boxes of one subtitle line into a single
+    blob. Without it, the spaces between glyphs / between near-adjacent OCR
+    detections survive as "no-mask" islands and leak the original subtitle's
+    semi-transparent shadow into the output, which manifests as a dim grey
+    haze along the caption row.
     """
     height, width = size_hw
     mask = np.zeros((height, width), dtype=np.uint8)
@@ -33,6 +40,13 @@ def create_mask(
         x2 = min(width, xmax + dilate_x)
         y2 = min(height, ymax + dilate_y)
         cv2.rectangle(mask, (x1, y1), (x2, y2), 255, thickness=-1)
+    if boxes:
+        # Kernel ≈ half the dilation radii (forced odd) — large enough to bridge
+        # inter-character gaps without ballooning the mask vertically.
+        kx = max(3, (dilate_x // 2) * 2 + 1)
+        ky = max(3, (dilate_y // 2) * 2 + 1)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kx, ky))
+        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
     return mask
 
 

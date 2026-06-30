@@ -139,20 +139,31 @@ def _process_banded(
     split_h: int,
     fill_band,
 ) -> list[np.ndarray]:
-    """Crop the masked vertical band(s), inpaint, composite back inside the mask."""
+    """Crop the masked vertical band(s), inpaint, composite back inside the mask.
+
+    Compositing uses a feathered alpha derived from the mask (Gaussian-blurred,
+    normalized to ``[0, 1]``) instead of a hard ``mask > 127`` cutoff. The 1-2px
+    transition band kills the visible hairline that otherwise appears where the
+    inpainted region meets the untouched original — the most common source of
+    the residual "grey haze" along an erased subtitle row.
+    """
     height, width = mask.shape[:2]
     bands = get_inpaint_bands(width, height, max(1, split_h), mask)
     out = [frame.copy() for frame in frames]
     if not bands:
         return out
-    mask_bool = mask > 127
     for ymin, ymax in bands:
         crops = [frame[ymin:ymax, :, :] for frame in frames]
-        filled = fill_band(crops, mask[ymin:ymax, :])
-        region_mask = mask_bool[ymin:ymax, :, np.newaxis]
+        mask_band = mask[ymin:ymax, :]
+        filled = fill_band(crops, mask_band)
+        # Feather the mask edge: blur radius ≈ 1.5px (≈ 5px kernel) keeps the
+        # interior fully opaque while smoothing the last 1-2px to the original.
+        alpha_band = cv2.GaussianBlur(mask_band, (0, 0), sigmaX=1.5, sigmaY=1.5)
+        alpha = (alpha_band.astype(np.float32) / 255.0)[:, :, np.newaxis]
         for frame_out, band_img in zip(out, filled):
-            region = frame_out[ymin:ymax, :, :]
-            frame_out[ymin:ymax, :, :] = np.where(region_mask, band_img, region)
+            region = frame_out[ymin:ymax, :, :].astype(np.float32)
+            blended = band_img.astype(np.float32) * alpha + region * (1.0 - alpha)
+            frame_out[ymin:ymax, :, :] = np.clip(blended, 0, 255).astype(np.uint8)
     return out
 
 
