@@ -102,6 +102,7 @@ export interface NavConfig {
   }
   worksLibrary: NavSimpleItem
   characterLibrary: NavSimpleItem
+  commentaryLibrary: NavSimpleItem
   evaluation: NavSimpleItem
   userGuide: NavSimpleItem
   blog: NavSimpleItem
@@ -232,6 +233,13 @@ export function useNavConfig(): NavConfig {
         label: t.nav.characterLibrary,
         icon: BookUser,
         isActive: currentPath === '/character-library',
+      },
+      commentaryLibrary: {
+        key: 'commentary-library',
+        to: '/commentary-library',
+        label: t.nav.commentaryLibrary,
+        icon: AudioLines,
+        isActive: currentPath === '/commentary-library',
       },
       evaluation: {
         key: 'evaluation',

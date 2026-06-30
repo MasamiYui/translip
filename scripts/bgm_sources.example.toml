@@ -1,0 +1,37 @@
+# scripts/bgm_sources.example.toml
+#
+# Template for the licensed-source catalog used by
+# `python scripts/fetch_bgm_assets.py`.
+#
+# Workflow:
+#   1. cp scripts/bgm_sources.example.toml scripts/bgm_sources.toml
+#   2. Replace every `url` with a track you personally hold rights to use
+#      (CC0 / CC-BY / YouTube Audio Library / Pixabay Music / Uppbeat /
+#       FreeMusicArchive / a stock-music licence you've purchased / a
+#       composition you commissioned, etc.).
+#   3. (Optional but recommended) compute the sha256 of the downloaded file
+#      and put it under `sha256` — the fetch script refuses to install if it
+#      doesn't match what came over the wire.
+#   4. Fill in `attribution` with the human-readable credit line — it ends
+#      up in assets/bgm/ATTRIBUTIONS.md after each fetch.
+#
+# IMPORTANT: scripts/bgm_sources.toml is gitignored. translip itself does
+# not bundle anyone else's music — only the algorithmic CC0 placeholders.
+
+# Example entry (uncomment + fill in to fetch this preset):
+#
+# [sources.bgm-epic-trailer]
+# url = "https://cdn.example.com/your-licensed-trailer-bed.mp3"
+# sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+# license = "CC-BY-4.0"
+# attribution = "Music by Example Artist — licensed under CC-BY 4.0"
+
+# [sources.bgm-crime-investigation]
+# url = "https://cdn.example.com/cold-investigation-bed.wav"
+# license = "Pixabay"
+# attribution = "Sourced from Pixabay Music (Pixabay Content License)"
+
+# [sources.bgm-gufeng-mystery]
+# url = "https://cdn.example.com/gufeng-pluck-bed.ogg"
+# license = "CC-BY-4.0"
+# attribution = "Music by Example Composer — CC-BY 4.0"

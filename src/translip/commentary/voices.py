@@ -246,6 +246,51 @@ BUILTIN_NARRATOR_VOICES: tuple[NarratorVoice, ...] = (
         description_zh="四川话搞笑解说腔，自带烟火气，适合喜剧片、综艺、地方风味盘点。",
         description_en="Sichuanese-flavoured comedic recap — playful, casual, great for comedy reels.",
     ),
+    NarratorVoice(
+        id="narrator-recap-jianghu",
+        name_zh="港台江湖男声",
+        name_en="Jianghu Hongkong Male",
+        gender="male",
+        speaker="Uncle_Fu",
+        instruct=(
+            "港台江湖片旁白腔：低音浑厚、略带沙哑，节奏拖沓而有分量；"
+            "重要词前刻意停顿、句末略下沉，像古惑仔/无间道式的宿命旁白；"
+            "句子之间留出留白，营造江湖恩怨与宿命感。"
+        ),
+        native_language="zh",
+        description_zh="港式江湖片旁白腔，沙哑低沉、宿命感强，适合黑帮、犯罪、情义题材解说。",
+        description_en="Hong Kong jianghu-style narration — gravelly, fatalistic, fits gangster / noir recaps.",
+    ),
+    NarratorVoice(
+        id="narrator-recap-whisper-female",
+        name_zh="悬疑低语女声",
+        name_en="Mystery Whisper Female",
+        gender="female",
+        speaker="Serena",
+        instruct=(
+            "悬疑短视频低语女声：声音压低、气声明显、几近耳语；"
+            "节奏放慢，关键词前留 1-2 拍停顿，句末轻轻收住；"
+            "像在你耳边低语「真相只有一个」式的揭秘语气，带轻微的不安感。"
+        ),
+        native_language="zh",
+        description_zh="低语气声 + 慢节奏揭秘腔的女声版，适合悬疑、灵异、未解之谜题材解说。",
+        description_en="Breathy near-whisper female narration — fits mystery, paranormal, and case-file recaps.",
+    ),
+    NarratorVoice(
+        id="narrator-recap-dongbei-roast",
+        name_zh="东北沙雕大哥",
+        name_en="Dongbei Roast Bro",
+        gender="male",
+        speaker="Dylan",
+        instruct=(
+            "东北话沙雕短视频解说腔：语气热络、自带喜感，节奏明快；"
+            "句尾爱拖儿化音、夸张强调形容词（「贼离谱」「老尴尬了」「整挺好」）；"
+            "像唠嗑式吐槽，像和兄弟在烧烤摊上复述刚看完的剧情。"
+        ),
+        native_language="zh",
+        description_zh="东北话沙雕吐槽男声，节奏热络自带喜感，适合喜剧、吐槽、综艺类解说。",
+        description_en="Northeastern-Chinese roast delivery — hearty, comedic, perfect for variety / roast recaps.",
+    ),
 )
 
 DEFAULT_NARRATOR_VOICE = "narrator-male-calm"

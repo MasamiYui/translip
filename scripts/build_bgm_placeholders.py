@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the 6 bundled commentary BGM placeholder WAVs.
+"""Generate the 9 bundled commentary BGM placeholder WAVs.
 
 These placeholders are short, simple, **algorithmically synthesised** loops
 (layered sine waves + amplitude envelopes) — they have **no third-party
@@ -125,6 +125,44 @@ def _sample_action(t: float) -> float:
     return (pulse + snare * 0.4 + drone) * 0.55
 
 
+def _sample_crime_investigation(t: float) -> float:
+    # Cold investigation bed: sub drone (A1 + minor third) + sparse clock ticks
+    # every half second + slow LFO sweep on a high partial for tension.
+    drone = 0.55 * _sin(t, 55.0) + 0.25 * _sin(t, 65.4)  # A1 + C2 (minor 3rd)
+    tick_phase = (t % 0.5) / 0.5
+    tick = 0.35 * math.exp(-tick_phase * 40.0) * _sin(t, 1800.0) if tick_phase < 0.08 else 0.0
+    sweep = 0.12 * _sin(t, 440.0) * _tremolo(t, 0.08, 0.7)
+    return (drone + tick + sweep) * 0.5
+
+
+def _sample_gufeng_mystery(t: float) -> float:
+    # Pentatonic dark pad with a sparse plucked-koto / xiao texture.
+    # Use D minor pentatonic: D / F / G / A / C — pluck through it at 2 notes/sec.
+    intervals = [0.0, 3.0, 5.0, 7.0, 10.0]  # semitones from D3 (146.83 Hz)
+    pluck = _arpeggio(t, 146.83, intervals, 2.0)
+    pad = 0.25 * _sin(t, 73.4) + 0.18 * _sin(t, 110.0)  # D2 + A2 drone
+    flute_phase = (t % 4.0) / 4.0
+    flute = 0.15 * _sin(t, 587.3) * math.exp(-flute_phase * 1.5) if flute_phase < 0.5 else 0.0
+    return (pluck * 0.45 + pad + flute) * _tremolo(t, 0.12, 0.3) * 0.55
+
+
+def _sample_epic_trailer(t: float) -> float:
+    # Trailer-style: slow build with rising chord, a riser sweep, and big
+    # downbeat kicks every 2 seconds — purpose-built for hype reels.
+    build = min(1.0, t / 15.0)
+    chord = (
+        0.35 * _sin(t, 82.4)   # E2
+        + 0.28 * _sin(t, 123.5)  # B2
+        + 0.22 * _sin(t, 164.8)  # E3
+        + 0.16 * _sin(t, 247.0)  # B3
+    )
+    riser_freq = 200.0 + 300.0 * ((t % 4.0) / 4.0)
+    riser = 0.12 * _sin(t, riser_freq) * ((t % 4.0) / 4.0)
+    kick_phase = (t % 2.0) / 2.0
+    kick = 0.55 * math.exp(-kick_phase * 6.0) * _sin(t, 55.0) if kick_phase < 0.25 else 0.0
+    return (chord * build + riser + kick) * 0.55
+
+
 SAMPLERS = {
     "bgm-suspense-dark.wav": _sample_suspense,
     "bgm-epic-hype.wav": _sample_hype,
@@ -132,6 +170,9 @@ SAMPLERS = {
     "bgm-documentary-neutral.wav": _sample_documentary,
     "bgm-comedy-quirky.wav": _sample_comedy,
     "bgm-action-chase.wav": _sample_action,
+    "bgm-crime-investigation.wav": _sample_crime_investigation,
+    "bgm-gufeng-mystery.wav": _sample_gufeng_mystery,
+    "bgm-epic-trailer.wav": _sample_epic_trailer,
 }
 
 

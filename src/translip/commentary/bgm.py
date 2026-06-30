@@ -43,7 +43,7 @@ class BgmPreset:
     id: str
     name_zh: str
     name_en: str
-    mood: str  # one of: suspense / hype / warm / documentary / comedy / action
+    mood: str  # one of: suspense / hype / warm / documentary / comedy / action / crime-investigation / gufeng-mystery / epic-trailer
     asset_filename: str
     gain_db: float = -15.0
     duck_db: float = -9.0
@@ -54,6 +54,13 @@ class BgmPreset:
         "Algorithmically synthesised placeholder (sine + envelope). Replace "
         "the WAV at the same path with a licensed track for production use."
     )
+    # Optional A1 fetch metadata — populated when a preset has been mapped to a
+    # licensed remote track that ``scripts/fetch_bgm_assets.py`` can pull down.
+    # Defaulting to ``None`` keeps every existing preset / test fully untouched.
+    source_url: str | None = None
+    source_format: str | None = None  # original container hint (e.g. "mp3", "ogg", "wav")
+    source_sha256: str | None = None  # expected sha256 of the fetched bytes (verifies what we pulled)
+    attribution: str | None = None  # short human-readable credit line, e.g. "Music by XYZ — CC-BY 4.0"
 
 
 BUILTIN_BGM_PRESETS: tuple[BgmPreset, ...] = (
@@ -122,6 +129,39 @@ BUILTIN_BGM_PRESETS: tuple[BgmPreset, ...] = (
         duck_db=-10.0,
         description_zh="紧张推进的节奏脉冲，适合动作、追车、犯罪题材解说。",
         description_en="Driving pulse rhythm — fits action, chase, and crime-thriller recaps.",
+    ),
+    BgmPreset(
+        id="bgm-crime-investigation",
+        name_zh="犯罪调查",
+        name_en="Crime Investigation",
+        mood="crime-investigation",
+        asset_filename="bgm-crime-investigation.wav",
+        gain_db=-17.0,
+        duck_db=-10.0,
+        description_zh="冷峻克制的调查铺底，低频持续 + 偶发滴答音，适合刑侦、悬案、社会案件解说。",
+        description_en="Cold, restrained investigation bed — sub drone with sparse ticks; fits true-crime / case-file recaps.",
+    ),
+    BgmPreset(
+        id="bgm-gufeng-mystery",
+        name_zh="古风探案",
+        name_en="Gufeng Mystery",
+        mood="gufeng-mystery",
+        asset_filename="bgm-gufeng-mystery.wav",
+        gain_db=-16.0,
+        duck_db=-9.0,
+        description_zh="五声音阶 + 古筝/箫拨弦质感的暗色铺底，适合古装探案、武侠悬疑、宫斗解说。",
+        description_en="Pentatonic dark pad with plucked-string texture — fits ancient-China mystery, wuxia, and palace-intrigue recaps.",
+    ),
+    BgmPreset(
+        id="bgm-epic-trailer",
+        name_zh="短视频燃剪预告",
+        name_en="Epic Trailer",
+        mood="epic-trailer",
+        asset_filename="bgm-epic-trailer.wav",
+        gain_db=-14.0,
+        duck_db=-10.0,
+        description_zh="预告片级递进鼓点 + 上行和声，专为短视频燃剪 / 高能解说设计的爆款铺底。",
+        description_en="Trailer-grade riser with build-up drums — purpose-built bed for viral hype reels and high-energy recaps.",
     ),
 )
 

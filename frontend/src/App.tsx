@@ -46,6 +46,11 @@ const SpeakerReviewHarnessPage = lazy(() =>
 const CharacterLibraryPage = lazy(() =>
   import('./pages/CharacterLibraryPage').then(module => ({ default: module.CharacterLibraryPage })),
 )
+const CommentaryLibraryPage = lazy(() =>
+  import('./pages/CommentaryLibraryPage').then(module => ({
+    default: module.CommentaryLibraryPage,
+  })),
+)
 const WorksPage = lazy(() =>
   import('./pages/WorksPage').then(module => ({ default: module.WorksPage })),
 )
@@ -114,6 +119,7 @@ export default function App() {
                 <Route path="assistant/tasks/:runId" element={<AssistantRunDetailPage />} />
                 <Route path="tools/:toolId" element={<ToolPage />} />
                 <Route path="character-library" element={<CharacterLibraryPage />} />
+                <Route path="commentary-library" element={<CommentaryLibraryPage />} />
                 <Route path="works" element={<WorksPage />} />
                 <Route path="evaluation" element={<EvaluationPage />} />
                 <Route path="evaluation/:taskId" element={<EvaluationDetailPage />} />

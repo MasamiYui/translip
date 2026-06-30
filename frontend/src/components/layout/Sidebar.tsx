@@ -83,6 +83,7 @@ export function Sidebar({
   const SIDEBAR_TEST_ID_KEYS = new Set([
     'works-library',
     'character-library',
+    'commentary-library',
     'evaluation',
     'user-guide',
     'blog',
@@ -310,6 +311,7 @@ export function Sidebar({
 
         {renderSimpleItem(nav.worksLibrary)}
         {renderSimpleItem(nav.characterLibrary)}
+        {renderSimpleItem(nav.commentaryLibrary)}
         {renderSimpleItem(nav.evaluation)}
         {renderSimpleItem(nav.userGuide)}
         {renderSimpleItem(nav.blog)}

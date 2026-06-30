@@ -18,11 +18,21 @@ from translip.commentary.bgm import (
 
 # --- registry shape ----------------------------------------------------------
 
-def test_six_built_in_moods_registered() -> None:
+def test_built_in_moods_registered() -> None:
     presets = list_bgm_presets()
-    assert len(presets) == 6
+    assert len(presets) == 9
     moods = {p.mood for p in presets}
-    assert moods == {"suspense", "hype", "warm", "documentary", "comedy", "action"}
+    assert moods == {
+        "suspense",
+        "hype",
+        "warm",
+        "documentary",
+        "comedy",
+        "action",
+        "crime-investigation",
+        "gufeng-mystery",
+        "epic-trailer",
+    }
 
 
 def test_every_preset_has_unique_id_and_filename() -> None:

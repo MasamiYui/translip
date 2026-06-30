@@ -37,6 +37,8 @@ export interface BgmPresetInfo {
   description_en?: string
   license?: string
   license_note?: string
+  source_url?: string | null
+  attribution?: string | null
   preview_url?: string
 }
 

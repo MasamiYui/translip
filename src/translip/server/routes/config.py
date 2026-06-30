@@ -256,6 +256,8 @@ def list_bgm_presets_endpoint() -> list[dict[str, Any]]:
             "description_en": p.description_en,
             "license": p.license,
             "license_note": p.license_note,
+            "source_url": p.source_url,
+            "attribution": p.attribution,
             "preview_url": f"/api/config/bgm-presets/{p.id}/preview",
         }
         for p in list_bgm_presets()
