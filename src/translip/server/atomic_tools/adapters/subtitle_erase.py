@@ -180,6 +180,12 @@ class SubtitleEraseAdapter(ToolAdapter):
             "backend": resolved["backend"],
             "metrics": metrics,
             "detection_source": detection_source,
+            # Surface the original uploaded video so the "擦除前后对比" panel can
+            # restore the left-hand <video> when the page is reopened from the
+            # history list (where the in-memory blob URL is gone). Mirrors the
+            # subtitle-detect adapter's source_file_id contract.
+            "source_filename": input_file.name,
+            "source_file_id": str(params.get("file_id") or ""),
         }
 
     def _resolve_detection(

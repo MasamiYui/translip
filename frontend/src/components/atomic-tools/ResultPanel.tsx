@@ -371,7 +371,17 @@ function buildSubtitleEraseCompare(
 
   const result = job.result ?? {}
   const sourceUrlFromResult = typeof result.source_url === 'string' ? result.source_url : null
-  const sourceUrl = sourceUrlFromResult ?? originalVideoUrl
+  // When the user lands on a historical erase job from the atomic tasks list,
+  // the in-memory blob URL produced at upload time is long gone. Fall back to
+  // the dedicated backend route that streams the originally uploaded file by
+  // id — same contract as buildSubtitleDetectPreview.
+  const sourceFileId =
+    typeof (result as Record<string, unknown>).source_file_id === 'string' &&
+    (result as Record<string, unknown>).source_file_id !== ''
+      ? ((result as Record<string, unknown>).source_file_id as string)
+      : null
+  const remoteFallback = sourceFileId ? `/api/atomic-tools/files/${sourceFileId}` : null
+  const sourceUrl = sourceUrlFromResult ?? originalVideoUrl ?? remoteFallback
   const metricsRaw = (result.quick_metrics ?? result.metrics) as Record<string, unknown> | null | undefined
   const metrics = metricsRaw && typeof metricsRaw === 'object' ? metricsRaw : null
 
